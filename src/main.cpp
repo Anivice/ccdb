@@ -156,7 +156,7 @@ public:
 
 int main()
 {
-    mihomo sample;
+    mihomo sample("127.0.0.1", 9090, "");
     general_info_pulling d;
     std::atomic_bool running = true;
     auto run = [&]()->void
@@ -169,9 +169,19 @@ int main()
         sample.get_info("connections", &d, &general_info_pulling::update_from_connections);
     };
     std::thread T(run);
-    run2();
+    std::thread T2(run2);
     std::this_thread::sleep_for(std::chrono::seconds(3l));
     running = false;
+
+    if (T.joinable())
+    {
+        T.join();
+    }
+
+    if (T2.joinable())
+    {
+        T2.join();
+    }
 
     for (const auto & conn : d.get_active_connections())
     {
@@ -188,11 +198,6 @@ int main()
         logger.ilog("networkType: ", conn.networkType, "\n");
         logger.ilog("timeElapsedSinceConnectionEstablished: ", conn.timeElapsedSinceConnectionEstablished, "\n");
         logger.ilog("\n");
-    }
-
-    if (T.joinable())
-    {
-        T.join();
     }
 
     // initscr();            // Start curses mode

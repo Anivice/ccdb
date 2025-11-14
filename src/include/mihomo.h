@@ -47,10 +47,16 @@ private:
     }
 
     std::string token;
+    httplib::Client http_cli;
+    std::mutex http_cli_mutex;
 
 public:
-    explicit mihomo(std::string token_) : token(std::move(token_)) { }
-    mihomo() = default;
+    explicit mihomo(const std::string& backend, int port, std::string token_) : token(std::move(token_)), http_cli(backend, port)
+    {
+        std::lock_guard lock(http_cli_mutex);
+        http_cli.set_decompress(false);
+    }
+
     ~mihomo() = default;
 
     template <typename InstanceType, typename... Args>
@@ -58,10 +64,8 @@ public:
         void (InstanceType::*method)(std::pair < std::mutex, std::string > &, Args...),
         Args&... args)
     {
-        // try
-        // {
-            httplib::Client http_cli("127.0.0.1", 9090);
-            http_cli.set_decompress(false);
+        try
+        {
             httplib::Headers headers = {
                 {"Authorization", "Bearer " + token},
             };
@@ -85,19 +89,21 @@ public:
             };
 
             std::string buffer;
-            auto res = http_cli.Get("/" + endpoint_name, headers,
-                [&](const char *data, const size_t len)
-                {
-                    buffer.append(data, len);
-                    return true;
-                }
-            );
+            decltype(http_cli.Get("/")) res;
+            {
+                std::lock_guard lock(http_cli_mutex);
+                res = http_cli.Get("/" + endpoint_name, headers,
+                    [&](const char *data, const size_t len)
+                    {
+                        buffer.append(data, len);
+                        return true;
+                    }
+                );
+            }
 
             if (!res) {
                 std::cerr << "Request failed: " << httplib::to_string(res.error()) << "\n";
                 throw std::runtime_error(httplib::to_string(res.error()));
-            } else {
-                std::cout << "HTTP status: " << res->status << "\n";
             }
 
             {
@@ -105,11 +111,11 @@ public:
                 val->second = buffer;
             }
             method_(std::ref(*val), any_args);
-        // }
-        // catch (const std::exception& e)
-        // {
-        //     throw std::logic_error(e.what());
-        // }
+        }
+        catch (const std::exception& e)
+        {
+            throw std::runtime_error(e.what());
+        }
     }
 
     template <typename InstanceType, typename... Args>
@@ -121,71 +127,80 @@ public:
         Args&... args
     )
     {
-        std::vector<std::pair<std::thread, std::unique_ptr<std::pair < std::mutex, std::string >>>> thread_pool;
-        httplib::Client http_cli("127.0.0.1", 9090);
-        http_cli.set_decompress(false);
-        httplib::Headers headers = {
-            {"Authorization", "Bearer " + token},
-        };
+        try
+        {
+            std::vector<std::pair<std::thread, std::unique_ptr<std::pair < std::mutex, std::string >>>> thread_pool;
+            httplib::Headers headers = {
+                {"Authorization", "Bearer " + token},
+            };
 
-        std::string buffer;
-        auto res = http_cli.Get("/" + endpoint_name, headers,
-            [&](const char *data, const size_t len)
+            std::string buffer;
+            decltype(http_cli.Get("/")) res;
             {
-                buffer.append(data, len);
-                if (const auto pos = buffer.find('\n'); pos != std::string::npos)
+                std::lock_guard lock(http_cli_mutex);
+                res = http_cli.Get("/" + endpoint_name, headers,
+                [&](const char *data, const size_t len)
                 {
-                    const std::string first_line = buffer.substr(0, pos);
-                    buffer = buffer.substr(pos + 1);
-                    std::vector<std::any> any_args = { args... };
-                    std::function<void(std::pair < std::mutex, std::string > &, const std::vector<std::any>&)> method_;
-                    thread_pool.emplace_back(std::thread(), std::make_unique < std::pair < std::mutex, std::string > >());
-                    auto & val = *thread_pool.back().second;
-                    // Bind the method to the instance
-                    auto bound_function = [instance, method, this, &val](Args&... _args) -> void {
-                        (instance->*method)(val, _args...);
-                    };
-
-                    // Store a lambda that matches the signature of method_
-                    method_ = [bound_function, this](
-                        std::pair < std::mutex, std::string > &,
-                        const std::vector<std::any>& _args) -> void
+                    buffer.append(data, len);
+                    if (const auto pos = buffer.find('\n'); pos != std::string::npos)
                     {
-                        // Invoke the bound function with the provided arguments
-                        // The return value (std::any) is ignored since method_ expects void
-                        invoke_with_any<decltype(bound_function), Args...>(bound_function, _args);
-                    };
+                        const std::string first_line = buffer.substr(0, pos);
+                        buffer = buffer.substr(pos + 1);
+                        std::vector<std::any> any_args = { args... };
+                        std::function<void(std::pair < std::mutex, std::string > &, const std::vector<std::any>&)> method_;
+                        thread_pool.emplace_back(std::thread(), std::make_unique < std::pair < std::mutex, std::string > >());
+                        auto & val = *thread_pool.back().second;
+                        // Bind the method to the instance
+                        auto bound_function = [instance, method, this, &val](Args&... _args) -> void {
+                            (instance->*method)(val, _args...);
+                        };
 
-                    {
-                        std::lock_guard lock(val.first);
-                        val.second = first_line;
-                    }
-                    std::thread T(method_, std::ref(val), any_args);
-                    thread_pool.back().first = std::move(T);
-
-                    if (thread_pool.size() > 32) // oversized pool cleanup
-                    {
-                        for (auto & thread : thread_pool | std::views::keys)
+                        // Store a lambda that matches the signature of method_
+                        method_ = [bound_function, this](
+                            std::pair < std::mutex, std::string > &,
+                            const std::vector<std::any>& _args) -> void
                         {
-                            if (thread.joinable()) {
-                                thread.join();
+                            // Invoke the bound function with the provided arguments
+                            // The return value (std::any) is ignored since method_ expects void
+                            invoke_with_any<decltype(bound_function), Args...>(bound_function, _args);
+                        };
+
+                        {
+                            std::lock_guard lock(val.first);
+                            val.second = first_line;
+                        }
+                        std::thread T(method_, std::ref(val), any_args);
+                        thread_pool.back().first = std::move(T);
+
+                        if (thread_pool.size() > 32) // oversized pool cleanup
+                        {
+                            for (auto & thread : thread_pool | std::views::keys)
+                            {
+                                if (thread.joinable()) {
+                                    thread.join();
+                                }
                             }
+
+                            thread_pool.clear();
                         }
 
-                        thread_pool.clear();
+                        return keep_running->load();
                     }
 
                     return keep_running->load();
-                }
-
-                return keep_running->load();
-            });
-
-        for (auto & thread : thread_pool | std::views::keys)
-        {
-            if (thread.joinable()) {
-                thread.join();
+                });
             }
+
+            for (auto & thread : thread_pool | std::views::keys)
+            {
+                if (thread.joinable()) {
+                    thread.join();
+                }
+            }
+        } catch (std::exception & e) {
+            throw std::runtime_error(e.what());
+        } catch (...) {
+            throw std::runtime_error("Unknown error");
         }
     }
 };
