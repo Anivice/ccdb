@@ -7,12 +7,17 @@
 #include <any>
 #include <stdexcept>
 #include <thread>
+#include <utility>
 #include <vector>
 #include <ranges>
+#include "httplib.h"
+#include "json.hpp"
 
 class mihomo
 {
 private:
+    using json = nlohmann::json;
+
     // Forward declaration of the helper
     template <typename... Args, std::size_t... I>
     std::tuple<Args...> any_cast_tuple_impl(const std::vector<std::any>& args, std::index_sequence<I...>)
@@ -43,53 +48,83 @@ private:
         }
     }
 
+    std::string token;
+
 public:
-    struct basic_info_overview_t
-    {
-        uint64_t download_speed;
-        uint64_t upload_speed;
-        uint64_t download_bytes;
-        uint64_t upload_bytes;
-    };
+    explicit mihomo(std::string token_) : token(std::move(token_)) { }
+    mihomo() = default;
+    ~mihomo() = default;
 
     template <typename InstanceType, typename... Args>
     void get_stream_info(
+        const std::string & endpoint_name,
+        const std::atomic_bool * keep_running,
         InstanceType* instance,
-        void (InstanceType::*method)(const std::atomic < basic_info_overview_t > &, Args...),
+        void (InstanceType::*method)(std::pair < std::mutex, std::string > &, Args...),
         Args&... args
     )
     {
-        std::vector<std::pair<std::thread, std::unique_ptr<std::atomic < basic_info_overview_t >>>> pool;
-        for (int i = 0; i < 32; i++)
-        {
-            std::vector<std::any> any_args = { args... };
-            std::function<void(const std::atomic < basic_info_overview_t > &, const std::vector<std::any>&)> method_;
-            pool.emplace_back(std::thread(), std::make_unique<std::atomic < basic_info_overview_t >>());
-            auto & val = *pool.back().second;
-            // Bind the method to the instance
-            auto bound_function = [instance, method, this, &val](Args&... _args) -> void {
-                (instance->*method)(val, _args...);
-            };
+        std::vector<std::pair<std::thread, std::unique_ptr<std::pair < std::mutex, std::string >>>> thread_pool;
+        httplib::Client http_cli("127.0.0.1", 9090);
+        http_cli.set_decompress(false);
+        httplib::Headers headers = {
+            {"Authorization", "Bearer " + token},
+        };
 
-            // Store a lambda that matches the signature of method_
-            method_ = [bound_function, this](
-                basic_info_overview_t,
-                const std::vector<std::any>& _args) -> void
+        std::string buffer;
+        auto res = http_cli.Get("/" + endpoint_name, headers,
+            [&](const char *data, const size_t len)
             {
-                // Invoke the bound function with the provided arguments
-                // The return value (std::any) is ignored since method_ expects void
-                invoke_with_any<decltype(bound_function), Args...>(bound_function, _args);
-            };
+                buffer.append(data, len);
+                if (const auto pos = buffer.find('\n'); pos != std::string::npos)
+                {
+                    const std::string first_line = buffer.substr(0, pos);
+                    buffer = buffer.substr(pos + 1);
+                    std::vector<std::any> any_args = { args... };
+                    std::function<void(std::pair < std::mutex, std::string > &, const std::vector<std::any>&)> method_;
+                    thread_pool.emplace_back(std::thread(), std::make_unique < std::pair < std::mutex, std::string > >());
+                    auto & val = *thread_pool.back().second;
+                    // Bind the method to the instance
+                    auto bound_function = [instance, method, this, &val](Args&... _args) -> void {
+                        (instance->*method)(val, _args...);
+                    };
 
-            basic_info_overview_t overview = {};
-            overview.download_bytes = i;
-            val.store(overview);
-            // method_(shared_basic_info_overview_, any_args);
-            std::thread T(method_, std::ref(val), any_args);
-            pool.back().first = std::move(T);
-        }
+                    // Store a lambda that matches the signature of method_
+                    method_ = [bound_function, this](
+                        std::pair < std::mutex, std::string > &,
+                        const std::vector<std::any>& _args) -> void
+                    {
+                        // Invoke the bound function with the provided arguments
+                        // The return value (std::any) is ignored since method_ expects void
+                        invoke_with_any<decltype(bound_function), Args...>(bound_function, _args);
+                    };
 
-        for (auto & thread : pool | std::views::keys)
+                    {
+                        std::lock_guard lock(val.first);
+                        val.second = first_line;
+                    }
+                    std::thread T(method_, std::ref(val), any_args);
+                    thread_pool.back().first = std::move(T);
+
+                    if (thread_pool.size() > 32) // oversized pool cleanup
+                    {
+                        for (auto & thread : thread_pool | std::views::keys)
+                        {
+                            if (thread.joinable()) {
+                                thread.join();
+                            }
+                        }
+
+                        thread_pool.clear();
+                    }
+
+                    return keep_running->load();
+                }
+
+                return keep_running->load();
+            });
+
+        for (auto & thread : thread_pool | std::views::keys)
         {
             if (thread.joinable()) {
                 thread.join();
