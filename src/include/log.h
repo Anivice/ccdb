@@ -1,4 +1,4 @@
-/* log.hpp
+/* log.h
  *
  * Copyright 2025 Anivice Ives
  *
@@ -571,7 +571,14 @@ namespace Logger {
                     return;
                 }
 
-                _log(color::color(0, 2, 2), std::format("{:%d-%m-%Y %H:%M:%S}", now), " ",
+
+                _log(color::color(0, 2, 2), std::format(
+#ifdef _EU_STYLE_DAY_MONTH_YEAR_
+                        "{:%d-%m-%Y %H:%M:%S}",
+#else
+                        "{:%Y-%m-%d %H:%M:%S}",
+#endif //_EU_STYLE_DAY_MONTH_YEAR_
+                    now), " ",
                     user_prefix_addon,
                     prefix, ": ", color::no_color());
             }
