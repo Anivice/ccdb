@@ -36,7 +36,9 @@ add_dependencies(ncurses::ncurses NCURSES)
 add_executable(ccdb
         main.cpp
         include/log.h include/httplib.h
-        include/mihomo.h)
+        include/mihomo.h
+        general_info_pulling.cpp include/general_info_pulling.h
+        include/glogger.h)
 target_include_directories(ccdb PRIVATE ./include ${NCURSES_INCLUDE_DIR})
 target_compile_definitions(ccdb PUBLIC VERSION="0.0.1")
 #target_compile_options(ccdb PUBLIC -fsanitize=address -fsanitize=undefined)
