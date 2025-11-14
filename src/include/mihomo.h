@@ -129,17 +129,18 @@ public:
     {
         try
         {
-            std::vector<std::pair<std::thread, std::unique_ptr<std::pair < std::mutex, std::string >>>> thread_pool;
-            httplib::Headers headers = {
-                {"Authorization", "Bearer " + token},
-            };
-
-            std::string buffer;
-            decltype(http_cli.Get("/")) res;
+            std::atomic_bool stance(true);
+            auto worker = [&]()->void
             {
+                std::string buffer;
+                std::vector<std::pair<std::thread, std::unique_ptr<std::pair < std::mutex, std::string >>>> thread_pool;
+                httplib::Headers headers = {
+                    {"Authorization", "Bearer " + token},
+                };
+
                 std::lock_guard lock(http_cli_mutex);
-                res = http_cli.Get("/" + endpoint_name, headers,
-                [&](const char *data, const size_t len)
+                http_cli.Get("/" + endpoint_name, headers,
+                    [&](const char *data, const size_t len)
                 {
                     buffer.append(data, len);
                     if (const auto pos = buffer.find('\n'); pos != std::string::npos)
@@ -166,7 +167,7 @@ public:
                         };
 
                         {
-                            std::lock_guard lock(val.first);
+                            std::lock_guard lock_val(val.first);
                             val.second = first_line;
                         }
                         std::thread T(method_, std::ref(val), any_args);
@@ -184,17 +185,28 @@ public:
                             thread_pool.clear();
                         }
 
-                        return keep_running->load();
+                        return stance.load(); // keep_running->load();
                     }
 
-                    return keep_running->load();
+                    return true;
                 });
-            }
 
-            for (auto & thread : thread_pool | std::views::keys)
+                for (auto & thread : thread_pool | std::views::keys)
+                {
+                    if (thread.joinable()) {
+                        thread.join();
+                    }
+                }
+            };
+
+            while (*keep_running)
             {
-                if (thread.joinable()) {
-                    thread.join();
+                stance = true;
+                std::thread T(worker);
+                std::this_thread::sleep_for(std::chrono::seconds(1l));
+                stance = false;
+                if (T.joinable()) {
+                    T.join();
                 }
             }
         } catch (std::exception & e) {

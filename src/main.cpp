@@ -23,6 +23,7 @@ public:
             json data = json::parse(info.second);
             current_upload_speed = static_cast<uint64_t>(data["up"]);
             current_download_speed = static_cast<uint64_t>(data["down"]);
+            logger.dlog("Upload: ", current_upload_speed, " Download: ", current_download_speed, "\n");
         } catch (std::exception& e) {
             logger.elog("Error when pulling traffic data: ", e.what(), "\n");
         }
@@ -139,6 +140,8 @@ public:
 
                 connection_map.push_back(conn);
             }
+
+            logger.dlog("Active connections: ", connection_map.size(), "\n");
         } catch (std::exception& e) {
             logger.elog("Error when pulling traffic data: ", e.what(), "\n");
         } catch (...) {
@@ -153,7 +156,6 @@ public:
     [[nodiscard]] std::vector < connection_t > get_active_connections() { std::lock_guard lock(connection_map_mutex); return connection_map; }
 };
 
-
 int main()
 {
     mihomo sample("127.0.0.1", 9090, "");
@@ -166,7 +168,11 @@ int main()
 
     auto run2 = [&]()->void
     {
-        sample.get_info("connections", &d, &general_info_pulling::update_from_connections);
+        while (running)
+        {
+           sample.get_info("connections", &d, &general_info_pulling::update_from_connections);
+            std::this_thread::sleep_for(std::chrono::seconds(1l));
+        }
     };
     std::thread T(run);
     std::thread T2(run2);
