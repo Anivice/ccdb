@@ -473,6 +473,14 @@ namespace Logger {
             return (c == '\n');
         }
 
+        template < typename ClassType >
+        requires (!std::is_same_v<ClassType, const char *> && !std::is_same_v<ClassType, const char>
+            && !(std::is_same_v<ClassType, std::string> || std::is_same_v<ClassType, std::string_view>))
+        bool _do_i_show_caller_next_time_ (const ClassType &)
+        {
+            return false;
+        }
+
         template<typename T>
         struct is_char_array : std::false_type {};
 
@@ -609,5 +617,15 @@ namespace Logger {
 #define INFO_LOG        (Logger::info_log)
 #define WARNING_LOG     (Logger::warning_log)
 #define ERROR_LOG       (Logger::error_log)
+
+#define debugLogPrint(...)      logPrint(DEBUG_LOG, __VA_ARGS__)
+#define infoLogPrint(...)       logPrint(INFO_LOG, __VA_ARGS__)
+#define warningLogPrint(...)    logPrint(WARNING_LOG, __VA_ARGS__)
+#define errorLogPrint(...)      logPrint(ERROR_LOG, __VA_ARGS__)
+
+#define dlog(...) debugLogPrint(__VA_ARGS__)
+#define ilog(...) infoLogPrint(__VA_ARGS__)
+#define wlog(...) warningLogPrint(__VA_ARGS__)
+#define elog(...) errorLogPrint(__VA_ARGS__)
 
 #endif // LOG_HPP

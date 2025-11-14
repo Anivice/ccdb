@@ -54,6 +54,65 @@ public:
     ~mihomo() = default;
 
     template <typename InstanceType, typename... Args>
+    void get_info(const std::string & endpoint_name, InstanceType* instance,
+        void (InstanceType::*method)(std::pair < std::mutex, std::string > &, Args...),
+        Args&... args)
+    {
+        // try
+        // {
+            httplib::Client http_cli("127.0.0.1", 9090);
+            http_cli.set_decompress(false);
+            httplib::Headers headers = {
+                {"Authorization", "Bearer " + token},
+            };
+
+            std::vector<std::any> any_args = { args... };
+            std::function<void(std::pair < std::mutex, std::string > &, const std::vector<std::any>&)> method_;
+            auto val = std::make_unique < std::pair < std::mutex, std::string > >();
+            // Bind the method to the instance
+            auto bound_function = [instance, method, this, &val](Args&... _args) -> void {
+                (instance->*method)(*val, _args...);
+            };
+
+            // Store a lambda that matches the signature of method_
+            method_ = [bound_function, this](
+                std::pair < std::mutex, std::string > &,
+                const std::vector<std::any>& _args) -> void
+            {
+                // Invoke the bound function with the provided arguments
+                // The return value (std::any) is ignored since method_ expects void
+                invoke_with_any<decltype(bound_function), Args...>(bound_function, _args);
+            };
+
+            std::string buffer;
+            auto res = http_cli.Get("/" + endpoint_name, headers,
+                [&](const char *data, const size_t len)
+                {
+                    buffer.append(data, len);
+                    return true;
+                }
+            );
+
+            if (!res) {
+                std::cerr << "Request failed: " << httplib::to_string(res.error()) << "\n";
+                throw std::runtime_error(httplib::to_string(res.error()));
+            } else {
+                std::cout << "HTTP status: " << res->status << "\n";
+            }
+
+            {
+                std::lock_guard lock(val->first);
+                val->second = buffer;
+            }
+            method_(std::ref(*val), any_args);
+        // }
+        // catch (const std::exception& e)
+        // {
+        //     throw std::logic_error(e.what());
+        // }
+    }
+
+    template <typename InstanceType, typename... Args>
     void get_stream_info(
         const std::string & endpoint_name,
         const std::atomic_bool * keep_running,
