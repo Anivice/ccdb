@@ -262,12 +262,16 @@ namespace Logger {
     template <typename T>
     constexpr bool is_pair_v = is_pair<T>::value;
 
-    inline std::string strip_func_name(const std::string & name)
+    inline std::string strip_func_name(std::string name)
     {
-        const std::regex pattern(R"([\w]+ (.*)\(.*\))");
-        if (std::smatch matches; std::regex_match(name, matches, pattern) && matches.size() > 1) {
-            return matches[1];
+        if (const auto p = name.find('('); p != std::string::npos) {
+            name.erase(p);
         }
+
+        if (const auto p = name.rfind(' '); p != std::string::npos) {
+            name.erase(0, p + 1);
+        }
+
         return name;
     }
 
