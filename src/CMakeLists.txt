@@ -3,15 +3,45 @@ project(src)
 
 set(CMAKE_CXX_STANDARD 23)
 
-include_directories(./include)
+# ncurses only supports Makefile
+find_program(MAKE_EXECUTABLE NAMES make gmake REQUIRED)
+include(ExternalProject)
+ExternalProject_Add(NCURSES
+        PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/ncurses
+        SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/ncurses-6.5
+        INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/ncurses/install
+        CONFIGURE_COMMAND   <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+        BUILD_COMMAND       ${MAKE_EXECUTABLE} -j
+        INSTALL_COMMAND     ${MAKE_EXECUTABLE} -j install
+        INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libncursesw.a
+        TEST_COMMAND        ""
+        INACTIVITY_TIMEOUT  15
+        CONFIGURE_HANDLED_BY_BUILD ON
+)
+
+ExternalProject_Get_Property(NCURSES INSTALL_DIR)
+set(NCURSES_INCLUDE_DIR "${INSTALL_DIR}/include")
+set(NCURSES_LIB_DIR     "${INSTALL_DIR}/lib")
+file(MAKE_DIRECTORY "${NCURSES_INCLUDE_DIR}" "${NCURSES_LIB_DIR}")
+
+# Export to CMake
+add_library(ncurses::ncurses UNKNOWN IMPORTED)
+set_target_properties(ncurses::ncurses PROPERTIES
+        IMPORTED_LOCATION             "${NCURSES_LIB_DIR}/libncursesw.a" # <= ncurses lib location
+        INTERFACE_INCLUDE_DIRECTORIES "${NCURSES_INCLUDE_DIR}"
+)
+add_dependencies(ncurses::ncurses NCURSES)
+
+# CCDB
 add_executable(ccdb
         main.cpp
         include/log.h include/httplib.h
         mihomo.cpp
         include/mihomo.h)
+target_include_directories(ccdb PRIVATE ./include ${NCURSES_INCLUDE_DIR})
 target_compile_definitions(ccdb PUBLIC VERSION="0.0.1")
 target_compile_options(ccdb PUBLIC -fsanitize=address -fsanitize=undefined)
-target_link_libraries(ccdb PUBLIC asan ubsan atomic)
+target_link_libraries(ccdb PUBLIC asan ubsan atomic ncurses::ncurses)
 
 # target_compile_options(ccdb PUBLIC -fsanitize=thread -fsanitize=undefined)
 # target_link_libraries(ccdb PUBLIC tsan ubsan atomic)

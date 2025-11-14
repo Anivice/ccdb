@@ -4,16 +4,21 @@
 #include "log.h"
 #include "httplib.h"
 #include "mihomo.h"
+#include "ncursesw/ncurses.h"
+#include "json.hpp"
 
 Logger::Logger logger;
 
 class dummy
 {
 public:
+    using json = nlohmann::json;
+
     void f(std::pair < std::mutex, std::string > & info)
     {
         std::lock_guard lock(info.first);
-        logger.logPrint(INFO_LOG, info.second, "\n");
+        json data = json::parse(info.second);
+        logger.logPrint(INFO_LOG, static_cast<uint64_t>(data["up"]), "\n");
     }
 };
 
@@ -27,7 +32,7 @@ int main()
         sample.get_stream_info("traffic", &running, &d, &dummy::f);
     };
     std::thread T(run);
-    std::this_thread::sleep_for(std::chrono::seconds(300l));
+    std::this_thread::sleep_for(std::chrono::seconds(3l));
     running = false;
 
     if (T.joinable())
@@ -35,15 +40,12 @@ int main()
         T.join();
     }
 
-    // Logger::Logger logger;
-    // logger.logPrint(INFO_LOG, "CCDB Version ", VERSION, "\n");
-
-    //
-    // if (!res) {
-    //     std::cerr << "Request failed: " << httplib::to_string(res.error()) << "\n";
-    //     return 1;
-    // }
-    //
-    // std::cout << "HTTP status: " << res->status << "\n";
-
+    initscr();            // Start curses mode
+    cbreak();             // Disable line buffering
+    noecho();             // Don't echo typed characters
+    keypad(stdscr, TRUE); // Enable special keys
+    raw();
+    nl();
+    std::this_thread::sleep_for(std::chrono::seconds(3l));
+    endwin();
 }

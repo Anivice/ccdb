@@ -1,9 +1,0 @@
-find_program(MAKE_EXECUTABLE NAMES make gmake REQUIRED)
-ExternalProject_Add(NCURSES
-        CONFIGURE_COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/ncurses-6.5/configure --prefix=${CMAKE_CURRENT_BINARY_DIR}/_install
-        BUILD_COMMAND ${MAKE_EXECUTABLE} -j
-        INSTALL_COMMAND ${MAKE_EXECUTABLE} -j install
-        TEST_COMMAND ""
-        INACTIVITY_TIMEOUT 15
-        CONFIGURE_HANDLED_BY_BUILD ON
-)

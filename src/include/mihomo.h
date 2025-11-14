@@ -16,8 +16,6 @@
 class mihomo
 {
 private:
-    using json = nlohmann::json;
-
     // Forward declaration of the helper
     template <typename... Args, std::size_t... I>
     std::tuple<Args...> any_cast_tuple_impl(const std::vector<std::any>& args, std::index_sequence<I...>)
