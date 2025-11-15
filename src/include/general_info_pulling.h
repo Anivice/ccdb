@@ -77,11 +77,10 @@ public:
     ~general_info_pulling() = default;
 
     // need continuous updates
-    void update_from_traffic(std::mutex & mtx, std::string & info);
-    void update_from_connections(std::mutex & mtx, std::string & info);
-    void update_from_logs(std::mutex & mtx, std::string & info)
+    void update_from_traffic(std::string info);
+    void update_from_connections(std::string info);
+    void update_from_logs(std::string info)
     {
-        std::lock_guard lock(mtx);
         logger.dlog(info, "\n");
     }
 
@@ -104,9 +103,9 @@ public:
 
     void pullconfig()
     {
-        backend_client.get_info_no_instance("config", [](std::mutex & mutex, std::string & config)
+        backend_client.get_info_no_instance("config", [](std::string config)
         {
-
+            logger.dlog(config, "\n");
         });
     }
 };

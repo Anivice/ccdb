@@ -1,9 +1,8 @@
 #include "general_info_pulling.h"
 
-void general_info_pulling::update_from_traffic(std::mutex & mtx, std::string & info)
+void general_info_pulling::update_from_traffic(std::string info)
 {
     try {
-        std::lock_guard lock(mtx);
         json data = json::parse(info);
         current_upload_speed = static_cast<uint64_t>(data["up"]);
         current_download_speed = static_cast<uint64_t>(data["down"]);
@@ -13,7 +12,7 @@ void general_info_pulling::update_from_traffic(std::mutex & mtx, std::string & i
     }
 }
 
-void general_info_pulling::update_from_connections(std::mutex & mtx, std::string & info)
+void general_info_pulling::update_from_connections(std::string info)
 {
     auto get_time = [](const std::string & time)->unsigned long long
     {
@@ -42,10 +41,7 @@ void general_info_pulling::update_from_connections(std::mutex & mtx, std::string
 
     try {
         json data;
-        {
-            std::lock_guard lock(mtx);
-            data = json::parse(info);
-        }
+        data = json::parse(info);
         total_uploaded_bytes = static_cast<uint64_t>(data["downloadTotal"]);
         total_downloaded_bytes = static_cast<uint64_t>(data["uploadTotal"]);
         std::lock_guard map_lock(connection_map_mutex);

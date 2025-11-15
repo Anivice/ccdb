@@ -17,72 +17,25 @@ class mihomo
 {
     std::string token;
     httplib::Client http_cli;
-    std::mutex http_cli_mutex;
+    // std::mutex http_cli_mutex;
 
 public:
     explicit mihomo(const std::string& backend, int port, std::string token_) : token(std::move(token_)), http_cli(backend, port)
     {
-        std::lock_guard lock(http_cli_mutex);
+        // std::lock_guard lock(http_cli_mutex);
         http_cli.set_decompress(false);
     }
 
     ~mihomo() = default;
 
-    void get_info_no_instance(const std::string & endpoint_name,
-        const std::function < void(std::mutex &, std::string &) > & method);
-    // {
-    //     try
-    //     {
-    //         httplib::Headers headers = {
-    //             {"Authorization", "Bearer " + token},
-    //         };
-    //
-    //         std::string buffer;
-    //         decltype(http_cli.Get("/")) res;
-    //         {
-    //             std::lock_guard lock(http_cli_mutex);
-    //             res = http_cli.Get("/" + endpoint_name, headers,
-    //                 [&](const char *data, const size_t len)
-    //                 {
-    //                     buffer.append(data, len);
-    //                     return true;
-    //                 }
-    //             );
-    //         }
-    //
-    //         if (!res) {
-    //             std::cerr << "Request failed: " << httplib::to_string(res.error()) << "\n";
-    //             throw std::runtime_error(httplib::to_string(res.error()));
-    //         }
-    //
-    //         std::pair < std::mutex, std::string > val;
-    //         {
-    //             std::lock_guard lock(val.first);
-    //             val.second = buffer;
-    //         }
-    //         method(val.first, val.second);
-    //     }
-    //     catch (const std::exception& e)
-    //     {
-    //         throw std::runtime_error(e.what());
-    //     }
-    // }
+    void get_info_no_instance(const std::string & endpoint_name, const std::function < void(std::string) > & method);
 
-    template <typename InstanceType, typename... Args>
-    void get_info(const std::string & endpoint_name,
-        InstanceType* instance,
-        void (InstanceType::*method)(std::mutex &, std::string &))
+    template < typename InstanceType >
+    void get_info(const std::string & endpoint_name, InstanceType* instance, void (InstanceType::*method)(std::string))
     {
-        try
-        {
-            get_info_no_instance(endpoint_name,
-                [&](std::mutex & mtx, std::string & buff) {
-                    (instance->*method)(mtx, buff);
-                }
-            );
-        }
-        catch (const std::exception& e)
-        {
+        try {
+            get_info_no_instance(endpoint_name, [&](std::string buff) { (instance->*method)(buff); });
+        } catch (const std::exception& e) {
             throw std::runtime_error(e.what());
         }
     }
@@ -92,7 +45,7 @@ public:
         const std::string & endpoint_name,
         const std::atomic_bool * keep_running,
         InstanceType* instance,
-        void (InstanceType::*method)(std::mutex &, std::string &),
+        void (InstanceType::*method)(std::string),
         const std::atomic_bool is_continuous = false)
     {
         try
@@ -102,12 +55,12 @@ public:
             {
                 std::string buffer;
                 std::string first_line;
-                std::vector<std::pair<std::thread, std::shared_ptr<std::pair < std::mutex, std::string >>>> thread_pool;
-                httplib::Headers headers = {
+                std::vector < std::thread > thread_pool;
+                const httplib::Headers headers = {
                     {"Authorization", "Bearer " + token},
                 };
 
-                std::lock_guard lock(http_cli_mutex);
+                // std::lock_guard lock(http_cli_mutex);
                 http_cli.Get("/" + endpoint_name, headers,
                     [&](const char *data, const size_t len)
                 {
@@ -116,21 +69,14 @@ public:
                     {
                         first_line = buffer.substr(0, pos);
                         buffer = buffer.substr(pos + 1);
-                        auto val = std::make_shared<std::pair<std::mutex, std::string >>();
-                        {
-                            std::lock_guard lock(val->first);
-                            val->second = first_line;
-                        }
-                        std::thread T([&]()
-                        {
-                            (instance->*method)(val->first, val->second);
-                        });
-
-                        thread_pool.emplace_back(std::move(T), std::move(val));
+                        std::thread T([&](std::string _first_line) {
+                            (instance->*method)(_first_line);
+                        }, first_line);
+                        thread_pool.emplace_back(std::move(T));
 
                         if (thread_pool.size() > 32) // oversized pool cleanup
                         {
-                            for (auto & thread : thread_pool | std::views::keys)
+                            for (auto & thread : thread_pool)
                             {
                                 if (thread.joinable()) {
                                     thread.join();
@@ -147,7 +93,7 @@ public:
                     return true;
                 });
 
-                for (auto & thread : thread_pool | std::views::keys)
+                for (auto & thread : thread_pool)
                 {
                     if (thread.joinable()) {
                         thread.join();
