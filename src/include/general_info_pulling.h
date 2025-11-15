@@ -180,15 +180,16 @@ public:
             else if (local_copy == "logs")
             {
                 // /logs puller
-                auto * log_running = new std::atomic_bool(true);
-                auto run_logs = [&]
+                auto log_running = std::make_shared<std::atomic_bool>(true);
+                auto run_logs = [&](const std::atomic_bool * _log_running)
                 {
                     backend_client.get_stream_info("logs",
-                        log_running,
+                        _log_running,
                         this,
                         &general_info_pulling::update_from_logs);
                 };
-                thread_pool.emplace_back(log_running, run_logs);
+                std::atomic_bool * ptr = log_running.get();
+                thread_pool.emplace_back(std::move(log_running), std::thread(run_logs, ptr));
             }
             else
             {

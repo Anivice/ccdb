@@ -35,6 +35,12 @@ int main()
         logger.ilog("\n");
         std::this_thread::sleep_for(std::chrono::seconds(1l));
     }
+
+    {
+        std::lock_guard lock(d.current_focus_mutex);
+        d.current_focus = "logs";
+    }
+
     d.keep_pull_continuous_updates = false;
 
     if (T.joinable())
