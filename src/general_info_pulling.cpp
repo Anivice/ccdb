@@ -98,8 +98,29 @@ void general_info_pulling::update_from_connections(std::string info)
     }
 }
 
+void general_info_pulling::update_from_logs(std::string info)
+{
+    json data;
+    try {
+        data = json::parse(info);
+    } catch (const std::exception & e) {
+        logger.dlog("Error: Cannot parse json: ", e.what(), "\n");
+        return;
+    }
+
+    std::string type = data["type"], payload = data["payload"];
+    std::ranges::transform(type, type.begin(), ::toupper);
+
+    std::lock_guard lock(logs_mutex);
+    if (logs.size() >= 512) {
+        logs.erase(logs.begin());
+    }
+    logs.emplace_back(type, payload);
+}
+
 void general_info_pulling::pull_continuous_updates()
 {
+    keep_pull_continuous_updates = true;
     std::vector < std::pair < std::shared_ptr < std::atomic_bool >, std::thread > > thread_pool;
     std::string last_update;
     while (keep_pull_continuous_updates.load())
@@ -193,6 +214,8 @@ void general_info_pulling::pull_continuous_updates()
         }
     }
 
+    // logger.dlog("Stoping...\n");
+
     for (auto & running : thread_pool | std::views::keys) {
         *running = false;
     }
@@ -200,4 +223,36 @@ void general_info_pulling::pull_continuous_updates()
     for (auto & T : thread_pool | std::views::values) {
         if (T.joinable()) T.join();
     }
+}
+
+[[nodiscard]] std::vector < general_info_pulling::connection_t > general_info_pulling::get_active_connections()
+{
+    std::lock_guard lock(connection_map_mutex);
+    const auto copy = connection_map | std::views::values;
+    return { copy.begin(), copy.end() };
+}
+
+[[nodiscard]] std::vector < std::pair < std::string, std::string > > general_info_pulling::get_logs()
+{
+    std::lock_guard lock(logs_mutex); return logs;
+}
+
+void general_info_pulling::stop_continuous_updates()
+{
+    keep_pull_continuous_updates = false;
+    backend_client.abort();
+    if (pull_continuous_updates_worker.joinable()) pull_continuous_updates_worker.join();
+}
+
+void general_info_pulling::change_focus(const std::string & info)
+{
+    std::lock_guard lock(current_focus_mutex);
+    current_focus = info;
+}
+
+void general_info_pulling::start_continuous_updates()
+{
+    change_focus("overview");
+    pull_continuous_updates_worker = std::thread(&general_info_pulling::pull_continuous_updates, this);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100l));
 }

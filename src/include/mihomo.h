@@ -4,14 +4,13 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
-#include <any>
 #include <stdexcept>
 #include <thread>
 #include <utility>
 #include <vector>
-#include <ranges>
 #include "httplib.h"
 #include "json.hpp"
+#include "glogger.h"
 
 class mihomo
 {
@@ -24,7 +23,10 @@ public:
     {
         // std::lock_guard lock(http_cli_mutex);
         http_cli.set_decompress(false);
+        http_cli.set_read_timeout(1, 0);
     }
+
+    void abort() { http_cli.stop(); }
 
     ~mihomo() = default;
 
@@ -51,8 +53,11 @@ public:
         try
         {
             std::atomic_bool stance(true);
+            std::atomic_bool is_running(false);
             auto worker = [&]()->void
             {
+                if (is_running) return;
+                is_running = true;
                 std::string buffer;
                 std::string first_line;
                 std::vector < std::thread > thread_pool;
@@ -99,15 +104,20 @@ public:
                         thread.join();
                     }
                 }
+
+                is_running = false;
             };
 
             if (is_continuous)
             {
-                std::thread T([&] {
-                    try { worker(); } catch (...) { }
-                });
-
+                std::thread T;
                 while (*keep_running) {
+                    if (!is_running) {
+                        if (T.joinable()) { T.join(); }
+                        T = std::thread([&] {try { worker(); } catch (...) { } });
+                        // logger.dlog("Flag: ", *keep_running, ", Spawning new thread...\n");
+                    }
+
                     std::this_thread::sleep_for(std::chrono::milliseconds(100l));
                 }
 
