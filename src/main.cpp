@@ -11,18 +11,23 @@
 Logger::Logger logger;
 using json = nlohmann::json;
 
-
 int main()
 {
     general_info_pulling d("127.0.0.1", 9090, "");
-    d.start_continuous_updates();
-    d.change_focus("logs");
-    for (int i=0; i<10; i++)
+    d.update_proxy_list();
+    // d.latency_test();
+    std::thread T([&]{ d.latency_test(); });
+
+    for (int i = 0; i < 30; i++)
     {
+        {
+            logger.dlog(d.get_proxies_and_latencies_as_pair(), "\n");
+        }
         std::this_thread::sleep_for(std::chrono::seconds(1l));
-        logger.dlog(d.get_logs(), "\n");
     }
-    d.stop_continuous_updates();
+
+    if (T.joinable()) T.join();
+    logger.dlog(d.get_proxies_and_latencies_as_pair(), "\n");
 
     // for (const auto & conn : d.get_active_connections())
     // {

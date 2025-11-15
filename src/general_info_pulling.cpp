@@ -118,6 +118,24 @@ void general_info_pulling::update_from_logs(std::string info)
     logs.emplace_back(type, payload);
 }
 
+void general_info_pulling::replace_all(
+    std::string & original,
+    const std::string & target,
+    const std::string & replacement)
+{
+    if (target.empty()) return; // Avoid infinite loop if target is empty
+
+    if (target == " " && replacement.empty()) {
+        std::erase_if(original, [](const char c) { return c == ' '; });
+    }
+
+    size_t pos = 0;
+    while ((pos = original.find(target, pos)) != std::string::npos) {
+        original.replace(pos, target.length(), replacement);
+        pos += replacement.length(); // Move past the replacement to avoid infinite loop
+    }
+}
+
 void general_info_pulling::pull_continuous_updates()
 {
     keep_pull_continuous_updates = true;
@@ -237,6 +255,21 @@ void general_info_pulling::pull_continuous_updates()
     std::lock_guard lock(logs_mutex); return logs;
 }
 
+[[nodiscard]] std::pair <   std::map < std::string /* group name */, std::vector < std::string > /* proxies */ >, /* proxy_groups */
+                            std::map < std::string /* proxy name */, int /* latency in ms */ > /* proxy_latency */ >
+    general_info_pulling::get_proxies_and_latencies_as_pair()
+{
+    std::lock_guard<std::mutex> lock(proxy_list_mtx);
+    auto _group = proxy_groups;
+    std::map < std::string /* proxy name */, int /* latency in ms */ > _lat;
+    for (const auto & [proxy, latency] : proxy_latency)
+    {
+        _lat[proxy] = latency;
+    }
+
+    return { _group, _lat };
+}
+
 void general_info_pulling::stop_continuous_updates()
 {
     keep_pull_continuous_updates = false;
@@ -255,4 +288,108 @@ void general_info_pulling::start_continuous_updates()
     change_focus("overview");
     pull_continuous_updates_worker = std::thread(&general_info_pulling::pull_continuous_updates, this);
     std::this_thread::sleep_for(std::chrono::milliseconds(100l));
+}
+
+void general_info_pulling::update_proxy_list()
+{
+    const std::vector<std::string> ignored_proxies = { "COMPATIBLE", "PASS", "REJECT", "REJECT-DROP" };
+    backend_client.get_info_no_instance("proxies", [&](std::string proxies)
+    {
+        try
+        {
+            std::lock_guard lock(proxy_list_mtx);
+            proxy_groups.clear();
+            proxy_latency.clear();
+            proxy_list.clear();
+
+            json data = json::parse(proxies);
+            for (const auto & proxy : data["proxies"])
+            {
+                std::string string_name(proxy["name"]);
+                if (std::ranges::find(ignored_proxies, string_name) != ignored_proxies.end()) {
+                    // skip ignored words
+                    continue;
+                }
+
+                std::vector < std::string > group_members;
+                if (proxy.contains("all"))
+                {
+                    for (const auto & element : proxy["all"]) {
+                        group_members.push_back(element);
+                    }
+                } else {
+                    proxy_list.push_back(string_name);
+                    continue; // not a group
+                }
+
+                proxy_groups[string_name] = group_members;
+            }
+        }
+        catch (const std::exception & e)
+        {
+            logger.dlog(e.what(), "\n");
+        }
+    });
+
+    // add all possible missing elements
+    for (const auto & vec : proxy_groups | std::views::values)
+    {
+        for (const auto & name : vec)
+        {
+            if (std::ranges::find(proxy_list, name) == proxy_list.end()) {
+                proxy_list.push_back(name);
+            }
+        }
+    }
+
+    std::ranges::for_each(proxy_list, [&](const std::string & name){ proxy_latency.emplace(name, -1); });
+}
+
+void general_info_pulling::latency_test(const std::string & url)
+{
+    std::map < std::string, std::atomic_int * > proxy_latency_local;
+    {
+        std::lock_guard<std::mutex> lock(proxy_list_mtx);
+        std::ranges::for_each(proxy_list, [&](const std::string & proxy)
+        {
+            proxy_latency_local.emplace(proxy, &proxy_latency[proxy]);
+        });
+    }
+
+    std::vector < std::thread > thread_pool;
+    std::ranges::for_each(proxy_latency_local | std::views::keys, [&](const std::string & proxy)
+    {
+        // logger.dlog("Fuck\n");
+        *proxy_latency_local[proxy] = -1;
+        auto * ptr = proxy_latency_local[proxy];
+        auto worker = [&](std::string proxy_, std::string url_, std::atomic_int * ptr_)->void
+        {
+            replace_all(proxy_, " ", "%20");
+            try
+            {
+                backend_client.get_info_no_instance("proxies/" + proxy_ + "/delay?url=" + url_ +"&timeout=5000",
+                    [&ptr_](std::string result)
+                    {
+                        if (const json data = json::parse(result);
+                            data.contains("delay"))
+                        {
+                            *ptr_ = data.at("delay");
+                        }
+                        // else
+                        // {
+                            // logger.dlog(std::string(data["message"]), "\n");
+                        // }
+                    });
+            } catch (...) {
+                // logger.dlog("Error when pulling\n");
+                *ptr_ = -1;
+            }
+        };
+
+        thread_pool.emplace_back(worker, proxy, url, ptr);
+    });
+
+    for (auto & thread : thread_pool) {
+        if (thread.joinable()) thread.join();
+    }
 }

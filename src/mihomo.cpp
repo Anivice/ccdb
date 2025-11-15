@@ -23,7 +23,7 @@ void mihomo::get_info_no_instance(const std::string & endpoint_name, const std::
         }
 
         if (!res) {
-            logger.dlog("Request failed: ", httplib::to_string(res.error()), "\n");
+            // logger.dlog("Request failed: ", httplib::to_string(res.error()), "\n");
             throw std::runtime_error(httplib::to_string(res.error()));
         }
 

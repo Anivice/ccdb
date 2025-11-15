@@ -81,7 +81,13 @@ private:
     std::mutex logs_mutex;
     std::thread pull_continuous_updates_worker;
 
+    std::mutex proxy_list_mtx;
+    std::map < std::string /* group name */, std::vector < std::string > /* proxies */ > proxy_groups;
+    std::map < std::string /* proxy name */, std::atomic_int /* latency in ms */ > proxy_latency;
+    std::vector < std::string > proxy_list;
+
     void pull_continuous_updates(); // blocked
+    static void replace_all(std::string & original, const std::string & target, const std::string & replacement);
 
 public:
     general_info_pulling(const std::string & ip, const int port, const std::string& token) : backend_client(ip, port, token) { }
@@ -98,10 +104,16 @@ public:
     [[nodiscard]] uint64_t get_total_downloaded_bytes() const { return total_downloaded_bytes.load(); }
     [[nodiscard]] std::vector < connection_t > get_active_connections();
     [[nodiscard]] std::vector < std::pair < std::string, std::string > > get_logs();
+    [[nodiscard]] std::pair <   std::map < std::string /* group name */, std::vector < std::string > /* proxies */ >, /* proxy_groups */
+                                std::map < std::string /* proxy name */, int /* latency in ms */ > /* proxy_latency */ >
+        get_proxies_and_latencies_as_pair();
 
     void stop_continuous_updates();
     void change_focus(const std::string & info);
     void start_continuous_updates();
+
+    void update_proxy_list();
+    void latency_test(const std::string & url = "https://www.google.com/generate_204");
 };
 
 #endif //SRC_GENERAL_INFO_PULLING_H

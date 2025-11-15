@@ -25,11 +25,9 @@ public:
         http_cli.set_decompress(false);
         http_cli.set_read_timeout(1, 0);
     }
-
-    void abort() { http_cli.stop(); }
-
     ~mihomo() = default;
 
+    void abort() { http_cli.stop(); }
     void get_info_no_instance(const std::string & endpoint_name, const std::function < void(std::string) > & method);
 
     template < typename InstanceType >
