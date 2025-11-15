@@ -38,7 +38,8 @@ add_executable(ccdb
         include/log.h include/httplib.h
         include/mihomo.h
         general_info_pulling.cpp include/general_info_pulling.h
-        include/glogger.h)
+        include/glogger.h
+        mihomo.cpp)
 target_include_directories(ccdb PRIVATE ./include ${NCURSES_INCLUDE_DIR})
 target_compile_definitions(ccdb PUBLIC VERSION="0.0.1")
 #target_compile_options(ccdb PUBLIC -fsanitize=address -fsanitize=undefined)

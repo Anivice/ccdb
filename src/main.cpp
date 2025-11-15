@@ -41,6 +41,8 @@ int main()
         d.current_focus = "logs";
     }
 
+    std::this_thread::sleep_for(std::chrono::seconds(10l));
+
     d.keep_pull_continuous_updates = false;
 
     if (T.joinable())
