@@ -14,53 +14,50 @@ using json = nlohmann::json;
 
 int main()
 {
-    mihomo sample("127.0.0.1", 9090, "");
-    general_info_pulling d;
-    std::atomic_bool running = true;
+    general_info_pulling d("127.0.0.1", 9090, "");
     auto run = [&]()->void
     {
-        sample.get_stream_info("traffic", &running, &d, &general_info_pulling::update_from_traffic);
+        {
+            std::lock_guard lock(d.current_focus_mutex);
+            d.current_focus = "overview";
+            d.keep_pull_continuous_updates = true;
+        }
+        d.pull_continuous_updates();
     };
 
-    auto run2 = [&]()->void
-    {
-        while (running)
-        {
-            sample.get_info("connections", &d, &general_info_pulling::update_from_connections);
-            std::this_thread::sleep_for(std::chrono::seconds(1l));
-        }
-    };
     std::thread T(run);
-    std::thread T2(run2);
-    std::this_thread::sleep_for(std::chrono::seconds(30l));
-    running = false;
+
+    for (int i = 0; i < 10; i++)
+    {
+        logger.ilog("UploadSpeed: ", d.get_current_upload_speed(), ", DownloadSpeed: ", d.get_current_download_speed(), "\n");
+        logger.ilog("TotalUploadedBytes: ", d.get_total_uploaded_bytes(), ", TotalDownloadedBytes: ", d.get_total_downloaded_bytes(), "\n");
+        logger.ilog("ActiveConnections: ", d.get_active_connections().size(), "\n");
+        logger.ilog("\n");
+        std::this_thread::sleep_for(std::chrono::seconds(1l));
+    }
+    d.keep_pull_continuous_updates = false;
 
     if (T.joinable())
     {
         T.join();
     }
 
-    if (T2.joinable())
-    {
-        T2.join();
-    }
-
-    for (const auto & conn : d.get_active_connections())
-    {
-        logger.ilog("host: ", conn.host, "\n");
-        logger.ilog("src: ", conn.src, "\n");
-        logger.ilog("destination: ", conn.destination, "\n");
-        logger.ilog("processName: ", conn.processName, "\n");
-        logger.ilog("uploadSpeed: ", conn.uploadSpeed, "\n");
-        logger.ilog("downloadSpeed: ", conn.downloadSpeed, "\n");
-        logger.ilog("totalUploadedBytes: ", conn.totalUploadedBytes, "\n");
-        logger.ilog("totalDownloadedBytes: ", conn.totalDownloadedBytes, "\n");
-        logger.ilog("chainName: ", conn.chainName, "\n");
-        logger.ilog("ruleName: ", conn.ruleName, "\n");
-        logger.ilog("networkType: ", conn.networkType, "\n");
-        logger.ilog("timeElapsedSinceConnectionEstablished: ", conn.timeElapsedSinceConnectionEstablished, "\n");
-        logger.ilog("\n");
-    }
+    // for (const auto & conn : d.get_active_connections())
+    // {
+    //     logger.ilog("host: ", conn.host, "\n");
+    //     logger.ilog("src: ", conn.src, "\n");
+    //     logger.ilog("destination: ", conn.destination, "\n");
+    //     logger.ilog("processName: ", conn.processName, "\n");
+    //     logger.ilog("uploadSpeed: ", conn.uploadSpeed, "\n");
+    //     logger.ilog("downloadSpeed: ", conn.downloadSpeed, "\n");
+    //     logger.ilog("totalUploadedBytes: ", conn.totalUploadedBytes, "\n");
+    //     logger.ilog("totalDownloadedBytes: ", conn.totalDownloadedBytes, "\n");
+    //     logger.ilog("chainName: ", conn.chainName, "\n");
+    //     logger.ilog("ruleName: ", conn.ruleName, "\n");
+    //     logger.ilog("networkType: ", conn.networkType, "\n");
+    //     logger.ilog("timeElapsedSinceConnectionEstablished: ", conn.timeElapsedSinceConnectionEstablished, "\n");
+    //     logger.ilog("\n");
+    // }
 
     // initscr();            // Start curses mode
     // cbreak();             // Disable line buffering

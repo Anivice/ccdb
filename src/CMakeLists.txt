@@ -44,5 +44,5 @@ target_compile_definitions(ccdb PUBLIC VERSION="0.0.1")
 #target_compile_options(ccdb PUBLIC -fsanitize=address -fsanitize=undefined)
 #target_link_libraries(ccdb PUBLIC asan ubsan atomic ncurses::ncurses)
 
-target_compile_options(ccdb PUBLIC -fsanitize=thread -fsanitize=undefined)
-target_link_libraries(ccdb PUBLIC tsan ubsan atomic)
+target_compile_options(ccdb PUBLIC -fsanitize=thread)
+target_link_libraries(ccdb PUBLIC tsan atomic)

@@ -124,6 +124,7 @@ public:
         const std::atomic_bool * keep_running,
         InstanceType* instance,
         void (InstanceType::*method)(std::pair < std::mutex, std::string > &, Args...),
+        std::atomic_bool is_continuous = false,
         Args&... args
     )
     {
@@ -185,7 +186,8 @@ public:
                             thread_pool.clear();
                         }
 
-                        return stance.load(); // keep_running->load();
+                        if (is_continuous) return keep_running->load();
+                        return stance.load();
                     }
 
                     return true;
@@ -199,14 +201,21 @@ public:
                 }
             };
 
-            while (*keep_running)
+            if (is_continuous)
             {
-                stance = true;
-                std::thread T(worker);
-                std::this_thread::sleep_for(std::chrono::seconds(1l));
-                stance = false;
-                if (T.joinable()) {
-                    T.join();
+                worker(); // continuous pulling
+            }
+            else
+            {
+                while (*keep_running) // pull every 1s for
+                {
+                    stance = true;
+                    std::thread T(worker);
+                    std::this_thread::sleep_for(std::chrono::seconds(1l));
+                    stance = false;
+                    if (T.joinable()) {
+                        T.join();
+                    }
                 }
             }
         } catch (std::exception & e) {

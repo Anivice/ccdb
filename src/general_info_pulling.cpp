@@ -7,7 +7,7 @@ void general_info_pulling::update_from_traffic(std::pair < std::mutex, std::stri
         json data = json::parse(info.second);
         current_upload_speed = static_cast<uint64_t>(data["up"]);
         current_download_speed = static_cast<uint64_t>(data["down"]);
-        logger.dlog("Upload: ", current_upload_speed, " Download: ", current_download_speed, "\n");
+        // logger.dlog("Upload: ", current_upload_speed, " Download: ", current_download_speed, "\n");
     } catch (std::exception& e) {
         logger.elog("Error when pulling traffic data: ", e.what(), "\n");
     }
@@ -80,7 +80,7 @@ void general_info_pulling::update_from_connections(std::pair < std::mutex, std::
                 const auto uploaded_bytes_per_second = (long)((double)uploaded_during_pull / ((double)duration_in_milliseconds / 1000));
                 const auto downloaded_bytes_per_second = (long)((double)download_during_pull / ((double)duration_in_milliseconds / 1000));
 
-                logger.dlog("====> Download Speed ", downloaded_bytes_per_second, "\n");
+                // logger.dlog("====> Download Speed ", downloaded_bytes_per_second, "\n");
 
                 conn.uploadSpeed = uploaded_bytes_per_second;
                 conn.downloadSpeed = downloaded_bytes_per_second;
@@ -91,7 +91,7 @@ void general_info_pulling::update_from_connections(std::pair < std::mutex, std::
 
         connection_map = new_connection_map; // update and discard previous
 
-        logger.dlog("Active connections: ", connection_map.size(), "\n");
+        // logger.dlog("Active connections: ", connection_map.size(), "\n");
     } catch (std::exception& e) {
         logger.elog("Error when pulling traffic data: ", e.what(), "\n");
     } catch (...) {
