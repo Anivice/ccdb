@@ -1,0 +1,87 @@
+name: Automated CMake Test Workflow
+
+on:
+  workflow_dispatch:    # Enables manual triggering
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            software-properties-common \
+            apt-transport-https \
+            cmake libc6-dev make
+
+      - name: Configure
+        run: |
+          cmake -B build -S ./src \
+            -D CMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: |
+          cmake --build build && strip ./build/ccdb
+
+      - name: Test
+        env:
+          TERM: xterm-256color
+        run: |
+          true
+
+      ########################################################################
+      # OPEN ISSUE IF ANY TEST FAILURE OCCURRED
+      ########################################################################
+      - name: Open an Issue on Test Failure
+        # This step runs only if a previous step in the same job has failed
+        if: ${{ failure() }}
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: "Test Failure in Automated CMake Test Workflow",
+              body: "# One or more tests have failed!"
+            })
+
+      - name: Get Git commit hash
+        id: get_commit
+        run: echo "GIT_HASH=$(git rev-parse --short=8 HEAD)" >> $GITHUB_ENV
+
+      - name: Set up Git for pushing tag
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+
+      - name: Create Git tag for release
+        run: |
+          git tag "ccdb.NightlyBuild.${{ env.GIT_HASH }}"
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} "ccdb.NightlyBuild.${{ env.GIT_HASH }}"
+
+      - name: Create a GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: build/ccdb
+          tag_name: "ccdb.NightlyBuild.${{ env.GIT_HASH }}"
+          prerelease: true  # Marking this as a pre-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_NAME: ccdb.NightlyBuild.${{ env.GIT_HASH }}
