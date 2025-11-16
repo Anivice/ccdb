@@ -438,6 +438,7 @@ void general_info_pulling::latency_test(const std::string & url)
             replace_all(proxy_, " ", "%20");
             try
             {
+                logger.dlog("Latency test: http://127.0.0.1:9090/proxies/" + proxy_ + "/delay?url=" + url_ +"&timeout=5000\n");
                 backend_client.get_info_no_instance("proxies/" + proxy_ + "/delay?url=" + url_ +"&timeout=5000",
                     [&ptr_](std::string result)
                     {
@@ -446,13 +447,13 @@ void general_info_pulling::latency_test(const std::string & url)
                         {
                             *ptr_ = data.at("delay");
                         }
-                        // else
-                        // {
-                            // logger.dlog(std::string(data["message"]), "\n");
-                        // }
+                        else
+                        {
+                            logger.dlog(std::string(data["message"]), "\n");
+                        }
                     });
-            } catch (...) {
-                // logger.dlog("Error when pulling\n");
+            } catch (std::exception & e) {
+                logger.dlog("Error when pulling: ", e.what(), ": ", "http://127.0.0.1:9090/proxies/" + proxy_ + "/delay?url=" + url_ +"&timeout=5000\n");
                 *ptr_ = -1;
             }
         };

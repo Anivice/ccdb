@@ -25,7 +25,7 @@ public:
     {
         // std::lock_guard lock(http_cli_mutex);
         http_cli.set_decompress(false);
-        http_cli.set_read_timeout(1, 0);
+        http_cli.set_read_timeout(10, 0);
     }
     ~mihomo() = default;
 
