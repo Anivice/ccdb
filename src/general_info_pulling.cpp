@@ -387,3 +387,13 @@ void general_info_pulling::latency_test(const std::string & url)
         if (thread.joinable()) thread.join();
     }
 }
+
+bool general_info_pulling::change_proxy_using_backend(const std::string & group_name, const std::string & proxy_name)
+{
+    if (!backend_client.change_proxy(group_name, proxy_name)) {
+        return false;
+    }
+
+    update_proxy_list();
+    return true;
+}

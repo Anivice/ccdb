@@ -118,6 +118,7 @@ public:
 
     void update_proxy_list();
     void latency_test(const std::string & url = "https://www.google.com/generate_204");
+    bool change_proxy_using_backend(const std::string & group_name, const std::string & proxy_name);
 };
 
 #endif //SRC_GENERAL_INFO_PULLING_H

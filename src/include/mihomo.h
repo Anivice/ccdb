@@ -27,6 +27,7 @@ public:
     }
     ~mihomo() = default;
 
+    bool change_proxy(const std::string & group_name, const std::string & proxy_name);
     void abort() { http_cli.stop(); }
     void get_info_no_instance(const std::string & endpoint_name, const std::function < void(std::string) > & method);
 
