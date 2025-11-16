@@ -1,4 +1,11 @@
 #include "general_info_pulling.h"
+#include <ctime>
+#include <iomanip>
+#include <sstream>
+#include <string>
+#include <cctype>
+#include <cstdio>
+#include <cstdint>
 
 void general_info_pulling::update_from_traffic(std::string info)
 {
@@ -12,10 +19,74 @@ void general_info_pulling::update_from_traffic(std::string info)
     }
 }
 
+bool parse_rfc3339_to_unix_ns(const std::string &s, std::int64_t &out_ns)
+{
+    std::tm tm = {};
+    std::int64_t frac_nanos = 0;
+    char tz_sign = '+';
+    int tz_h = 0, tz_m = 0;
+
+    std::size_t pos = s.find_last_of("+-");
+    if (pos == std::string::npos || pos < 10) {
+        return false; // no timezone sign, or clearly bogus
+    }
+
+    std::string datetime = s.substr(0, pos);
+    std::string offset   = s.substr(pos);
+
+    std::string base = datetime;
+    std::size_t dot = datetime.find('.');
+    if (dot != std::string::npos) {
+        base = datetime.substr(0, dot);
+        std::string frac = datetime.substr(dot + 1);
+
+        int digits = 0;
+        for (std::size_t i = 0;
+             i < frac.size() && std::isdigit(static_cast<unsigned char>(frac[i])) && digits < 9;
+             ++i) {
+            frac_nanos = frac_nanos * 10 + (frac[i] - '0');
+            ++digits;
+        }
+
+        while (digits < 9) {
+            frac_nanos *= 10;
+            ++digits;
+        }
+    }
+
+    std::istringstream iss(base);
+    iss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S");
+    if (iss.fail()) {
+        return false;
+    }
+
+    tz_sign = offset[0];
+    if (std::sscanf(offset.c_str() + 1, "%d:%d", &tz_h, &tz_m) != 2) {
+        return false;
+    }
+    int tz_sec = tz_h * 3600 + tz_m * 60;
+
+    std::time_t t = timegm(&tm);
+    if (t == static_cast<std::time_t>(-1)) {
+        return false;
+    }
+
+    std::int64_t sec = static_cast<std::int64_t>(t);
+    if (tz_sign == '+') {
+        sec -= tz_sec;
+    } else if (tz_sign == '-') {
+        sec += tz_sec;
+    }
+
+    out_ns = sec * 1000000000LL + frac_nanos;
+    return true;
+}
+
 void general_info_pulling::update_from_connections(std::string info)
 {
     auto get_time = [](const std::string & time)->unsigned long long
     {
+#ifdef _FORCE_CPP_23
         using namespace std;
         using namespace std::chrono;
         sys_time<nanoseconds> tp;
@@ -37,6 +108,12 @@ void general_info_pulling::update_from_connections(std::string info)
         const long long unix_seconds = sec_since_epoch.count();
         long long extra_nanos  = (ns_since_epoch - sec_since_epoch).count();
         return unix_seconds;
+#else
+        std::int64_t unix_ns = 0;
+        parse_rfc3339_to_unix_ns(time, unix_ns);
+        const std::int64_t unix_sec = unix_ns / 1000000000LL;
+        return unix_sec;
+#endif
     };
 
     try {
