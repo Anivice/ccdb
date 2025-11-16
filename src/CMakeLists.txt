@@ -10,7 +10,7 @@ ExternalProject_Add(NCURSES
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/ncurses
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/ncurses-6.5
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/ncurses/install
-        CONFIGURE_COMMAND   <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+        CONFIGURE_COMMAND   <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --enable-sigwinch
         BUILD_COMMAND       ${MAKE_EXECUTABLE} -j
         INSTALL_COMMAND     ${MAKE_EXECUTABLE} -j install
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libncursesw.a

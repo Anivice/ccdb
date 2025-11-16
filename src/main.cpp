@@ -1,5 +1,6 @@
 #include <thread>
-
+#include <atomic>
+#include <csignal>
 #include "log.h"
 #include "glogger.h"
 #include "tui.h"
@@ -9,8 +10,29 @@ Logger::Logger logger;
 int main()
 {
     TUIScreen screen;
-    screen.show();
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000l));
+    std::atomic_bool running(true);
+    std::this_thread::sleep_for(std::chrono::milliseconds(300l));
+    std::thread T([&]{
+        while (const auto c = getch())
+        {
+            if (c == 113 || c == 27) { running = false; return; }
+            if (c == KEY_RESIZE) resized = true;
+
+            std::cerr << c << std::endl;
+        }
+    });
+
+    while (running)
+    {
+        if (resized)
+        {
+            screen.terminal_resize_request_handler();
+            resized = false;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100l));
+    }
+
+    if (T.joinable()) T.join();
     // general_info_pulling d("127.0.0.1", 9090, "");
     // d.update_proxy_list();
     // // d.latency_test();

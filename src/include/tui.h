@@ -1,11 +1,75 @@
 #ifndef SRC_TUI_H
 #define SRC_TUI_H
 
+#include <vector>
+#include <atomic>
 #include "ncursesw/ncurses.h"
+#include "log.h"
+#include <iostream>
+#include <csignal>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+
+extern volatile std::atomic_bool resized;
+void _sighandler(int);
 
 class TUIScreen
 {
 public:
+    struct xy_pair_t
+    {
+        long x;
+        long y;
+    };
+
+private:
+    xy_pair_t get_screen_size()
+    {
+        int x = 0, y = 0;
+        winsize w{};
+        // If redirecting STDOUT to one file ( col or row == 0, or the previous
+        // ioctl call's failed )
+        if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) != 0 ||
+            (w.ws_col | w.ws_row) == 0)
+        {
+            std::cerr << "Warning: failed to determine a reasonable terminal size: " << strerror(errno) << std::endl;
+        } else {
+            x = w.ws_col;
+            y = w.ws_row;
+        }
+        return { x, y };
+    }
+
+    WINDOW * window_side_panel = nullptr;
+    WINDOW * window_overview_bar = nullptr;
+    WINDOW * window_proxy_bar = nullptr;
+    WINDOW * window_connection_bar = nullptr;
+    WINDOW * window_logs_bar = nullptr;
+    WINDOW * window_main = nullptr;
+    std::vector < WINDOW * > stray_windows_within_main;
+
+public:
+    ~TUIScreen() {
+        auto autodel = [](WINDOW * win)
+        {
+            if (win != nullptr) {
+                delwin(win);
+            }
+        };
+
+        autodel(window_side_panel);
+        autodel(window_overview_bar);
+        autodel(window_proxy_bar);
+        autodel(window_connection_bar);
+        autodel(window_logs_bar);
+        autodel(window_main);
+
+        for (WINDOW * win : stray_windows_within_main) {
+            autodel(win);
+        }
+        endwin();
+    }
+
     TUIScreen()
     {
         initscr();            // Start curses mode
@@ -14,66 +78,56 @@ public:
         keypad(stdscr, TRUE); // Enable special keys
         raw();
         nl();
-    }
 
-    ~TUIScreen()
-    {
-        endwin();
-    }
+        // [PANEL] (1/8) [MAIN] (7/8)
+        long panel_width = (get_screen_size().x - 2) / 8;
+        long main_window_width = (get_screen_size().x - 2) /* available */ - 1 /* padding between two windows */ - panel_width;
+        long height = get_screen_size().y - 2;
+        window_side_panel = newwin(height, panel_width, 1, 1);
+        window_main = newwin(height, main_window_width, 1, 1 + panel_width + 1);
 
-    struct xy_pair_t
-    {
-        long x;
-        long y;
-    };
-
-    xy_pair_t get_screen_size()
-    {
-        int x, y;
-        getmaxyx(stdscr, y, x);
-        return { y, x };
-    }
-
-    void show()
-    {
-        int top_height   = LINES / 3;
-        int lower_height = (LINES - top_height) / 2;
-        int left_width   = COLS / 2;
-        int right_width  = COLS - left_width;
-
-        WINDOW * win_top     = newwin(get_screen_size().x - 4, get_screen_size().y - 4, 2, 2);
-        // WINDOW *win_2_left  = newwin(lower_height, left_width,  top_height, 0);
-        // WINDOW *win_2_right = newwin(lower_height, right_width, top_height, left_width);
-        // WINDOW *win_3_left  = newwin(lower_height, left_width,
-                                     // top_height + lower_height, 0);
-        // WINDOW *win_3_right = newwin(lower_height, right_width,
-                                     // top_height + lower_height, left_width);
-
-        box(win_top, 0, 0);
-        mvwprintw(win_top, 1, 2, "Top window");
-        // box(win_2_left, 0, 0);
-        // mvwprintw(win_2_left, 1, 2, "Second row left");
-        // box(win_2_right, 0, 0);
-        // mvwprintw(win_2_right, 1, 2, "Second row right");
-        // box(win_3_left, 0, 0);
-        // mvwprintw(win_3_left, 1, 2, "Third row left");
-        // box(win_3_right, 0, 0);
-        // mvwprintw(win_3_right, 1, 2, "Third row right");
-
+        box(window_side_panel, 0, 0);
+        box(window_main, 0, 0);
+        mvwprintw(window_side_panel, 1, 2, "Side Panel");
+        mvwprintw(window_main, 1, 2, "Main Window");
         refresh();
-        wrefresh(win_top);
-        // wrefresh(win_2_left);
-        // wrefresh(win_2_right);
-        // wrefresh(win_3_left);
-        // wrefresh(win_3_right);
 
-        getch();
+        wrefresh(window_main);
+        wrefresh(window_side_panel);
+        refresh();
 
-        delwin(win_top);
-        // delwin(win_2_left);
-        // delwin(win_2_right);
-        // delwin(win_3_left);
-        // delwin(win_3_right);
+        std::signal(SIGWINCH, _sighandler);
+    }
+
+    void terminal_resize_request_handler()
+    {
+        const auto [ x, y ] = get_screen_size();
+        // update curses’ internal structures
+        if (is_term_resized(y, x)) {
+            resizeterm(y, x);
+        }
+        // [PANEL] (1/8) [MAIN] (7/8)
+        long panel_width = (x - 2) / 8;
+        long main_window_width = (x - 2) /* available */ - 1 /* padding between two windows */ - panel_width;
+        long height = y - 2;
+        delwin(window_main);
+        delwin(window_side_panel);
+        window_side_panel = newwin(height, panel_width, 1, 1);
+        window_main = newwin(height, main_window_width, 1, 1 + panel_width + 1);
+
+        box(window_side_panel, 0, 0);
+        box(window_main, 0, 0);
+        mvwprintw(window_side_panel, 1, 2, "Side Panel");
+        mvwprintw(window_main, 1, 2, "Main Window");
+
+        box(window_side_panel, 0, 0);
+        box(window_main, 0, 0);
+        refresh();
+
+        wrefresh(window_main);
+        wrefresh(window_side_panel);
+        refresh();
+        // std::cerr << get_screen_size().x << "x" << get_screen_size().y << std::endl;
     }
 };
 
