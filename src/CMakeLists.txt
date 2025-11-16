@@ -35,15 +35,21 @@ add_dependencies(ncurses::ncurses NCURSES)
 # CCDB
 add_executable(ccdb
         main.cpp
-        include/log.h include/httplib.h
-        include/mihomo.h
-        general_info_pulling.cpp include/general_info_pulling.h
-        include/glogger.h
-        mihomo.cpp)
+        include/log.h include/glogger.h include/httplib.h
+        general_info_pulling.cpp    include/general_info_pulling.h
+        mihomo.cpp                  include/mihomo.h
+        tui.cpp                     include/tui.h)
 target_include_directories(ccdb PRIVATE ./include ${NCURSES_INCLUDE_DIR})
 target_compile_definitions(ccdb PUBLIC VERSION="0.0.1")
-#target_compile_options(ccdb PUBLIC -fsanitize=address -fsanitize=undefined)
-#target_link_libraries(ccdb PUBLIC asan ubsan atomic ncurses::ncurses)
 
-target_compile_options(ccdb PUBLIC -fsanitize=thread -fno-sanitize-recover=undefined -fno-sanitize=undefined)
-target_link_libraries(ccdb PUBLIC tsan atomic)
+if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+
+    #target_compile_options(ccdb PUBLIC -fsanitize=address -fsanitize=undefined)
+    #target_link_libraries(ccdb PUBLIC asan ubsan atomic ncurses::ncurses)
+
+    target_compile_options(ccdb PUBLIC -fsanitize=thread -fno-sanitize-recover=undefined -fno-sanitize=undefined)
+    target_link_libraries(ccdb PUBLIC tsan atomic ncurses::ncurses)
+else ()
+    target_compile_options(ccdb PUBLIC -O3 -ffast-math -fstrict-aliasing)
+    target_link_libraries(ccdb PUBLIC atomic ncurses::ncurses)
+endif ()

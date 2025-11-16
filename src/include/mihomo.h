@@ -12,6 +12,8 @@
 #include "json.hpp"
 #include "glogger.h"
 
+class general_info_pulling;
+
 class mihomo
 {
     std::string token;
@@ -142,6 +144,8 @@ public:
             throw std::runtime_error("Unknown error");
         }
     }
+
+    friend class general_info_pulling;
 };
 
 #endif //MIHOMO_H

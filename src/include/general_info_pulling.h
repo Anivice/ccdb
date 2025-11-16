@@ -98,11 +98,13 @@ public:
     general_info_pulling(const std::string & ip, const int port, const std::string& token) : backend_client(ip, port, token) { }
     ~general_info_pulling() = default;
 
+protected:
     // need continuous updates
     void update_from_traffic(std::string info);
     void update_from_connections(std::string info);
     void update_from_logs(std::string info);
 
+public:
     using proxy_info_summary_t = std::pair < decltype(proxy_groups), std::map < std::string /* proxy name */, int /* latency in ms */ > /* proxy_latency */ >;
     [[nodiscard]] uint64_t get_current_upload_speed() const { return current_upload_speed.load(); }
     [[nodiscard]] uint64_t get_current_download_speed() const { return current_download_speed.load(); }
