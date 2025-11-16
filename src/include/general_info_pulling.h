@@ -82,9 +82,14 @@ private:
     std::thread pull_continuous_updates_worker;
 
     std::mutex proxy_list_mtx;
-    std::map < std::string /* group name */, std::vector < std::string > /* proxies */ > proxy_groups;
+    std::map < std::string /* group name */, std::pair < std::vector < std::string > /* proxies */, std::string /* current */ > > proxy_groups;
     std::map < std::string /* proxy name */, std::atomic_int /* latency in ms */ > proxy_latency;
-    std::vector < std::string > proxy_list;
+    struct proxy_info_t
+    {
+        std::string type;
+        bool udp;
+    };
+    std::map < std::string, proxy_info_t > proxy_list;
 
     void pull_continuous_updates(); // blocked
     static void replace_all(std::string & original, const std::string & target, const std::string & replacement);
@@ -98,15 +103,14 @@ public:
     void update_from_connections(std::string info);
     void update_from_logs(std::string info);
 
+    using proxy_info_summary_t = std::pair < decltype(proxy_groups), std::map < std::string /* proxy name */, int /* latency in ms */ > /* proxy_latency */ >;
     [[nodiscard]] uint64_t get_current_upload_speed() const { return current_upload_speed.load(); }
     [[nodiscard]] uint64_t get_current_download_speed() const { return current_download_speed.load(); }
     [[nodiscard]] uint64_t get_total_uploaded_bytes() const { return total_uploaded_bytes.load(); }
     [[nodiscard]] uint64_t get_total_downloaded_bytes() const { return total_downloaded_bytes.load(); }
     [[nodiscard]] std::vector < connection_t > get_active_connections();
     [[nodiscard]] std::vector < std::pair < std::string, std::string > > get_logs();
-    [[nodiscard]] std::pair <   std::map < std::string /* group name */, std::vector < std::string > /* proxies */ >, /* proxy_groups */
-                                std::map < std::string /* proxy name */, int /* latency in ms */ > /* proxy_latency */ >
-        get_proxies_and_latencies_as_pair();
+    [[nodiscard]] proxy_info_summary_t get_proxies_and_latencies_as_pair();
 
     void stop_continuous_updates();
     void change_focus(const std::string & info);

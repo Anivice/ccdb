@@ -255,9 +255,7 @@ void general_info_pulling::pull_continuous_updates()
     std::lock_guard lock(logs_mutex); return logs;
 }
 
-[[nodiscard]] std::pair <   std::map < std::string /* group name */, std::vector < std::string > /* proxies */ >, /* proxy_groups */
-                            std::map < std::string /* proxy name */, int /* latency in ms */ > /* proxy_latency */ >
-    general_info_pulling::get_proxies_and_latencies_as_pair()
+[[nodiscard]] general_info_pulling::proxy_info_summary_t general_info_pulling::get_proxies_and_latencies_as_pair()
 {
     std::lock_guard<std::mutex> lock(proxy_list_mtx);
     auto _group = proxy_groups;
@@ -318,11 +316,15 @@ void general_info_pulling::update_proxy_list()
                         group_members.push_back(element);
                     }
                 } else {
-                    proxy_list.push_back(string_name);
+                    proxy_info_t p_info = {
+                        .type = proxy["type"],
+                        .udp = proxy["udp"],
+                    };
+                    proxy_list.emplace(string_name, p_info);
                     continue; // not a group
                 }
 
-                proxy_groups[string_name] = group_members;
+                proxy_groups[string_name] = { group_members, proxy["now"] };
             }
         }
         catch (const std::exception & e)
@@ -331,18 +333,10 @@ void general_info_pulling::update_proxy_list()
         }
     });
 
-    // add all possible missing elements
-    for (const auto & vec : proxy_groups | std::views::values)
+    std::ranges::for_each(proxy_list, [&](const std::pair < std::string, proxy_info_t > & proxy_)
     {
-        for (const auto & name : vec)
-        {
-            if (std::ranges::find(proxy_list, name) == proxy_list.end()) {
-                proxy_list.push_back(name);
-            }
-        }
-    }
-
-    std::ranges::for_each(proxy_list, [&](const std::string & name){ proxy_latency.emplace(name, -1); });
+        proxy_latency.emplace(proxy_.first, -1);
+    });
 }
 
 void general_info_pulling::latency_test(const std::string & url)
@@ -350,9 +344,9 @@ void general_info_pulling::latency_test(const std::string & url)
     std::map < std::string, std::atomic_int * > proxy_latency_local;
     {
         std::lock_guard<std::mutex> lock(proxy_list_mtx);
-        std::ranges::for_each(proxy_list, [&](const std::string & proxy)
+        std::ranges::for_each(proxy_list, [&](const std::pair < std::string, proxy_info_t > & proxy_)
         {
-            proxy_latency_local.emplace(proxy, &proxy_latency[proxy]);
+            proxy_latency_local.emplace(proxy_.first, &proxy_latency[proxy_.first]);
         });
     }
 
