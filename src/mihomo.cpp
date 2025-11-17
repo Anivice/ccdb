@@ -54,3 +54,40 @@ void mihomo::get_info_no_instance(const std::string & endpoint_name, const std::
         throw std::runtime_error(e.what());
     }
 }
+
+bool mihomo::change_proxy_mode(const std::string& mode)
+{
+    const httplib::Headers headers = {
+        {"Authorization", "Bearer " + token},
+    };
+    const std::string body = R"({"mode": ")" + mode +  "\"}";
+    auto res = http_cli.Patch("/configs", headers, body, "application/json");
+    if (!res) {
+        std::cerr << "Request failed: " << httplib::to_string(res.error()) << "\n";
+        return false;
+    }
+
+    if (res->status == 204) {
+        return true;
+    }
+
+    return false;
+}
+
+bool mihomo::close_all_connections()
+{
+    const httplib::Headers headers = {
+        {"Authorization", "Bearer " + token},
+    };
+    auto res = http_cli.Delete("/connections");
+    if (!res) {
+        std::cerr << "Request failed: " << httplib::to_string(res.error()) << "\n";
+        return false;
+    }
+
+    if (res->status == 204) {
+        return true;
+    }
+
+    return false;
+}

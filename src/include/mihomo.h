@@ -32,6 +32,8 @@ public:
     bool change_proxy(const std::string & group_name, const std::string & proxy_name);
     void abort() { http_cli.stop(); }
     void get_info_no_instance(const std::string & endpoint_name, const std::function < void(std::string) > & method);
+    bool change_proxy_mode(const std::string & mode);
+    bool close_all_connections();
 
     template < typename InstanceType >
     void get_info(const std::string & endpoint_name, InstanceType* instance, void (InstanceType::*method)(std::string))

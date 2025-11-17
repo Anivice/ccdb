@@ -71,7 +71,7 @@ bool parse_rfc3339_to_unix_ns(const std::string &s, std::int64_t &out_ns)
         return false;
     }
 
-    std::int64_t sec = static_cast<std::int64_t>(t);
+    auto sec = static_cast<std::int64_t>(t);
     if (tz_sign == '+') {
         sec -= tz_sec;
     } else if (tz_sign == '-') {
@@ -438,7 +438,6 @@ void general_info_pulling::latency_test(const std::string & url)
             replace_all(proxy_, " ", "%20");
             try
             {
-                logger.dlog("Latency test: http://127.0.0.1:9090/proxies/" + proxy_ + "/delay?url=" + url_ +"&timeout=5000\n");
                 backend_client.get_info_no_instance("proxies/" + proxy_ + "/delay?url=" + url_ +"&timeout=5000",
                     [&ptr_](std::string result)
                     {
@@ -453,7 +452,6 @@ void general_info_pulling::latency_test(const std::string & url)
                         }
                     });
             } catch (std::exception & e) {
-                logger.dlog("Error when pulling: ", e.what(), ": ", "http://127.0.0.1:9090/proxies/" + proxy_ + "/delay?url=" + url_ +"&timeout=5000\n");
                 *ptr_ = -1;
             }
         };

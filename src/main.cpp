@@ -9,31 +9,12 @@ Logger::Logger logger;
 
 int main()
 {
-    TUIScreen screen;
-    std::atomic_bool running(true);
-    std::this_thread::sleep_for(std::chrono::milliseconds(300l));
-    std::thread T([&]{
-        while (const auto c = getch())
-        {
-            if (c == 113 || c == 27) { running = false; return; }
-            if (c == KEY_RESIZE) resized = true;
+    TUIScreen screen("127.0.0.1", 9090);
+    screen.worker();
 
-            std::cerr << c << std::endl;
-        }
-    });
-
-    while (running)
-    {
-        if (resized)
-        {
-            screen.terminal_resize_request_handler();
-            resized = false;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(100l));
-    }
-
-    if (T.joinable()) T.join();
     // general_info_pulling d("127.0.0.1", 9090, "");
+    // d.close_all_connections();
+    // d.change_proxy_mode("direct");
     // d.update_proxy_list();
     // // d.latency_test();
     // logger.dlog(d.change_proxy_using_backend("🍎苹果服务", "🌏国外网站"), "\n");
