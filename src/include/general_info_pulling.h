@@ -1,7 +1,6 @@
 #ifndef SRC_GENERAL_INFO_PULLING_H
 #define SRC_GENERAL_INFO_PULLING_H
 
-#include "log.h"
 #include "httplib.h"
 #include "mihomo.h"
 #include "json.hpp"

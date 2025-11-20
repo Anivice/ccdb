@@ -10,7 +10,6 @@
 #include <vector>
 #include "httplib.h"
 #include "json.hpp"
-#include "glogger.h"
 
 class general_info_pulling;
 

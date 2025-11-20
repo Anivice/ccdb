@@ -1,5 +1,4 @@
 #include "mihomo.h"
-#include "glogger.h"
 
 bool mihomo::change_proxy(const std::string & group_name, const std::string & proxy_name)
 {

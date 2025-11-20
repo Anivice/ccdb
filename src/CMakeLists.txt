@@ -67,7 +67,7 @@ include_directories("${READLINE_INCLUDE_DIR}")
 # CCDB
 add_executable(ccdb
         main.cpp
-        include/log.h include/glogger.h include/httplib.h
+        include/httplib.h
         general_info_pulling.cpp    include/general_info_pulling.h
         mihomo.cpp                  include/mihomo.h
 )
