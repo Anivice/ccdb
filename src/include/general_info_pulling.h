@@ -4,10 +4,7 @@
 #include "log.h"
 #include "httplib.h"
 #include "mihomo.h"
-#include "ncursesw/ncurses.h"
 #include "json.hpp"
-#include "glogger.h"
-#include <ranges>
 #include <algorithm>
 #include <thread>
 

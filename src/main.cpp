@@ -3,15 +3,16 @@
 #include <csignal>
 #include "log.h"
 #include "glogger.h"
-#include "tui.h"
 
 Logger::Logger logger;
 
 int main()
 {
-    TUIScreen screen("127.0.0.1", 9090);
-    screen.worker();
-
+    // TUIScreen screen("127.0.0.1", 9090);
+    // screen.update_bitmap();
+    // screen.draw_info_according_to_bitmap();
+    std::this_thread::sleep_for(std::chrono::seconds(5l));
+    // screen.worker();
     // general_info_pulling d("127.0.0.1", 9090, "");
     // d.close_all_connections();
     // d.change_proxy_mode("direct");
