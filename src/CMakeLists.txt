@@ -33,6 +33,7 @@ set_target_properties(ncurses::ncurses PROPERTIES
 )
 add_dependencies(ncurses::ncurses NCURSES)
 include_directories("${NCURSES_INCLUDE_DIR}/ncursesw")
+include_directories("${NCURSES_INCLUDE_DIR}")
 
 ExternalProject_Add(READLINE
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/readline
@@ -61,6 +62,7 @@ set_target_properties(readline::readline PROPERTIES
 )
 add_dependencies(readline::readline READLINE)
 include_directories("${READLINE_INCLUDE_DIR}/readline")
+include_directories("${READLINE_INCLUDE_DIR}")
 
 # CCDB
 add_executable(ccdb
