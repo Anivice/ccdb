@@ -15,7 +15,7 @@ void general_info_pulling::update_from_traffic(std::string info)
         current_download_speed = static_cast<uint64_t>(data["down"]);
         // logger.dlog("Upload: ", current_upload_speed, " Download: ", current_download_speed, "\n");
     } catch (std::exception& e) {
-        logger.elog("Error when pulling traffic data: ", e.what(), "\n");
+        // logger.elog("Error when pulling traffic data: ", e.what(), "\n");
     }
 }
 
@@ -169,9 +169,9 @@ void general_info_pulling::update_from_connections(std::string info)
 
         // logger.dlog("Active connections: ", connection_map.size(), "\n");
     } catch (std::exception& e) {
-        logger.elog("Error when pulling traffic data: ", e.what(), "\n");
+        // logger.elog("Error when pulling traffic data: ", e.what(), "\n");
     } catch (...) {
-        logger.elog("Error when pulling traffic data\n");
+        // logger.elog("Error when pulling traffic data\n");
     }
 }
 
@@ -181,7 +181,7 @@ void general_info_pulling::update_from_logs(std::string info)
     try {
         data = json::parse(info);
     } catch (const std::exception & e) {
-        logger.dlog("Error: Cannot parse json: ", e.what(), "\n");
+        // logger.dlog("Error: Cannot parse json: ", e.what(), "\n");
         return;
     }
 
@@ -406,7 +406,7 @@ void general_info_pulling::update_proxy_list()
         }
         catch (const std::exception & e)
         {
-            logger.dlog(e.what(), "\n");
+            // logger.dlog(e.what(), "\n");
         }
     });
 
@@ -448,7 +448,7 @@ void general_info_pulling::latency_test(const std::string & url)
                         }
                         else
                         {
-                            logger.dlog(std::string(data["message"]), "\n");
+                            // logger.dlog(std::string(data["message"]), "\n");
                         }
                     });
             } catch (std::exception & e) {
