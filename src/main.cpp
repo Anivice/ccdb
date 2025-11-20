@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include "readline.h"
 #include "history.h"
+#include "general_info_pulling.h"
 
 volatile std::atomic_bool sysint_pressed = false;
 void sigint_handler(int)
@@ -258,8 +259,46 @@ namespace color
     }
 }
 
-int main()
+int main(int argc, char ** argv)
 {
+    std::string backend;
+    int port = 0;
+    std::string token;
+    std::string latency_url;
+
+    try
+    {
+        if (argc == 3)
+        {
+            backend = argv[1];
+            port = atoi(argv[2]);
+        }
+        else if (argc == 4)
+        {
+            backend = argv[1];
+            port = atoi(argv[2]);
+            token = argv[3];
+        }
+        else if (argc == 5)
+        {
+            backend = argv[1];
+            port = atoi(argv[2]);
+            token = argv[3];
+            latency_url = argv[4];
+        }
+        else
+        {
+            std::cout << argv[0] << " [BACKEND] [PORT] <TOKEN> <LATENCY URL>" << std::endl;
+            std::cout << " [...] is required, <...> is optional." << std::endl;
+            return 1;
+        }
+    }
+    catch (std::exception &e)
+    {
+        std::cerr << e.what() << std::endl;
+        return 1;
+    }
+
     auto remove_leading_and_tailing_spaces = [](const std::string & text)->std::string
     {
         std::string middle = text.substr(text.find_first_not_of(' '));
@@ -340,10 +379,10 @@ int main()
                         if (longest_subcmd_length < s.length()) longest_subcmd_length = s.length();
                     }
 
-                    for (const auto & [cmd, des] : map)
+                    for (const auto & [sub_cmd_text, des] : map)
                     {
                         std::cout << "            " << color::color(0,0,5) << "*" << color::no_color() << " ";
-                        std::cout << color::color(0,5,5) << cmd << color::no_color() << ":" << std::string(longest_subcmd_length - cmd.length() + 1, ' ') << des;
+                        std::cout << color::color(0,5,5) << sub_cmd_text << color::no_color() << ":" << std::string(longest_subcmd_length - sub_cmd_text.length() + 1, ' ') << des;
                         std::cout << std::endl;
                     }
                 };
