@@ -82,6 +82,36 @@ if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     target_compile_options(ccdb PUBLIC -fsanitize=thread -fno-sanitize-recover=undefined -fno-sanitize=undefined)
     target_link_libraries(ccdb PUBLIC tsan atomic readline::readline ncurses::ncurses)
 else ()
-    target_compile_options(ccdb PUBLIC -O3 -ffast-math -fstrict-aliasing)
+    target_compile_options(ccdb PUBLIC
+            -O3
+            -flto
+            -fomit-frame-pointer
+            -ffast-math
+            -fstrict-aliasing
+            -fdata-sections
+            -ffunction-sections
+            -D_FORTIFY_SOURCE=2
+            -fstack-protector-strong
+            -Wl,-z,relro -Wl,-z,now
+            -s
+    )
+    target_link_options(ccdb PUBLIC
+            -static-libgcc -static-libstdc++
+            -O3
+            -flto
+            -fomit-frame-pointer
+            -ffast-math
+            -fstrict-aliasing
+            -fdata-sections
+            -ffunction-sections
+            -Wl,--gc-sections
+            -D_FORTIFY_SOURCE=2
+            -fstack-protector-strong
+            -Wl,-z,relro -Wl,-z,now
+            -s
+    )
     target_link_libraries(ccdb PUBLIC atomic readline::readline ncurses::ncurses)
+    set_target_properties(ccdb PROPERTIES LINK_SEARCH_START_STATIC 1)
+    set_target_properties(ccdb PROPERTIES LINK_SEARCH_END_STATIC 1)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 endif ()
