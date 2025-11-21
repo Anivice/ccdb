@@ -465,6 +465,7 @@ int main(int argc, char ** argv)
 
     ////////////////////////////////////////////////////////////////////////////////////////
     std::cout << "Connecting to http://" << backend << ":" << port << std::endl;
+    std::cout << "C++ Clash Dashboard Version 0.0.1" << std::endl;
     ////////////////////////////////////////////////////////////////////////////////////////
 
     auto remove_leading_and_tailing_spaces = [](const std::string & text)->std::string
@@ -499,12 +500,12 @@ int main(int argc, char ** argv)
             {
                 if (std::ranges::find(groups, group) == groups.end())
                 {
-                    groups.push_back(group);
+                    groups.push_back("\"" + group + "\"");
                 }
 
                 std::ranges::for_each(proxy.first, [&](const std::string & _p)
                 {
-                    if (std::ranges::find(proxies, _p) == proxies.end()) proxies.push_back(_p);
+                    if (std::ranges::find(proxies, _p) == proxies.end()) proxies.push_back("\"" + _p + "\"");
                 });
             }
 
@@ -694,9 +695,8 @@ int main(int argc, char ** argv)
                         std::cout << backend_instance.get_current_mode() << std::endl;
                     } else if (command_vector[1] == "proxy") {
                         backend_instance.update_proxy_list();
-                        auto proxy_list_pair = backend_instance.get_proxies_and_latencies_as_pair();
-                        auto proxy_list = proxy_list_pair.first;
-                        auto proxy_lat = proxy_list_pair.second;
+                        update_providers();
+                        auto [proxy_list, proxy_lat] = backend_instance.get_proxies_and_latencies_as_pair();
                         std::vector<std::string> table_titles = { "Group", "Sel", "Proxy Candidates" };
                         std::vector<std::vector<std::string>> table_vals;
 
