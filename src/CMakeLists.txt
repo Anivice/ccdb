@@ -76,11 +76,11 @@ target_compile_definitions(ccdb PUBLIC VERSION="0.0.1")
 
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
 
-    target_compile_options(ccdb PUBLIC -fsanitize=address -fsanitize=undefined)
-    target_link_libraries(ccdb PUBLIC asan ubsan atomic readline::readline ncurses::ncurses)
+#    target_compile_options(ccdb PUBLIC -fsanitize=address -fsanitize=undefined)
+#    target_link_libraries(ccdb PUBLIC asan ubsan atomic readline::readline ncurses::ncurses)
 
-#    target_compile_options(ccdb PUBLIC -fsanitize=thread -fno-sanitize-recover=undefined -fno-sanitize=undefined)
-#    target_link_libraries(ccdb PUBLIC tsan atomic readline::readline)
+    target_compile_options(ccdb PUBLIC -fsanitize=thread -fno-sanitize-recover=undefined -fno-sanitize=undefined)
+    target_link_libraries(ccdb PUBLIC tsan atomic readline::readline ncurses::ncurses)
 else ()
     target_compile_options(ccdb PUBLIC -O3 -ffast-math -fstrict-aliasing)
     target_link_libraries(ccdb PUBLIC atomic readline::readline ncurses::ncurses)

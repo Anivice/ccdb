@@ -6,6 +6,7 @@
 #include <cctype>
 #include <cstdio>
 #include <cstdint>
+#include <iostream>
 
 void general_info_pulling::update_from_traffic(std::string info)
 {
@@ -166,12 +167,10 @@ void general_info_pulling::update_from_connections(std::string info)
         }
 
         connection_map = new_connection_map; // update and discard previous
-
-        // logger.dlog("Active connections: ", connection_map.size(), "\n");
     } catch (std::exception& e) {
-        // logger.elog("Error when pulling traffic data: ", e.what(), "\n");
+        std::cerr << "Error when pulling traffic data: " << e.what() << std::endl;
     } catch (...) {
-        // logger.elog("Error when pulling traffic data\n");
+        std::cerr << "Error when pulling traffic data" << std::endl;
     }
 }
 
@@ -181,7 +180,7 @@ void general_info_pulling::update_from_logs(std::string info)
     try {
         data = json::parse(info);
     } catch (const std::exception & e) {
-        // logger.dlog("Error: Cannot parse json: ", e.what(), "\n");
+        std::cerr << "Error: Cannot parse json: " << e.what() << std::endl;
         return;
     }
 
@@ -309,8 +308,6 @@ void general_info_pulling::pull_continuous_updates()
         }
     }
 
-    // logger.dlog("Stoping...\n");
-
     for (auto & running : thread_pool | std::views::keys) {
         *running = false;
     }
@@ -406,7 +403,7 @@ void general_info_pulling::update_proxy_list()
         }
         catch (const std::exception & e)
         {
-            // logger.dlog(e.what(), "\n");
+            std::cerr << "Cannot update proxy list: " << e.what() << std::endl;
         }
     });
 
@@ -448,10 +445,11 @@ void general_info_pulling::latency_test(const std::string & url)
                         }
                         else
                         {
-                            // logger.dlog(std::string(data["message"]), "\n");
+                            std::cerr << "Cannot get latency: " << std::string(data["message"]) << std::endl;
                         }
                     });
             } catch (std::exception & e) {
+                std::cerr << "Cannot get latency: " << e.what() << std::endl;
                 *ptr_ = -1;
             }
         };
@@ -472,4 +470,23 @@ bool general_info_pulling::change_proxy_using_backend(const std::string & group_
 
     update_proxy_list();
     return true;
+}
+
+std::string general_info_pulling::get_current_mode()
+{
+    std::string result = "[ERROR]";
+    backend_client.get_info_no_instance("configs", [&](std::string configs)
+    {
+        try
+        {
+            json data = json::parse(configs);
+            result = data["mode"];
+        }
+        catch (const std::exception & e)
+        {
+            std::cerr << "Cannot get mode: " << e.what() << std::endl;
+        }
+    });
+
+    return result;
 }

@@ -11,6 +11,8 @@
 #include "history.h"
 #include "general_info_pulling.h"
 
+const char clear[] = { 0x1b, 0x5b, 0x48, 0x1b, 0x5b, 0x32, 0x4a, 0x1b, 0x5b, 0x33, 0x4a };
+
 volatile std::atomic_bool sysint_pressed = false;
 void sigint_handler(int)
 {
@@ -130,6 +132,7 @@ static char ** cmd_completion(const char *text, int start, int end) {
                     rl_attempted_completion_over = 1;
                     break;
                 case 2:
+                case 3:
                     matches = rl_completion_matches(text, set_arg2_verbs);
                     rl_attempted_completion_over = 1;
                     break;
@@ -293,7 +296,11 @@ void help_sub_cmds(const std::string & cmd_text, const std::map <std::string, st
     }
 }
 
-void print_table(std::vector<std::string> const & table_keys, std::vector < std::vector<std::string> > const & table_values)
+void print_table(
+    std::vector<std::string> const & table_keys,
+    std::vector < std::vector<std::string> > const & table_values,
+    bool muff_non_ascii = true,
+    bool seperator = true)
 {
     const decltype(table_keys.size()) max_size = std::strtoll(color::get_env("COLUMNS").c_str(), nullptr, 10) / table_keys.size();
     std::map < std::string /* table keys */, uint32_t /* longest value in this column */ > size_map;
@@ -335,7 +342,7 @@ void print_table(std::vector<std::string> const & table_keys, std::vector < std:
     }
 
     std::cout << separation_line << std::endl;
-    std::cout << title_line << std::endl;
+    std::cout << color::color(5,5,5) << title_line << color::no_color() << std::endl;
     std::cout << separation_line << std::endl;
 
     for (const auto & vals : table_values)
@@ -347,9 +354,9 @@ void print_table(std::vector<std::string> const & table_keys, std::vector < std:
             const int paddings = static_cast<int>(size_map[current_key] - val.length()) + 2;
             const int before = std::max(paddings / 2, 1);
             const int after = std::max(paddings - before, 1);
-            std::cout << "|" << std::string(before, ' ');
+            std::cout << (seperator ? "|" : " ") << std::string(before, ' ');
             std::string output;
-            if (val.length() > max_size)
+            if (val.length() > max_size && (muff_non_ascii ? true : index != vals.size()))
             {
                 std::string first = val.substr(0, max_size / 3 * 2);
                 std::string second = val.substr(val.length() - (max_size - (max_size / 3 * 2 + 3)));
@@ -359,14 +366,18 @@ void print_table(std::vector<std::string> const & table_keys, std::vector < std:
                 output = val;
             }
 
-            for (auto & c : output) {
-                if (!std::isprint(c)) c = '#';
+            if (muff_non_ascii) {
+                for (auto & c : output) {
+                    if (!std::isprint(c)) c = '#';
+                }
             }
 
             std::cout << output << std::string(after, ' ');
         }
-        std::cout << "|" << std::endl;
+        std::cout << " " << std::endl;
     }
+
+    std::cout << separation_line << std::endl;
 }
 
 std::string value_to_speed(const unsigned long long value)
@@ -400,6 +411,19 @@ std::string value_to_size(const unsigned long long value)
         return std::to_string(value / (1024l * 1024 * 1024 * 1024)) + " TB";
     } else {
         return std::to_string(value) + " B";
+    }
+}
+
+std::string second_to_human_readable(const unsigned long long value)
+{
+    if (value < 60) {
+        return std::to_string(value) + " s";
+    } else if (value < 60 * 60) {
+        return std::to_string(value / 60) + " Min";
+    } else if (value < 60 * 60 * 24) {
+        return std::to_string(value / (60 * 60)) + " H";
+    } else {
+        return std::to_string(value / (60 * 60 * 24)) + " Day";
     }
 }
 
@@ -463,7 +487,35 @@ int main(int argc, char ** argv)
     {
         char * line = nullptr;
         general_info_pulling backend_instance(backend, port, token);
+
+        auto update_providers = [&]
+        {
+            backend_instance.update_proxy_list();
+            auto proxy_list = backend_instance.get_proxies_and_latencies_as_pair().first;
+            std::vector<std::string> groups;
+            std::vector<std::string> proxies;
+
+            for (const auto & [group, proxy] : proxy_list)
+            {
+                if (std::ranges::find(groups, group) == groups.end())
+                {
+                    groups.push_back(group);
+                }
+
+                std::ranges::for_each(proxy.first, [&](const std::string & _p)
+                {
+                    if (std::ranges::find(proxies, _p) == proxies.end()) proxies.push_back(_p);
+                });
+            }
+
+            std::lock_guard lock(arg2_additional_verbs_mutex);
+            arg2_additional_verbs.clear();
+            arg2_additional_verbs.insert(arg2_additional_verbs.end(), proxies.begin(), proxies.end());
+            arg2_additional_verbs.insert(arg2_additional_verbs.end(), groups.begin(), groups.end());
+        };
+
         backend_instance.start_continuous_updates();
+        update_providers();
 
         while ((line = readline("ccdb> ")) != nullptr)
         {
@@ -480,8 +532,20 @@ int main(int argc, char ** argv)
                 std::string cmd = line;
                 cmd = remove_leading_and_tailing_spaces(cmd);
                 std::string buffer;
+                bool override = false;
                 for (auto c : cmd)
                 {
+                    if (c == '"') {
+                        override = !override;
+                        continue;
+                    }
+
+                    if (override)
+                    {
+                        buffer += c;
+                        continue;
+                    }
+
                     if (c != ' ') {
                         buffer.push_back(c);
                     }
@@ -548,12 +612,12 @@ int main(int argc, char ** argv)
                                 "UP",
                                 "DL Speed",
                                 "UP Speed",
-                                "Chains",
                                 "Rules",
                                 "Time",
                                 "Source IP",
                                 "Destination IP",
-                                "Type"
+                                "Type",
+                                "Chains",
                             };
                             std::vector<std::vector<std::string>> table_vals;
                             std::ranges::sort(connections,
@@ -568,26 +632,130 @@ int main(int argc, char ** argv)
                                     value_to_size(connection.totalUploadedBytes),
                                     value_to_speed(connection.downloadSpeed),
                                     value_to_speed(connection.uploadSpeed),
-                                    connection.chainName,
                                     connection.ruleName,
-                                    std::to_string(connection.timeElapsedSinceConnectionEstablished),
+                                    second_to_human_readable(connection.timeElapsedSinceConnectionEstablished),
                                     connection.src,
                                     connection.destination,
-                                    connection.networkType
+                                    connection.networkType,
+                                    connection.chainName,
                                 });
                             }
 
-                            const char clear[] = { 0x1b, 0x5b, 0x48, 0x1b, 0x5b, 0x32, 0x4a, 0x1b, 0x5b, 0x33, 0x4a };
                             std::cout.write(clear, sizeof(clear));
-                            print_table(titles, table_vals);
+                            print_table(titles, table_vals, false);
                             std::this_thread::sleep_for(std::chrono::seconds(1l));
                         }
                     } else if (command_vector[1] == "latency") {
+                        std::cout << "Testing latency with url " << latency_url << " ..." << std::endl;
+                        backend_instance.update_proxy_list(); // update the proxy first
+                        backend_instance.latency_test(latency_url);
+                        auto latency_list = backend_instance.get_proxies_and_latencies_as_pair();
+                        std::vector < std::pair<std::string, int >> list_unordered;
+                        for (const auto & [proxy, latency] : latency_list.second) {
+                            list_unordered.emplace_back(proxy, latency);
+                        }
+
+                        std::vector<std::string> titles = { "Latency", "Proxy" };
+                        std::vector<std::vector<std::string>> table_vals;
+                        std::vector<std::string> table_line;
+
+                        std::ranges::sort(list_unordered,
+                            [](const std::pair < std::string, int > & a, const std::pair < std::string, int > & b)->bool
+                            { return a.second < b.second; });
+
+                        for (const auto & [proxy, latency] : list_unordered)
+                        {
+                            table_line.push_back(std::to_string(latency));
+                            table_line.push_back(proxy);
+                            table_vals.emplace_back(table_line);
+                            table_line.clear();
+                        }
+                        print_table(titles, table_vals, false);
                     } else if (command_vector[1] == "log") {
+                        backend_instance.change_focus("logs");
+                        while (!sysint_pressed)
+                        {
+                            auto current_vector = backend_instance.get_logs();
+                            const uint32_t lines = std::strtol(color::get_env("LINES").c_str(), nullptr, 10);
+                            while (current_vector.size() > lines) current_vector.erase(current_vector.begin());
+                            std::cout.write(clear, sizeof(clear));
+                            for (const auto & [level, log] : current_vector)
+                            {
+                                if (level == "info") {
+                                    std::cout << color::color(2,2,2) << level << color::no_color() << ": " << log << std::endl;
+                                } else {
+                                    std::cout << color::color(5,0,0) << level << color::no_color() << ": " << log << std::endl;
+                                }
+                            }
+
+                            std::this_thread::sleep_for(std::chrono::seconds(1l));
+                        }
                     } else if (command_vector[1] == "mode") {
+                        std::cout << backend_instance.get_current_mode() << std::endl;
                     } else if (command_vector[1] == "proxy") {
+                        backend_instance.update_proxy_list();
+                        auto proxy_list_pair = backend_instance.get_proxies_and_latencies_as_pair();
+                        auto proxy_list = proxy_list_pair.first;
+                        auto proxy_lat = proxy_list_pair.second;
+                        std::vector<std::string> table_titles = { "Group", "Sel", "Proxy Candidates" };
+                        std::vector<std::vector<std::string>> table_vals;
+
+                        auto push_line = [&table_vals](const std::string & s1, const std::string & s2, const std::string & s3)
+                        {
+                            std::vector<std::string> table_line;
+                            table_line.emplace_back(s1);
+                            table_line.emplace_back(s2);
+                            table_line.emplace_back(s3);
+                            table_vals.emplace_back(table_line);
+                        };
+
+                        std::ranges::for_each(proxy_list, [&](const std::pair < std::string, std::pair < std::vector<std::string>, std::string> > & element)
+                        {
+                            push_line(element.first, "", "");
+                            std::ranges::for_each(element.second.first, [&](const std::string & proxy)
+                            {
+                                push_line("", proxy == element.second.second ? "*" : "",
+                                    (proxy == element.second.second ? color::bg_color(0,0,4) + color::color(5,5,5) :
+                                        color::bg_color(2,2,2) + color::color(5,5,5))
+                                    + proxy + color::no_color());
+                            });
+                        });
+
+                        print_table(table_titles, table_vals, false, false);
                     } else {
+                        std::cerr << "Unknown command `" << command_vector[1] << "`" << std::endl;
                     }
+                }
+                else if (command_vector.front() == "set")
+                {
+                    if (command_vector[1] == "mode")
+                    {
+                        if (command_vector[2] != "rule" && command_vector[2] != "global" && command_vector[2] != "direct")
+                        {
+                            std::cerr << "Unknown mode " << command_vector[2] << std::endl;
+                        }
+                        else
+                        {
+                            backend_instance.change_proxy_mode(command_vector[2]);
+                        }
+                    } else if (command_vector[1] == "group") {
+                        const std::string & group = command_vector[2], & proxy = command_vector[3];
+                        std::cout << "Changing `" << group << "` proxy endpoint to `" << proxy << "`" << std::endl;
+                        if (!backend_instance.change_proxy_using_backend(group, proxy))
+                        {
+                            std::cerr << "Failed to change proxy endpoint to `" << proxy << "`" << std::endl;
+                        }
+                    } else {
+                        std::cerr << "Unknown command `" << command_vector[1] << "`" << std::endl;
+                    }
+                }
+                else if (command_vector.front() == "close_connections")
+                {
+                    backend_instance.close_all_connections();
+                }
+                else
+                {
+                    std::cerr << "Unknown command `" << command_vector.front() << "`" << std::endl;
                 }
             }
 
