@@ -17,6 +17,7 @@ private:
     std::atomic < uint64_t > total_uploaded_bytes;
     std::atomic < uint64_t > total_downloaded_bytes;
 
+public:
     struct connection_t
     {
     public:
@@ -38,6 +39,8 @@ private:
     private:
         std::chrono::high_resolution_clock::time_point timeLastPulled;
     };
+
+private:
     std::mutex connection_map_mutex;
     std::map < std::string, connection_t > connection_map;
 

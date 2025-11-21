@@ -49,7 +49,7 @@ static char * name (const char *text, int state) {                              
 static char *cmd_generator(const char *text, int state) {
     static int index, len;
     const char *name;
-    if (!state) { index = 0; len = strlen(text); }
+    if (!state) { index = 0; len = static_cast<int>(strlen(text)); }
     while ((name = cmds[index++])) {
         if (strncmp(name, text, len) == 0)
             return strdup(name);
@@ -83,11 +83,11 @@ static char * set_arg2_verbs (const char *text, int state)
     {
         std::lock_guard lock(arg2_additional_verbs_mutex);
         arg2_verbs.insert(arg2_verbs.end(), arg2_additional_verbs.begin(), arg2_additional_verbs.end());
-        arg2_verbs.push_back("");
+        arg2_verbs.emplace_back("");
     }
     static int index, len;
     const char *name;
-    if (!state) { index = 0; len = strlen(text); }
+    if (!state) { index = 0; len = static_cast<int>(strlen(text)); }
     while (((name = arg2_verbs[index++].c_str())) && strlen(name) > 0) {
         if (strncmp(name, text, len) == 0)
             return strdup(name);
@@ -259,164 +259,347 @@ namespace color
     }
 }
 
+void help_overall()
+{
+    std::cout   << color::color(0,5,1) << "help" << color::color(5,5,5) << " [COMMAND]" << color::no_color() << std::endl
+                << "    Where " << color::color(5,5,5) << "[COMMAND]" << color::no_color() << " can be:" << std::endl
+                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "quit\n" << color::no_color()
+                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "exit\n" << color::no_color()
+                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "get\n" << color::no_color()
+                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "set\n" << color::no_color()
+                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "close_connections\n" << color::no_color();
+}
+
+void help(const std::string & cmd_text, const std::string & description)
+{
+    std::cout << color::color(5,5,5) << "COMMAND     " << color::color(5,3,5) << cmd_text << color::no_color() << std::endl;
+    std::cout << color::color(5,5,5) << "DESCRIPTION " << color::color(2,4,5) << description << color::no_color() << std::endl;
+}
+
+void help_sub_cmds(const std::string & cmd_text, const std::map <std::string, std::string > & map)
+{
+    std::cout << color::color(5,5,5) << "COMMAND     " << color::color(5,3,5) << cmd_text << color::no_color() << std::endl;
+    std::cout << color::color(5,5,5) << "DESCRIPTION " << color::color(2,4,5) << color::no_color() << std::endl;
+    int longest_subcmd_length = 0;
+    for (const auto & s : map | std::views::keys) {
+        if (longest_subcmd_length < s.length()) longest_subcmd_length = static_cast<int>(s.length());
+    }
+
+    for (const auto & [sub_cmd_text, des] : map)
+    {
+        std::cout << "            " << color::color(0,0,5) << "*" << color::no_color() << " ";
+        std::cout << color::color(0,5,5) << sub_cmd_text << color::no_color() << ":" << std::string(longest_subcmd_length - sub_cmd_text.length() + 1, ' ') << des;
+        std::cout << std::endl;
+    }
+}
+
+void print_table(std::vector<std::string> const & table_keys, std::vector < std::vector<std::string> > const & table_values)
+{
+    const decltype(table_keys.size()) max_size = std::strtoll(color::get_env("COLUMNS").c_str(), nullptr, 10) / table_keys.size();
+    std::map < std::string /* table keys */, uint32_t /* longest value in this column */ > size_map;
+    for (const auto & key : table_keys)
+    {
+        size_map[key] = key.length();
+    }
+
+    for (const auto & vals : table_values)
+    {
+        if (vals.size() != table_keys.size()) return;
+        int index = 0;
+        for (const auto & val : vals)
+        {
+            if (const auto & current_key = table_keys[index++];
+                size_map[current_key] < val.size())
+            {
+                size_map[current_key] = std::min(max_size, val.size());
+            }
+        }
+    }
+
+    std::stringstream ss;
+    for (const auto & key : table_keys)
+    {
+        const int paddings = static_cast<int>(size_map[key] - key.length()) + 2;
+        const int before = std::max(paddings / 2, 1);
+        const int after = std::max(paddings - before, 1);
+        ss << "|" << std::string(before, ' ') << key << std::string(after, ' ');
+    }
+    ss << "|";
+    const std::string title_line = ss.str();
+    std::string separation_line;
+    if (title_line.size() > 2)
+    {
+        std::stringstream ss_sep;
+        ss_sep << "+" << std::string(title_line.size() - 2, '-') << "+";
+        separation_line = ss_sep.str();
+    }
+
+    std::cout << separation_line << std::endl;
+    std::cout << title_line << std::endl;
+    std::cout << separation_line << std::endl;
+
+    for (const auto & vals : table_values)
+    {
+        int index = 0;
+        for (const auto & val : vals)
+        {
+            const auto & current_key = table_keys[index++];
+            const int paddings = static_cast<int>(size_map[current_key] - val.length()) + 2;
+            const int before = std::max(paddings / 2, 1);
+            const int after = std::max(paddings - before, 1);
+            std::cout << "|" << std::string(before, ' ');
+            std::string output;
+            if (val.length() > max_size)
+            {
+                std::string first = val.substr(0, max_size / 3 * 2);
+                std::string second = val.substr(val.length() - (max_size - (max_size / 3 * 2 + 3)));
+                output += first + "...";
+                output += second;
+            } else {
+                output = val;
+            }
+
+            for (auto & c : output) {
+                if (!std::isprint(c)) c = '#';
+            }
+
+            std::cout << output << std::string(after, ' ');
+        }
+        std::cout << "|" << std::endl;
+    }
+}
+
+std::string value_to_speed(const unsigned long long value)
+{
+    if (value < 1024) {
+        return std::to_string(value) + " B/s";
+    } else if (value < 1024 * 1024) {
+        return std::to_string(value / 1024) + " KB/s";
+    } else if (value < 1024 * 1024 * 1024) {
+        return std::to_string(value / (1024 * 1024)) + " MB/s";
+    } else if (value < 1024l * 1024 * 1024 * 1024) {
+        return std::to_string(value / (1024 * 1024 * 1024)) + " GB/s";
+    } else if (value < 1024l * 1024 * 1024 * 1024 * 1024) {
+        return std::to_string(value / (1024l * 1024 * 1024 * 1024)) + " TB/s";
+    } else {
+        return std::to_string(value) + " B/s";
+    }
+}
+
+std::string value_to_size(const unsigned long long value)
+{
+    if (value < 1024) {
+        return std::to_string(value) + " B";
+    } else if (value < 1024 * 1024) {
+        return std::to_string(value / 1024) + " KB";
+    } else if (value < 1024 * 1024 * 1024) {
+        return std::to_string(value / (1024 * 1024)) + " MB";
+    } else if (value < 1024l * 1024 * 1024 * 1024) {
+        return std::to_string(value / (1024 * 1024 * 1024)) + " GB";
+    } else if (value < 1024l * 1024 * 1024 * 1024 * 1024) {
+        return std::to_string(value / (1024l * 1024 * 1024 * 1024)) + " TB";
+    } else {
+        return std::to_string(value) + " B";
+    }
+}
+
 int main(int argc, char ** argv)
 {
     std::string backend;
     int port = 0;
     std::string token;
-    std::string latency_url;
+    std::string latency_url = "https://api.epicgames.dev/";
 
     try
     {
-        if (argc == 3)
+        if (argc >= 3)
         {
             backend = argv[1];
-            port = atoi(argv[2]);
+            port = static_cast<int>(std::strtol(argv[2], nullptr, 10));
         }
-        else if (argc == 4)
-        {
-            backend = argv[1];
-            port = atoi(argv[2]);
+
+        if (argc >= 4) {
             token = argv[3];
         }
-        else if (argc == 5)
-        {
-            backend = argv[1];
-            port = atoi(argv[2]);
-            token = argv[3];
+
+        if (argc == 5) {
             latency_url = argv[4];
         }
-        else
+
+        if (argc < 3 || argc > 5)
         {
             std::cout << argv[0] << " [BACKEND] [PORT] <TOKEN> <LATENCY URL>" << std::endl;
             std::cout << " [...] is required, <...> is optional." << std::endl;
-            return 1;
+            return EXIT_FAILURE;
         }
     }
     catch (std::exception &e)
     {
         std::cerr << e.what() << std::endl;
-        return 1;
+        return EXIT_FAILURE;
     }
+
+    ////////////////////////////////////////////////////////////////////////////////////////
+    std::cout << "Connecting to http://" << backend << ":" << port << std::endl;
+    ////////////////////////////////////////////////////////////////////////////////////////
 
     auto remove_leading_and_tailing_spaces = [](const std::string & text)->std::string
     {
-        std::string middle = text.substr(text.find_first_not_of(' '));
+        if (text.empty()) return text;
+        const auto pos = text.find_first_not_of(' ');
+        if (pos == std::string::npos) return text;
+        std::string middle = text.substr(pos);
         while (!middle.empty() && middle.back() == ' ') {
             middle.pop_back();
         }
         return middle;
     };
+
     std::signal(SIGINT, sigint_handler);
 
     rl_attempted_completion_function = cmd_completion;
     using_history();
-    char *line;
-    while ((line = readline("ccdb> ")) != nullptr)
+    try
     {
-        if (sysint_pressed)
-        {
-            free(line);
-            sysint_pressed = false;
-            continue;
-        }
+        char * line = nullptr;
+        general_info_pulling backend_instance(backend, port, token);
+        backend_instance.start_continuous_updates();
 
-        if (*line) add_history(line);
-        std::string cmd = line;
-        cmd = remove_leading_and_tailing_spaces(cmd);
-        std::vector < std::string > command_vector;
+        while ((line = readline("ccdb> ")) != nullptr)
         {
-            std::string buffer;
-            for (auto c : cmd)
+            if (sysint_pressed)
             {
-                if (c != ' ') {
-                    buffer.push_back(c);
-                }
-                else if (!buffer.empty())
+                free(line);
+                sysint_pressed = false;
+                continue;
+            }
+
+            if (*line) add_history(line);
+            std::vector < std::string > command_vector;
+            {
+                std::string cmd = line;
+                cmd = remove_leading_and_tailing_spaces(cmd);
+                std::string buffer;
+                for (auto c : cmd)
                 {
+                    if (c != ' ') {
+                        buffer.push_back(c);
+                    }
+                    else if (!buffer.empty())
+                    {
+                        command_vector.push_back(buffer);
+                        buffer.clear();
+                    }
+                }
+
+                if (!buffer.empty()) {
                     command_vector.push_back(buffer);
                     buffer.clear();
                 }
             }
 
-            if (!buffer.empty()) {
-                command_vector.push_back(buffer);
-                buffer.clear();
-            }
-        }
-
-        if (!command_vector.empty())
-        {
-            if (command_vector.front() == "quit" || command_vector.front() == "exit") {
-                free(line);
-                break;
-            }
-            else if (command_vector.front() == "help")
+            if (!command_vector.empty())
             {
-                auto help_overall = []
-                {
-                    std::cout   << color::color(0,5,1) << "help" << color::color(5,5,5) << " [COMMAND]" << color::no_color() << std::endl
-                                << "    Where " << color::color(5,5,5) << "[COMMAND]" << color::no_color() << " can be:" << std::endl
-                                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "quit\n" << color::no_color()
-                                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "exit\n" << color::no_color()
-                                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "get\n" << color::no_color()
-                                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "set\n" << color::no_color()
-                                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "close_connections\n" << color::no_color();
-                };
-
-                auto help = [](const std::string & cmd_text, const std::string & description)->void
-                {
-                    std::cout << color::color(5,5,5) << "COMMAND     " << color::color(5,3,5) << cmd_text << color::no_color() << std::endl;
-                    std::cout << color::color(5,5,5) << "DESCRIPTION " << color::color(2,4,5) << description << color::no_color() << std::endl;
-                };
-
-                auto help_sub_cmds = [](const std::string & cmd_text, const std::map <std::string, std::string > & map)->void
-                {
-                    std::cout << color::color(5,5,5) << "COMMAND     " << color::color(5,3,5) << cmd_text << color::no_color() << std::endl;
-                    std::cout << color::color(5,5,5) << "DESCRIPTION " << color::color(2,4,5) << color::no_color() << std::endl;
-                    int longest_subcmd_length = 0;
-                    for (const auto & s : map | std::views::keys) {
-                        if (longest_subcmd_length < s.length()) longest_subcmd_length = s.length();
-                    }
-
-                    for (const auto & [sub_cmd_text, des] : map)
-                    {
-                        std::cout << "            " << color::color(0,0,5) << "*" << color::no_color() << " ";
-                        std::cout << color::color(0,5,5) << sub_cmd_text << color::no_color() << ":" << std::string(longest_subcmd_length - sub_cmd_text.length() + 1, ' ') << des;
-                        std::cout << std::endl;
-                    }
-                };
-
-                if (command_vector.size() != 2) {
-                    help_overall();
+                if (command_vector.front() == "quit" || command_vector.front() == "exit") {
+                    free(line);
+                    break;
                 }
-                else
+                else if (command_vector.front() == "help")
                 {
-                    if (command_vector[1] == "quit" || command_vector[1] == "exit") {
-                        help(command_vector[1], "Exit the program");
-                    } else if (command_vector[1] == "close_connections") {
-                        help(command_vector[1], "Close all currently active connections");
-                    } else if (command_vector[1] == "get") {
-                        help_sub_cmds("get", {
-                            { "latency", "Get all proxy latencies" },
-                            { "proxy", "Get all proxies. Latency will be added if tested before" },
-                            { "connections", "Get all active connections" },
-                            { "mode", "Get current proxy mode, i.e., direct, rule or global" },
-                            { "log", "Watch logs. Use Ctrl+C (^C) to stop watching" },
-                        });
-                    } else if (command_vector[1] == "set") {
-                        help_sub_cmds("set", {
-                            { "mode", "set mode " + color::color(5,5,5) + "[MODE]" + color::no_color() + ", where " + color::color(5,5,5) + "[MODE]" + color::no_color() + R"( can be "direct", "rule", or "global")" }, // DO NOT USE "...," use "...", instead. It's confusing
-                            { "group", "set group " + color::color(5,5,5) + "[GROUP]" + color::no_color() + " " + color::color(5,5,5) + "[PROXY]" + color::no_color() + ", where " + color::color(5,5,5) + "[GROUP]" + color::no_color() + " is proxy group, and " + color::color(5,5,5) + "[PROXY]" + color::no_color() + " is proxy endpoint" },
-                        });
-                    } else {
+                    if (command_vector.size() != 2) {
                         help_overall();
                     }
+                    else
+                    {
+                        if (command_vector[1] == "quit" || command_vector[1] == "exit") {
+                            help(command_vector[1], "Exit the program");
+                        } else if (command_vector[1] == "close_connections") {
+                            help(command_vector[1], "Close all currently active connections");
+                        } else if (command_vector[1] == "get") {
+                            help_sub_cmds("get", {
+                                { "latency", "Get all proxy latencies" },
+                                { "proxy", "Get all proxies. Latency will be added if tested before" },
+                                { "connections", "Get all active connections" },
+                                { "mode", "Get current proxy mode, i.e., direct, rule or global" },
+                                { "log", "Watch logs. Use Ctrl+C (^C) to stop watching" },
+                            });
+                        } else if (command_vector[1] == "set") {
+                            help_sub_cmds("set", {
+                                { "mode", "set mode " + color::color(5,5,5) + "[MODE]" + color::no_color() + ", where " + color::color(5,5,5) + "[MODE]" + color::no_color() + R"( can be "direct", "rule", or "global")" }, // DO NOT USE "...," use "...", instead. It's confusing
+                                { "group", "set group " + color::color(5,5,5) + "[GROUP]" + color::no_color() + " " + color::color(5,5,5) + "[PROXY]" + color::no_color() + ", where " + color::color(5,5,5) + "[GROUP]" + color::no_color() + " is proxy group, and " + color::color(5,5,5) + "[PROXY]" + color::no_color() + " is proxy endpoint" },
+                            });
+                        } else {
+                            help_overall();
+                        }
+                    }
+                }
+                else if (command_vector.front() == "get")
+                {
+                    if (command_vector[1] == "connections")
+                    {
+                        backend_instance.change_focus("connections");
+                        while (!sysint_pressed)
+                        {
+                            auto connections = backend_instance.get_active_connections();
+                            std::vector<std::string> titles = {
+                                "Host",
+                                "Process",
+                                "DL",
+                                "UP",
+                                "DL Speed",
+                                "UP Speed",
+                                "Chains",
+                                "Rules",
+                                "Time",
+                                "Source IP",
+                                "Destination IP",
+                                "Type"
+                            };
+                            std::vector<std::vector<std::string>> table_vals;
+                            std::ranges::sort(connections,
+                                              [](const general_info_pulling::connection_t & a, const general_info_pulling::connection_t & b)
+                                              { return a.downloadSpeed > b.downloadSpeed; });
+                            for (const auto & connection : connections)
+                            {
+                                table_vals.push_back({
+                                    connection.host,
+                                    connection.processName,
+                                    value_to_size(connection.totalDownloadedBytes),
+                                    value_to_size(connection.totalUploadedBytes),
+                                    value_to_speed(connection.downloadSpeed),
+                                    value_to_speed(connection.uploadSpeed),
+                                    connection.chainName,
+                                    connection.ruleName,
+                                    std::to_string(connection.timeElapsedSinceConnectionEstablished),
+                                    connection.src,
+                                    connection.destination,
+                                    connection.networkType
+                                });
+                            }
+
+                            const char clear[] = { 0x1b, 0x5b, 0x48, 0x1b, 0x5b, 0x32, 0x4a, 0x1b, 0x5b, 0x33, 0x4a };
+                            std::cout.write(clear, sizeof(clear));
+                            print_table(titles, table_vals);
+                            std::this_thread::sleep_for(std::chrono::seconds(1l));
+                        }
+                    } else if (command_vector[1] == "latency") {
+                    } else if (command_vector[1] == "log") {
+                    } else if (command_vector[1] == "mode") {
+                    } else if (command_vector[1] == "proxy") {
+                    } else {
+                    }
                 }
             }
+
+            free(line);
         }
 
-        free(line);
+        backend_instance.stop_continuous_updates();
     }
-    return 0;
+    catch (std::exception & e)
+    {
+        std::cerr << e.what() << std::endl;
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
 }
