@@ -602,7 +602,7 @@ int main(int argc, char ** argv)
                 {
                     if (command_vector[1] == "connections")
                     {
-                        backend_instance.change_focus("connections");
+                        backend_instance.change_focus("overview");
                         while (!sysint_pressed)
                         {
                             auto connections = backend_instance.get_active_connections();
@@ -642,7 +642,13 @@ int main(int argc, char ** argv)
                                 });
                             }
 
-                            std::cout.write(clear, sizeof(clear));
+                            std::cout.write(clear, sizeof(clear)); // clear the screen
+                            std::cout << color::color(5,5,0) << "Total uploads: " << value_to_size(backend_instance.get_total_uploaded_bytes()) << " "
+                                      << color::bg_color(0,0,5) << color::color(5,5,5)
+                                    << "Upload speed: " << value_to_speed(backend_instance.get_current_upload_speed()) << color::no_color() << std::endl;
+                            std::cout << color::color(0,5,5) << "Total downloads " << value_to_size(backend_instance.get_total_downloaded_bytes()) << " "
+                                      << color::bg_color(0,0,5) << color::color(5,5,5)
+                                    << "Download speed: " << value_to_speed(backend_instance.get_current_download_speed()) << color::no_color() << std::endl;
                             print_table(titles, table_vals, false);
                             std::this_thread::sleep_for(std::chrono::seconds(1l));
                         }

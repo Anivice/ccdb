@@ -120,8 +120,8 @@ void general_info_pulling::update_from_connections(std::string info)
     try {
         json data;
         data = json::parse(info);
-        total_uploaded_bytes = static_cast<uint64_t>(data["downloadTotal"]);
-        total_downloaded_bytes = static_cast<uint64_t>(data["uploadTotal"]);
+        total_downloaded_bytes = static_cast<uint64_t>(data["downloadTotal"]);
+        total_uploaded_bytes = static_cast<uint64_t>(data["uploadTotal"]);
         std::lock_guard map_lock(connection_map_mutex);
         std::map < std::string, connection_t > new_connection_map;
         for (const auto& connection : data["connections"])
@@ -251,10 +251,18 @@ void general_info_pulling::pull_continuous_updates()
             auto traffic_running = std::make_shared<std::atomic_bool>(true);
             auto run_traffic = [this](const std::atomic_bool * _traffic_running)
             {
-                backend_client.get_stream_info("traffic",
-                    _traffic_running,
-                    this,
-                    &general_info_pulling::update_from_traffic);
+                try
+                {
+                    backend_client.get_stream_info("traffic",
+                        _traffic_running,
+                        this,
+                        &general_info_pulling::update_from_traffic);
+                }
+                catch (std::exception & e)
+                {
+                    std::cerr << "Error when pulling traffic: " << e.what() << std::endl;
+                    exit(1);
+                }
             };
             std::atomic_bool * ptr = traffic_running.get();
             thread_pool.emplace_back(std::move(traffic_running), std::thread(run_traffic, ptr));
@@ -268,10 +276,18 @@ void general_info_pulling::pull_continuous_updates()
             {
                 while (*_connection_running)
                 {
-                    backend_client.get_info("connections",
-                        this,
-                        &general_info_pulling::update_from_connections);
-                    std::this_thread::sleep_for(std::chrono::seconds(1l));
+                    try
+                    {
+                        backend_client.get_info("connections",
+                            this,
+                            &general_info_pulling::update_from_connections);
+                        std::this_thread::sleep_for(std::chrono::seconds(1l));
+                    }
+                    catch (std::exception & e)
+                    {
+                        std::cerr << "Error when pulling traffic: " << e.what() << std::endl;
+                        exit(1);
+                    }
                 }
             };
             std::atomic_bool * ptr = connection_running.get();
@@ -293,11 +309,19 @@ void general_info_pulling::pull_continuous_updates()
             auto log_running = std::make_shared<std::atomic_bool>(true);
             auto run_logs = [&](const std::atomic_bool * _log_running)
             {
-                backend_client.get_stream_info("logs",
-                    _log_running,
-                    this,
-                    &general_info_pulling::update_from_logs,
-                    true);
+                try
+                {
+                    backend_client.get_stream_info("logs",
+                        _log_running,
+                        this,
+                        &general_info_pulling::update_from_logs,
+                        true);
+                }
+                catch (std::exception & e)
+                {
+                    std::cerr << "Error when pulling traffic: " << e.what() << std::endl;
+                    exit(1);
+                }
             };
             std::atomic_bool * ptr = log_running.get();
             thread_pool.emplace_back(std::move(log_running), std::thread(run_logs, ptr));
