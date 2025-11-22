@@ -77,6 +77,7 @@ public:
                         first_line = buffer.substr(0, pos);
                         buffer = buffer.substr(pos + 1);
                         std::thread T([&](std::string _first_line) {
+                            pthread_setname_np(pthread_self(), (endpoint_name + " hdlr").c_str());
                             (instance->*method)(_first_line);
                         }, first_line);
                         thread_pool.emplace_back(std::move(T));
@@ -113,11 +114,15 @@ public:
             if (is_continuous)
             {
                 std::thread T;
-                while (*keep_running) {
-                    if (!is_running) {
+                while (*keep_running)
+                {
+                    if (!is_running)
+                    {
                         if (T.joinable()) { T.join(); }
-                        T = std::thread([&] {try { worker(); } catch (...) { } });
-                        // logger.dlog("Flag: ", *keep_running, ", Spawning new thread...\n");
+                        T = std::thread([&] {
+                            pthread_setname_np(pthread_self(), (endpoint_name + " cont").c_str());
+                            try { worker(); } catch (...) { }
+                        });
                     }
 
                     std::this_thread::sleep_for(std::chrono::milliseconds(100l));

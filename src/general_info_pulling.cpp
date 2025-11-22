@@ -14,9 +14,8 @@ void general_info_pulling::update_from_traffic(std::string info)
         json data = json::parse(info);
         current_upload_speed = static_cast<uint64_t>(data["up"]);
         current_download_speed = static_cast<uint64_t>(data["down"]);
-        // logger.dlog("Upload: ", current_upload_speed, " Download: ", current_download_speed, "\n");
     } catch (std::exception& e) {
-        // logger.elog("Error when pulling traffic data: ", e.what(), "\n");
+        std::cerr << "Error when pulling traffic data: " << e.what() << std::endl;
     }
 }
 
@@ -217,6 +216,21 @@ void general_info_pulling::pull_continuous_updates()
     keep_pull_continuous_updates = true;
     std::vector < std::pair < std::shared_ptr < std::atomic_bool >, std::thread > > thread_pool;
     std::string last_update;
+
+    auto clear_and_stop_all_threads = [&]
+    {
+        for (auto & running : thread_pool | std::views::keys) {
+            *running = false;
+        }
+
+        for (auto & T : thread_pool | std::views::values) {
+            if (T.joinable()) T.join();
+        }
+
+        // clear pool
+        thread_pool.clear();
+    };
+
     while (keep_pull_continuous_updates.load())
     {
         std::string local_copy;
@@ -228,16 +242,7 @@ void general_info_pulling::pull_continuous_updates()
         if (last_update != local_copy) // status changed
         {
             last_update = local_copy; // update status
-            for (auto & running : thread_pool | std::views::keys) {
-                *running = false;
-            }
-
-            for (auto & T : thread_pool | std::views::values) {
-                if (T.joinable()) T.join();
-            }
-
-            // clear pool
-            thread_pool.clear();
+            clear_and_stop_all_threads();
         }
         else // status unchanged
         {
@@ -251,6 +256,7 @@ void general_info_pulling::pull_continuous_updates()
             auto traffic_running = std::make_shared<std::atomic_bool>(true);
             auto run_traffic = [this](const std::atomic_bool * _traffic_running)
             {
+                pthread_setname_np(pthread_self(), "/traffic");
                 try
                 {
                     backend_client.get_stream_info("traffic",
@@ -274,6 +280,7 @@ void general_info_pulling::pull_continuous_updates()
             auto connection_running = std::make_shared<std::atomic_bool>(true);
             auto run_connections = [this](const std::atomic_bool * _connection_running)
             {
+                pthread_setname_np(pthread_self(), "/connections");
                 while (*_connection_running)
                 {
                     try
@@ -296,19 +303,23 @@ void general_info_pulling::pull_continuous_updates()
 
         if (local_copy == "overview")
         {
+            // clear_and_stop_all_threads();
             make_traffic();
             make_connections();
         }
         else if (local_copy == "connections")
         {
+            // clear_and_stop_all_threads();
             make_connections();
         }
         else if (local_copy == "logs")
         {
             // /logs puller
+            // clear_and_stop_all_threads();
             auto log_running = std::make_shared<std::atomic_bool>(true);
             auto run_logs = [&](const std::atomic_bool * _log_running)
             {
+                pthread_setname_np(pthread_self(), "/logs");
                 try
                 {
                     backend_client.get_stream_info("logs",
@@ -332,13 +343,7 @@ void general_info_pulling::pull_continuous_updates()
         }
     }
 
-    for (auto & running : thread_pool | std::views::keys) {
-        *running = false;
-    }
-
-    for (auto & T : thread_pool | std::views::values) {
-        if (T.joinable()) T.join();
-    }
+    clear_and_stop_all_threads();
 }
 
 [[nodiscard]] std::vector < general_info_pulling::connection_t > general_info_pulling::get_active_connections()
@@ -451,11 +456,16 @@ void general_info_pulling::latency_test(const std::string & url)
     std::vector < std::thread > thread_pool;
     std::ranges::for_each(proxy_latency_local | std::views::keys, [&](const std::string & proxy)
     {
-        // logger.dlog("Fuck\n");
         *proxy_latency_local[proxy] = -1;
         auto * ptr = proxy_latency_local[proxy];
         auto worker = [&](std::string proxy_, std::string url_, std::atomic_int * ptr_)->void
         {
+            std::string name;
+            for (const auto & c : proxy_) {
+                if (std::isprint(c)) name += c;
+                else break;
+            }
+            pthread_setname_np(pthread_self(), ("ping " + name).c_str());
             replace_all(proxy_, " ", "%20");
             try
             {

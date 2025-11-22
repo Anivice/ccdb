@@ -688,7 +688,7 @@ int main(int argc, char ** argv)
                             std::cout.write(clear, sizeof(clear));
                             for (const auto & [level, log] : current_vector)
                             {
-                                if (level == "info") {
+                                if (level == "INFO") {
                                     std::cout << color::color(2,2,2) << level << color::no_color() << ": " << log << std::endl;
                                 } else {
                                     std::cout << color::color(5,0,0) << level << color::no_color() << ": " << log << std::endl;
