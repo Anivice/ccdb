@@ -345,8 +345,11 @@ void print_table(
     std::cout << color::color(5,5,5) << title_line << color::no_color() << std::endl;
     std::cout << separation_line << std::endl;
 
+    int i = 0;
     for (const auto & vals : table_values)
     {
+        i++;
+        if (i & 0x01) std::cout << color::color(0,5,5);
         int index = 0;
         for (const auto & val : vals)
         {
@@ -374,7 +377,7 @@ void print_table(
 
             std::cout << output << std::string(after, ' ');
         }
-        std::cout << " " << std::endl;
+        std::cout << " " << ((i & 0x01) ? color::no_color() : "") << std::endl;
     }
 
     std::cout << separation_line << std::endl;
