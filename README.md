@@ -12,12 +12,11 @@ single-handedly handles that on its own, including Tun.
 
 **Clash Verge Rev asks CRAZY security clearance level**
 
-You already installed a systemd service, and for some reason that systemd is not for Mihomo.
-I mean, ok, fine. But it asks for root access AFTER its installation finished saying that
+You already installed the package, and for some reason no systemd service for Mihomo.
+I mean, ok, fine. Then it asks for root access AFTER its installation saying that
 "You need to 'install service' before using Tun."
 The fuck? You didn't do that in the package,
 you need to ask for root permission AGAIN after installation?
-What the actual fuck?
 
 Thus, CCDB, C++ Clash Dashboard. You need only ~60MB to run the whole thing,
 and you don't have to install NPM or Rust or WebView, AT ALL.
