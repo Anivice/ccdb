@@ -140,9 +140,11 @@ void general_info_pulling::update_from_connections(std::string info)
             conn.ruleName = std::string(connection["rule"]) + "(" + std::string(connection["rulePayload"]) + ")";
             conn.networkType = std::string(connection["metadata"]["type"]) +
                 (network_type.empty() ? std::string("") : "(" + network_type + ")");
-            conn.timeElapsedSinceConnectionEstablished =
-                std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count()
-                    - get_time(std::string(connection["start"]));
+            const auto cur_time_sec = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+            const auto timepoint_established_str = std::string(connection["start"]);
+            const auto timepoint_established_sec = get_time(timepoint_established_str);
+            conn.timeElapsedSinceConnectionEstablished = cur_time_sec > timepoint_established_sec ?
+                cur_time_sec - timepoint_established_sec : timepoint_established_sec - cur_time_sec; // wtf
             const auto now = std::chrono::high_resolution_clock::now();
             conn.timeLastPulled = now;
 
