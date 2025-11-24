@@ -65,9 +65,9 @@ jobs:
               body: "# One or more tests have failed!"
             })
 
-      - name: Pack
-        run: |
-          mkdir lib && cp $(ldd build/ccdb | awk '/=>/ { print $3 }' | sed '/^$/d') ./lib/ && tar cf libs.tar ./lib/
+#      - name: Pack
+#        run: |
+#          mkdir lib && cp $(ldd build/ccdb | awk '/=>/ { print $3 }' | sed '/^$/d') ./lib/ && tar cf libs.tar ./lib/
 
       - name: Get Git commit hash
         id: get_commit
@@ -84,11 +84,11 @@ jobs:
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} "ccdb.NightlyBuild.${{ env.GIT_HASH }}"
 
       - name: Create a GitHub release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             build/ccdb
-            libs.tar
+#            libs.tar
           tag_name: "ccdb.NightlyBuild.${{ env.GIT_HASH }}"
           prerelease: true  # Marking this as a pre-release
         env:
