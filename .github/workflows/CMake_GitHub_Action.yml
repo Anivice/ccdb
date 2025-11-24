@@ -86,7 +86,9 @@ jobs:
       - name: Create a GitHub release
         uses: softprops/action-gh-release@v1
         with:
-          files: build/ccdb libs.tar
+          files: |
+            build/ccdb
+            libs.tar
           tag_name: "ccdb.NightlyBuild.${{ env.GIT_HASH }}"
           prerelease: true  # Marking this as a pre-release
         env:
