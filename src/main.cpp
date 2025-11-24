@@ -302,7 +302,9 @@ void print_table(
     bool muff_non_ascii = true,
     bool seperator = true)
 {
-    const decltype(table_keys.size()) max_size = std::strtoll(color::get_env("COLUMNS").c_str(), nullptr, 10) / table_keys.size();
+    const auto col = std::strtoll(color::get_env("COLUMNS").c_str(), nullptr, 10);
+    if (col < 128) throw std::runtime_error("Terminal size too small");
+    const decltype(table_keys.size()) max_size = col / table_keys.size();
     std::map < std::string /* table keys */, uint32_t /* longest value in this column */ > size_map;
     for (const auto & key : table_keys)
     {
