@@ -137,7 +137,8 @@ void general_info_pulling::update_from_connections(std::string info)
             conn.totalUploadedBytes = connection["upload"];
             conn.totalDownloadedBytes = connection["download"];
             conn.chainName = parseChains(connection["chains"]);
-            conn.ruleName = std::string(connection["rule"]) + "(" + std::string(connection["rulePayload"]) + ")";
+            conn.ruleName = std::string(connection["rule"]) +
+                (std::string(connection["rulePayload"]).empty() ? "" : ("(" + std::string(connection["rulePayload"]) + ")"));
             conn.networkType = std::string(connection["metadata"]["type"]) +
                 (network_type.empty() ? std::string("") : "(" + network_type + ")");
             const auto cur_time_sec = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
