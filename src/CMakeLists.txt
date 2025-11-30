@@ -92,6 +92,7 @@ else ()
             -fstack-protector-strong
             -Wl,-z,relro -Wl,-z,now
             -s
+            ${CC_ADDITIONAL_OPTIONS}
     )
     target_link_options(ccdb PUBLIC
             -static-libgcc -static-libstdc++
@@ -107,6 +108,7 @@ else ()
             -fstack-protector-strong
             -Wl,-z,relro -Wl,-z,now
             -s
+            ${LD_ADDITIONAL_OPTIONS}
     )
     target_link_libraries(ccdb PUBLIC atomic readline::readline ncurses::ncurses)
     set_target_properties(ccdb PROPERTIES LINK_SEARCH_START_STATIC 1)

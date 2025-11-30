@@ -36,7 +36,7 @@ jobs:
       - name: Configure
         run: |
           cmake -B build -S ./src \
-            -D CMAKE_BUILD_TYPE=Release
+            -D CMAKE_BUILD_TYPE=Release -D CC_ADDITIONAL_OPTIONS=-static -D LD_ADDITIONAL_OPTIONS=-static
 
       - name: Build
         run: |
