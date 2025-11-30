@@ -33,7 +33,7 @@ static const char *cmds[] = {
 
 static const char *help_voc [] = { "quit", "exit", "get", "set", "close_connections", nullptr };
 static const char *get_voc  [] = { "latency", "proxy", "connections", "mode", "log", nullptr };
-static const char *set_voc  [] = { "mode", "group", nullptr };
+static const char *set_voc  [] = { "mode", "group", "chain_parser", nullptr };
 
 #define arg_generator(name, vector)                                             \
 static char * name (const char *text, int state) {                              \
@@ -81,7 +81,7 @@ std::vector < std::string > arg2_additional_verbs = { "" };
 
 static char * set_arg2_verbs (const char *text, int state)
 {
-    std::vector < std::string > arg2_verbs = { "direct", "rule", "global" };
+    std::vector < std::string > arg2_verbs = { "direct", "rule", "global", "on", "off" };
     {
         std::lock_guard lock(arg2_additional_verbs_mutex);
         arg2_verbs.insert(arg2_verbs.end(), arg2_additional_verbs.begin(), arg2_additional_verbs.end());
@@ -597,13 +597,14 @@ int main(int argc, char ** argv)
                             help_sub_cmds("set", {
                                 { "mode", "set mode " + color::color(5,5,5) + "[MODE]" + color::no_color() + ", where " + color::color(5,5,5) + "[MODE]" + color::no_color() + R"( can be "direct", "rule", or "global")" }, // DO NOT USE "...," use "...", instead. It's confusing
                                 { "group", "set group " + color::color(5,5,5) + "[GROUP]" + color::no_color() + " " + color::color(5,5,5) + "[PROXY]" + color::no_color() + ", where " + color::color(5,5,5) + "[GROUP]" + color::no_color() + " is proxy group, and " + color::color(5,5,5) + "[PROXY]" + color::no_color() + " is proxy endpoint" },
+                                { "chain_parser", "set chain_parser " + color::color(5,5,5) + "[on|off]" + color::no_color() + R"(, "on" means parse rule chains, and "off" means show only endpoint)" },
                             });
                         } else {
                             help_overall();
                         }
                     }
                 }
-                else if (command_vector.front() == "get")
+                else if (command_vector.front() == "get" && command_vector.size() == 2)
                 {
                     if (command_vector[1] == "connections")
                     {
@@ -739,7 +740,7 @@ int main(int argc, char ** argv)
                 }
                 else if (command_vector.front() == "set")
                 {
-                    if (command_vector[1] == "mode")
+                    if (command_vector[1] == "mode" && command_vector.size() == 3) // set mode [MODE]
                     {
                         if (command_vector[2] != "rule" && command_vector[2] != "global" && command_vector[2] != "direct")
                         {
@@ -749,15 +750,19 @@ int main(int argc, char ** argv)
                         {
                             backend_instance.change_proxy_mode(command_vector[2]);
                         }
-                    } else if (command_vector[1] == "group") {
+                    } else if (command_vector[1] == "group" && command_vector.size() == 4) { // set group [PROXY] [ENDPOINT]
                         const std::string & group = command_vector[2], & proxy = command_vector[3];
                         std::cout << "Changing `" << group << "` proxy endpoint to `" << proxy << "`" << std::endl;
                         if (!backend_instance.change_proxy_using_backend(group, proxy))
                         {
                             std::cerr << "Failed to change proxy endpoint to `" << proxy << "`" << std::endl;
                         }
+                    } else if (command_vector[1] == "chain_parser" && command_vector.size() == 3) { // set chain_parser on/off
+                        if (command_vector[2] == "on") backend_instance.parse_chains = true;
+                        else if (command_vector[2] == "off") backend_instance.parse_chains = false;
+                        else std::cerr << "Unknown option for parser `" << command_vector[2] << "`" << std::endl;
                     } else {
-                        std::cerr << "Unknown command `" << command_vector[1] << "`" << std::endl;
+                        std::cerr << "Unknown command `" << command_vector[1] << "` or invalid syntax" << std::endl;
                     }
                 }
                 else if (command_vector.front() == "close_connections")
@@ -766,7 +771,7 @@ int main(int argc, char ** argv)
                 }
                 else
                 {
-                    std::cerr << "Unknown command `" << command_vector.front() << "`" << std::endl;
+                    std::cerr << "Unknown command `" << command_vector.front() << "` or invalid syntex" << std::endl;
                 }
             }
 

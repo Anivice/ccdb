@@ -18,6 +18,8 @@ private:
     std::atomic < uint64_t > total_downloaded_bytes;
 
 public:
+    std::atomic < bool > parse_chains = true;
+
     struct connection_t
     {
     public:
@@ -53,23 +55,28 @@ private:
     template <typename Type> requires is_container<Type>::value
     std::string parseChains(const Type & chain)
     {
-        std::string ret;
         std::vector<std::string> chains;
         for (auto it = begin(chain); it != end(chain); ++it)
         {
             chains.push_back(*it);
         }
-
         std::ranges::reverse(chains);
-        for (auto it = begin(chains); it != end(chains); ++it) {
-            std::string final_str = *it;
-            // remove tailing and leading spaces
-            while (!final_str.empty() && final_str.front() == ' ') final_str.erase(final_str.begin());
-            final_str = final_str.substr(0, final_str.find_last_not_of(' ') + 1);
-            ret += final_str + (it == (end(chains) - 1) /* last element? */ ? "" : " => ");
+
+        if (parse_chains)
+        {
+            std::string ret;
+            for (auto it = begin(chains); it != end(chains); ++it) {
+                std::string final_str = *it;
+                // remove tailing and leading spaces
+                while (!final_str.empty() && final_str.front() == ' ') final_str.erase(final_str.begin());
+                final_str = final_str.substr(0, final_str.find_last_not_of(' ') + 1);
+                ret += final_str + (it == (end(chains) - 1) /* last element? */ ? "" : " => ");
+            }
+
+            return ret;
         }
 
-        return ret;
+        return (chains.empty() ? "" : chains.back());
     }
 
     mihomo backend_client;
