@@ -33,7 +33,8 @@ static const char *cmds[] = {
 
 static const char *help_voc [] = { "quit", "exit", "get", "set", "close_connections", nullptr };
 static const char *get_voc  [] = { "latency", "proxy", "connections", "mode", "log", nullptr };
-static const char *set_voc  [] = { "mode", "group", "chain_parser", nullptr };
+static const char *get_sup_voc  [] = { "hide", nullptr };
+static const char *set_voc  [] = { "mode", "group", "chain_parser", "sort_by", nullptr };
 
 #define arg_generator(name, vector)                                             \
 static char * name (const char *text, int state) {                              \
@@ -62,6 +63,7 @@ static char *cmd_generator(const char *text, int state) {
 arg_generator(help_voc_generator, help_voc);
 arg_generator(get_voc_generator, get_voc);
 arg_generator(set_voc_generator, set_voc);
+arg_generator(get_voc_sup_generator, get_sup_voc);
 
 static int argument_index(const char *buffer, int start)
 {
@@ -116,6 +118,10 @@ static char ** cmd_completion(const char *text, int start, int end) {
                     matches = rl_completion_matches(text, get_voc_generator);
                 }
                 rl_attempted_completion_over = 1;
+            }
+            else if (std::string(cmd) == "get" && arg == 2)
+            {
+                matches = rl_completion_matches(text, get_voc_sup_generator);
             }
             else if (arg > 1)
             {
@@ -300,7 +306,8 @@ void print_table(
     std::vector<std::string> const & table_keys,
     std::vector < std::vector<std::string> > const & table_values,
     bool muff_non_ascii = true,
-    bool seperator = true)
+    bool seperator = true,
+    const std::vector < bool > & table_hide = { })
 {
     const auto col = std::strtoll(color::get_env("COLUMNS").c_str(), nullptr, 10);
     if (col < 128) throw std::runtime_error("Terminal size too small");
@@ -325,16 +332,39 @@ void print_table(
         }
     }
 
+    std::stringstream header;
     std::stringstream ss;
-    for (const auto & key : table_keys)
     {
-        const int paddings = static_cast<int>(size_map[key] - key.length()) + 2;
-        const int before = std::max(paddings / 2, 1);
-        const int after = std::max(paddings - before, 1);
-        ss << "|" << std::string(before, ' ') << key << std::string(after, ' ');
+        int index = 0;
+        for (const auto & key : table_keys)
+        {
+            if (!table_hide.empty() && table_hide.size() == table_keys.size() && table_hide[index])
+            {
+                index++;
+                continue;
+            }
+
+            {
+                const int paddings = static_cast<int>(size_map[key] - key.length()) + 2;
+                const int before = std::max(paddings / 2, 1);
+                const int after = std::max(paddings - before, 1);
+                ss << "|" << std::string(before, ' ') << key << std::string(after, ' ');
+            }
+
+            {
+                std::string index_str = std::to_string(index);
+                const int paddings = static_cast<int>(size_map[key] - index_str.length()) + 2;
+                const int before = std::max(paddings / 2, 1);
+                const int after = std::max(paddings - before, 1);
+                header << "|" << std::string(before, ' ') << index_str << std::string(after, ' ');
+            }
+            index ++;
+        }
     }
     ss << "|";
+    header << "|";
     const std::string title_line = ss.str();
+    const std::string header_line = header.str();
     std::string separation_line;
     if (title_line.size() > 2)
     {
@@ -343,6 +373,8 @@ void print_table(
         separation_line = ss_sep.str();
     }
 
+    std::cout << separation_line << std::endl;
+    std::cout << header_line << std::endl;
     std::cout << separation_line << std::endl;
     std::cout << color::color(5,5,5) << title_line << color::no_color() << std::endl;
     std::cout << separation_line << std::endl;
@@ -355,6 +387,12 @@ void print_table(
         int index = 0;
         for (const auto & val : vals)
         {
+            if (!table_hide.empty() && table_hide.size() == table_keys.size() && table_hide[index])
+            {
+                index++;
+                continue;
+            }
+
             const auto & current_key = table_keys[index++];
             const int paddings = static_cast<int>(size_map[current_key] - val.length()) + 2;
             const int before = std::max(paddings / 2, 1);
@@ -493,6 +531,21 @@ int main(int argc, char ** argv)
     {
         char * line = nullptr;
         general_info_pulling backend_instance(backend, port, token);
+        int sort_by = 4;
+        const std::vector<std::string> titles = {
+            "Host",         // 0
+            "Process",      // 1
+            "DL",           // 2
+            "UP",           // 3
+            "DL Speed",     // 4
+            "UP Speed",     // 5
+            "Rules",        // 6
+            "Time",         // 7
+            "Source IP",    // 8
+            "Destination IP",   // 9
+            "Type",         // 10
+            "Chains",       // 11
+        };
 
         auto update_providers = [&]
         {
@@ -589,7 +642,8 @@ int main(int argc, char ** argv)
                             help_sub_cmds("get", {
                                 { "latency", "Get all proxy latencies" },
                                 { "proxy", "Get all proxies. Latency will be added if tested before" },
-                                { "connections", "Get all active connections" },
+                                { "connections [hide <0-11>]",
+                                    R"(Get all active connections. You can hide certain columns using the "hide" argument. Numbers separated by ',', or use '-' to conjunct numbers. E.g.: 2,4-6,8)" },
                                 { "mode", "Get current proxy mode, i.e., direct, rule or global" },
                                 { "log", "Watch logs. Use Ctrl+C (^C) to stop watching" },
                             });
@@ -598,13 +652,14 @@ int main(int argc, char ** argv)
                                 { "mode", "set mode " + color::color(5,5,5) + "[MODE]" + color::no_color() + ", where " + color::color(5,5,5) + "[MODE]" + color::no_color() + R"( can be "direct", "rule", or "global")" }, // DO NOT USE "...," use "...", instead. It's confusing
                                 { "group", "set group " + color::color(5,5,5) + "[GROUP]" + color::no_color() + " " + color::color(5,5,5) + "[PROXY]" + color::no_color() + ", where " + color::color(5,5,5) + "[GROUP]" + color::no_color() + " is proxy group, and " + color::color(5,5,5) + "[PROXY]" + color::no_color() + " is proxy endpoint" },
                                 { "chain_parser", "set chain_parser " + color::color(5,5,5) + "[on|off]" + color::no_color() + R"(, "on" means parse rule chains, and "off" means show only endpoint)" },
+                                { "sort_by", "set sort_by " + color::color(5,5,5) + "[0-11]" + color::no_color() + R"(, used by get connections. Set which cloumn to sort. Default is 4.)" },
                             });
                         } else {
                             help_overall();
                         }
                     }
                 }
-                else if (command_vector.front() == "get" && command_vector.size() == 2)
+                else if (command_vector.front() == "get" && command_vector.size() >= 2)
                 {
                     if (command_vector[1] == "connections")
                     {
@@ -612,24 +667,79 @@ int main(int argc, char ** argv)
                         while (!sysint_pressed)
                         {
                             auto connections = backend_instance.get_active_connections();
-                            std::vector<std::string> titles = {
-                                "Host",
-                                "Process",
-                                "DL",
-                                "UP",
-                                "DL Speed",
-                                "UP Speed",
-                                "Rules",
-                                "Time",
-                                "Source IP",
-                                "Destination IP",
-                                "Type",
-                                "Chains",
-                            };
                             std::vector<std::vector<std::string>> table_vals;
                             std::ranges::sort(connections,
-                                              [](const general_info_pulling::connection_t & a, const general_info_pulling::connection_t & b)
-                                              { return a.downloadSpeed > b.downloadSpeed; });
+                                              [&sort_by](const general_info_pulling::connection_t & a, const general_info_pulling::connection_t & b)
+                                              {
+                                                  switch (sort_by)
+                                                  {
+                                                  case 0:
+                                                      return a.host > b.host;
+                                                  case 1:
+                                                      return a.processName > b.processName;
+                                                  case 2:
+                                                      return a.totalDownloadedBytes > b.totalDownloadedBytes;
+                                                  case 3:
+                                                      return a.totalUploadedBytes > b.totalUploadedBytes;
+                                                  case 5:
+                                                      return a.uploadSpeed > b.uploadSpeed;
+                                                  case 6:
+                                                      return a.ruleName > b.ruleName;
+                                                  case 7:
+                                                      return a.timeElapsedSinceConnectionEstablished > b.timeElapsedSinceConnectionEstablished;
+                                                  case 8:
+                                                      return a.src > b.src;
+                                                  case 9:
+                                                      return a.destination > b.destination;
+                                                  case 10:
+                                                      return a.networkType > b.networkType;
+                                                  case 11:
+                                                      return a.chainName > b.chainName;
+                                                  case 4:
+                                                  default:
+                                                      return a.downloadSpeed > b.downloadSpeed;
+                                                  }
+                                              });
+                            std::vector < bool > do_col_hide;
+                            do_col_hide.resize(titles.size(), false);
+                            if (command_vector.size() == 4)
+                            {
+                                if (command_vector[2] == "hide")
+                                {
+                                    std::string & numeric_expression = command_vector[3], str_num;
+                                    std::vector<int> numeric_values;
+                                    std::istringstream numeric_stream(numeric_expression);
+                                    while (std::getline(numeric_stream, str_num, ','))
+                                    {
+                                        try {
+                                            if (str_num.find('-') == std::string::npos)
+                                            {
+                                                numeric_values.push_back(std::stoi(str_num));
+                                            }
+                                            else
+                                            {
+                                                std::string start = str_num.substr(0, str_num.find('-'));
+                                                std::string stop = str_num.substr(str_num.find('-') + 1);
+                                                int begin = std::stoi(start);
+                                                int end = std::stoi(stop);
+                                                for (int i = begin; i <= end; i++) {
+                                                    numeric_values.push_back(i);
+                                                }
+                                            }
+                                        } catch (...) {
+                                            // std::cout << color::color(5,0,0) << "Unknown expression " << str_num << ", ignored" << color::no_color() << std::endl;
+                                        }
+                                    }
+
+                                    for (const auto & i : numeric_values)
+                                    {
+                                        if (do_col_hide.size() > i) {
+                                            do_col_hide[i] = true;
+                                        }
+                                    }
+                                }
+                            }
+
                             for (const auto & connection : connections)
                             {
                                 table_vals.push_back({
@@ -655,7 +765,7 @@ int main(int argc, char ** argv)
                             std::cout << color::color(0,5,5) << "Total downloads " << value_to_size(backend_instance.get_total_downloaded_bytes()) << " "
                                       << color::bg_color(0,0,5) << color::color(5,5,5)
                                     << "Download speed: " << value_to_speed(backend_instance.get_current_download_speed()) << color::no_color() << std::endl;
-                            print_table(titles, table_vals, false);
+                            print_table(titles, table_vals, false, true, do_col_hide);
                             std::this_thread::sleep_for(std::chrono::seconds(1l));
                         }
                     } else if (command_vector[1] == "latency") {
@@ -761,6 +871,17 @@ int main(int argc, char ** argv)
                         if (command_vector[2] == "on") backend_instance.parse_chains = true;
                         else if (command_vector[2] == "off") backend_instance.parse_chains = false;
                         else std::cerr << "Unknown option for parser `" << command_vector[2] << "`" << std::endl;
+                    } else if (command_vector[1] == "sort_by" && command_vector.size() == 3) { // set sort_by [num]
+                        try {
+                            sort_by = static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10));
+                            if (sort_by < 0 || sort_by > 11)
+                            {
+                                sort_by = 4; // download speed
+                                throw std::invalid_argument("Invalid sort_by value");
+                            }
+                        } catch (...) {
+                            std::cerr << "Invalid number `" << command_vector[2] << "`" << std::endl;
+                        }
                     } else {
                         std::cerr << "Unknown command `" << command_vector[1] << "` or invalid syntax" << std::endl;
                     }
