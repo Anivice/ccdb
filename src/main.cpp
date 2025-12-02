@@ -310,7 +310,11 @@ void print_table(
     const std::vector < bool > & table_hide = { })
 {
     const auto col = std::strtoll(color::get_env("COLUMNS").c_str(), nullptr, 10);
-    if (col < 128) throw std::runtime_error("Terminal size too small");
+    if (col < 128)
+    {
+        std::cerr << "Terminal size too small" << std::endl;
+        return;
+    }
     const decltype(table_keys.size()) max_size = col / table_keys.size();
     std::map < std::string /* table keys */, uint32_t /* longest value in this column */ > size_map;
     for (const auto & key : table_keys)
@@ -892,7 +896,7 @@ int main(int argc, char ** argv)
                 }
                 else
                 {
-                    std::cerr << "Unknown command `" << command_vector.front() << "` or invalid syntex" << std::endl;
+                    std::cerr << "Unknown command `" << command_vector.front() << "` or invalid syntax" << std::endl;
                 }
             }
 
