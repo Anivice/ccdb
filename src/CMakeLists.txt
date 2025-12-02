@@ -82,7 +82,7 @@ if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
 else ()
     target_compile_options(ccdb PUBLIC
             -O3
-            -flto
+            # -flto
             -fomit-frame-pointer
             -ffast-math
             -fstrict-aliasing
@@ -97,7 +97,7 @@ else ()
     target_link_options(ccdb PUBLIC
             -static-libgcc -static-libstdc++
             -O3
-            -flto
+            # -flto
             -fomit-frame-pointer
             -ffast-math
             -fstrict-aliasing

@@ -28,7 +28,7 @@ jobs:
             build-essential \
             software-properties-common \
             apt-transport-https \
-            cmake make curl git-lfs
+            cmake make curl git-lfs musl
           git lfs fetch --all && git lfs pull
           sudo mkdir -p /opt/musl      
           sudo tar -C /opt/musl -xzf ./x86_64-linux-musl-cross.tgz
