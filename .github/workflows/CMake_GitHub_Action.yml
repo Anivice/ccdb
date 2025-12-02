@@ -32,7 +32,7 @@ jobs:
 
       - name: Configure and Build
         run: |
-          bash -c 'for arch in x86_64 i686 arm aarch64 armv5l; do ./src/configure.sh $arch /tmp/build_$arch; done'
+          bash -c 'for arch in x86_64 i686 arm aarch64 armv5l; do ./src/configure.sh $arch build_$arch; done'
 
       - name: Test
         env:
@@ -59,7 +59,7 @@ jobs:
 
       - name: Pack
         run: |
-          bash -c 'for arch in x86_64 i686 arm aarch64 armv5l; do cp /tmp/build_$arch/ccdb /tmp/ccdb.$arch; done'
+          bash -c 'for arch in x86_64 i686 arm aarch64 armv5l; do cp build_$arch/ccdb ccdb.$arch; done'
 
       - name: Get Git commit hash
         id: get_commit
@@ -79,11 +79,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            /tmp/ccdb.x86_64
-            /tmp/ccdb.i686
-            /tmp/ccdb.arm
-            /tmp/ccdb.aarch64
-            /tmp/ccdb.armv5l
+            ccdb.x86_64
+            ccdb.i686
+            ccdb.arm
+            ccdb.aarch64
+            ccdb.armv5l
           tag_name: "ccdb.NightlyBuild.${{ env.GIT_HASH }}"
           prerelease: true  # Marking this as a pre-release
         env:
