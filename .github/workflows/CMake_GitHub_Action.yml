@@ -29,7 +29,6 @@ jobs:
             software-properties-common \
             apt-transport-https \
             cmake make curl
-# curl -LO https://musl.cc/x86_64-linux-musl-cross.tgz
           sudo mkdir -p /opt/musl      
           sudo tar -C /opt/musl -xzf ./x86_64-linux-musl-cross.tgz
 
