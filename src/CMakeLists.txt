@@ -11,9 +11,9 @@ ExternalProject_Add(NCURSES
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/ncurses
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/ncurses-6.5
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/ncurses/install
-        CONFIGURE_COMMAND   <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
-        BUILD_COMMAND       ${MAKE_EXECUTABLE} -j
-        INSTALL_COMMAND     ${MAKE_EXECUTABLE} -j install
+        CONFIGURE_COMMAND   <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> ${CONFIGURE_ADDITIONAL_CLAGS} --disable-stripping
+        BUILD_COMMAND       ${MAKE_EXECUTABLE} ${MAKE_ADDITIONAL_CLAGS}
+        INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${MAKE_INSTALL_ADDITIONAL_CLAGS}
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libncursesw.a
         TEST_COMMAND        ""
         INACTIVITY_TIMEOUT  15
@@ -39,9 +39,9 @@ ExternalProject_Add(READLINE
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/readline
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/readline-8.3
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/readline/install
-        CONFIGURE_COMMAND   <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --with-curses
-        BUILD_COMMAND       ${MAKE_EXECUTABLE} -j
-        INSTALL_COMMAND     ${MAKE_EXECUTABLE} -j install
+        CONFIGURE_COMMAND   <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --with-curses ${CONFIGURE_ADDITIONAL_CLAGS}
+        BUILD_COMMAND       ${MAKE_EXECUTABLE} ${MAKE_ADDITIONAL_CLAGS}
+        INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${MAKE_INSTALL_ADDITIONAL_CLAGS}
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libhistory.a <INSTALL_DIR>/lib/libreadline.a <INSTALL_DIR>/lib/libreadline.so <INSTALL_DIR>/lib/libhistory.so
         TEST_COMMAND        ""
         INACTIVITY_TIMEOUT  15
