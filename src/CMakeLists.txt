@@ -11,9 +11,9 @@ ExternalProject_Add(NCURSES
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/ncurses
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/ncurses-6.5
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/ncurses/install
-        CONFIGURE_COMMAND   <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> ${CONFIGURE_ADDITIONAL_CLAGS} --disable-stripping
-        BUILD_COMMAND       ${MAKE_EXECUTABLE} ${MAKE_ADDITIONAL_CLAGS}
-        INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${MAKE_INSTALL_ADDITIONAL_CLAGS}
+        CONFIGURE_COMMAND   <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> ${NCURSES_CONFIGURE_ADDITIONAL_FLAGS}
+        BUILD_COMMAND       ${MAKE_EXECUTABLE} ${NCURSES_MAKE_ADDITIONAL_FLAGS}
+        INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${NCURSES_MAKE_INSTALL_ADDITIONAL_FLAGS}
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libncursesw.a
         TEST_COMMAND        ""
         INACTIVITY_TIMEOUT  15
@@ -39,9 +39,9 @@ ExternalProject_Add(READLINE
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/readline
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/readline-8.3
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/readline/install
-        CONFIGURE_COMMAND   <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --with-curses ${CONFIGURE_ADDITIONAL_CLAGS}
-        BUILD_COMMAND       ${MAKE_EXECUTABLE} ${MAKE_ADDITIONAL_CLAGS}
-        INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${MAKE_INSTALL_ADDITIONAL_CLAGS}
+        CONFIGURE_COMMAND   <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --with-curses ${READLINE_CONFIGURE_ADDITIONAL_FLAGS}
+        BUILD_COMMAND       ${MAKE_EXECUTABLE} ${READLINE_MAKE_ADDITIONAL_FLAGS}
+        INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${READLINE_MAKE_INSTALL_ADDITIONAL_FLAGS}
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libhistory.a <INSTALL_DIR>/lib/libreadline.a <INSTALL_DIR>/lib/libreadline.so <INSTALL_DIR>/lib/libhistory.so
         TEST_COMMAND        ""
         INACTIVITY_TIMEOUT  15
@@ -70,6 +70,7 @@ add_executable(ccdb
         include/httplib.h
         general_info_pulling.cpp    include/general_info_pulling.h
         mihomo.cpp                  include/mihomo.h
+        key_raw.cpp
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR})
 target_compile_definitions(ccdb PUBLIC VERSION="0.0.1")

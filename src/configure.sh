@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-
+set -euo pipefail
 script_dir="$(dirname "$(readlink -f "$0")")"
 
 ARCH="$1"
@@ -24,9 +24,10 @@ env PATH="$MUSL_SYSROOT"/bin/:"$PATH" cmake -B "$BUILD_DIR" -S "$script_dir" \
             -DCMAKE_EXE_LINKER_FLAGS="-static -s" \
             -DCC_ADDITIONAL_OPTIONS=-static \
             -DLD_ADDITIONAL_OPTIONS=-static \
-            -DCONFIGURE_ADDITIONAL_CLAGS="--host=$ARCH" \
+            -DREADLINE_CONFIGURE_ADDITIONAL_FLAGS="--host=$ARCH" \
+            -DNCURSES_CONFIGURE_ADDITIONAL_FLAGS="--disable-stripping;--host=$ARCH" \
             -DCMAKE_STRIP="$STRIP" \
-            -DMAKE_ADDITIONAL_CLAGS="STRIP=$STRIP -j" \
-            -DMAKE_INSTALL_ADDITIONAL_CLAGS="STRIP=$STRIP -j"
+            -DNCURSES_MAKE_ADDITIONAL_FLAGS="-j $(nproc)" \
+            -DREADLINE_MAKE_ADDITIONAL_FLAGS="-j $(nproc)"
 
 env PATH="$MUSL_SYSROOT"/bin/:"$PATH" cmake --build "$BUILD_DIR"

@@ -7,6 +7,7 @@
 #include <map>
 #include <ranges>
 #include <sys/stat.h>
+#include <sys/ioctl.h>
 #include "readline.h"
 #include "history.h"
 #include "general_info_pulling.h"
@@ -16,7 +17,7 @@ const char clear[] = { 0x1b, 0x5b, 0x48, 0x1b, 0x5b, 0x32, 0x4a, 0x1b, 0x5b, 0x3
 volatile std::atomic_bool sysint_pressed = false;
 void sigint_handler(int)
 {
-    const char *msg = "\r[===> KEYBOARD INTERRUPT / PRESS Enter TO CONTINUE <===]";
+    const char *msg = "\r[===> KEYBOARD INTERRUPT / PRESS Enter TO CONTINUE <===]\n";
     write(1, msg, strlen(msg));
     sysint_pressed = true;
 }
@@ -34,7 +35,7 @@ static const char *cmds[] = {
 static const char *help_voc [] = { "quit", "exit", "get", "set", "close_connections", nullptr };
 static const char *get_voc  [] = { "latency", "proxy", "connections", "mode", "log", nullptr };
 static const char *get_sup_voc  [] = { "hide", nullptr };
-static const char *set_voc  [] = { "mode", "group", "chain_parser", "sort_by", nullptr };
+static const char *set_voc  [] = { "mode", "group", "chain_parser", "sort_by", "sort_reverse", nullptr };
 
 #define arg_generator(name, vector)                                             \
 static char * name (const char *text, int state) {                              \
@@ -302,20 +303,46 @@ void help_sub_cmds(const std::string & cmd_text, const std::map <std::string, st
     }
 }
 
+int get_col_size()
+{
+    constexpr int term_col_size = 80;
+    bool is_terminal = false;
+    struct stat st{};
+    if (fstat(STDOUT_FILENO, &st) == -1)
+    {
+        return term_col_size;
+    }
+
+    if (isatty(STDOUT_FILENO))
+    {
+        is_terminal = true;
+    }
+
+    if (is_terminal)
+    {
+        winsize w{};
+        if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) != 0 || (w.ws_col | w.ws_row) == 0)
+        {
+            std::cerr << "Warning: failed to determine a reasonable terminal size: " << strerror(errno) << std::endl;
+            return term_col_size;
+        }
+
+        return w.ws_col;
+    }
+
+    return term_col_size;
+}
+
 void print_table(
     std::vector<std::string> const & table_keys,
     std::vector < std::vector<std::string> > const & table_values,
     bool muff_non_ascii = true,
     bool seperator = true,
-    const std::vector < bool > & table_hide = { })
+    const std::vector < bool > & table_hide = { },
+    uint64_t leading_offset = 0,
+    std::atomic_int * max_tailing_size_ptr = nullptr)
 {
-    const auto col = std::strtoll(color::get_env("COLUMNS").c_str(), nullptr, 10);
-    if (col < 128)
-    {
-        std::cerr << "Terminal size too small" << std::endl;
-        return;
-    }
-    const decltype(table_keys.size()) max_size = col / table_keys.size();
+    const auto col = get_col_size();
     std::map < std::string /* table keys */, uint32_t /* longest value in this column */ > size_map;
     for (const auto & key : table_keys)
     {
@@ -331,7 +358,7 @@ void print_table(
             if (const auto & current_key = table_keys[index++];
                 size_map[current_key] < val.size())
             {
-                size_map[current_key] = std::min(max_size, val.size());
+                size_map[current_key] = val.size();
             }
         }
     }
@@ -377,18 +404,46 @@ void print_table(
         separation_line = ss_sep.str();
     }
 
-    std::cout << separation_line << std::endl;
-    std::cout << header_line << std::endl;
-    std::cout << separation_line << std::endl;
-    std::cout << color::color(5,5,5) << title_line << color::no_color() << std::endl;
-    std::cout << separation_line << std::endl;
+    auto max_tailing_size = (col / 4) < separation_line.size() ? separation_line.size() - (col / 4) : (separation_line.size() / 4);
+    if (max_tailing_size_ptr) *max_tailing_size_ptr = static_cast<int>(max_tailing_size);
+    leading_offset = std::min(static_cast<decltype(separation_line.size())>(leading_offset), max_tailing_size);
+
+    auto print_line = [&](std::string line, const std::string & color = "")->void
+    {
+        if (leading_offset != 0) {
+            line = "<" + line.substr(leading_offset + 1);
+        }
+
+        if (line.size() > col)
+        {
+            if (col > 1)
+            {
+                line = line.substr(0, col - 1);
+                line += ">";
+            }
+            else
+            {
+                line = line.substr(0, col);
+            }
+        }
+
+        std::cout << color << line << color::no_color() << std::endl;
+    };
+
+    print_line(separation_line);
+    print_line(header_line);
+    print_line(separation_line);
+    print_line(title_line, color::color(5,5,5));
+    print_line(separation_line);
 
     int i = 0;
     for (const auto & vals : table_values)
     {
         i++;
-        if (i & 0x01) std::cout << color::color(0,5,5);
+        std::string color_line;
+        if (i & 0x01) color_line = color::color(0,5,5);
         int index = 0;
+        std::stringstream val_line_stream;
         for (const auto & val : vals)
         {
             if (!table_hide.empty() && table_hide.size() == table_keys.size() && table_hide[index])
@@ -399,66 +454,43 @@ void print_table(
 
             const auto & current_key = table_keys[index++];
             const int paddings = static_cast<int>(size_map[current_key] - val.length()) + 2;
-            const int before = std::max(paddings / 2, 1);
+            constexpr int before = 1;
             const int after = std::max(paddings - before, 1);
-            std::cout << (seperator ? "|" : " ") << std::string(before, ' ');
+            val_line_stream << (seperator ? "|" : " ") << std::string(before, ' ');
             std::string output;
-            if (val.length() > max_size && (muff_non_ascii ? true : index != vals.size()))
-            {
-                std::string first = val.substr(0, max_size / 3 * 2);
-                std::string second = val.substr(val.length() - (max_size - (max_size / 3 * 2 + 3)));
-                output += first + "...";
-                output += second;
-            } else {
-                output = val;
-            }
-
+            output = val;
             if (muff_non_ascii) {
                 for (auto & c : output) {
                     if (!std::isprint(c)) c = '#';
                 }
             }
 
-            std::cout << output << std::string(after, ' ');
+            val_line_stream << output << std::string(after, ' ');
         }
-        std::cout << " " << ((i & 0x01) ? color::no_color() : "") << std::endl;
+        print_line(val_line_stream.str(), color_line);
     }
 
-    std::cout << separation_line << std::endl;
+    print_line(separation_line);
 }
 
 std::string value_to_speed(const unsigned long long value)
 {
-    if (value < 1024) {
-        return std::to_string(value) + " B/s";
-    } else if (value < 1024 * 1024) {
-        return std::to_string(value / 1024) + " KB/s";
-    } else if (value < 1024 * 1024 * 1024) {
-        return std::to_string(value / (1024 * 1024)) + " MB/s";
-    } else if (value < 1024l * 1024 * 1024 * 1024) {
-        return std::to_string(value / (1024 * 1024 * 1024)) + " GB/s";
-    } else if (value < 1024l * 1024 * 1024 * 1024 * 1024) {
-        return std::to_string(value / (1024l * 1024 * 1024 * 1024)) + " TB/s";
-    } else {
-        return std::to_string(value) + " B/s";
-    }
+    if (value < 1024ull) return std::to_string(value) + " B/s";
+    if (value < 1024ull * 1024ull) return std::to_string(value / 1024ull) + " KB/s";
+    if (value < 1024ull * 1024ull * 1024ull) return std::to_string(value / (1024ull * 1024ull)) + " MB/s";
+    if (value < 1024ull * 1024ull * 1024ull * 1024ull) return std::to_string(value / (1024ull * 1024ull * 1024ull)) + " GB/s";
+    if (value < 1024ull * 1024ull * 1024ull * 1024ull * 1024ull) return std::to_string(value / (1024ull * 1024ull * 1024ull * 1024ull)) + " TB/s";
+    return std::to_string(value) + " B/s";
 }
 
 std::string value_to_size(const unsigned long long value)
 {
-    if (value < 1024) {
-        return std::to_string(value) + " B";
-    } else if (value < 1024 * 1024) {
-        return std::to_string(value / 1024) + " KB";
-    } else if (value < 1024 * 1024 * 1024) {
-        return std::to_string(value / (1024 * 1024)) + " MB";
-    } else if (value < 1024l * 1024 * 1024 * 1024) {
-        return std::to_string(value / (1024 * 1024 * 1024)) + " GB";
-    } else if (value < 1024l * 1024 * 1024 * 1024 * 1024) {
-        return std::to_string(value / (1024l * 1024 * 1024 * 1024)) + " TB";
-    } else {
-        return std::to_string(value) + " B";
-    }
+    if (value < 1024ull) return std::to_string(value) + " B";
+    if (value < 1024ull * 1024ull) return std::to_string(value / 1024ull) + " KB";
+    if (value < 1024ull * 1024ull * 1024ull) return std::to_string(value / (1024ull * 1024ull)) + " MB";
+    if (value < 1024ull * 1024ull * 1024ull * 1024ull) return std::to_string(value / (1024ull * 1024ull * 1024ull)) + " GB";
+    if (value < 1024ull * 1024ull * 1024ull * 1024ull * 1024ull) return std::to_string(value / (1024ull * 1024ull * 1024ull * 1024ull)) + " TB";
+    return std::to_string(value) + " B";
 }
 
 std::string second_to_human_readable(const unsigned long long value)
@@ -473,6 +505,9 @@ std::string second_to_human_readable(const unsigned long long value)
         return std::to_string(value / (60 * 60 * 24)) + " Day";
     }
 }
+
+void reset_terminal_mode();
+void set_conio_terminal_mode();
 
 int main(int argc, char ** argv)
 {
@@ -536,6 +571,8 @@ int main(int argc, char ** argv)
         char * line = nullptr;
         general_info_pulling backend_instance(backend, port, token);
         int sort_by = 4;
+        bool reverse = false;
+        std::atomic_int leading_spaces = 0;
         const std::vector<std::string> titles = {
             "Host",         // 0
             "Process",      // 1
@@ -582,11 +619,8 @@ int main(int argc, char ** argv)
 
         while ((line = readline("ccdb> ")) != nullptr)
         {
-            if (sysint_pressed)
-            {
-                free(line);
+            if (sysint_pressed) {
                 sysint_pressed = false;
-                continue;
             }
 
             if (*line) add_history(line);
@@ -647,16 +681,17 @@ int main(int argc, char ** argv)
                                 { "latency", "Get all proxy latencies" },
                                 { "proxy", "Get all proxies. Latency will be added if tested before" },
                                 { "connections [hide <0-11>]",
-                                    R"(Get all active connections. You can hide certain columns using the "hide" argument. Numbers separated by ',', or use '-' to conjunct numbers. E.g.: 2,4-6,8)" },
+                                    R"(Get all active connections. Using the "hide" to hide columns, which are separated by ',', or use '-' to conjunct numbers. E.g.: 2,4-6,8. Use ^C or 'q' to stop)" },
                                 { "mode", "Get current proxy mode, i.e., direct, rule or global" },
-                                { "log", "Watch logs. Use Ctrl+C (^C) to stop watching" },
+                                { "log", "Watch logs. Use Ctrl+C (^C) or press 'q' to stop watching" },
                             });
                         } else if (command_vector[1] == "set") {
                             help_sub_cmds("set", {
                                 { "mode", "set mode " + color::color(5,5,5) + "[MODE]" + color::no_color() + ", where " + color::color(5,5,5) + "[MODE]" + color::no_color() + R"( can be "direct", "rule", or "global")" }, // DO NOT USE "...," use "...", instead. It's confusing
                                 { "group", "set group " + color::color(5,5,5) + "[GROUP]" + color::no_color() + " " + color::color(5,5,5) + "[PROXY]" + color::no_color() + ", where " + color::color(5,5,5) + "[GROUP]" + color::no_color() + " is proxy group, and " + color::color(5,5,5) + "[PROXY]" + color::no_color() + " is proxy endpoint" },
                                 { "chain_parser", "set chain_parser " + color::color(5,5,5) + "[on|off]" + color::no_color() + R"(, "on" means parse rule chains, and "off" means show only endpoint)" },
-                                { "sort_by", "set sort_by " + color::color(5,5,5) + "[0-11]" + color::no_color() + R"(, used by get connections. Set which cloumn to sort. Default is 4.)" },
+                                { "sort_by", "set sort_by " + color::color(5,5,5) + "[0-11]" + color::no_color() + R"(, used by get connections. Set which column to sort. Default is 4.)" },
+                                { "sort_reverse", "set sort_reverse " + color::color(5,5,5) + "[on|off]" + color::no_color() + R"(, "off" means sort by default (highest to lowest), and "on" means sort by reverse (lowest to highest))" },
                             });
                         } else {
                             help_overall();
@@ -667,7 +702,59 @@ int main(int argc, char ** argv)
                 {
                     if (command_vector[1] == "connections")
                     {
+                        leading_spaces = 0;
+                        std::atomic_int max_leading_spaces = get_col_size() / 4;
                         backend_instance.change_focus("overview");
+                        std::thread input_getc_worker([&leading_spaces, &max_leading_spaces]
+                        {
+                            set_conio_terminal_mode();
+                            std::vector <int> ch_list;
+                            int ch;
+                            while (((ch = getchar()) != EOF) && !sysint_pressed)
+                            {
+                                if (ch == 'q' || ch == 'Q')
+                                {
+                                    sysint_pressed = true;
+                                    break;
+                                }
+
+                                ch_list.push_back(ch);
+
+                                if (!ch_list.empty() && ch_list.front() != 27) {
+                                    while (!ch_list.empty() && ch_list.front() != 27) ch_list.erase(ch_list.begin()); // remove wrong paddings
+                                }
+
+                                if (ch_list.size() == 3 && ch_list[0] == 27 && ch_list[1] == 91)
+                                {
+                                    if (ch_list[2] == 68) // left arrow
+                                    {
+                                        if (leading_spaces > 0)
+                                        {
+                                            if (leading_spaces > 4) {
+                                                leading_spaces -= 4;
+                                            } else {
+                                                leading_spaces = 0;
+                                            }
+                                        }
+                                    }
+                                    else if (ch_list[2] == 67) // right arrow
+                                    {
+                                        if (leading_spaces < max_leading_spaces) {
+                                            if ((leading_spaces + 4) < max_leading_spaces)
+                                            {
+                                                leading_spaces += 4;
+                                            } else {
+                                                leading_spaces = max_leading_spaces.load();
+                                            }
+                                        }
+                                    }
+
+                                    ch_list.clear();
+                                }
+                            }
+                            reset_terminal_mode();
+                        });
+
                         while (!sysint_pressed)
                         {
                             auto connections = backend_instance.get_active_connections();
@@ -704,6 +791,7 @@ int main(int argc, char ** argv)
                                                       return a.downloadSpeed > b.downloadSpeed;
                                                   }
                                               });
+                            if (reverse) std::ranges::reverse(connections);
                             std::vector < bool > do_col_hide;
                             do_col_hide.resize(titles.size(), false);
                             if (command_vector.size() == 4)
@@ -769,9 +857,19 @@ int main(int argc, char ** argv)
                             std::cout << color::color(0,5,5) << "Total downloads " << value_to_size(backend_instance.get_total_downloaded_bytes()) << " "
                                       << color::bg_color(0,0,5) << color::color(5,5,5)
                                     << "Download speed: " << value_to_speed(backend_instance.get_current_download_speed()) << color::no_color() << std::endl;
-                            print_table(titles, table_vals, false, true, do_col_hide);
-                            std::this_thread::sleep_for(std::chrono::seconds(1l));
+                            print_table(titles, table_vals, false, true, do_col_hide, leading_spaces, &max_leading_spaces);
+                            int local_leading_spaces = leading_spaces;
+                            for (int i = 0; i < 100; i++)
+                            {
+                                std::this_thread::sleep_for(std::chrono::milliseconds(10l));
+                                if (local_leading_spaces != leading_spaces || sysint_pressed)
+                                {
+                                    break;
+                                }
+                            }
                         }
+
+                        if (input_getc_worker.joinable()) input_getc_worker.join();
                     } else if (command_vector[1] == "latency") {
                         std::cout << "Testing latency with url " << latency_url << " ..." << std::endl;
                         backend_instance.update_proxy_list(); // update the proxy first
@@ -782,7 +880,7 @@ int main(int argc, char ** argv)
                             list_unordered.emplace_back(proxy, latency);
                         }
 
-                        std::vector<std::string> titles = { "Latency", "Proxy" };
+                        std::vector<std::string> titles_lat = { "Latency", "Proxy" };
                         std::vector<std::vector<std::string>> table_vals;
                         std::vector<std::string> table_line;
 
@@ -797,9 +895,24 @@ int main(int argc, char ** argv)
                             table_vals.emplace_back(table_line);
                             table_line.clear();
                         }
-                        print_table(titles, table_vals, false);
+                        print_table(titles_lat, table_vals, false);
                     } else if (command_vector[1] == "log") {
                         backend_instance.change_focus("logs");
+                        std::thread input_getc_worker([]
+                        {
+                            set_conio_terminal_mode();
+                            int ch;
+                            while (((ch = getchar()) != EOF) && !sysint_pressed)
+                            {
+                                if (ch == 'q' || ch == 'Q')
+                                {
+                                    sysint_pressed = true;
+                                    break;
+                                }
+                            }
+                            reset_terminal_mode();
+                        });
+
                         while (!sysint_pressed)
                         {
                             auto current_vector = backend_instance.get_logs();
@@ -815,8 +928,16 @@ int main(int argc, char ** argv)
                                 }
                             }
 
-                            std::this_thread::sleep_for(std::chrono::seconds(1l));
+                            for (int i = 0; i < 50; i++)
+                            {
+                                std::this_thread::sleep_for(std::chrono::milliseconds(10l));
+                                if (sysint_pressed) {
+                                    break;
+                                }
+                            }
                         }
+
+                        if (input_getc_worker.joinable()) input_getc_worker.join();
                     } else if (command_vector[1] == "mode") {
                         std::cout << backend_instance.get_current_mode() << std::endl;
                     } else if (command_vector[1] == "proxy") {
@@ -886,6 +1007,10 @@ int main(int argc, char ** argv)
                         } catch (...) {
                             std::cerr << "Invalid number `" << command_vector[2] << "`" << std::endl;
                         }
+                    } else if (command_vector[1] == "sort_reverse" && command_vector.size() == 3) { // set sort_reverse on/off
+                        if (command_vector[2] == "on") reverse = true;
+                        else if (command_vector[2] == "off") reverse = false;
+                        else std::cerr << "Unknown option for parser `" << command_vector[2] << "`" << std::endl;
                     } else {
                         std::cerr << "Unknown command `" << command_vector[1] << "` or invalid syntax" << std::endl;
                     }
