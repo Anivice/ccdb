@@ -303,14 +303,15 @@ void help_sub_cmds(const std::string & cmd_text, const std::map <std::string, st
     }
 }
 
-int get_col_size()
+std::pair < int, int > get_col_line_size()
 {
     constexpr int term_col_size = 80;
+    constexpr int term_row_size = 25;
     bool is_terminal = false;
     struct stat st{};
     if (fstat(STDOUT_FILENO, &st) == -1)
     {
-        return term_col_size;
+        return {term_row_size, term_col_size};
     }
 
     if (isatty(STDOUT_FILENO))
@@ -324,13 +325,23 @@ int get_col_size()
         if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) != 0 || (w.ws_col | w.ws_row) == 0)
         {
             std::cerr << "Warning: failed to determine a reasonable terminal size: " << strerror(errno) << std::endl;
-            return term_col_size;
+            return {term_row_size, term_col_size};;
         }
 
-        return w.ws_col;
+        return {w.ws_row, w.ws_col};
     }
 
-    return term_col_size;
+    return {term_row_size, term_col_size};;
+}
+
+inline int get_col_size()
+{
+    return get_col_line_size().second;
+}
+
+inline int get_line_size()
+{
+    return get_col_line_size().first;
 }
 
 void print_table(
@@ -916,8 +927,9 @@ int main(int argc, char ** argv)
                         while (!sysint_pressed)
                         {
                             auto current_vector = backend_instance.get_logs();
-                            const uint32_t lines = std::strtol(color::get_env("LINES").c_str(), nullptr, 10);
-                            while (current_vector.size() > lines) current_vector.erase(current_vector.begin());
+                            uint32_t lines = get_line_size();
+                            if (lines == 0) lines = 1;
+                            while (current_vector.size() > (lines - 1)) current_vector.erase(current_vector.begin());
                             std::cout.write(clear, sizeof(clear));
                             for (const auto & [level, log] : current_vector)
                             {
