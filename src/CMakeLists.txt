@@ -70,6 +70,7 @@ add_executable(ccdb
         include/httplib.h
         general_info_pulling.cpp    include/general_info_pulling.h
         mihomo.cpp                  include/mihomo.h
+        exec.cpp                    include/exec.h
         key_raw.cpp
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR})

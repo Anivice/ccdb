@@ -11,6 +11,7 @@
 #include "readline.h"
 #include "history.h"
 #include "general_info_pulling.h"
+#include "exec.h"
 
 const char clear[] = { 0x1b, 0x5b, 0x48, 0x1b, 0x5b, 0x32, 0x4a, 0x1b, 0x5b, 0x33, 0x4a };
 
@@ -277,7 +278,12 @@ void help_overall()
                 << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "exit\n" << color::no_color()
                 << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "get\n" << color::no_color()
                 << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "set\n" << color::no_color()
-                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "close_connections\n" << color::no_color();
+                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "close_connections\n"
+                << "  " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "ENVIRONMENT" << color::no_color() << ":\n"
+                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(5,5,5) << "PAGER" << color::no_color()
+                << " Specify a pager command for `get proxy`" << std::endl
+                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(5,5,5) << "NOPAGER" << color::no_color()
+                << " Set NOPAGER to true to disable pagers even if they are available" << std::endl;
 }
 
 void help(const std::string & cmd_text, const std::string & description)
@@ -351,7 +357,8 @@ void print_table(
     bool seperator = true,
     const std::vector < bool > & table_hide = { },
     uint64_t leading_offset = 0,
-    std::atomic_int * max_tailing_size_ptr = nullptr)
+    std::atomic_int * max_tailing_size_ptr = nullptr,
+    bool using_less = false)
 {
     const auto col = get_col_size();
     std::map < std::string /* table keys */, uint32_t /* longest value in this column */ > size_map;
@@ -418,6 +425,7 @@ void print_table(
     auto max_tailing_size = (col / 4) < separation_line.size() ? separation_line.size() - (col / 4) : (separation_line.size() / 4);
     if (max_tailing_size_ptr) *max_tailing_size_ptr = static_cast<int>(max_tailing_size);
     leading_offset = std::min(static_cast<decltype(separation_line.size())>(leading_offset), max_tailing_size);
+    std::stringstream less_output_redirect;
 
     auto print_line = [&](std::string line, const std::string & color = "")->void
     {
@@ -438,7 +446,11 @@ void print_table(
             }
         }
 
-        std::cout << color << line << color::no_color() << std::endl;
+        if (using_less) {
+            less_output_redirect << color << line << color::no_color() << std::endl;
+        } else {
+            std::cout << color << line << color::no_color() << std::endl;
+        }
     };
 
     print_line(separation_line);
@@ -482,6 +494,38 @@ void print_table(
     }
 
     print_line(separation_line);
+
+    if (using_less)
+    {
+        const auto output = less_output_redirect.str();
+        auto pager = color::get_env("PAGER");
+        if (pager.empty()) {
+            pager = "less -R";
+        }
+        if (const auto [fd_stdout, fd_stderr, exit_status]
+            = exec_command("/bin/sh", output, "-c", pager);
+            exit_status != 0)
+        {
+            std::cerr << fd_stderr << std::endl;
+            std::cerr << "(less exited with code " << exit_status << ")" << std::endl;
+        }
+    }
+}
+
+bool is_less_available()
+{
+    if (const auto nopager = color::get_env("NOPAGER");
+        nopager == "true" || nopager == "1" || nopager == "yes" || nopager == "y")
+    {
+        return false;
+    }
+
+    if (const auto pager = color::get_env("PAGER"); pager.empty()) {
+        const auto result = exec_command("/bin/sh", "", "-c", "which less 2>/dev/null >/dev/null");
+        return result.exit_status == 0;
+    }
+
+    return true; // skip check if you specify a pager. fuck you for providing a faulty one
 }
 
 std::string value_to_speed(const unsigned long long value)
@@ -574,6 +618,7 @@ int main(int argc, char ** argv)
     };
 
     std::signal(SIGINT, sigint_handler);
+    std::signal(SIGPIPE, SIG_IGN);
 
     rl_attempted_completion_function = cmd_completion;
     using_history();
@@ -881,7 +926,9 @@ int main(int argc, char ** argv)
                         }
 
                         if (input_getc_worker.joinable()) input_getc_worker.join();
-                    } else if (command_vector[1] == "latency") {
+                    }
+                    else if (command_vector[1] == "latency")
+                    {
                         std::cout << "Testing latency with url " << latency_url << " ..." << std::endl;
                         backend_instance.update_proxy_list(); // update the proxy first
                         backend_instance.latency_test(latency_url);
@@ -907,7 +954,9 @@ int main(int argc, char ** argv)
                             table_line.clear();
                         }
                         print_table(titles_lat, table_vals, false);
-                    } else if (command_vector[1] == "log") {
+                    }
+                    else if (command_vector[1] == "log")
+                    {
                         backend_instance.change_focus("logs");
                         std::thread input_getc_worker([]
                         {
@@ -978,9 +1027,22 @@ int main(int argc, char ** argv)
                                         color::bg_color(2,2,2) + color::color(5,5,5))
                                     + proxy + color::no_color());
                             });
-                        });
+                        });        // Read from child's stdout
+        // if (!read_all(PARENT_READ_FD, status.fd_stdout))
+        // {
+        //     status.fd_stderr += get_errno_message("read_all() failed: ");
+        //     status.exit_status = 1;
+        //     return status;
+        // }
 
-                        print_table(table_titles, table_vals, false, false);
+                        print_table(table_titles,
+                            table_vals,
+                            false,
+                            false,
+                            { },
+                            0,
+                            nullptr,
+                            is_less_available());
                     } else {
                         std::cerr << "Unknown command `" << command_vector[1] << "`" << std::endl;
                     }
