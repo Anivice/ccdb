@@ -27,7 +27,7 @@ env PATH="$MUSL_SYSROOT"/bin/:"$PATH" cmake -B "$BUILD_DIR" -S "$script_dir" \
             -DREADLINE_CONFIGURE_ADDITIONAL_FLAGS="--host=$ARCH" \
             -DNCURSES_CONFIGURE_ADDITIONAL_FLAGS="--disable-stripping;--host=$ARCH" \
             -DCMAKE_STRIP="$STRIP" \
-            -DNCURSES_MAKE_ADDITIONAL_FLAGS="-j $(nproc)" \
-            -DREADLINE_MAKE_ADDITIONAL_FLAGS="-j $(nproc)"
+            -DNCURSES_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
+            -DREADLINE_MAKE_ADDITIONAL_FLAGS="-j$(nproc)"
 
 env PATH="$MUSL_SYSROOT"/bin/:"$PATH" cmake --build "$BUILD_DIR"
