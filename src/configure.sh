@@ -13,8 +13,9 @@ export CXX="$TARGET"-g++
 export AR="$TARGET"-ar
 export RANLIB="$TARGET"-ranlib
 export STRIP="$TARGET"-strip
-export MUSL_SYSROOT="$script_dir/../toolchains/$ARCH-linux-musl-cross/"
-
+MUSL_SYSROOT="$(echo "$script_dir/../toolchains/$ARCH-"*)"
+export MUSL_SYSROOT="$MUSL_SYSROOT/"
+echo $MUSL_SYSROOT
 env PATH="$MUSL_SYSROOT"/bin/:"$PATH" cmake -B "$BUILD_DIR" -S "$script_dir" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_SYSTEM_NAME=Linux \

@@ -1,0 +1,1 @@
+../../armv7-unknown-linux-musleabi/sysroot/lib/libstdc++.so.6.0.34-gdb.py

@@ -1,0 +1,7 @@
+/* Generated automatically. */
+static const char configuration_arguments[] = "/home/runner/work/musl-cross/musl-cross/build/.build/i586-unknown-linux-musl/src/gcc/configure --build=x86_64-build_pc-linux-gnu --host=x86_64-build_pc-linux-gnu --target=i586-unknown-linux-musl --prefix=/opt/x-tools/i586-unknown-linux-musl --exec_prefix=/opt/x-tools/i586-unknown-linux-musl --with-sysroot=/opt/x-tools/i586-unknown-linux-musl/i586-unknown-linux-musl/sysroot --enable-languages=c,c++ --with-arch=i586 --with-pkgversion='crosstool-NG UNKNOWN' --enable-__cxa_atexit --disable-libmudflap --disable-libgomp --disable-libssp --disable-libquadmath --disable-libquadmath-support --disable-libsanitizer --disable-libmpx --with-gmp=/home/runner/work/musl-cross/musl-cross/build/.build/i586-unknown-linux-musl/buildtools --with-mpfr=/home/runner/work/musl-cross/musl-cross/build/.build/i586-unknown-linux-musl/buildtools --with-mpc=/home/runner/work/musl-cross/musl-cross/build/.build/i586-unknown-linux-musl/buildtools --with-isl=/home/runner/work/musl-cross/musl-cross/build/.build/i586-unknown-linux-musl/buildtools --enable-lto --enable-threads=posix --enable-target-optspace --enable-plugin --disable-nls --disable-multilib --with-local-prefix=/opt/x-tools/i586-unknown-linux-musl/i586-unknown-linux-musl/sysroot --enable-long-long";
+static const char thread_model[] = "posix";
+
+static const struct {
+  const char *name, *value;
+} configure_default_options[] = { { "cpu", "pentium" }, { "arch", "i586" } };

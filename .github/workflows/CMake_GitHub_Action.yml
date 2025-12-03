@@ -32,7 +32,7 @@ jobs:
 
       - name: Configure and Build
         run: |
-          bash -c 'for arch in x86_64 i686 arm aarch64 armv5l; do ./src/configure.sh $arch build_$arch; done'
+          bash -c 'for arch in x86_64 i686 arm aarch64 armv5l armv7 armv7hf i586; do ./src/configure.sh $arch build_$arch; done'
 
       - name: Test
         env:
@@ -59,7 +59,7 @@ jobs:
 
       - name: Pack
         run: |
-          bash -c 'for arch in x86_64 i686 arm aarch64 armv5l; do cp build_$arch/ccdb ccdb.$arch; done'
+          bash -c 'for arch in x86_64 i686 arm aarch64 armv5l armv7 armv7hf i586; do cp build_$arch/ccdb ccdb.$arch; done'
 
       - name: Get Git commit hash
         id: get_commit
@@ -84,6 +84,9 @@ jobs:
             ccdb.arm
             ccdb.aarch64
             ccdb.armv5l
+            ccdb.armv7
+            ccdb.armv7hf
+            ccdb.i586
           tag_name: "ccdb.NightlyBuild.${{ env.GIT_HASH }}"
           prerelease: true  # Marking this as a pre-release
         env:

@@ -1,0 +1,1 @@
+../../armv7-unknown-linux-musleabi/sysroot/lib/libitm.spec
