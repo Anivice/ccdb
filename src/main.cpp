@@ -281,7 +281,7 @@ void help_overall()
                 << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "close_connections\n"
                 << "  " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "ENVIRONMENT" << color::no_color() << ":\n"
                 << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(5,5,5) << "PAGER" << color::no_color()
-                << " Specify a pager command for `get proxy`" << std::endl
+                << " Specify a pager command for `get proxy/latency`" << std::endl
                 << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(5,5,5) << "NOPAGER" << color::no_color()
                 << " Set NOPAGER to true to disable pagers even if they are available" << std::endl;
 }
@@ -953,7 +953,9 @@ int main(int argc, char ** argv)
                             table_vals.emplace_back(table_line);
                             table_line.clear();
                         }
-                        print_table(titles_lat, table_vals, false);
+                        print_table(titles_lat, table_vals, false,
+                            true, { }, 0, nullptr,
+                            is_less_available());
                     }
                     else if (command_vector[1] == "log")
                     {
@@ -1027,13 +1029,7 @@ int main(int argc, char ** argv)
                                         color::bg_color(2,2,2) + color::color(5,5,5))
                                     + proxy + color::no_color());
                             });
-                        });        // Read from child's stdout
-        // if (!read_all(PARENT_READ_FD, status.fd_stdout))
-        // {
-        //     status.fd_stderr += get_errno_message("read_all() failed: ");
-        //     status.exit_status = 1;
-        //     return status;
-        // }
+                        });
 
                         print_table(table_titles,
                             table_vals,
