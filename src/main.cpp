@@ -615,7 +615,7 @@ int main(int argc, char ** argv)
 
     ////////////////////////////////////////////////////////////////////////////////////////
     std::cout << "Connecting to http://" << backend << ":" << port << std::endl;
-    std::cout << "C++ Clash Dashboard Version 0.0.1" << std::endl;
+    std::cout << "C++ Clash Dashboard Version 0.0.2" << std::endl;
     ////////////////////////////////////////////////////////////////////////////////////////
 
     auto remove_leading_and_tailing_spaces = [](const std::string & text)->std::string
