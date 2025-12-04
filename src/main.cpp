@@ -35,7 +35,7 @@ static const char *cmds[] = {
 
 static const char *help_voc [] = { "quit", "exit", "get", "set", "close_connections", nullptr };
 static const char *get_voc  [] = { "latency", "proxy", "connections", "mode", "log", nullptr };
-static const char *get_sup_voc  [] = { "hide", nullptr };
+static const char *get_sup_voc  [] = { "hide", "shot", nullptr };
 static const char *set_voc  [] = { "mode", "group", "chain_parser", "sort_by", "sort_reverse", nullptr };
 
 #define arg_generator(name, vector)                                             \
@@ -358,7 +358,8 @@ void print_table(
     const std::vector < bool > & table_hide = { },
     uint64_t leading_offset = 0,
     std::atomic_int * max_tailing_size_ptr = nullptr,
-    bool using_less = false)
+    bool using_less = false,
+    const std::string & additional_info_before_table = "")
 {
     const auto col = get_col_size();
     std::map < std::string /* table keys */, uint32_t /* longest value in this column */ > size_map;
@@ -429,20 +430,23 @@ void print_table(
 
     auto print_line = [&](std::string line, const std::string & color = "")->void
     {
-        if (leading_offset != 0) {
-            line = "<" + line.substr(leading_offset + 1);
-        }
-
-        if (line.size() > col)
+        if (max_tailing_size_ptr)
         {
-            if (col > 1)
-            {
-                line = line.substr(0, col - 1);
-                line += ">";
+            if (leading_offset != 0) {
+                line = "<" + line.substr(leading_offset + 1);
             }
-            else
+
+            if (line.size() > col)
             {
-                line = line.substr(0, col);
+                if (col > 1)
+                {
+                    line = line.substr(0, col - 1);
+                    line += ">";
+                }
+                else
+                {
+                    line = line.substr(0, col);
+                }
             }
         }
 
@@ -452,6 +456,15 @@ void print_table(
             std::cout << color << line << color::no_color() << std::endl;
         }
     };
+
+    if (!additional_info_before_table.empty())
+    {
+        if (using_less) {
+            less_output_redirect << additional_info_before_table << std::endl;
+        } else {
+            std::cout << additional_info_before_table << std::endl;
+        }
+    }
 
     print_line(separation_line);
     print_line(header_line);
@@ -500,7 +513,7 @@ void print_table(
         const auto output = less_output_redirect.str();
         auto pager = color::get_env("PAGER");
         if (pager.empty()) {
-            pager = "less -R";
+            pager = R"(less -SR -S --rscroll='>')";
         }
         if (const auto [fd_stdout, fd_stderr, exit_status]
             = exec_command("/bin/sh", output, "-c", pager);
@@ -736,8 +749,8 @@ int main(int argc, char ** argv)
                             help_sub_cmds("get", {
                                 { "latency", "Get all proxy latencies" },
                                 { "proxy", "Get all proxies. Latency will be added if tested before" },
-                                { "connections [hide <0-11>]",
-                                    R"(Get all active connections. Using the "hide" to hide columns, which are separated by ',', or use '-' to conjunct numbers. E.g.: 2,4-6,8. Use ^C or 'q' to stop)" },
+                                { "connections [hide <0-11>|shot]",
+                                    R"(Get all active connections. Using the "hide" to hide columns, which are separated by ',', or use '-' to conjunct numbers. E.g.: 2,4-6,8. Use ^C or 'q' to stop. Use "shot" to use a pager)" },
                                 { "mode", "Get current proxy mode, i.e., direct, rule or global" },
                                 { "log", "Watch logs. Use Ctrl+C (^C) or press 'q' to stop watching" },
                             });
@@ -761,7 +774,9 @@ int main(int argc, char ** argv)
                         leading_spaces = 0;
                         std::atomic_int max_leading_spaces = get_col_size() / 4;
                         backend_instance.change_focus("overview");
-                        std::thread input_getc_worker([&leading_spaces, &max_leading_spaces]
+                        std::thread input_getc_worker;
+                        bool use_input = true;
+                        auto input_worker = [&leading_spaces, &max_leading_spaces]
                         {
                             set_conio_terminal_mode();
                             std::vector <int> ch_list;
@@ -809,7 +824,52 @@ int main(int argc, char ** argv)
                                 }
                             }
                             reset_terminal_mode();
-                        });
+                        };
+
+                        std::vector < bool > do_col_hide;
+                        do_col_hide.resize(titles.size(), false);
+                        if (command_vector.size() == 4)
+                        {
+                            if (command_vector[2] == "hide")
+                            {
+                                std::string & numeric_expression = command_vector[3], str_num;
+                                std::vector<int> numeric_values;
+                                std::istringstream numeric_stream(numeric_expression);
+                                while (std::getline(numeric_stream, str_num, ','))
+                                {
+                                    try {
+                                        if (str_num.find('-') == std::string::npos)
+                                        {
+                                            numeric_values.push_back(std::stoi(str_num));
+                                        }
+                                        else
+                                        {
+                                            std::string start = str_num.substr(0, str_num.find('-'));
+                                            std::string stop = str_num.substr(str_num.find('-') + 1);
+                                            int begin = std::stoi(start);
+                                            int end = std::stoi(stop);
+                                            for (int i = begin; i <= end; i++) {
+                                                numeric_values.push_back(i);
+                                            }
+                                        }
+                                    } catch (...) {
+                                    }
+                                }
+
+                                for (const auto & i : numeric_values)
+                                {
+                                    if (do_col_hide.size() > i) {
+                                        do_col_hide[i] = true;
+                                    }
+                                }
+                            }
+                        } else if (command_vector.size() == 3 && command_vector[2] == "shot") {
+                            use_input = false;
+                        }
+
+                        if (use_input) {
+                            input_getc_worker = std::thread(input_worker);
+                        }
 
                         while (!sysint_pressed)
                         {
@@ -848,46 +908,6 @@ int main(int argc, char ** argv)
                                                   }
                                               });
                             if (reverse) std::ranges::reverse(connections);
-                            std::vector < bool > do_col_hide;
-                            do_col_hide.resize(titles.size(), false);
-                            if (command_vector.size() == 4)
-                            {
-                                if (command_vector[2] == "hide")
-                                {
-                                    std::string & numeric_expression = command_vector[3], str_num;
-                                    std::vector<int> numeric_values;
-                                    std::istringstream numeric_stream(numeric_expression);
-                                    while (std::getline(numeric_stream, str_num, ','))
-                                    {
-                                        try {
-                                            if (str_num.find('-') == std::string::npos)
-                                            {
-                                                numeric_values.push_back(std::stoi(str_num));
-                                            }
-                                            else
-                                            {
-                                                std::string start = str_num.substr(0, str_num.find('-'));
-                                                std::string stop = str_num.substr(str_num.find('-') + 1);
-                                                int begin = std::stoi(start);
-                                                int end = std::stoi(stop);
-                                                for (int i = begin; i <= end; i++) {
-                                                    numeric_values.push_back(i);
-                                                }
-                                            }
-                                        } catch (...) {
-                                            // std::cout << color::color(5,0,0) << "Unknown expression " << str_num << ", ignored" << color::no_color() << std::endl;
-                                        }
-                                    }
-
-                                    for (const auto & i : numeric_values)
-                                    {
-                                        if (do_col_hide.size() > i) {
-                                            do_col_hide[i] = true;
-                                        }
-                                    }
-                                }
-                            }
-
                             for (const auto & connection : connections)
                             {
                                 table_vals.push_back({
@@ -906,22 +926,49 @@ int main(int argc, char ** argv)
                                 });
                             }
 
+                            std::stringstream ss;
                             std::cout.write(clear, sizeof(clear)); // clear the screen
-                            std::cout << color::color(5,5,0) << "Total uploads: " << value_to_size(backend_instance.get_total_uploaded_bytes()) << " "
-                                      << color::bg_color(0,0,5) << color::color(5,5,5)
-                                    << "Upload speed: " << value_to_speed(backend_instance.get_current_upload_speed()) << color::no_color() << std::endl;
-                            std::cout << color::color(0,5,5) << "Total downloads " << value_to_size(backend_instance.get_total_downloaded_bytes()) << " "
-                                      << color::bg_color(0,0,5) << color::color(5,5,5)
-                                    << "Download speed: " << value_to_speed(backend_instance.get_current_download_speed()) << color::no_color() << std::endl;
-                            print_table(titles, table_vals, false, true, do_col_hide, leading_spaces, &max_leading_spaces);
-                            int local_leading_spaces = leading_spaces;
-                            for (int i = 0; i < 100; i++)
+                            ss  << color::color(5,5,0) << "Total uploads: " << value_to_size(backend_instance.get_total_uploaded_bytes()) << " "
+                                << color::bg_color(0,0,5) << color::color(5,5,5)
+                                << "Upload speed: " << value_to_speed(backend_instance.get_current_upload_speed()) << color::no_color() << " "
+                                << color::color(0,5,5) << "Total downloads " << value_to_size(backend_instance.get_total_downloaded_bytes()) << "   "
+                                << color::bg_color(0,0,5) << color::color(5,5,5)
+                                << "Download speed: " << value_to_speed(backend_instance.get_current_download_speed()) << color::no_color();
+
+                            if (use_input)
                             {
-                                std::this_thread::sleep_for(std::chrono::milliseconds(10l));
-                                if (local_leading_spaces != leading_spaces || sysint_pressed)
+                                print_table(titles,
+                                    table_vals,
+                                    false,
+                                    true,
+                                    do_col_hide,
+                                    leading_spaces,
+                                    &max_leading_spaces,
+                                    false,
+                                    ss.str());
+                                int local_leading_spaces = leading_spaces;
+                                for (int i = 0; i < 100; i++)
                                 {
-                                    break;
+                                    std::this_thread::sleep_for(std::chrono::milliseconds(10l));
+                                    if (local_leading_spaces != leading_spaces || sysint_pressed)
+                                    {
+                                        break;
+                                    }
                                 }
+                            }
+                            else
+                            {
+                                // print once to the pager, then quit
+                                print_table(titles,
+                                    table_vals,
+                                    false,
+                                    true,
+                                    { },
+                                    0,
+                                    nullptr,
+                                    is_less_available(),
+                                    ss.str());
+                                break;
                             }
                         }
 
