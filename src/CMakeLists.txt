@@ -74,7 +74,7 @@ add_executable(ccdb
         key_raw.cpp
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR})
-target_compile_definitions(ccdb PUBLIC VERSION="0.0.1")
+target_compile_definitions(ccdb PUBLIC CCDB_VERSION="0.0.3")
 
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
 #    target_compile_options(ccdb PUBLIC -fsanitize=address -fsanitize=undefined)

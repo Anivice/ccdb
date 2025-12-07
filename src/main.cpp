@@ -12,6 +12,14 @@
 #include "history.h"
 #include "general_info_pulling.h"
 #include "exec.h"
+#include "utf8.h"
+
+std::u32string utf8_to_u32(const std::string& s)
+{
+    std::u32string result;
+    utf8::utf8to32(s.begin(), s.end(), std::back_inserter(result));
+    return result;
+}
 
 const char clear[] = { 0x1b, 0x5b, 0x48, 0x1b, 0x5b, 0x32, 0x4a, 0x1b, 0x5b, 0x33, 0x4a };
 
@@ -428,20 +436,77 @@ void print_table(
     leading_offset = std::min(static_cast<decltype(separation_line.size())>(leading_offset), max_tailing_size);
     std::stringstream less_output_redirect;
 
-    auto print_line = [&](std::string line, const std::string & color = "")->void
+    auto print_line = [&](const std::string& line_, const std::string & color = "")->void
     {
-        if (max_tailing_size_ptr)
+        auto line = utf8_to_u32(line_);
+        if (max_tailing_size_ptr && !using_less)
         {
-            if (leading_offset != 0) {
-                line = "<" + line.substr(leading_offset + 1);
+            if (leading_offset != 0)
+            {
+                const auto p_leading_offset = leading_offset + 1;
+                int leads = 0;
+                while (!line.empty())
+                {
+                    if (line.front() <= 0xFF) {
+                        leads++;
+                    } else {
+                        leads += 2;
+                    }
+
+                    if (leads > p_leading_offset) {
+                        break;
+                    }
+
+                    line.erase(line.begin());
+                }
+
+                // add padding
+                if (leads < p_leading_offset) {
+                    line = utf8_to_u32(std::string(p_leading_offset - leads, ' ')) + line;
+                }
+
+                line = utf8_to_u32("<") + line; // add color code here will mess up formation bc color codes occupies no spaces on screen
             }
 
-            if (line.size() > col)
+            int total_size = 0;
+            for (const auto & c : line)
+            {
+                if (c <= 0xFF) {
+                    total_size++;
+                } else {
+                    total_size += 2;
+                }
+            }
+
+            if (total_size > col)
             {
                 if (col > 1)
                 {
-                    line = line.substr(0, col - 1);
-                    line += ">";
+                    int p_size = 0, ap_size = 0;
+                    int offset = 0;
+                    for (const auto & c : line)
+                    {
+                        if (c <= 0xFF) {
+                            p_size++;
+                        } else {
+                            p_size += 2;
+                        }
+
+                        if (p_size > (col - 1)) {
+                            break;
+                        }
+
+                        offset++;
+                        ap_size = p_size;
+                    }
+
+                    std::string padding;
+                    if (ap_size < (col - 1)) {
+                        padding = std::string((col - 1) - ap_size, ' ');
+                    }
+
+                    line = line.substr(0, offset) + utf8_to_u32(padding) +
+                        utf8_to_u32(color::bg_color(5,5,5) + color::color(0,0,0) + ">" + color::no_color());
                 }
                 else
                 {
@@ -451,9 +516,16 @@ void print_table(
         }
 
         if (using_less) {
-            less_output_redirect << color << line << color::no_color() << std::endl;
+            less_output_redirect << color << line_ << color::no_color() << std::endl;
         } else {
-            std::cout << color << line << color::no_color() << std::endl;
+            std::string utf8_str;
+            utf8::utf32to8(line.begin(), line.end(), std::back_inserter(utf8_str));
+            if (!utf8_str.empty() && utf8_str.front() == '<') // add color code for '<' at the beginning
+            {
+                utf8_str.erase(utf8_str.begin());
+                utf8_str = color::bg_color(5,5,5) + color::color(0,0,0) + "<" + color::no_color() + utf8_str;
+            }
+            std::cout << color << utf8_str << color::no_color() << std::endl;
         }
     };
 
@@ -615,7 +687,7 @@ int main(int argc, char ** argv)
 
     ////////////////////////////////////////////////////////////////////////////////////////
     std::cout << "Connecting to http://" << backend << ":" << port << std::endl;
-    std::cout << "C++ Clash Dashboard Version 0.0.2" << std::endl;
+    std::cout << "C++ Clash Dashboard Version " << CCDB_VERSION << std::endl;
     ////////////////////////////////////////////////////////////////////////////////////////
 
     auto remove_leading_and_tailing_spaces = [](const std::string & text)->std::string
