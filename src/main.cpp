@@ -27,8 +27,13 @@ volatile std::atomic_bool sysint_pressed = false;
 void sigint_handler(int)
 {
     const char *msg = "\r[===> KEYBOARD INTERRUPT / PRESS Enter TO CONTINUE <===]\n";
-    write(1, msg, strlen(msg));
+    (void)write(1, msg, strlen(msg));
     sysint_pressed = true;
+}
+
+volatile std::atomic_bool window_size_change = false;
+void window_size_change_handler(int) {
+    window_size_change = true;
 }
 
 /* Command vocabulary */
@@ -367,12 +372,13 @@ void print_table(
     uint64_t leading_offset = 0,
     std::atomic_int * max_tailing_size_ptr = nullptr,
     bool using_less = false,
-    const std::string & additional_info_before_table = "")
+    const std::string & additional_info_before_table = "",
+    int skip_lines = 0,
+    std::atomic_int * max_skip_lines_ptr = nullptr)
 {
     const auto col = get_col_size();
     std::map < std::string /* table keys */, uint32_t /* longest value in this column */ > size_map;
-    for (const auto & key : table_keys)
-    {
+    for (const auto & key : table_keys) {
         size_map[key] = key.length();
     }
 
@@ -435,7 +441,7 @@ void print_table(
     if (max_tailing_size_ptr) *max_tailing_size_ptr = static_cast<int>(max_tailing_size);
     leading_offset = std::min(static_cast<decltype(separation_line.size())>(leading_offset), max_tailing_size);
     std::stringstream less_output_redirect;
-
+    int printed_lines = 0;
     auto print_line = [&](const std::string& line_, const std::string & color = "")->void
     {
         auto line = utf8_to_u32(line_);
@@ -528,11 +534,13 @@ void print_table(
                 utf8_str = color + utf8_str;
             }
             std::cout << utf8_str << color::no_color() << std::endl;
+            printed_lines++;
         }
     };
 
     if (!additional_info_before_table.empty())
     {
+        printed_lines++;
         if (using_less) {
             less_output_redirect << additional_info_before_table << std::endl;
         } else {
@@ -546,9 +554,34 @@ void print_table(
     print_line(title_line, color::color(5,5,5));
     print_line(separation_line);
 
+    const int max_skip_lines = static_cast<int>(table_values.size()) - (get_line_size() - 2 - printed_lines);
+    if (max_skip_lines_ptr) *max_skip_lines_ptr = max_skip_lines;
+    if (skip_lines > max_skip_lines) skip_lines = max_skip_lines;
     int i = 0;
     for (const auto & vals : table_values)
     {
+        if (!using_less)
+        {
+            // skip n elements
+            if (i < skip_lines)
+            {
+                i++;
+                continue;
+            }
+
+            // last element on screen
+            if (i > skip_lines && printed_lines >= (get_line_size() - 2))
+            {
+                std::cout << color::bg_color(5,5,5) << color::color(5,0,0) << skip_lines
+                          << color::color(3,3,3) << "/" << color::color(0,0,5) << i
+                          << color::color(3,3,3) << "/" << color::color(5,0,5) << table_values.size()
+                          << color::color(3,3,3) << "/" << color::color(0,0,0) << std::fixed << std::setprecision(2)
+                          << (static_cast<double>(i) / static_cast<double>(table_values.size())) * 100 << "%"
+                          << color::no_color() << std::endl;
+                return;
+            }
+        }
+
         i++;
         std::string color_line;
         if (i & 0x01) color_line = color::color(0,5,5);
@@ -706,6 +739,8 @@ int main(int argc, char ** argv)
 
     std::signal(SIGINT, sigint_handler);
     std::signal(SIGPIPE, SIG_IGN);
+    std::signal(SIGWINCH, window_size_change_handler);
+    pthread_setname_np(pthread_self(), "main");
 
     rl_attempted_completion_function = cmd_completion;
     using_history();
@@ -848,10 +883,13 @@ int main(int argc, char ** argv)
                         leading_spaces = 0;
                         std::atomic_int max_leading_spaces = get_col_size() / 4;
                         backend_instance.change_focus("overview");
+                        std::atomic_int max_skip_lines = 0;
+                        std::atomic_int current_skip_lines = 0;
                         std::thread input_getc_worker;
                         bool use_input = true;
-                        auto input_worker = [&leading_spaces, &max_leading_spaces]
+                        auto input_worker = [&leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines]
                         {
+                            pthread_setname_np(pthread_self(), "get/conn:input");
                             set_conio_terminal_mode();
                             std::vector <int> ch_list;
                             int ch;
@@ -890,6 +928,28 @@ int main(int argc, char ** argv)
                                                 leading_spaces += 4;
                                             } else {
                                                 leading_spaces = max_leading_spaces.load();
+                                            }
+                                        }
+                                    }
+                                    else if (ch_list[2] == 66) // down arrow
+                                    {
+                                        if (current_skip_lines < max_skip_lines) {
+                                            if ((current_skip_lines + 4) < max_skip_lines)
+                                            {
+                                                current_skip_lines += 4;
+                                            } else {
+                                                current_skip_lines = max_skip_lines.load();
+                                            }
+                                        }
+                                    }
+                                    else if (ch_list[2] == 65) // up arrow
+                                    {
+                                        if (current_skip_lines > 0)
+                                        {
+                                            if (current_skip_lines > 4) {
+                                                current_skip_lines -= 4;
+                                            } else {
+                                                current_skip_lines = 0;
                                             }
                                         }
                                     }
@@ -1019,13 +1079,19 @@ int main(int argc, char ** argv)
                                     leading_spaces,
                                     &max_leading_spaces,
                                     false,
-                                    ss.str());
+                                    ss.str(),
+                                    current_skip_lines,
+                                    &max_skip_lines);
                                 int local_leading_spaces = leading_spaces;
+                                int local_skip_lines = current_skip_lines;
                                 for (int i = 0; i < 100; i++)
                                 {
                                     std::this_thread::sleep_for(std::chrono::milliseconds(10l));
-                                    if (local_leading_spaces != leading_spaces || sysint_pressed)
+                                    if (local_leading_spaces != leading_spaces
+                                        || local_skip_lines != current_skip_lines
+                                        || sysint_pressed || window_size_change)
                                     {
+                                        window_size_change = false;
                                         break;
                                     }
                                 }
@@ -1083,6 +1149,7 @@ int main(int argc, char ** argv)
                         backend_instance.change_focus("logs");
                         std::thread input_getc_worker([]
                         {
+                            pthread_setname_np(pthread_self(), "get/log:input");
                             set_conio_terminal_mode();
                             int ch;
                             while (((ch = getchar()) != EOF) && !sysint_pressed)
