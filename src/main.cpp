@@ -377,10 +377,47 @@ void print_table(
     std::atomic_int * max_skip_lines_ptr = nullptr)
 {
     const auto col = get_col_size();
+
+    if (get_line_size() < 9) {
+        std::cout << color::color(0,0,0,5,0,0) << "Terminal Size Too Small" << color::no_color() << std::endl;
+        return;
+    }
+
     std::map < std::string /* table keys */, uint32_t /* longest value in this column */ > size_map;
     for (const auto & key : table_keys) {
         size_map[key] = key.length();
     }
+
+    auto get_string_screen_length = [](const std::string & str)->int
+    {
+        int len = 0;
+        const auto u32 = utf8_to_u32(str);
+        for (const auto c : u32)
+        {
+            if (c <= 0xFF) {
+                len++;
+            } else {
+                len += 2;
+            }
+        }
+
+        return len;
+    };
+
+    auto get_string_screen_length_u32 = [](const std::u32string & str)->int
+    {
+        int len = 0;
+        for (const auto c : str)
+        {
+            if (c <= 0xFF) {
+                len++;
+            } else {
+                len += 2;
+            }
+        }
+
+        return len;
+    };
 
     for (const auto & vals : table_values)
     {
@@ -389,9 +426,9 @@ void print_table(
         for (const auto & val : vals)
         {
             if (const auto & current_key = table_keys[index++];
-                size_map[current_key] < val.size())
+                size_map[current_key] < get_string_screen_length(val))
             {
-                size_map[current_key] = val.size();
+                size_map[current_key] = get_string_screen_length(val);
             }
         }
     }
@@ -409,7 +446,7 @@ void print_table(
             }
 
             {
-                const int paddings = static_cast<int>(size_map[key] - key.length()) + 2;
+                const int paddings = static_cast<int>(size_map[key] - get_string_screen_length(key)) + 2;
                 const int before = std::max(paddings / 2, 1);
                 const int after = std::max(paddings - before, 1);
                 ss << "|" << std::string(before, ' ') << key << std::string(after, ' ');
@@ -417,7 +454,7 @@ void print_table(
 
             {
                 std::string index_str = std::to_string(index);
-                const int paddings = static_cast<int>(size_map[key] - index_str.length()) + 2;
+                const int paddings = static_cast<int>(size_map[key] - get_string_screen_length(index_str)) + 2;
                 const int before = std::max(paddings / 2, 1);
                 const int after = std::max(paddings - before, 1);
                 header << "|" << std::string(before, ' ') << index_str << std::string(after, ' ');
@@ -437,7 +474,7 @@ void print_table(
         separation_line = ss_sep.str();
     }
 
-    auto max_tailing_size = (col / 4) < separation_line.size() ? separation_line.size() - (col / 4) : (separation_line.size() / 4);
+    auto max_tailing_size = separation_line.size() > col ? (separation_line.size() - col) : 0;
     if (max_tailing_size_ptr) *max_tailing_size_ptr = static_cast<int>(max_tailing_size);
     leading_offset = std::min(static_cast<decltype(separation_line.size())>(leading_offset), max_tailing_size);
     std::stringstream less_output_redirect;
@@ -474,16 +511,7 @@ void print_table(
                 line = utf8_to_u32("<") + line; // add color code here will mess up formation bc color codes occupies no spaces on screen
             }
 
-            int total_size = 0;
-            for (const auto & c : line)
-            {
-                if (c <= 0xFF) {
-                    total_size++;
-                } else {
-                    total_size += 2;
-                }
-            }
-
+            int total_size = get_string_screen_length_u32(line);
             if (total_size > col)
             {
                 if (col > 1)
@@ -554,10 +582,21 @@ void print_table(
     print_line(title_line, color::color(5,5,5));
     print_line(separation_line);
 
-    const int max_skip_lines = static_cast<int>(table_values.size()) - (get_line_size() - 2 - printed_lines);
+    const int max_skip_lines = std::max(static_cast<int>(table_values.size()) - (get_line_size() - 2 - printed_lines), 0);
     if (max_skip_lines_ptr) *max_skip_lines_ptr = max_skip_lines;
     if (skip_lines > max_skip_lines) skip_lines = max_skip_lines;
     int i = 0;
+
+    auto print_progress = [&]
+    {
+        std::cout << color::bg_color(5,5,5) << color::color(5,0,0) << skip_lines
+                  << color::color(3,3,3) << "/" << color::color(0,0,5) << i
+                  << color::color(3,3,3) << "/" << color::color(5,0,5) << table_values.size()
+                  << color::color(3,3,3) << "/" << color::color(0,0,0) << std::fixed << std::setprecision(2)
+                  << (static_cast<double>(i) / static_cast<double>(table_values.size())) * 100 << "%"
+                  << color::no_color() << std::endl;
+    };
+
     for (const auto & vals : table_values)
     {
         if (!using_less)
@@ -572,12 +611,7 @@ void print_table(
             // last element on screen
             if (i > skip_lines && printed_lines >= (get_line_size() - 2))
             {
-                std::cout << color::bg_color(5,5,5) << color::color(5,0,0) << skip_lines
-                          << color::color(3,3,3) << "/" << color::color(0,0,5) << i
-                          << color::color(3,3,3) << "/" << color::color(5,0,5) << table_values.size()
-                          << color::color(3,3,3) << "/" << color::color(0,0,0) << std::fixed << std::setprecision(2)
-                          << (static_cast<double>(i) / static_cast<double>(table_values.size())) * 100 << "%"
-                          << color::no_color() << std::endl;
+                print_progress();
                 return;
             }
         }
@@ -596,7 +630,7 @@ void print_table(
             }
 
             const auto & current_key = table_keys[index++];
-            const int paddings = static_cast<int>(size_map[current_key] - val.length()) + 2;
+            const int paddings = static_cast<int>(size_map[current_key] - get_string_screen_length(val)) + 2;
             constexpr int before = 1;
             const int after = std::max(paddings - before, 1);
             val_line_stream << (seperator ? "|" : " ") << std::string(before, ' ');
@@ -610,10 +644,18 @@ void print_table(
 
             val_line_stream << output << std::string(after, ' ');
         }
+
+        if (seperator) {
+            val_line_stream << "|";
+        }
         print_line(val_line_stream.str(), color_line);
     }
 
-    print_line(separation_line);
+    if (skip_lines == 0) {
+        print_line(separation_line);
+    } else {
+        print_progress();
+    }
 
     if (using_less)
     {
@@ -895,6 +937,10 @@ int main(int argc, char ** argv)
                             int ch;
                             while (((ch = getchar()) != EOF) && !sysint_pressed)
                             {
+                                const auto [row, col] = get_col_line_size();
+                                const auto row_step = std::max(row / 8, 1);
+                                const auto col_step = std::max(col / 8, 1);
+                                const auto page_size = std::max(row - 8 /* list headers, etc. */, 1);
                                 if (ch == 'q' || ch == 'Q')
                                 {
                                     sysint_pressed = true;
@@ -907,54 +953,92 @@ int main(int argc, char ** argv)
                                     while (!ch_list.empty() && ch_list.front() != 27) ch_list.erase(ch_list.begin()); // remove wrong paddings
                                 }
 
-                                if (ch_list.size() == 3 && ch_list[0] == 27 && ch_list[1] == 91)
+                                if (ch_list.size() >= 3 && ch_list[0] == 27 && ch_list[1] == 91)
                                 {
-                                    if (ch_list[2] == 68) // left arrow
+                                    if (ch_list.size() == 3)
                                     {
-                                        if (leading_spaces > 0)
+                                        switch (ch_list[2])
                                         {
-                                            if (leading_spaces > 4) {
-                                                leading_spaces -= 4;
-                                            } else {
-                                                leading_spaces = 0;
-                                            }
-                                        }
-                                    }
-                                    else if (ch_list[2] == 67) // right arrow
-                                    {
-                                        if (leading_spaces < max_leading_spaces) {
-                                            if ((leading_spaces + 4) < max_leading_spaces)
+                                        case 68: // left arrow
+                                            if (leading_spaces > 0)
                                             {
-                                                leading_spaces += 4;
-                                            } else {
-                                                leading_spaces = max_leading_spaces.load();
+                                                if (leading_spaces > col_step) {
+                                                    leading_spaces -= col_step;
+                                                } else {
+                                                    leading_spaces = 0;
+                                                }
                                             }
-                                        }
-                                    }
-                                    else if (ch_list[2] == 66) // down arrow
-                                    {
-                                        if (current_skip_lines < max_skip_lines) {
-                                            if ((current_skip_lines + 4) < max_skip_lines)
+
+                                            break;
+                                        case 67: // right arrow
+                                            if (leading_spaces < max_leading_spaces) {
+                                                if ((leading_spaces + col_step) < max_leading_spaces)
+                                                {
+                                                    leading_spaces += col_step;
+                                                } else {
+                                                    leading_spaces = max_leading_spaces.load();
+                                                }
+                                            }
+
+                                            break;
+                                        case 66: // down arrow
+                                            if (current_skip_lines < max_skip_lines) {
+                                                if ((current_skip_lines + row_step) < max_skip_lines)
+                                                {
+                                                    current_skip_lines += row_step;
+                                                } else {
+                                                    current_skip_lines = max_skip_lines.load();
+                                                }
+                                            }
+
+                                            break;
+                                        case 65: // up arrow
+                                            if (current_skip_lines > 0)
                                             {
-                                                current_skip_lines += 4;
-                                            } else {
-                                                current_skip_lines = max_skip_lines.load();
+                                                if (current_skip_lines > row_step) {
+                                                    current_skip_lines -= row_step;
+                                                } else {
+                                                    current_skip_lines = 0;
+                                                }
                                             }
+
+                                            break;
+                                        case 'H': // Home
+                                            leading_spaces = 0;
+                                            ch_list.clear();
+                                            break;
+                                        case 'F': // End
+                                            leading_spaces = max_leading_spaces.load();
+                                            ch_list.clear();
+                                            break;
+
+                                        default:
+                                            continue;
                                         }
+
+                                        ch_list.clear();
                                     }
-                                    else if (ch_list[2] == 65) // up arrow
+                                    else if (ch_list.size() == 4 && ch_list[3] == 0x7E)
                                     {
-                                        if (current_skip_lines > 0)
+                                        switch (ch_list[2])
                                         {
-                                            if (current_skip_lines > 4) {
-                                                current_skip_lines -= 4;
-                                            } else {
+                                        case '5': // Page up
+                                            current_skip_lines -= page_size;
+                                            if (current_skip_lines < 0) {
                                                 current_skip_lines = 0;
                                             }
+                                            break;
+                                        case '6': // Page down
+                                            current_skip_lines += page_size;
+                                            if (current_skip_lines > max_skip_lines) {
+                                                current_skip_lines = max_skip_lines.load();
+                                            }
+                                            break;
+                                        default:
+                                            break;
                                         }
+                                        ch_list.clear();
                                     }
-
-                                    ch_list.clear();
                                 }
                             }
                             reset_terminal_mode();
@@ -1061,13 +1145,68 @@ int main(int argc, char ** argv)
                             }
 
                             std::stringstream ss;
+                            int ss_printed_size = 0;
+                            int skipped_size = 0;
                             std::cout.write(clear, sizeof(clear)); // clear the screen
-                            ss  << color::color(5,5,0) << "Total uploads: " << value_to_size(backend_instance.get_total_uploaded_bytes()) << " "
-                                << color::bg_color(0,0,5) << color::color(5,5,5)
-                                << "Upload speed: " << value_to_speed(backend_instance.get_current_upload_speed()) << color::no_color() << " "
-                                << color::color(0,5,5) << "Total downloads " << value_to_size(backend_instance.get_total_downloaded_bytes()) << "   "
-                                << color::bg_color(0,0,5) << color::color(5,5,5)
-                                << "Download speed: " << value_to_speed(backend_instance.get_current_download_speed()) << color::no_color();
+                            const int col = get_col_size();
+                            bool did_i_add_no_color = false;
+                            auto append_msg = [&](std::string msg,
+                                const std::string & color = "", const std::string & color_end = "")->void
+                            {
+                                if (use_input)
+                                {
+                                    if (leading_spaces != 0)
+                                    {
+                                        if ((msg.size() + skipped_size) < leading_spaces) {
+                                            skipped_size += static_cast<int>(msg.size());
+                                            return; // skip messages
+                                        }
+
+                                        if (skipped_size < leading_spaces) {
+                                            msg = msg.substr(leading_spaces - skipped_size);
+                                            skipped_size = leading_spaces;
+                                        }
+                                    }
+
+                                    if (ss_printed_size >= col)
+                                    {
+                                        if (!did_i_add_no_color)
+                                        {
+                                            ss << color::no_color();
+                                            did_i_add_no_color = true;
+                                        }
+
+                                        return;
+                                    }
+
+                                    if ((ss_printed_size + static_cast<int>(msg.size())) >= col && !msg.empty())
+                                    {
+                                        msg = msg.substr(0, std::max(col - ss_printed_size - 1, 0));
+                                        ss_printed_size += static_cast<int>(msg.size()) + 1 /* ">" */;
+                                        msg += color::color(0,0,0,5,5,5) + ">";
+                                        ss << color << msg << color::no_color();
+                                        did_i_add_no_color = true;
+                                    } else {
+                                        ss_printed_size += static_cast<int>(msg.size());
+                                        ss << color << msg << color_end;
+                                        did_i_add_no_color = !color_end.empty();
+                                    }
+                                }
+                                else
+                                {
+                                    ss << color << msg << color_end;
+                                }
+                            };
+
+                            append_msg("Total uploads: " + value_to_size(backend_instance.get_total_uploaded_bytes()), color::color(5,5,0));
+                            append_msg("   ");
+                            append_msg("Upload speed: " + value_to_speed(backend_instance.get_current_upload_speed()),
+                                color::color(5,5,5,0,0,5), color::no_color());
+                            append_msg("   ");
+                            append_msg("Total downloads " + value_to_size(backend_instance.get_total_downloaded_bytes()), color::color(0,5,5));
+                            append_msg("   ");
+                            append_msg("Download speed: " + value_to_speed(backend_instance.get_current_download_speed()),
+                                color::color(5,5,5,0,0,5), color::no_color());
 
                             if (use_input)
                             {
@@ -1094,6 +1233,14 @@ int main(int argc, char ** argv)
                                         window_size_change = false;
                                         break;
                                     }
+                                }
+
+                                if (leading_spaces > max_leading_spaces) {
+                                    leading_spaces = max_leading_spaces.load();
+                                }
+
+                                if (current_skip_lines > max_skip_lines) {
+                                    current_skip_lines = max_skip_lines.load();
                                 }
                             }
                             else
