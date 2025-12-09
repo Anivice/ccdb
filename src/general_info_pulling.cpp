@@ -463,7 +463,7 @@ void general_info_pulling::latency_test(const std::string & url)
         auto * ptr = proxy_latency_local[proxy];
         auto worker = [&](std::string proxy_, std::string url_, std::atomic_int * ptr_)->void
         {
-            std::string name;
+            std::string name, proxy_bk = proxy_;
             for (const auto & c : proxy_) {
                 if (std::isprint(c)) name += c;
                 else break;
@@ -473,22 +473,22 @@ void general_info_pulling::latency_test(const std::string & url)
             try
             {
                 backend_client.get_info_no_instance("proxies/" + proxy_ + "/delay?url=" + url_ +"&timeout=5000",
-                    [&ptr_](std::string result)
+                    [&ptr_, &proxy_bk](std::string result)
                     {
                         if (const json data = json::parse(result);
                             data.contains("delay"))
                         {
                             *ptr_ = data.at("delay");
-                        }
-                        else
-                        {
-                            std::cerr << "Cannot get latency: " << std::string(data["message"]) << std::endl;
+                        } else {
+                            std::cerr << "Cannot get latency on " << proxy_bk << ": " << std::string(data["message"]) << std::endl;
                         }
                     });
             } catch (std::exception & e) {
-                std::cerr << "Cannot get latency: " << e.what() << std::endl;
+                std::cerr << "Cannot get latency on " << proxy_bk << ": " << e.what() << std::endl;
                 *ptr_ = -1;
             }
+
+            std::cout << "." << std::flush;
         };
 
         thread_pool.emplace_back(worker, proxy, url, ptr);

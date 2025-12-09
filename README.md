@@ -46,7 +46,7 @@ Use "help" command to see details of a sub command.
 You can download pre-built binaries from the release page, or use the command
 
 ```bash
-https://github.com/Anivice/ccdb && cd ccdb && mkdir build && cd build && cmake ../src/ && make
+  git clone https://github.com/Anivice/ccdb && cd ccdb && mkdir build && cd build && cmake ../src/ && make
 ```
 
 to build locally
