@@ -374,7 +374,9 @@ void print_table(
     bool using_less = false,
     const std::string & additional_info_before_table = "",
     int skip_lines = 0,
-    std::atomic_int * max_skip_lines_ptr = nullptr)
+    std::atomic_int * max_skip_lines_ptr = nullptr,
+    const bool enforce_no_pager = false // disable line shrinking, used when NOPAGER=y or pager is not available
+)
 {
     const auto col = get_col_size();
 
@@ -482,7 +484,7 @@ void print_table(
     auto print_line = [&](const std::string& line_, const std::string & color = "")->void
     {
         auto line = utf8_to_u32(line_);
-        if (max_tailing_size_ptr && !using_less)
+        if (max_tailing_size_ptr && !using_less && !enforce_no_pager)
         {
             if (leading_offset != 0)
             {
@@ -549,7 +551,7 @@ void print_table(
             }
         }
 
-        if (using_less) {
+        if (using_less || enforce_no_pager) {
             less_output_redirect << color << line_ << color::no_color() << std::endl;
         } else {
             std::string utf8_str;
@@ -672,21 +674,37 @@ void print_table(
             std::cerr << "(less exited with code " << exit_status << ")" << std::endl;
         }
     }
+    else if (enforce_no_pager)
+    {
+        // pager unavailable, just print
+        std::cout << less_output_redirect.str() << std::flush;
+    }
 }
 
 bool is_less_available()
 {
+    static std::atomic_int pager_is_less_available = -1;
+
+    if (pager_is_less_available != -1) {
+        return pager_is_less_available;
+    }
+
     if (const auto nopager = color::get_env("NOPAGER");
         nopager == "true" || nopager == "1" || nopager == "yes" || nopager == "y")
     {
+        pager_is_less_available = false;
         return false;
     }
 
     if (const auto pager = color::get_env("PAGER"); pager.empty()) {
-        const auto result = exec_command("/bin/sh", "", "-c", "which less 2>/dev/null >/dev/null");
-        return result.exit_status == 0;
+        const auto result_which_less = exec_command("/bin/sh", "", "-c", "which less 2>/dev/null >/dev/null");
+        const auto result_whereis_less =  exec_command("/bin/sh", "", "-c", "whereis less 2>/dev/null >/dev/null");
+        const auto result_less_version =  exec_command("/bin/sh", "", "-c", "less --version 2>/dev/null >/dev/null");
+        pager_is_less_available = !result_less_version.exit_status || !result_whereis_less.exit_status || !result_which_less.exit_status;
+        return pager_is_less_available;
     }
 
+    pager_is_less_available = true;
     return true; // skip check if you specify a pager. fuck you for providing a faulty one
 }
 
@@ -1407,7 +1425,11 @@ int main(int argc, char ** argv)
                             { },
                             0,
                             nullptr,
-                            is_less_available());
+                            is_less_available(),
+                            "",
+                            0,
+                            nullptr,
+                            true);
                     } else {
                         std::cerr << "Unknown command `" << command_vector[1] << "`" << std::endl;
                     }
