@@ -690,37 +690,71 @@ bool is_less_available()
     return true; // skip check if you specify a pager. fuck you for providing a faulty one
 }
 
+std::string value_to_human(const unsigned long long value,
+    const std::string & lv1,
+    const std::string & lv2,
+    const std::string & lv3,
+    const std::string & lv4,
+    const std::string & lv5)
+{
+    std::stringstream ss;
+    if (value < 1024ull) {
+        ss << value << " " << lv1;
+    } else if (value < 1024ull * 1024ull) {
+        ss << std::fixed << std::setprecision(2) << (static_cast<double>(value) / 1024ull) << " " << lv2;
+    } else if (value < 1024ull * 1024ull * 1024ull) {
+        ss << std::fixed << std::setprecision(2) << (static_cast<double>(value) / (1024ull * 1024ull)) << " " << lv3;
+    } else if (value < 1024ull * 1024ull * 1024ull * 1024ull) {
+        ss << std::fixed << std::setprecision(2) << (static_cast<double>(value) / (1024ull * 1024ull * 1024ull)) << " " << lv4;
+    } else if (value < 1024ull * 1024ull * 1024ull * 1024ull * 1024ull) {
+        ss << std::fixed << std::setprecision(2) << (static_cast<double>(value) / (1024ull * 1024ull * 1024ull * 1024ull)) << " " << lv5;
+    } else {
+        ss << value << " " << lv1;
+    }
+
+    return ss.str();
+}
+
 std::string value_to_speed(const unsigned long long value)
 {
-    if (value < 1024ull) return std::to_string(value) + " B/s";
-    if (value < 1024ull * 1024ull) return std::to_string(value / 1024ull) + " KB/s";
-    if (value < 1024ull * 1024ull * 1024ull) return std::to_string(value / (1024ull * 1024ull)) + " MB/s";
-    if (value < 1024ull * 1024ull * 1024ull * 1024ull) return std::to_string(value / (1024ull * 1024ull * 1024ull)) + " GB/s";
-    if (value < 1024ull * 1024ull * 1024ull * 1024ull * 1024ull) return std::to_string(value / (1024ull * 1024ull * 1024ull * 1024ull)) + " TB/s";
-    return std::to_string(value) + " B/s";
+    return value_to_human(value, "B/s", "KB/s", "MB/s", "GB/s", "TB/s");
 }
 
 std::string value_to_size(const unsigned long long value)
 {
-    if (value < 1024ull) return std::to_string(value) + " B";
-    if (value < 1024ull * 1024ull) return std::to_string(value / 1024ull) + " KB";
-    if (value < 1024ull * 1024ull * 1024ull) return std::to_string(value / (1024ull * 1024ull)) + " MB";
-    if (value < 1024ull * 1024ull * 1024ull * 1024ull) return std::to_string(value / (1024ull * 1024ull * 1024ull)) + " GB";
-    if (value < 1024ull * 1024ull * 1024ull * 1024ull * 1024ull) return std::to_string(value / (1024ull * 1024ull * 1024ull * 1024ull)) + " TB";
-    return std::to_string(value) + " B";
+    return value_to_human(value, "B", "KB", "MB", "GB", "TB");
 }
 
-std::string second_to_human_readable(const unsigned long long value)
+std::string second_to_human_readable(unsigned long long value)
 {
     if (value < 60) {
         return std::to_string(value) + " s";
-    } else if (value < 60 * 60) {
-        return std::to_string(value / 60) + " Min";
-    } else if (value < 60 * 60 * 24) {
-        return std::to_string(value / (60 * 60)) + " H";
-    } else {
-        return std::to_string(value / (60 * 60 * 24)) + " Day";
     }
+
+    if (value < 60 * 60)
+    {
+        if ((value % 60) >= 30) {
+            return "Less than " + std::to_string(value / 60 + 1) + " Min";
+        }
+
+        return std::to_string(value / 60) + " Min";
+    }
+
+    if (value < 60 * 60 * 24) {
+        if ((value % (60 * 60)) >= (30 * 60))
+        {
+            return "Less than " + std::to_string(value / (60 * 60) + 1) + " H";
+        }
+        return std::to_string(value / (60 * 60)) + " H";
+    }
+
+    const auto day = value / (60 * 60 * 24);
+    value %= (60 * 60 * 24);
+    const auto hour = value / (60 * 60);
+    value %= (60 * 60);
+    const auto minute = value / 60;
+    const auto second = value % 60;
+    return std::to_string(day) + "d" + std::to_string(minute) + "m" + std::to_string(second) + "s";
 }
 
 void reset_terminal_mode();
