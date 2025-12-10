@@ -1163,6 +1163,7 @@ int main(int argc, char ** argv)
                     std::thread Worker(nload, &total_up, &total_down, &up_speed, &down_speed, &running);
                     std::thread input_watcher([&]
                     {
+                        std::cout << "\033[?25l";
                         pthread_setname_np(pthread_self(), "get/nload:input");
                         set_conio_terminal_mode();
                         int ch;
@@ -1175,6 +1176,7 @@ int main(int argc, char ** argv)
                             }
                         }
                         reset_terminal_mode();
+                        std::cout << "\033[?25h";
                     });
 
                     while (running && !sysint_pressed)
@@ -1239,6 +1241,7 @@ int main(int argc, char ** argv)
                         bool use_input = true;
                         auto input_worker = [&leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines]
                         {
+                            std::cout << "\033[?25l";
                             pthread_setname_np(pthread_self(), "get/conn:input");
                             set_conio_terminal_mode();
                             std::vector <int> ch_list;
@@ -1350,6 +1353,7 @@ int main(int argc, char ** argv)
                                 }
                             }
                             reset_terminal_mode();
+                            std::cout << "\033[?25h";
                         };
 
                         std::vector < bool > do_col_hide;
@@ -1615,6 +1619,7 @@ int main(int argc, char ** argv)
                         backend_instance.change_focus("logs");
                         std::thread input_getc_worker([]
                         {
+                            std::cout << "\033[?25l";
                             pthread_setname_np(pthread_self(), "get/log:input");
                             set_conio_terminal_mode();
                             int ch;
@@ -1627,6 +1632,7 @@ int main(int argc, char ** argv)
                                 }
                             }
                             reset_terminal_mode();
+                            std::cout << "\033[?25h";
                         });
 
                         while (!sysint_pressed)
