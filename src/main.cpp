@@ -43,10 +43,11 @@ static const char *cmds[] = {
     "get",          // latency, proxy, connections, mode, log
     "set",          // [mode|group]
     "close_connections",
+    "nload",
     nullptr
 };
 
-static const char *help_voc [] = { "quit", "exit", "get", "set", "close_connections", nullptr };
+static const char *help_voc [] = { "quit", "exit", "get", "set", "close_connections", "nload", nullptr };
 static const char *get_voc  [] = { "latency", "proxy", "connections", "mode", "log", nullptr };
 static const char *get_sup_voc  [] = { "hide", "shot", nullptr };
 static const char *set_voc  [] = { "mode", "group", "chain_parser", "sort_by", "sort_reverse", nullptr };
@@ -288,6 +289,7 @@ void help_overall()
     std::cout   << color::color(0,5,1) << "help" << color::color(5,5,5) << " [COMMAND]" << color::no_color() << std::endl
                 << "    Where " << color::color(5,5,5) << "[COMMAND]" << color::no_color() << " can be:" << std::endl
                 << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "quit\n" << color::no_color()
+                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "nload\n" << color::no_color()
                 << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "exit\n" << color::no_color()
                 << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "get\n" << color::no_color()
                 << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "set\n" << color::no_color()
@@ -775,6 +777,220 @@ std::string second_to_human_readable(unsigned long long value)
     return std::to_string(day) + "d" + std::to_string(minute) + "m" + std::to_string(second) + "s";
 }
 
+void nload(
+    const std::atomic < uint64_t > * total_upload,
+    const std::atomic < uint64_t > * total_download,
+    const std::atomic < uint64_t > * upload_speed,
+    const std::atomic < uint64_t > * download_speed,
+    const std::atomic_bool * running)
+{
+    pthread_setname_np(pthread_self(), "nload");
+    auto [ row, col ] = get_col_line_size();
+    auto window_space = (row - 5) / 2;
+    constexpr char l_1_to_40 = '.';
+    constexpr char l_41_to_80 = '|';
+    constexpr char l_81_to_100 = '#';
+
+    auto generate_from_metric = [&](const std::vector <float> & list)->std::vector < std::pair < int, int > >
+    {
+        std::vector <float> image;
+        std::ranges::for_each(list, [&](const float f)
+        {
+            image.push_back(f * static_cast<float>(row));
+        });
+
+        std::vector < std::pair < int, int > > meter_list;
+        for (const auto meter : image)
+        {
+            const int full_blocks = static_cast<int>(meter);
+            const int partial_block_percentage = static_cast<int>((meter - static_cast<float>(full_blocks)) * 100);
+            meter_list.emplace_back(full_blocks, partial_block_percentage);
+        }
+
+        return meter_list;
+    };
+
+    auto auto_clear = [](std::vector<uint64_t> & list, const uint64_t size)
+    {
+        while (list.size() > size) {
+            list.erase(list.begin());
+        }
+    };
+
+    auto max = [](const std::vector<uint64_t> & list)
+    {
+        uint64_t max_val = 0;
+        std::ranges::for_each(list, [&](const uint64_t i)
+        {
+            if (i > max_val) {
+                max_val = i;
+            }
+        });
+
+        return max_val;
+    };
+
+    auto min = [](const std::vector<uint64_t> & list)
+    {
+        uint64_t min_val = UINT64_MAX;
+        std::ranges::for_each(list, [&](const uint64_t i)
+        {
+            if (i < min_val) {
+                min_val = i;
+            }
+        });
+
+        return min_val;
+    };
+
+    auto avg = [](const std::vector<uint64_t> & list)
+    {
+        uint64_t sum = 0;
+        std::ranges::for_each(list, [&](const uint64_t i)
+        {
+            sum += i;
+        });
+
+        return static_cast<double>(sum) / static_cast<double>(list.size());
+    };
+
+    int info_space_size = 20;
+    auto print_win = [&max, &min, &avg, &info_space_size, &window_space, &col](
+        const std::atomic<uint64_t> * speed,
+        const std::atomic<uint64_t> * total,
+        std::vector<uint64_t> & list,
+        const decltype(generate_from_metric({})) & metric_list)
+    {
+        const auto min_speed = min(list);
+        const auto max_speed = max(list);
+        std::vector < std::string > info_list;
+        info_list.push_back(std::string("  Cur: ") + value_to_speed(*speed));
+        info_list.push_back(std::string("  Min: ") + value_to_speed(min_speed));
+        info_list.push_back(std::string("  Max: ") + value_to_speed(max_speed));
+        info_list.push_back(std::string("  Avg: ") + value_to_speed(static_cast<uint64_t>(avg(list))));
+        info_list.push_back(std::string("  Ttl: ") + value_to_size(*total));
+
+        std::vector<uint64_t> size_list;
+        for (const auto & str : info_list) {
+            size_list.push_back(str.size());
+        }
+
+        info_space_size = std::max(static_cast<int>(max(size_list)), info_space_size);
+
+        for (int i = 0; i < window_space; ++i)
+        {
+            const int start = col - info_space_size - static_cast<int>(metric_list.size());
+            const auto current_height_on_screen = window_space - i; // starting from 1
+
+            if (start < 0) {
+                std::cout << std::endl; // skip
+                continue;
+            }
+
+            std::cout << std::string(start, ' ');
+            for (auto j = start; j < (col - info_space_size); ++j)
+            {
+                const auto index = j - start;
+                const auto [full_blocks, partial_block_percentage] = metric_list[index];
+                const auto actual_content_height = full_blocks + (partial_block_percentage == 0 ? 0 : 1);
+                if (actual_content_height == current_height_on_screen) // see partial
+                {
+                    if (1 <= partial_block_percentage && partial_block_percentage <= 40) {
+                        std::cout << l_1_to_40;
+                    } else if (41 <= partial_block_percentage && partial_block_percentage <= 80) {
+                        std::cout << l_41_to_80;
+                    } else if (81 <= partial_block_percentage && partial_block_percentage <= 100) {
+                        std::cout << l_81_to_100;
+                    } else {
+                        std::cout << " ";
+                    }
+                }
+                else if (actual_content_height >= 2 && (current_height_on_screen == actual_content_height - 1))
+                {
+                    if (1 <= partial_block_percentage && partial_block_percentage <= 40) {
+                        std::cout << l_41_to_80;
+                    } else if (41 <= partial_block_percentage && partial_block_percentage <= 80) {
+                        std::cout << l_81_to_100;
+                    } else if (81 <= partial_block_percentage && partial_block_percentage <= 100) {
+                        std::cout << l_81_to_100;
+                    } else {
+                        std::cout << " ";
+                    }
+                }
+                else if (current_height_on_screen < actual_content_height) {
+                    std::cout << "#";
+                } else {
+                    std::cout << " ";
+                }
+
+                std::cout << std::flush;
+            }
+
+            if (current_height_on_screen <= info_list.size())
+            {
+                const auto index = info_list.size() - current_height_on_screen;
+                std::cout << info_list[index];
+            }
+
+            std::cout << std::endl;
+        }
+    };
+
+    std::vector < uint64_t > up_speed_list, down_speed_list;
+    std::vector<float> up_list, down_list;
+
+    while (*running)
+    {
+        if (window_space > 5)
+        {
+            up_list.clear();
+            down_list.clear();
+
+            up_speed_list.push_back(*upload_speed);
+            down_speed_list.push_back(*download_speed);
+
+            auto_clear(up_speed_list, col - info_space_size);
+            auto_clear(down_speed_list, col - info_space_size);
+
+            std::ranges::for_each(up_speed_list, [&](const uint64_t i) {
+                up_list.push_back(static_cast<float>(i) / static_cast<float>(max(up_speed_list)));
+            });
+
+            std::ranges::for_each(down_speed_list, [&](const uint64_t i) {
+                down_list.push_back(static_cast<float>(i) / static_cast<float>(max(down_speed_list)));
+            });
+
+            std::cout.write(clear, sizeof(clear)); // clear the screen
+            std::cout << "C++ Clash Dashboard:" << std::endl;
+            std::cout << std::string(col, '=') << std::endl;
+            std::cout << "Incoming" << std::endl;
+            {
+                const auto metric_list = generate_from_metric(down_list);
+                print_win(download_speed, total_download, down_speed_list, metric_list);
+            }
+            std::cout << "Outgoing" << std::endl;
+            {
+                const auto metric_list = generate_from_metric(up_list);
+                print_win(upload_speed, total_upload, up_speed_list, metric_list);
+            }
+        }
+
+        row = get_line_size();
+        col = get_col_size();
+        window_space = (row - 5) / 2;
+        for (int i = 0; i < 100; i++)
+        {
+            if (window_size_change) {
+                window_size_change = false;
+                break;
+            }
+
+            if (!*running) break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(10l));
+        }
+    }
+}
+
 void reset_terminal_mode();
 void set_conio_terminal_mode();
 
@@ -937,6 +1153,44 @@ int main(int argc, char ** argv)
                     free(line);
                     break;
                 }
+                else if (command_vector.front() == "nload")
+                {
+                    backend_instance.change_focus("overview");
+                    std::atomic<uint64_t> total_up = 0, total_down = 0, up_speed = 0, down_speed = 0;
+                    std::atomic_bool running = true;
+                    sysint_pressed = false;
+
+                    std::thread Worker(nload, &total_up, &total_down, &up_speed, &down_speed, &running);
+                    std::thread input_watcher([&]
+                    {
+                        pthread_setname_np(pthread_self(), "get/nload:input");
+                        set_conio_terminal_mode();
+                        int ch;
+                        while (((ch = getchar()) != EOF) && !sysint_pressed)
+                        {
+                            if (ch == 'q' || ch == 'Q')
+                            {
+                                running = false;
+                                break;
+                            }
+                        }
+                        reset_terminal_mode();
+                    });
+
+                    while (running && !sysint_pressed)
+                    {
+                        total_up = backend_instance.get_total_uploaded_bytes();
+                        total_down = backend_instance.get_total_downloaded_bytes();
+                        up_speed = backend_instance.get_current_upload_speed();
+                        down_speed = backend_instance.get_current_download_speed();
+                        std::this_thread::sleep_for(std::chrono::milliseconds(500l));
+                    }
+
+                    sysint_pressed = false;
+                    running = false;
+                    if (Worker.joinable()) Worker.join();
+                    if (input_watcher.joinable()) input_watcher.join();
+                }
                 else if (command_vector.front() == "help")
                 {
                     if (command_vector.size() != 2) {
@@ -946,6 +1200,8 @@ int main(int argc, char ** argv)
                     {
                         if (command_vector[1] == "quit" || command_vector[1] == "exit") {
                             help(command_vector[1], "Exit the program");
+                        } else if (command_vector[1] == "nload") {
+                            help(command_vector[1], "A nload-like update dashboard");
                         } else if (command_vector[1] == "close_connections") {
                             help(command_vector[1], "Close all currently active connections");
                         } else if (command_vector[1] == "get") {
