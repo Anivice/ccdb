@@ -1202,6 +1202,7 @@ int main(int argc, char ** argv)
                             std::cout.write(clear, sizeof(clear)); // clear the screen
                             const int col = get_col_size();
                             bool did_i_add_no_color = false;
+                            bool should_i_add_leading_pager_marker = false;
                             auto append_msg = [&](std::string msg,
                                 const std::string & color = "", const std::string & color_end = "")->void
                             {
@@ -1216,6 +1217,11 @@ int main(int argc, char ** argv)
 
                                         if (skipped_size < leading_spaces) {
                                             msg = msg.substr(leading_spaces - skipped_size);
+                                            if (!msg.empty())
+                                            {
+                                                msg.erase(msg.begin());
+                                                should_i_add_leading_pager_marker = true;
+                                            }
                                             skipped_size = leading_spaces;
                                         }
                                     }
@@ -1260,6 +1266,11 @@ int main(int argc, char ** argv)
                             append_msg("Download speed: " + value_to_speed(backend_instance.get_current_download_speed()),
                                 color::color(5,5,5,0,0,5), color::no_color());
 
+                            auto title_line = ss.str();
+                            if (should_i_add_leading_pager_marker) {
+                                title_line = color::color(0,0,0,5,5,5) += "<" + color::no_color() += title_line;
+                            }
+
                             if (use_input)
                             {
                                 print_table(titles,
@@ -1270,7 +1281,7 @@ int main(int argc, char ** argv)
                                     leading_spaces,
                                     &max_leading_spaces,
                                     false,
-                                    ss.str(),
+                                    title_line,
                                     current_skip_lines,
                                     &max_skip_lines);
                                 int local_leading_spaces = leading_spaces;
