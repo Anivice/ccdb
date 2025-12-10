@@ -1201,7 +1201,7 @@ int main(int argc, char ** argv)
                         if (command_vector[1] == "quit" || command_vector[1] == "exit") {
                             help(command_vector[1], "Exit the program");
                         } else if (command_vector[1] == "nload") {
-                            help(command_vector[1], "A nload-like update dashboard");
+                            help(command_vector[1], "A nload-like dashboard");
                         } else if (command_vector[1] == "close_connections") {
                             help(command_vector[1], "Close all currently active connections");
                         } else if (command_vector[1] == "get") {
