@@ -1621,12 +1621,9 @@ int main(int argc, char ** argv)
 
                                         if (skipped_size < leading_spaces) {
                                             msg = msg.substr(leading_spaces - skipped_size);
-                                            if (!msg.empty())
-                                            {
-                                                msg.erase(msg.begin());
-                                                should_i_add_leading_pager_marker = true;
-                                            }
+                                            ss << color::color(0,0,0,5,5,5) << "<" << color::no_color();
                                             skipped_size = leading_spaces;
+                                            ss_printed_size = leading_spaces - skipped_size + 1;
                                         }
                                     }
 
@@ -1644,6 +1641,7 @@ int main(int argc, char ** argv)
                                     if ((ss_printed_size + static_cast<int>(msg.size())) >= col && !msg.empty())
                                     {
                                         msg = msg.substr(0, std::max(col - ss_printed_size - 1, 0));
+                                        if (msg.empty()) return;
                                         ss_printed_size += static_cast<int>(msg.size()) + 1 /* ">" */;
                                         msg += color::color(0,0,0,5,5,5) + ">";
                                         ss << color << msg << color::no_color();
@@ -1670,10 +1668,7 @@ int main(int argc, char ** argv)
                             append_msg("Download speed: " + value_to_speed(backend_instance.get_current_download_speed()),
                                 color::color(5,5,5,0,0,5), color::no_color());
 
-                            auto title_line = ss.str();
-                            if (should_i_add_leading_pager_marker) {
-                                title_line = color::color(0,0,0,5,5,5) += "<" + color::no_color() += title_line;
-                            }
+                            const auto title_line = ss.str();
 
                             if (use_input)
                             {

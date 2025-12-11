@@ -1,6 +1,6 @@
 # ccdb
 
-A C++ Clash Dashboard in C++ With GNU ncurses and readline
+A Clash Dashboard in C++ With GNU ncurses and readline
 
 ## Introduction
 
@@ -58,7 +58,7 @@ or basically anywhere.
 
  - Immediately close all connections
  - Watch currently active connections
- - Nload-like traffic updates 
+ - nload-like traffic updates 
  - Switch the proxy mode (between "direct", "global", and "rule")
  - Switch a proxy for a proxy group
  - Watch Mihomo backend logs
@@ -88,7 +88,8 @@ Use double Tab to list possible candidates in a command.
 
 ## How to build
 
-You can download pre-built binaries from the [release page](https://github.com/Anivice/ccdb/releases)
+You can download pre-built binaries from
+[the release page](https://github.com/Anivice/ccdb/releases)
 (well bye-bye free 2k minutes per months),
 or use the command
 
@@ -100,8 +101,7 @@ to build locally.
 
 If you are on x86, you can actually use the embedded toolchains
 to build fully statically-linked, self-contained executables
-(that are already published per-git on GitHub by GitHub Actions)
-locally, or use script helper as
-`src/configure.sh [ARCH] /tmp/build_[ARCH]`
-(e.g., `src/configure.sh aarch64 /tmp/build_aarch64`)
+(that are already published per-git-commit on GitHub by GitHub Actions automatically) locally,
+or use script helper as this: `src/configure.sh [ARCH] /tmp/build_[ARCH]`
+(e.g., `src/configure.sh aarch64 /tmp/build_aarch64`),
 to automatically build for toolchain-supported architectire.
