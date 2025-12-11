@@ -284,9 +284,35 @@ namespace color
     }
 }
 
+bool is_less_available();
+
+void pager(const std::string & str)
+{
+    if (is_less_available())
+    {
+        auto pager = color::get_env("PAGER");
+        if (pager.empty()) {
+            pager = R"(less -SR -S --rscroll='>')"; 
+        }
+
+        if (const auto [fd_stdout, fd_stderr, exit_status] 
+                = exec_command("/bin/sh", str, "-c", pager);
+            exit_status != 0)
+        {
+            std::cerr << fd_stderr << std::endl;
+            std::cerr << "(less exited with code " << exit_status << ")" << std::endl;
+        }
+    }
+    else
+    {
+        std::cout << str << std::flush;
+    }
+}
+
 void help_overall()
 {
-    std::cout   << color::color(0,5,1) << "help" << color::color(5,5,5) << " [COMMAND]" << color::no_color() << std::endl
+    std::stringstream ss;
+    ss   << color::color(0,5,1) << "help" << color::color(5,5,5) << " [COMMAND]" << color::no_color() << std::endl
                 << "    Where " << color::color(5,5,5) << "[COMMAND]" << color::no_color() << " can be:" << std::endl
                 << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "quit\n" << color::no_color()
                 << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "nload\n" << color::no_color()
@@ -299,18 +325,22 @@ void help_overall()
                 << " Specify a pager command for `get proxy/latency`" << std::endl
                 << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(5,5,5) << "NOPAGER" << color::no_color()
                 << " Set NOPAGER to true to disable pagers even if they are available" << std::endl;
+    pager(ss.str());
 }
 
 void help(const std::string & cmd_text, const std::string & description)
 {
-    std::cout << color::color(5,5,5) << "COMMAND     " << color::color(5,3,5) << cmd_text << color::no_color() << std::endl;
-    std::cout << color::color(5,5,5) << "DESCRIPTION " << color::color(2,4,5) << description << color::no_color() << std::endl;
+    std::stringstream ss;
+    ss << color::color(5,5,5) << "COMMAND     " << color::color(5,3,5) << cmd_text << color::no_color() << std::endl;
+    ss << color::color(5,5,5) << "DESCRIPTION " << color::color(2,4,5) << description << color::no_color() << std::endl;
+    pager(ss.str());
 }
 
 void help_sub_cmds(const std::string & cmd_text, const std::map <std::string, std::string > & map)
 {
-    std::cout << color::color(5,5,5) << "COMMAND     " << color::color(5,3,5) << cmd_text << color::no_color() << std::endl;
-    std::cout << color::color(5,5,5) << "DESCRIPTION " << color::color(2,4,5) << color::no_color() << std::endl;
+    std::stringstream ss;
+    ss << color::color(5,5,5) << "COMMAND     " << color::color(5,3,5) << cmd_text << color::no_color() << std::endl;
+    ss << color::color(5,5,5) << "DESCRIPTION " << color::color(2,4,5) << color::no_color() << std::endl;
     int longest_subcmd_length = 0;
     for (const auto & s : map | std::views::keys) {
         if (longest_subcmd_length < s.length()) longest_subcmd_length = static_cast<int>(s.length());
@@ -318,10 +348,12 @@ void help_sub_cmds(const std::string & cmd_text, const std::map <std::string, st
 
     for (const auto & [sub_cmd_text, des] : map)
     {
-        std::cout << "            " << color::color(0,0,5) << "*" << color::no_color() << " ";
-        std::cout << color::color(0,5,5) << sub_cmd_text << color::no_color() << ":" << std::string(longest_subcmd_length - sub_cmd_text.length() + 1, ' ') << des;
-        std::cout << std::endl;
+        ss << "            " << color::color(0,0,5) << "*" << color::no_color() << " ";
+        ss << color::color(0,5,5) << sub_cmd_text << color::no_color() << ":" << std::string(longest_subcmd_length - sub_cmd_text.length() + 1, ' ') << des;
+        ss << std::endl;
     }
+
+    pager(ss.str());
 }
 
 std::pair < int, int > get_col_line_size()
@@ -365,6 +397,109 @@ inline int get_line_size()
     return get_col_line_size().first;
 }
 
+class UnicodeDisplayWidth {
+public:
+    UnicodeDisplayWidth() {
+        std::setlocale(LC_ALL, "en_US.UTF-8");
+    }
+    
+    int get_width_utf8(const std::string& utf8_str) {
+        std::u32string utf32_str;
+        utf8::utf8to32(utf8_str.begin(), utf8_str.end(), 
+                      std::back_inserter(utf32_str));
+        
+        return get_width_utf32(utf32_str);
+    }
+    
+    int get_width_utf32(const std::u32string& utf32_str) {
+        int width = 0;
+        
+        for (size_t i = 0; i < utf32_str.length(); i++) {
+            char32_t c = utf32_str[i];
+            
+            if (c == 0x200D || (c >= 0xFE00 && c <= 0xFE0F)) {
+                continue;
+            }
+            
+            if (c >= 0x1F3FB && c <= 0x1F3FF) {
+                continue; // These don't add width
+            }
+            
+            if (c >= 0x1F1E6 && c <= 0x1F1FF) {
+                width += 2; // Flags are typically 2 cells
+                continue;
+            }
+            
+            width += get_char_width(c);
+        }
+        
+        return width;
+    }
+    
+private:
+    int get_char_width(char32_t c) {
+        wchar_t wc = static_cast<wchar_t>(c);
+        int w = wcwidth(wc);
+        
+        if (w >= 0) {
+            return w;
+        }
+        
+        return fallback_char_width(c);
+    }
+    
+    int fallback_char_width(char32_t c) {
+        if (c <= 0x1F || (c >= 0x7F && c <= 0x9F)) {
+            return 0;
+        }
+        
+        if (is_fullwidth(c)) {
+            return 2;
+        }
+        
+        return 1;
+    }
+    
+    bool is_fullwidth(char32_t c) {
+        if ((c >= 0x4E00 && c <= 0x9FFF) ||
+            (c >= 0x3400 && c <= 0x4DBF) ||
+            (c >= 0x20000 && c <= 0x2A6DF) ||
+            (c >= 0x2A700 && c <= 0x2B73F) ||
+            (c >= 0x2B740 && c <= 0x2B81F) ||
+            (c >= 0x2B820 && c <= 0x2CEAF) ||
+            (c >= 0xF900 && c <= 0xFAFF) ||
+            (c >= 0x2F800 && c <= 0x2FA1F)) {
+            return true;
+        }
+        
+        if (c >= 0xAC00 && c <= 0xD7AF) {
+            return true;
+        }
+        
+        if (c >= 0xFF01 && c <= 0xFF5E) {
+            return true;
+        }
+        
+        if ((c >= 0x1F300 && c <= 0x1F5FF) || // Misc symbols and pictographs
+            (c >= 0x1F600 && c <= 0x1F64F) || // Emoticons
+            (c >= 0x1F680 && c <= 0x1F6FF) || // Transport & map symbols
+            (c >= 0x1F900 && c <= 0x1F9FF) || // Supplemental symbols
+            (c >= 0x1FA70 && c <= 0x1FAFF)) { // Symbols and pictographs extended
+            return true;
+        }
+        
+        if (c == 0x3000 || // Ideographic space
+            (c >= 0x3001 && c <= 0x303F) || // CJK symbols and punctuation
+            (c >= 0x3099 && c <= 0x30FF) || // Hiragana, Katakana
+            (c >= 0x3200 && c <= 0x32FF) || // Enclosed CJK letters and months
+            (c >= 0x3300 && c <= 0x33FF)) { // CJK compatibility
+            return true;
+        }
+        
+        return false;
+    }
+};
+
 void print_table(
     std::vector<std::string> const & table_keys,
     std::vector < std::vector<std::string> > const & table_values,
@@ -394,33 +529,15 @@ void print_table(
 
     auto get_string_screen_length = [](const std::string & str)->int
     {
-        int len = 0;
         const auto u32 = utf8_to_u32(str);
-        for (const auto c : u32)
-        {
-            if (c <= 0xFF) {
-                len++;
-            } else {
-                len += 2;
-            }
-        }
-
-        return len;
+        UnicodeDisplayWidth width;
+        return width.get_width_utf32(u32);
     };
 
     auto get_string_screen_length_u32 = [](const std::u32string & str)->int
     {
-        int len = 0;
-        for (const auto c : str)
-        {
-            if (c <= 0xFF) {
-                len++;
-            } else {
-                len += 2;
-            }
-        }
-
-        return len;
+        UnicodeDisplayWidth width;
+        return width.get_width_utf32(str);
     };
 
     for (const auto & vals : table_values)
@@ -492,14 +609,10 @@ void print_table(
             {
                 const auto p_leading_offset = leading_offset + 1;
                 int leads = 0;
+                UnicodeDisplayWidth width;
                 while (!line.empty())
                 {
-                    if (line.front() <= 0xFF) {
-                        leads++;
-                    } else {
-                        leads += 2;
-                    }
-
+                    leads += width.get_width_utf32({line.front()});
                     if (leads > p_leading_offset) {
                         break;
                     }
@@ -520,16 +633,12 @@ void print_table(
             {
                 if (col > 1)
                 {
+                    UnicodeDisplayWidth width;
                     int p_size = 0, ap_size = 0;
                     int offset = 0;
                     for (const auto & c : line)
                     {
-                        if (c <= 0xFF) {
-                            p_size++;
-                        } else {
-                            p_size += 2;
-                        }
-
+                        p_size += width.get_width_utf32({c});
                         if (p_size > (col - 1)) {
                             break;
                         }
@@ -1685,16 +1794,14 @@ int main(int argc, char ** argv)
                             std::ranges::for_each(element.second.first, [&](const std::string & proxy)
                             {
                                 push_line("", proxy == element.second.second ? "*" : "",
-                                    (proxy == element.second.second ? color::bg_color(0,0,4) + color::color(5,5,5) :
-                                        color::bg_color(2,2,2) + color::color(5,5,5))
-                                    + proxy + color::no_color());
+                                    (proxy == element.second.second ? "=> " : "") + proxy);
                             });
                         });
 
                         print_table(table_titles,
                             table_vals,
                             false,
-                            false,
+                            true,
                             { },
                             0,
                             nullptr,
@@ -1709,7 +1816,7 @@ int main(int argc, char ** argv)
                 }
                 else if (command_vector.front() == "set")
                 {
-                    if (command_vector[1] == "mode" && command_vector.size() == 3) // set mode [MODE]
+                    if (command_vector.size() == 3 && command_vector[1] == "mode") // set mode [MODE]
                     {
                         if (command_vector[2] != "rule" && command_vector[2] != "global" && command_vector[2] != "direct")
                         {
@@ -1719,18 +1826,18 @@ int main(int argc, char ** argv)
                         {
                             backend_instance.change_proxy_mode(command_vector[2]);
                         }
-                    } else if (command_vector[1] == "group" && command_vector.size() == 4) { // set group [PROXY] [ENDPOINT]
+                    } else if (command_vector.size() == 4 && command_vector[1] == "group") { // set group [PROXY] [ENDPOINT]
                         const std::string & group = command_vector[2], & proxy = command_vector[3];
                         std::cout << "Changing `" << group << "` proxy endpoint to `" << proxy << "`" << std::endl;
                         if (!backend_instance.change_proxy_using_backend(group, proxy))
                         {
                             std::cerr << "Failed to change proxy endpoint to `" << proxy << "`" << std::endl;
                         }
-                    } else if (command_vector[1] == "chain_parser" && command_vector.size() == 3) { // set chain_parser on/off
+                    } else if (command_vector.size() == 3 && command_vector[1] == "chain_parser") { // set chain_parser on/off
                         if (command_vector[2] == "on") backend_instance.parse_chains = true;
                         else if (command_vector[2] == "off") backend_instance.parse_chains = false;
                         else std::cerr << "Unknown option for parser `" << command_vector[2] << "`" << std::endl;
-                    } else if (command_vector[1] == "sort_by" && command_vector.size() == 3) { // set sort_by [num]
+                    } else if (command_vector.size() == 3 && command_vector[1] == "sort_by") { // set sort_by [num]
                         try {
                             sort_by = static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10));
                             if (sort_by < 0 || sort_by > 11)
@@ -1741,12 +1848,15 @@ int main(int argc, char ** argv)
                         } catch (...) {
                             std::cerr << "Invalid number `" << command_vector[2] << "`" << std::endl;
                         }
-                    } else if (command_vector[1] == "sort_reverse" && command_vector.size() == 3) { // set sort_reverse on/off
+                    } else if (command_vector.size() == 3 && command_vector[1] == "sort_reverse") { // set sort_reverse on/off
                         if (command_vector[2] == "on") reverse = true;
                         else if (command_vector[2] == "off") reverse = false;
                         else std::cerr << "Unknown option for parser `" << command_vector[2] << "`" << std::endl;
                     } else {
-                        std::cerr << "Unknown command `" << command_vector[1] << "` or invalid syntax" << std::endl;
+                        if (command_vector.size() == 2)
+                            std::cerr << "Unknown command `" << command_vector[1] << "` or invalid syntax" << std::endl;
+                        else
+                            std::cerr << "Empty command vector" << std::endl;
                     }
                 }
                 else if (command_vector.front() == "close_connections")
