@@ -48,9 +48,9 @@ static const char *cmds[] = {
 };
 
 static const char *help_voc [] = { "quit", "exit", "get", "set", "close_connections", "nload", nullptr };
-static const char *get_voc  [] = { "latency", "proxy", "connections", "mode", "log", nullptr };
+static const char *get_voc  [] = { "latency", "proxy", "connections", "mode", "log", "vecGroupProxy", nullptr };
 static const char *get_sup_voc  [] = { "hide", "shot", nullptr };
-static const char *set_voc  [] = { "mode", "group", "chain_parser", "sort_by", "sort_reverse", nullptr };
+static const char *set_voc  [] = { "mode", "group", "chain_parser", "sort_by", "sort_reverse", "vgroup", nullptr };
 
 #define arg_generator(name, vector)                                             \
 static char * name (const char *text, int state) {                              \
@@ -286,9 +286,13 @@ namespace color
 
 bool is_less_available();
 
-void pager(const std::string & str)
+void pager(const std::string & str, const bool override_less_check = false, bool use_pager = true)
 {
-    if (is_less_available())
+    if (!override_less_check) {
+        use_pager = is_less_available();
+    }
+
+    if (use_pager)
     {
         auto pager = color::get_env("PAGER");
         if (pager.empty()) {
@@ -311,6 +315,8 @@ void pager(const std::string & str)
 
 void help_overall()
 {
+    constexpr unsigned char alp_no_expand[] = { 0xe2, 0x9c, 0x88, 0x00 };
+    constexpr unsigned char alp_expanded[] = { 0xe2, 0x9c, 0x88, 0xef, 0xb8, 0x8f, 0x00 };
     std::stringstream ss;
     ss   << color::color(0,5,1) << "help" << color::color(5,5,5) << " [COMMAND]" << color::no_color() << std::endl
                 << "    Where " << color::color(5,5,5) << "[COMMAND]" << color::no_color() << " can be:" << std::endl
@@ -324,7 +330,12 @@ void help_overall()
                 << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(5,5,5) << "PAGER" << color::no_color()
                 << " Specify a pager command for `get proxy/latency`" << std::endl
                 << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(5,5,5) << "NOPAGER" << color::no_color()
-                << " Set NOPAGER to true to disable pagers even if they are available" << std::endl;
+                << " Set NOPAGER to true to disable pagers even if they are available" << std::endl
+                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(5,5,5) << "NO_0xFE0F_EXPAND_EMOJI" << color::no_color()
+                << " Fix Unicode processing issues like \"" << reinterpret_cast<const char*>(alp_no_expand)
+                << "\" and \"" << reinterpret_cast<const char*>(alp_expanded) << "\""
+                << ", if you cannot notice any differences, you might want to set this to \"true\""
+                << std::endl;
     pager(ss.str());
 }
 
@@ -397,13 +408,18 @@ inline int get_line_size()
     return get_col_line_size().first;
 }
 
-class UnicodeDisplayWidth {
+class initialize_locale
+{
 public:
-    UnicodeDisplayWidth() {
+    initialize_locale() noexcept {
         std::setlocale(LC_ALL, "en_US.UTF-8");
     }
-    
-    int get_width_utf8(const std::string& utf8_str) {
+} initialize_locale_;
+
+class UnicodeDisplayWidth {
+public:
+    static int get_width_utf8(const std::string& utf8_str)
+    {
         std::u32string utf32_str;
         utf8::utf8to32(utf8_str.begin(), utf8_str.end(), 
                       std::back_inserter(utf32_str));
@@ -411,13 +427,28 @@ public:
         return get_width_utf32(utf32_str);
     }
     
-    int get_width_utf32(const std::u32string& utf32_str) {
+    static int get_width_utf32(const std::u32string& utf32_str)
+    {
         int width = 0;
         
-        for (size_t i = 0; i < utf32_str.length(); i++) {
-            char32_t c = utf32_str[i];
+        for (size_t i = 0; i < utf32_str.length(); i++)
+        {
+            const char32_t c = utf32_str[i];
             
-            if (c == 0x200D || (c >= 0xFE00 && c <= 0xFE0F)) {
+            if (c == 0x200D || (c >= 0xFE00 && c < 0xFE0F)) {
+                continue;
+            }
+
+            if (c == 0xFE0F)
+            {
+                // when this is printed onto screen, it means an additional color code that expand the emoji
+                // this doesn't apply to all the terminals, so fucking headaches
+                // you can just disable this by setting the environment variable NO_0xFE0F_EXPAND_EMOJI to true
+                // if your terminal doesn't really process this flag
+                if (color::get_env("NO_0xFE0F_EXPAND_EMOJI") == "true") {
+                    continue;
+                }
+                width += 1;
                 continue;
             }
             
@@ -429,7 +460,7 @@ public:
                 width += 2; // Flags are typically 2 cells
                 continue;
             }
-            
+
             width += get_char_width(c);
         }
         
@@ -437,18 +468,19 @@ public:
     }
     
 private:
-    int get_char_width(char32_t c) {
-        wchar_t wc = static_cast<wchar_t>(c);
-        int w = wcwidth(wc);
-        
-        if (w >= 0) {
+    static int get_char_width(const char32_t c)
+    {
+        const auto wc = static_cast<wchar_t>(c);
+
+        if (const int w = wcwidth(wc); w >= 0) {
             return w;
         }
         
         return fallback_char_width(c);
     }
     
-    int fallback_char_width(char32_t c) {
+    static int fallback_char_width(const char32_t c)
+    {
         if (c <= 0x1F || (c >= 0x7F && c <= 0x9F)) {
             return 0;
         }
@@ -460,7 +492,8 @@ private:
         return 1;
     }
     
-    bool is_fullwidth(char32_t c) {
+    static bool is_fullwidth(const char32_t c)
+    {
         if ((c >= 0x4E00 && c <= 0x9FFF) ||
             (c >= 0x3400 && c <= 0x4DBF) ||
             (c >= 0x20000 && c <= 0x2A6DF) ||
@@ -530,14 +563,11 @@ void print_table(
     auto get_string_screen_length = [](const std::string & str)->int
     {
         const auto u32 = utf8_to_u32(str);
-        UnicodeDisplayWidth width;
-        return width.get_width_utf32(u32);
+        return UnicodeDisplayWidth::get_width_utf32(u32);
     };
 
-    auto get_string_screen_length_u32 = [](const std::u32string & str)->int
-    {
-        UnicodeDisplayWidth width;
-        return width.get_width_utf32(str);
+    auto get_string_screen_length_u32 = [](const std::u32string & str)->int {
+        return UnicodeDisplayWidth::get_width_utf32(str);
     };
 
     for (const auto & vals : table_values)
@@ -609,10 +639,9 @@ void print_table(
             {
                 const auto p_leading_offset = leading_offset + 1;
                 int leads = 0;
-                UnicodeDisplayWidth width;
                 while (!line.empty())
                 {
-                    leads += width.get_width_utf32({line.front()});
+                    leads += UnicodeDisplayWidth::get_width_utf32({line.front()});
                     if (leads > p_leading_offset) {
                         break;
                     }
@@ -633,12 +662,11 @@ void print_table(
             {
                 if (col > 1)
                 {
-                    UnicodeDisplayWidth width;
                     int p_size = 0, ap_size = 0;
                     int offset = 0;
                     for (const auto & c : line)
                     {
-                        p_size += width.get_width_utf32({c});
+                        p_size += UnicodeDisplayWidth::get_width_utf32({c});
                         if (p_size > (col - 1)) {
                             break;
                         }
@@ -770,26 +798,8 @@ void print_table(
         print_progress();
     }
 
-    if (using_less)
-    {
-        const auto output = less_output_redirect.str();
-        auto pager = color::get_env("PAGER");
-        if (pager.empty()) {
-            pager = R"(less -SR -S --rscroll='>')";
-        }
-        if (const auto [fd_stdout, fd_stderr, exit_status]
-            = exec_command("/bin/sh", output, "-c", pager);
-            exit_status != 0)
-        {
-            std::cerr << fd_stderr << std::endl;
-            std::cerr << "(less exited with code " << exit_status << ")" << std::endl;
-        }
-    }
-    else if (enforce_no_pager)
-    {
-        // pager unavailable, just print
-        std::cout << less_output_redirect.str() << std::flush;
-    }
+    const auto output = less_output_redirect.str();
+    pager(output, true, using_less);
 }
 
 bool is_less_available()
@@ -844,13 +854,11 @@ std::string value_to_human(const unsigned long long value,
     return ss.str();
 }
 
-std::string value_to_speed(const unsigned long long value)
-{
+inline std::string value_to_speed(const unsigned long long value) {
     return value_to_human(value, "B/s", "KB/s", "MB/s", "GB/s", "TB/s");
 }
 
-std::string value_to_size(const unsigned long long value)
-{
+inline std::string value_to_size(const unsigned long long value) {
     return value_to_human(value, "B", "KB", "MB", "GB", "TB");
 }
 
@@ -967,15 +975,18 @@ void nload(
     auto print_win = [&max, &min, &avg, &info_space_size, &window_space, &col](
         const std::atomic<uint64_t> * speed,
         const std::atomic<uint64_t> * total,
-        std::vector<uint64_t> & list,
+        const std::vector<uint64_t> & list,
+        uint64_t & max_speed_out_of_loop, uint64_t & min_speed_out_of_loop,
         const decltype(generate_from_metric({})) & metric_list)
     {
         const auto min_speed = min(list);
         const auto max_speed = max(list);
+        max_speed_out_of_loop = std::max(max_speed, max_speed_out_of_loop);
+        min_speed_out_of_loop = std::min(min_speed, min_speed_out_of_loop);
         std::vector < std::string > info_list;
         info_list.push_back(std::string("  Cur: ") + value_to_speed(*speed));
-        info_list.push_back(std::string("  Min: ") + value_to_speed(min_speed));
-        info_list.push_back(std::string("  Max: ") + value_to_speed(max_speed));
+        info_list.push_back(std::string("  Min: ") + value_to_speed(min_speed_out_of_loop));
+        info_list.push_back(std::string("  Max: ") + value_to_speed(max_speed_out_of_loop));
         info_list.push_back(std::string("  Avg: ") + value_to_speed(static_cast<uint64_t>(avg(list))));
         info_list.push_back(std::string("  Ttl: ") + value_to_size(*total));
 
@@ -1018,9 +1029,7 @@ void nload(
                 {
                     if (1 <= partial_block_percentage && partial_block_percentage <= 40) {
                         std::cout << l_41_to_80;
-                    } else if (41 <= partial_block_percentage && partial_block_percentage <= 80) {
-                        std::cout << l_81_to_100;
-                    } else if (81 <= partial_block_percentage && partial_block_percentage <= 100) {
+                    } else if (41 <= partial_block_percentage && partial_block_percentage <= 100) {
                         std::cout << l_81_to_100;
                     } else {
                         std::cout << " ";
@@ -1047,7 +1056,7 @@ void nload(
 
     std::vector < uint64_t > up_speed_list, down_speed_list;
     std::vector<float> up_list, down_list;
-
+    uint64_t max_up_speed = 0, min_up_speed = UINT64_MAX, max_down_speed = 0, min_down_speed = UINT64_MAX;
     while (*running)
     {
         if (window_space > 5)
@@ -1071,23 +1080,24 @@ void nload(
 
             std::cout.write(clear, sizeof(clear)); // clear the screen
             std::cout << "C++ Clash Dashboard:" << std::endl;
-            std::cout << std::string(col, '=') << std::endl;
-            std::cout << "Incoming" << std::endl;
+            std::cout << color::color(5,3,3) << std::string(col, '=') << color::no_color() << std::endl;
+            std::cout << "Incoming:" << std::endl;
             {
+                std::cout << color::color(0,5,1);
                 const auto metric_list = generate_from_metric(down_list);
-                print_win(download_speed, total_download, down_speed_list, metric_list);
+                print_win(download_speed, total_download, down_speed_list, max_down_speed, min_down_speed, metric_list);
             }
-            std::cout << "Outgoing" << std::endl;
+            std::cout << color::no_color();
+            std::cout << "Outgoing:" << std::endl;
             {
+                std::cout << color::color(5,1,0);
                 const auto metric_list = generate_from_metric(up_list);
-                print_win(upload_speed, total_upload, up_speed_list, metric_list);
+                print_win(upload_speed, total_upload, up_speed_list, max_up_speed, min_up_speed, metric_list);
             }
+            std::cout << color::no_color();
         }
 
-        row = get_line_size();
-        col = get_col_size();
-        window_space = (row - 5) / 2;
-        for (int i = 0; i < 100; i++)
+        for (int i = 0; i < 1000; i++)
         {
             if (window_size_change) {
                 window_size_change = false;
@@ -1095,8 +1105,12 @@ void nload(
             }
 
             if (!*running) break;
-            std::this_thread::sleep_for(std::chrono::milliseconds(10l));
+            std::this_thread::sleep_for(std::chrono::milliseconds(1l));
         }
+
+        row = get_line_size();
+        col = get_col_size();
+        window_space = (row - 5) / 2;
     }
 }
 
@@ -1185,30 +1199,44 @@ int main(int argc, char ** argv)
             "Chains",       // 11
         };
 
+        std::map < uint64_t, std::string > index_to_proxy_name_list;
+
         auto update_providers = [&]
         {
-            backend_instance.update_proxy_list();
-            auto proxy_list = backend_instance.get_proxies_and_latencies_as_pair().first;
-            std::vector<std::string> groups;
-            std::vector<std::string> proxies;
-
-            for (const auto & [group, proxy] : proxy_list)
+            if (index_to_proxy_name_list.empty())
             {
-                if (std::ranges::find(groups, group) == groups.end())
+                backend_instance.update_proxy_list();
+                auto proxy_list = backend_instance.get_proxies_and_latencies_as_pair().first;
+                std::vector<std::string> groups;
+                std::vector<std::string> proxies;
+
+                for (const auto & [group, proxy] : proxy_list)
                 {
-                    groups.push_back("\"" + group + "\"");
+                    if (std::ranges::find(groups, group) == groups.end())
+                    {
+                        groups.push_back("\"" + group + "\"");
+                    }
+
+                    std::ranges::for_each(proxy.first, [&](const std::string & _p)
+                    {
+                        if (std::ranges::find(proxies, _p) == proxies.end()) proxies.push_back("\"" + _p + "\"");
+                    });
                 }
 
-                std::ranges::for_each(proxy.first, [&](const std::string & _p)
-                {
-                    if (std::ranges::find(proxies, _p) == proxies.end()) proxies.push_back("\"" + _p + "\"");
-                });
+                std::lock_guard lock(arg2_additional_verbs_mutex);
+                arg2_additional_verbs.clear();
+                arg2_additional_verbs.insert(arg2_additional_verbs.end(), proxies.begin(), proxies.end());
+                arg2_additional_verbs.insert(arg2_additional_verbs.end(), groups.begin(), groups.end());
             }
-
-            std::lock_guard lock(arg2_additional_verbs_mutex);
-            arg2_additional_verbs.clear();
-            arg2_additional_verbs.insert(arg2_additional_verbs.end(), proxies.begin(), proxies.end());
-            arg2_additional_verbs.insert(arg2_additional_verbs.end(), groups.begin(), groups.end());
+            else
+            {
+                std::lock_guard lock(arg2_additional_verbs_mutex);
+                arg2_additional_verbs.clear();
+                for (const auto & [index, proxy_endpoint] : index_to_proxy_name_list) {
+                    const auto index_str = std::to_string(index);
+                    arg2_additional_verbs.emplace_back(index_str + ": \"" += proxy_endpoint + "\"");
+                }
+            }
         };
 
         backend_instance.start_continuous_updates();
@@ -1311,28 +1339,35 @@ int main(int argc, char ** argv)
                     {
                         if (command_vector[1] == "quit" || command_vector[1] == "exit") {
                             help(command_vector[1], "Exit the program");
-                        } else if (command_vector[1] == "nload") {
+                        }
+                        else if (command_vector[1] == "nload") {
                             help(command_vector[1], "A nload-like dashboard");
-                        } else if (command_vector[1] == "close_connections") {
+                        }
+                        else if (command_vector[1] == "close_connections") {
                             help(command_vector[1], "Close all currently active connections");
-                        } else if (command_vector[1] == "get") {
+                        }
+                        else if (command_vector[1] == "get") {
                             help_sub_cmds("get", {
                                 { "latency", "Get all proxy latencies" },
+                                { "vecGroupProxy", "Get proxy group and endpoint as an index-identifiable list for better console-only experience. You can use `set vgroup [GROUP INDEX] [ENDPOINT INDEX]` to change proxies instead of actual proxy group names" },
                                 { "proxy", "Get all proxies. Latency will be added if tested before" },
                                 { "connections [hide <0-11>|shot]",
                                     R"(Get all active connections. Using the "hide" to hide columns, which are separated by ',', or use '-' to conjunct numbers. E.g.: 2,4-6,8. Use ^C or 'q' to stop. Use "shot" to use a pager)" },
                                 { "mode", "Get current proxy mode, i.e., direct, rule or global" },
                                 { "log", "Watch logs. Use Ctrl+C (^C) or press 'q' to stop watching" },
                             });
-                        } else if (command_vector[1] == "set") {
+                        }
+                        else if (command_vector[1] == "set") {
                             help_sub_cmds("set", {
                                 { "mode", "set mode " + color::color(5,5,5) + "[MODE]" + color::no_color() + ", where " + color::color(5,5,5) + "[MODE]" + color::no_color() + R"( can be "direct", "rule", or "global")" }, // DO NOT USE "...," use "...", instead. It's confusing
                                 { "group", "set group " + color::color(5,5,5) + "[GROUP]" + color::no_color() + " " + color::color(5,5,5) + "[PROXY]" + color::no_color() + ", where " + color::color(5,5,5) + "[GROUP]" + color::no_color() + " is proxy group, and " + color::color(5,5,5) + "[PROXY]" + color::no_color() + " is proxy endpoint" },
+                                { "vgroup", "set vgroup " + color::color(5,5,5) + "[GROUP VEC]" + color::no_color() + " " + color::color(5,5,5) + "[PROXY VEC]" + color::no_color() + ". You have to run `get vecGroupProxy` first to update the list and see which is which."},
                                 { "chain_parser", "set chain_parser " + color::color(5,5,5) + "[on|off]" + color::no_color() + R"(, "on" means parse rule chains, and "off" means show only endpoint)" },
                                 { "sort_by", "set sort_by " + color::color(5,5,5) + "[0-11]" + color::no_color() + R"(, used by get connections. Set which column to sort. Default is 4.)" },
                                 { "sort_reverse", "set sort_reverse " + color::color(5,5,5) + "[on|off]" + color::no_color() + R"(, "off" means sort by default (highest to lowest), and "on" means sort by reverse (lowest to highest))" },
                             });
-                        } else {
+                        }
+                        else {
                             help_overall();
                         }
                     }
@@ -1772,7 +1807,8 @@ int main(int argc, char ** argv)
                         if (input_getc_worker.joinable()) input_getc_worker.join();
                     } else if (command_vector[1] == "mode") {
                         std::cout << backend_instance.get_current_mode() << std::endl;
-                    } else if (command_vector[1] == "proxy") {
+                    }
+                    else if (command_vector[1] == "proxy") {
                         backend_instance.update_proxy_list();
                         update_providers();
                         auto [proxy_list, proxy_lat] = backend_instance.get_proxies_and_latencies_as_pair();
@@ -1810,7 +1846,66 @@ int main(int argc, char ** argv)
                             0,
                             nullptr,
                             true);
-                    } else {
+                    }
+                    else if (command_vector[1] == "vecGroupProxy")
+                    {
+                        backend_instance.update_proxy_list();
+                        auto [proxy_list, proxy_lat] = backend_instance.get_proxies_and_latencies_as_pair();
+                        std::vector<std::string> table_titles = { "Vector", "Group / Endpoint" };
+                        std::vector<std::vector<std::string>> table_vals;
+
+                        uint64_t vector_index = 0;
+                        std::map < std::string, uint64_t > index_to_name_proxy_endpoint;
+                        std::map < std::string, uint64_t > index_to_name_group_name;
+                        auto push_line = [&table_vals](const std::string & s1, const std::string & s2)
+                        {
+                            std::vector<std::string> table_line;
+                            table_line.emplace_back(s1);
+                            table_line.emplace_back(s2);
+                            table_vals.emplace_back(table_line);
+                        };
+
+                        std::ranges::for_each(proxy_list, [&](const std::pair < std::string, std::pair < std::vector<std::string>, std::string> > & element)
+                        {
+                            // add group
+                            if (!index_to_name_group_name.contains(element.first)) {
+                                index_to_name_group_name.emplace(element.first, vector_index++);
+                            }
+                            std::ranges::for_each(element.second.first, [&](const std::string & proxy)
+                            {
+                                if (!index_to_name_group_name.contains(proxy) && !index_to_name_proxy_endpoint.contains(proxy)) {
+                                    index_to_name_proxy_endpoint.emplace(proxy, vector_index++);
+                                }
+                            });
+                        });
+
+                        auto add_pair = [&](const std::pair<std::string, uint64_t> & pair)
+                        {
+                            index_to_proxy_name_list.emplace(pair.second, pair.first);
+                            push_line(std::to_string(pair.second), pair.first);
+                        };
+
+                        index_to_proxy_name_list.clear();
+                        std::ranges::for_each(index_to_name_proxy_endpoint, add_pair);
+                        std::ranges::for_each(index_to_name_group_name, add_pair);
+
+                        // add my shit in it
+                        update_providers();
+
+                        print_table(table_titles,
+                            table_vals,
+                            false,
+                            true,
+                            { },
+                            0,
+                            nullptr,
+                            is_less_available(),
+                            "",
+                            0,
+                            nullptr,
+                            true);
+                    }
+                    else {
                         std::cerr << "Unknown command `" << command_vector[1] << "`" << std::endl;
                     }
                 }
@@ -1818,26 +1913,48 @@ int main(int argc, char ** argv)
                 {
                     if (command_vector.size() == 3 && command_vector[1] == "mode") // set mode [MODE]
                     {
-                        if (command_vector[2] != "rule" && command_vector[2] != "global" && command_vector[2] != "direct")
-                        {
+                        if (command_vector[2] != "rule" && command_vector[2] != "global" && command_vector[2] != "direct") {
                             std::cerr << "Unknown mode " << command_vector[2] << std::endl;
-                        }
-                        else
-                        {
+                        } else {
                             backend_instance.change_proxy_mode(command_vector[2]);
                         }
-                    } else if (command_vector.size() == 4 && command_vector[1] == "group") { // set group [PROXY] [ENDPOINT]
+                    }
+                    else if (command_vector.size() == 4 && command_vector[1] == "group") { // set group [PROXY] [ENDPOINT]
                         const std::string & group = command_vector[2], & proxy = command_vector[3];
                         std::cout << "Changing `" << group << "` proxy endpoint to `" << proxy << "`" << std::endl;
                         if (!backend_instance.change_proxy_using_backend(group, proxy))
                         {
                             std::cerr << "Failed to change proxy endpoint to `" << proxy << "`" << std::endl;
                         }
-                    } else if (command_vector.size() == 3 && command_vector[1] == "chain_parser") { // set chain_parser on/off
+                    }
+                    else if (command_vector.size() == 4 && command_vector[1] == "vgroup") { // set vgroup [Vec PROXY] [Vec ENDPOINT]
+                        const std::string & group = command_vector[2], & proxy = command_vector[3];
+                        try {
+                            if (index_to_proxy_name_list.empty())
+                            {
+                                std::cout << "Run `get vecGroupProxy` first!" << std::endl;
+                                continue;
+                            }
+                            const uint64_t group_vec = std::strtol(group.c_str(), nullptr, 10);
+                            const uint64_t proxy_vec = std::strtol(proxy.c_str(), nullptr, 10);
+                            const auto & group_name = index_to_proxy_name_list.at(group_vec);
+                            const auto & proxy_name = index_to_proxy_name_list.at(proxy_vec);
+                            std::cout << "Changing `" << group_name << "` proxy endpoint to `" << proxy_name << "`" << std::endl;
+                            if (!backend_instance.change_proxy_using_backend(group_name, proxy_name))
+                            {
+                                std::cerr << "Failed to change proxy endpoint to `" << proxy_name << "`" << std::endl;
+                            }
+                        } catch (...) {
+                            std::cerr << "Cannot parse vector or vector doesn't exist" << std::endl;
+                            continue;
+                        }
+                    }
+                    else if (command_vector.size() == 3 && command_vector[1] == "chain_parser") { // set chain_parser on/off
                         if (command_vector[2] == "on") backend_instance.parse_chains = true;
                         else if (command_vector[2] == "off") backend_instance.parse_chains = false;
                         else std::cerr << "Unknown option for parser `" << command_vector[2] << "`" << std::endl;
-                    } else if (command_vector.size() == 3 && command_vector[1] == "sort_by") { // set sort_by [num]
+                    }
+                    else if (command_vector.size() == 3 && command_vector[1] == "sort_by") { // set sort_by [num]
                         try {
                             sort_by = static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10));
                             if (sort_by < 0 || sort_by > 11)
@@ -1848,23 +1965,24 @@ int main(int argc, char ** argv)
                         } catch (...) {
                             std::cerr << "Invalid number `" << command_vector[2] << "`" << std::endl;
                         }
-                    } else if (command_vector.size() == 3 && command_vector[1] == "sort_reverse") { // set sort_reverse on/off
+                    }
+                    else if (command_vector.size() == 3 && command_vector[1] == "sort_reverse") { // set sort_reverse on/off
                         if (command_vector[2] == "on") reverse = true;
                         else if (command_vector[2] == "off") reverse = false;
                         else std::cerr << "Unknown option for parser `" << command_vector[2] << "`" << std::endl;
-                    } else {
-                        if (command_vector.size() == 2)
+                    }
+                    else {
+                        if (command_vector.size() == 2) {
                             std::cerr << "Unknown command `" << command_vector[1] << "` or invalid syntax" << std::endl;
-                        else
+                        } else {
                             std::cerr << "Empty command vector" << std::endl;
+                        }
                     }
                 }
-                else if (command_vector.front() == "close_connections")
-                {
+                else if (command_vector.front() == "close_connections") {
                     backend_instance.close_all_connections();
                 }
-                else
-                {
+                else {
                     std::cerr << "Unknown command `" << command_vector.front() << "` or invalid syntax" << std::endl;
                 }
             }
