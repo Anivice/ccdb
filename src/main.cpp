@@ -837,7 +837,7 @@ std::string value_to_human(const unsigned long long value,
     const std::string & lv5)
 {
     std::stringstream ss;
-    if (value < 1024ull) {
+    if (value < 1024ull || value >= 1024ull * 1024ull * 1024ull * 1024ull * 1024ull) {
         ss << value << " " << lv1;
     } else if (value < 1024ull * 1024ull) {
         ss << std::fixed << std::setprecision(2) << (static_cast<double>(value) / 1024ull) << " " << lv2;
@@ -847,8 +847,6 @@ std::string value_to_human(const unsigned long long value,
         ss << std::fixed << std::setprecision(2) << (static_cast<double>(value) / (1024ull * 1024ull * 1024ull)) << " " << lv4;
     } else if (value < 1024ull * 1024ull * 1024ull * 1024ull * 1024ull) {
         ss << std::fixed << std::setprecision(2) << (static_cast<double>(value) / (1024ull * 1024ull * 1024ull * 1024ull)) << " " << lv5;
-    } else {
-        ss << value << " " << lv1;
     }
 
     return ss.str();
@@ -891,7 +889,7 @@ std::string second_to_human_readable(unsigned long long value)
     value %= (60 * 60);
     const auto minute = value / 60;
     const auto second = value % 60;
-    return std::to_string(day) + "d" + std::to_string(minute) + "m" + std::to_string(second) + "s";
+    return std::to_string(day) + "d" + std::to_string(hour) + "h" + std::to_string(minute) + "m" + std::to_string(second) + "s";
 }
 
 void nload(
@@ -977,18 +975,40 @@ void nload(
         const std::atomic<uint64_t> * total,
         const std::vector<uint64_t> & list,
         uint64_t & max_speed_out_of_loop, uint64_t & min_speed_out_of_loop,
-        const decltype(generate_from_metric({})) & metric_list)
+        const decltype(generate_from_metric({})) & metric_list,
+        const std::chrono::time_point<std::chrono::high_resolution_clock> start_time_point,
+        const uint64_t total_bytes_since_started)
     {
+        const auto now = std::chrono::high_resolution_clock::now();
+        const auto time_escalated = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time_point).count();
         const auto min_speed = min(list);
         const auto max_speed = max(list);
         max_speed_out_of_loop = std::max(max_speed, max_speed_out_of_loop);
         min_speed_out_of_loop = std::min(min_speed, min_speed_out_of_loop);
         std::vector < std::string > info_list;
-        info_list.push_back(std::string("  Cur: ") + value_to_speed(*speed));
-        info_list.push_back(std::string("  Min: ") + value_to_speed(min_speed_out_of_loop));
-        info_list.push_back(std::string("  Max: ") + value_to_speed(max_speed_out_of_loop));
-        info_list.push_back(std::string("  Avg: ") + value_to_speed(static_cast<uint64_t>(avg(list))));
-        info_list.push_back(std::string("  Ttl: ") + value_to_size(*total));
+        const auto time_escalated_seconds = (static_cast<double>(time_escalated) / 1000.00f);
+        const auto avg_speed_overall = time_escalated_seconds > 1.00 ? static_cast<double>(total_bytes_since_started) / time_escalated_seconds : 0.00;
+        const auto min_speed_on_page_str = value_to_speed(min_speed);
+        const auto max_speed_on_page_str = value_to_speed(max_speed);
+        const auto min_speed_overall_str = value_to_speed(min_speed_out_of_loop);
+        const auto max_speed_overall_str = value_to_speed(max_speed_out_of_loop);
+        const auto avg_speed_on_page_str = value_to_speed(static_cast<uint64_t>(avg(list)));
+        const auto avg_speed_overall_str = value_to_speed(static_cast<long>(avg_speed_overall));
+        const auto max_pre_slash_content_len = max({
+            min_speed_on_page_str.length(),
+            min_speed_on_page_str.length(),
+            avg_speed_on_page_str.length()
+        });
+
+        auto generate_padding = [&max_pre_slash_content_len](const std::string & str)->std::string {
+            return str + std::string(max_pre_slash_content_len - str.length(), ' ');
+        };
+
+        info_list.push_back(std::string("  Cur      : ") + value_to_speed(*speed));
+        info_list.push_back(std::string("  Min (P/O): ") + generate_padding(min_speed_on_page_str) + " / " + min_speed_overall_str);
+        info_list.push_back(std::string("  Max (P/O): ") + generate_padding(min_speed_on_page_str) + " / " + max_speed_overall_str);
+        info_list.push_back(std::string("  Avg (P/O): ") + generate_padding(avg_speed_on_page_str) + " / " + avg_speed_overall_str);
+        info_list.push_back(std::string("  Ttl      : ") + value_to_size(*total));
 
         std::vector<uint64_t> size_list;
         for (const auto & str : info_list) {
@@ -1057,6 +1077,12 @@ void nload(
     std::vector < uint64_t > up_speed_list, down_speed_list;
     std::vector<float> up_list, down_list;
     uint64_t max_up_speed = 0, min_up_speed = UINT64_MAX, max_down_speed = 0, min_down_speed = UINT64_MAX;
+    for (int i = 0; i < 250; i++) {
+        if (*total_upload && *total_download) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10l));
+    }
+    const uint64_t upload_total_bytes_when_started = *total_upload, download_total_bytes_when_started = *total_download;
+    const auto now = std::chrono::high_resolution_clock::now();
     while (*running)
     {
         if (window_space > 5)
@@ -1085,14 +1111,30 @@ void nload(
             {
                 std::cout << color::color(0,5,1);
                 const auto metric_list = generate_from_metric(down_list);
-                print_win(download_speed, total_download, down_speed_list, max_down_speed, min_down_speed, metric_list);
+                const auto total_download_since_start = *total_download - download_total_bytes_when_started;
+                print_win(download_speed,
+                    total_download,
+                    down_speed_list,
+                    max_down_speed,
+                    min_down_speed,
+                    metric_list,
+                    now,
+                    total_download_since_start);
             }
             std::cout << color::no_color();
             std::cout << "Outgoing:" << std::endl;
             {
                 std::cout << color::color(5,1,0);
                 const auto metric_list = generate_from_metric(up_list);
-                print_win(upload_speed, total_upload, up_speed_list, max_up_speed, min_up_speed, metric_list);
+                const auto total_upload_since_start = *total_upload - upload_total_bytes_when_started;
+                print_win(upload_speed,
+                    total_upload,
+                    up_speed_list,
+                    max_up_speed,
+                    min_up_speed,
+                    metric_list,
+                    now,
+                    total_upload_since_start);
             }
             std::cout << color::no_color();
         }
@@ -1606,7 +1648,6 @@ int main(int argc, char ** argv)
                             std::cout.write(clear, sizeof(clear)); // clear the screen
                             const int col = get_col_size();
                             bool did_i_add_no_color = false;
-                            bool should_i_add_leading_pager_marker = false;
                             auto append_msg = [&](std::string msg,
                                 const std::string & color = "", const std::string & color_end = "")->void
                             {
