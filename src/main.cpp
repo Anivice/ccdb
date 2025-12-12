@@ -990,13 +990,13 @@ void nload(
         const auto avg_speed_overall = time_escalated_seconds > 1.00 ? static_cast<double>(total_bytes_since_started) / time_escalated_seconds : 0.00;
         const auto min_speed_on_page_str = value_to_speed(min_speed);
         const auto max_speed_on_page_str = value_to_speed(max_speed);
-        const auto min_speed_overall_str = value_to_speed(min_speed_out_of_loop);
+        // const auto min_speed_overall_str = value_to_speed(min_speed_out_of_loop);
         const auto max_speed_overall_str = value_to_speed(max_speed_out_of_loop);
         const auto avg_speed_on_page_str = value_to_speed(static_cast<uint64_t>(avg(list)));
         const auto avg_speed_overall_str = value_to_speed(static_cast<long>(avg_speed_overall));
         const auto max_pre_slash_content_len = max({
-            min_speed_on_page_str.length(),
-            min_speed_on_page_str.length(),
+            // min_speed_on_page_str.length(),
+            max_speed_on_page_str.length(),
             avg_speed_on_page_str.length()
         });
 
@@ -1004,11 +1004,11 @@ void nload(
             return str + std::string(max_pre_slash_content_len - str.length(), ' ');
         };
 
-        info_list.push_back(std::string("  Cur      : ") + value_to_speed(*speed));
-        info_list.push_back(std::string("  Min (P/O): ") + generate_padding(min_speed_on_page_str) + " / " + min_speed_overall_str);
-        info_list.push_back(std::string("  Max (P/O): ") + generate_padding(min_speed_on_page_str) + " / " + max_speed_overall_str);
+        info_list.push_back(std::string("        Cur: ") + value_to_speed(*speed));
+        info_list.push_back(std::string("        Min: ") + min_speed_on_page_str);
+        info_list.push_back(std::string("  Max (P/O): ") + generate_padding(max_speed_on_page_str) + " / " + max_speed_overall_str);
         info_list.push_back(std::string("  Avg (P/O): ") + generate_padding(avg_speed_on_page_str) + " / " + avg_speed_overall_str);
-        info_list.push_back(std::string("  Ttl      : ") + value_to_size(*total));
+        info_list.push_back(std::string("        Ttl: ") + value_to_size(*total));
 
         std::vector<uint64_t> size_list;
         for (const auto & str : info_list) {
