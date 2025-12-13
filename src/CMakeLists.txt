@@ -61,6 +61,7 @@ set_target_properties(readline::readline PROPERTIES
         INTERFACE_INCLUDE_DIRECTORIES   "${READLINE_INCLUDE_DIR}"
 )
 add_dependencies(readline::readline READLINE)
+add_dependencies(READLINE NCURSES)
 include_directories("${READLINE_INCLUDE_DIR}/readline")
 include_directories("${READLINE_INCLUDE_DIR}")
 
@@ -77,11 +78,25 @@ target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR})
 target_compile_definitions(ccdb PUBLIC CCDB_VERSION="0.8.3")
 
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-#    target_compile_options(ccdb PUBLIC -fsanitize=address -fsanitize=undefined)
-#    target_link_libraries(ccdb PUBLIC asan ubsan atomic readline::readline ncurses::ncurses)
-    target_compile_options(ccdb PUBLIC -fsanitize=thread -fno-sanitize-recover=undefined -fno-sanitize=undefined)
-    target_link_libraries(ccdb PUBLIC tsan atomic readline::readline ncurses::ncurses)
+    if ("${CMAKE_SANITIZER_TYPE}" STREQUAL "address")
+        target_compile_options(ccdb PUBLIC -fsanitize=address -fsanitize=undefined)
+        target_link_libraries(ccdb PUBLIC asan ubsan atomic readline::readline ncurses::ncurses)
+    elseif ("${CMAKE_SANITIZER_TYPE}" STREQUAL "thread")
+        target_compile_options(ccdb PUBLIC -fsanitize=thread -fno-sanitize-recover=undefined -fno-sanitize=undefined)
+        target_link_libraries(ccdb PUBLIC tsan atomic readline::readline ncurses::ncurses)
+    else()
+        target_link_libraries(ccdb PUBLIC atomic readline::readline ncurses::ncurses)
+    endif()
 else ()
+    set(LD_STATIC "")
+    if ("${CMAKE_BUILD_STATIC}" STREQUAL "True")
+        set(LD_STATIC "-static-libgcc;-static-libstdc++")
+        set_target_properties(ccdb PROPERTIES LINK_SEARCH_START_STATIC 1)
+        set_target_properties(ccdb PROPERTIES LINK_SEARCH_END_STATIC 1)
+        set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+    else ()
+        message(WARNING "GLIBC IS DYNAMICALLY LINKED!")
+    endif ()
     target_compile_options(ccdb PUBLIC
             -O3
             # -flto
@@ -97,7 +112,7 @@ else ()
             ${CC_ADDITIONAL_OPTIONS}
     )
     target_link_options(ccdb PUBLIC
-            -static-libgcc -static-libstdc++
+            ${LD_STATIC}
             -O3
             # -flto
             -fomit-frame-pointer
@@ -113,8 +128,5 @@ else ()
             ${LD_ADDITIONAL_OPTIONS}
     )
     target_link_libraries(ccdb PUBLIC atomic readline::readline ncurses::ncurses)
-    set_target_properties(ccdb PROPERTIES LINK_SEARCH_START_STATIC 1)
-    set_target_properties(ccdb PROPERTIES LINK_SEARCH_END_STATIC 1)
-    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
     add_dependencies(ccdb READLINE NCURSES)
 endif ()

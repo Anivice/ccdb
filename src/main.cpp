@@ -8,6 +8,7 @@
 #include <ranges>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
+#include <fstream>
 #include "readline.h"
 #include "history.h"
 #include "general_info_pulling.h"
@@ -1219,12 +1220,42 @@ int main(int argc, char ** argv)
 
     rl_attempted_completion_function = cmd_completion;
     using_history();
+
+    const auto home = color::get_env("HOME");
+    int sort_by = 4;
+    bool reverse = false;
+
+    if (!home.empty())
+    {
+        if (std::ifstream ifs(home + "/.ccdbrc");
+            ifs.is_open())
+        {
+            try {
+                ifs >> sort_by >> reverse;
+            } catch (...) {
+                sort_by = 4; reverse = false;
+            }
+        }
+    }
+
+    auto save_config = [&]
+    {
+        if (!home.empty()) {
+            if (std::ofstream ofs(home + "/.ccdbrc");
+                ofs.is_open())
+            {
+                try {
+                    ofs << sort_by << " " << reverse << std::endl;
+                } catch (...) {
+                }
+            }
+        }
+    };
+
     try
     {
         char * line = nullptr;
         general_info_pulling backend_instance(backend, port, token);
-        int sort_by = 4;
-        bool reverse = false;
         std::atomic_int leading_spaces = 0;
         const std::vector<std::string> titles = {
             "Host",         // 0
@@ -1284,13 +1315,52 @@ int main(int argc, char ** argv)
         backend_instance.start_continuous_updates();
         update_providers();
 
+        std::string last_line;
+        // add past history
+        if (!home.empty())
+        {
+            std::ifstream history_file;
+            history_file.open(home + "/.ccdb_history", std::ios::in);
+            if (history_file.is_open())
+            {
+                while (!history_file.eof())
+                {
+                    std::string hline;
+                    std::getline(history_file, hline);
+                    hline = remove_leading_and_tailing_spaces(hline);
+                    if (!hline.empty()) {
+                        add_history(hline.c_str());
+                        last_line = hline;
+                    }
+                }
+            }
+        }
+
+        std::ofstream history_file;
+        if (!home.empty()) {
+            history_file = std::ofstream(home + "/.ccdb_history", std::ios::out | std::ios::app);
+        }
+
+        auto save_history = [&](const std::string & history_line)->void
+        {
+            add_history(history_line.c_str());
+            if (history_file.is_open()) {
+                history_file << history_line << std::endl;
+            }
+        };
+
         while ((line = readline("ccdb> ")) != nullptr)
         {
             if (sysint_pressed) {
                 sysint_pressed = false;
             }
 
-            if (*line) add_history(line);
+            const auto presented_history = remove_leading_and_tailing_spaces(line);
+            if (*line && presented_history != last_line) {
+                save_history(presented_history);
+            }
+
+            if (!presented_history.empty()) last_line = presented_history;
             std::vector < std::string > command_vector;
             {
                 std::string cmd = line;
@@ -2030,8 +2100,16 @@ int main(int argc, char ** argv)
     }
     catch (std::exception & e)
     {
+        save_config();
         std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;
     }
+    catch (...)
+    {
+        save_config();
+        std::cerr << "Unknown exception" << std::endl;
+        return EXIT_FAILURE;
+    }
+    save_config();
     return EXIT_SUCCESS;
 }

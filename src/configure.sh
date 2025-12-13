@@ -5,7 +5,7 @@ script_dir="$(dirname "$(readlink -f "$0")")"
 ARCH="$1"
 BUILD_DIR="$2"
 TARGET="$(basename "$script_dir/../toolchains"/"$ARCH"-*/bin/*-addr2line | awk -F'-' '{ for (i=1; i<NF; i++) printf "%s%s", $i, (i<NF-1?OFS:RS) }' | tr ' ' '-')"
-
+TARGET=$(echo $TARGET)
 if [ -z "$TARGET" ]; then echo "Unknown arch $ARCH" >&2; exit 1; fi
 
 export CC="$TARGET"-gcc
@@ -15,7 +15,7 @@ export RANLIB="$TARGET"-ranlib
 export STRIP="$TARGET"-strip
 MUSL_SYSROOT="$(echo "$script_dir/../toolchains/$ARCH-"*)"
 export MUSL_SYSROOT="$MUSL_SYSROOT/"
-echo $MUSL_SYSROOT
+echo "$MUSL_SYSROOT"
 env PATH="$MUSL_SYSROOT"/bin/:"$PATH" cmake -B "$BUILD_DIR" -S "$script_dir" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_SYSTEM_NAME=Linux \
@@ -29,6 +29,9 @@ env PATH="$MUSL_SYSROOT"/bin/:"$PATH" cmake -B "$BUILD_DIR" -S "$script_dir" \
             -DNCURSES_CONFIGURE_ADDITIONAL_FLAGS="--disable-stripping;--host=$ARCH" \
             -DCMAKE_STRIP="$STRIP" \
             -DNCURSES_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
-            -DREADLINE_MAKE_ADDITIONAL_FLAGS="-j$(nproc)"
-
-env PATH="$MUSL_SYSROOT"/bin/:"$PATH" cmake --build "$BUILD_DIR"
+            -DREADLINE_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
+            -DLD_STATIC="True"
+pushd "$PWD"
+cd "$BUILD_DIR"
+env PATH="$MUSL_SYSROOT"/bin/:"$PATH" make -j"$(nproc)"
+popd
