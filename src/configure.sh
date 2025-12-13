@@ -30,7 +30,7 @@ env PATH="$MUSL_SYSROOT"/bin/:"$PATH" cmake -B "$BUILD_DIR" -S "$script_dir" \
             -DCMAKE_STRIP="$STRIP" \
             -DNCURSES_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
             -DREADLINE_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
-            -DLD_STATIC="True"
+            -CMAKE_BUILD_STATIC="True"
 pushd "$PWD"
 cd "$BUILD_DIR"
 env PATH="$MUSL_SYSROOT"/bin/:"$PATH" make -j"$(nproc)"
