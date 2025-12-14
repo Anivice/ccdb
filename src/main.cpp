@@ -1093,7 +1093,7 @@ void nload(
     constexpr char l_41_to_80 = '|';
     constexpr char l_81_to_100 = '#';
 
-    auto generate_from_metric = [&](const std::vector <float> & list, int height)->std::vector < std::pair < int, int > >
+    auto generate_from_metric = [](const std::vector <float> & list, const int height)->std::vector < std::pair < int, int > >
     {
         std::vector <float> image;
         std::ranges::for_each(list, [&](const float f)
@@ -1157,14 +1157,15 @@ void nload(
     };
 
     int info_space_size = 20;
-    auto print_win = [&max, &min, &avg, &info_space_size, &window_space, &col](
+    auto print_win = [&max, &min, &avg, &info_space_size, &col](
         const std::atomic<uint64_t> * speed,
         const std::atomic<uint64_t> * total,
         const std::vector<uint64_t> & list,
         uint64_t & max_speed_out_of_loop, uint64_t & min_speed_out_of_loop,
         const decltype(generate_from_metric({}, 0)) & metric_list,
         const std::chrono::time_point<std::chrono::high_resolution_clock> start_time_point,
-        const uint64_t total_bytes_since_started)
+        const uint64_t total_bytes_since_started,
+        const uint64_t windows_space_local)
     {
         const auto now = std::chrono::high_resolution_clock::now();
         const auto time_escalated = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time_point).count();
@@ -1208,10 +1209,10 @@ void nload(
             return;
         }
 
-        for (int i = 0; i < window_space; ++i)
+        for (int i = 0; i < windows_space_local; ++i)
         {
             const int start = col - info_space_size - static_cast<int>(metric_list.size());
-            const auto current_height_on_screen = window_space - i; // starting from 1
+            const auto current_height_on_screen = windows_space_local - i; // starting from 1
 
             if (start < 0) {
                 std::cout << std::endl; // skip
@@ -1314,13 +1315,15 @@ void nload(
                     min_down_speed,
                     metric_list,
                     now,
-                    total_download_since_start);
+                    total_download_since_start,
+                    window_space);
             }
             std::cout << color::no_color();
             std::cout << "Outgoing:" << std::endl;
             {
                 std::cout << color::color(5,1,0);
-                const auto metric_list = generate_from_metric(up_list, window_space - (free_space == 0 ? 1 : 0));
+                const auto height = window_space - (free_space == 0 ? 1 : 0);
+                const auto metric_list = generate_from_metric(up_list, height);
                 const auto total_upload_since_start = *total_upload - upload_total_bytes_when_started;
                 print_win(upload_speed,
                     total_upload,
@@ -1329,7 +1332,8 @@ void nload(
                     min_up_speed,
                     metric_list,
                     now,
-                    total_upload_since_start);
+                    total_upload_since_start,
+                    height);
             }
             std::cout << color::no_color();
 
@@ -1373,7 +1377,7 @@ void nload(
             std::cout << color::color(0,0,0,5,0,0) << "TOO SMALL" << color::no_color() << std::endl;
         }
 
-        for (int i = 0; i < 1000; i++)
+        for (int i = 0; i < 500; i++)
         {
             if (window_size_change) {
                 window_size_change = false;
