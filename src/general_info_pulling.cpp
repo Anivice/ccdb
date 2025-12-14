@@ -127,10 +127,13 @@ void general_info_pulling::update_from_connections(std::string info)
         {
             std::string id = connection["id"];
             const auto network_type = std::string(connection["metadata"]["network"]);
+            const auto host = std::string(connection["metadata"]["host"]);
+            const auto dest = std::string(connection["metadata"]["destinationIP"]);
+            const auto dest_port = std::string(connection["metadata"]["destinationPort"]);
             connection_t conn = { };
-            conn.host = std::string(connection["metadata"]["host"]) + ":" + std::string(connection["metadata"]["destinationPort"]);
+            conn.host = std::string(host.empty() ? dest : host) + ":" + dest_port;
             conn.src = std::string(connection["metadata"]["sourceIP"]) + ":" + std::string(connection["metadata"]["sourcePort"]);
-            conn.destination = connection["metadata"]["destinationIP"];
+            conn.destination = dest;
             conn.processName = connection["metadata"]["process"];
             conn.uploadSpeed = 0;
             conn.downloadSpeed = 0;
@@ -156,8 +159,8 @@ void general_info_pulling::update_from_connections(std::string info)
                 const auto duration_in_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
                 const auto uploaded_during_pull = conn.totalUploadedBytes - previous->second.totalUploadedBytes;
                 const auto download_during_pull = conn.totalDownloadedBytes - previous->second.totalDownloadedBytes;
-                const auto uploaded_bytes_per_second = (long)((double)uploaded_during_pull / ((double)duration_in_milliseconds / 1000));
-                const auto downloaded_bytes_per_second = (long)((double)download_during_pull / ((double)duration_in_milliseconds / 1000));
+                const auto uploaded_bytes_per_second = static_cast<long>(static_cast<double>(uploaded_during_pull) / (static_cast<double>(duration_in_milliseconds) / 1000));
+                const auto downloaded_bytes_per_second = static_cast<long>(static_cast<double>(download_during_pull) / (static_cast<double>(duration_in_milliseconds) / 1000));
 
                 // logger.dlog("====> Download Speed ", downloaded_bytes_per_second, "\n");
 
