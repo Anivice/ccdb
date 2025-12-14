@@ -454,6 +454,11 @@ void general_info_pulling::latency_test(const std::string & url)
         {
             proxy_latency_local.emplace(proxy_.first, &proxy_latency[proxy_.first]);
         });
+
+        std::ranges::for_each(proxy_groups | std::views::keys, [&](const std::string & proxy_group)
+        {
+            proxy_latency_local.emplace(proxy_group, &proxy_latency[proxy_group]);
+        });
     }
 
     std::vector < std::thread > thread_pool;
@@ -461,7 +466,7 @@ void general_info_pulling::latency_test(const std::string & url)
     {
         *proxy_latency_local[proxy] = -1;
         auto * ptr = proxy_latency_local[proxy];
-        auto worker = [&](std::string proxy_, std::string url_, std::atomic_int * ptr_)->void
+        auto worker = [&](std::string proxy_, const std::string& url_, std::atomic_int * ptr_)->void
         {
             std::string name, proxy_bk = proxy_;
             for (const auto & c : proxy_) {

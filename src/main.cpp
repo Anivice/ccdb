@@ -97,13 +97,14 @@ static int argument_index(const char *buffer, int start)
 
 std::mutex arg2_additional_verbs_mutex;
 std::vector < std::string > arg2_additional_verbs = { "" };
+std::map < std::string, std::vector < std::string > > g_proxy_list;
 
 static char * set_arg2_verbs (const char *text, int state)
 {
-    std::vector < std::string > arg2_verbs = { "direct", "rule", "global", "on", "off" };
+    std::vector < std::string > arg2_verbs;
     {
         std::lock_guard lock(arg2_additional_verbs_mutex);
-        arg2_verbs.insert(arg2_verbs.end(), arg2_additional_verbs.begin(), arg2_additional_verbs.end());
+        arg2_verbs = arg2_additional_verbs;
         arg2_verbs.emplace_back("");
     }
     static int index, len;
@@ -119,24 +120,83 @@ static char * set_arg2_verbs (const char *text, int state)
 static char ** cmd_completion(const char *text, int start, int end) {
     (void)end;
     char **matches = nullptr;
-    int arg = argument_index(rl_line_buffer, start);
-    if (arg == 0) {
+    std::string this_arg = rl_line_buffer;
+    while (!this_arg.empty() && this_arg.back() == ' ') this_arg.pop_back(); // remove tailing spaces
+    while (!this_arg.empty() && this_arg.front() == ' ') this_arg.erase(this_arg.begin()); // remove leading spaces
+    std::vector < std::string > args;
+    {
+        std::string arg;
+        std::ranges::for_each(this_arg, [&](const char c) {
+            if (c != ' ') {
+                arg += c;
+            } else {
+                if (!arg.empty()) args.emplace_back(arg);
+                arg.clear();
+            }
+        });
+
+        if (!arg.empty()) args.emplace_back(arg);
+    }
+
+    auto sanitize_name = [](const std::string & name)->std::string
+    {
+        auto str = utf8_to_u32(name);
+        if (const auto separator_pos = str.find_first_of(':');
+            separator_pos != std::string::npos)
+        {
+            if (const auto before = str.substr(0, separator_pos);
+                std::ranges::all_of(before, [](const int c){ return '0' <= c && c <= '9'; }))
+            {
+                str = str.substr(separator_pos + 1);
+                while (!str.empty() && str.front() == ' ') str.erase(str.begin());
+                return utf8::utf32to8(str);
+            }
+
+            return name;
+        }
+
+        return name;
+    };
+
+    auto sanitize_name_list = [&](const std::vector<std::string> & name)->std::vector<std::string>
+    {
+        std::vector<std::string> result;
+        std::ranges::for_each(name, [&](const std::string & name_){ result.push_back(sanitize_name(name_));});
+        return result;
+    };
+
+    auto get_index_from_pads = [](const std::string& str_)->int
+    {
+        try {
+            auto str = utf8_to_u32(str_);
+            const auto pos = str.find_first_of(':');
+            if (pos == std::string::npos) return -1;
+            str = str.substr(0, pos);
+            if (str.empty()) return -1;
+            const int ret = static_cast<int>(std::strtol(utf8::utf32to8(str).c_str(), nullptr, 10));
+            return ret;
+        } catch (...) {
+            return -1;
+        }
+    };
+
+    if (const int arg = argument_index(rl_line_buffer, start); arg == 0) {
         matches = rl_completion_matches(text, cmd_generator);
-    } else {
-        char *buf = strdup(rl_line_buffer);
-        char *cmd = strtok(buf, " ");
-        if  (cmd && (strcmp(cmd, "help") == 0 || strcmp(cmd, "get") == 0))
+    }
+    else
+    {
+        if  (const auto & cmd = args.front(); cmd == "help" || cmd == "get")
         {
             if (arg == 1)
             {
-                if (std::string(cmd) == "help") {
+                if (cmd == "help") {
                     matches = rl_completion_matches(text, help_voc_generator);
-                } else if (std::string(cmd) == "get") {
+                } else if (cmd == "get") {
                     matches = rl_completion_matches(text, get_voc_generator);
                 }
                 rl_attempted_completion_over = 1;
             }
-            else if (std::string(cmd) == "get" && arg == 2)
+            else if (cmd == "get" && arg == 2)
             {
                 matches = rl_completion_matches(text, get_voc_sup_generator);
             }
@@ -146,7 +206,7 @@ static char ** cmd_completion(const char *text, int start, int end) {
                 rl_attempted_completion_over = 1;
             }
         }
-        else if (cmd && (strcmp(cmd, "set") == 0))
+        else if (cmd == "set")
         {
             switch (arg)
             {
@@ -155,7 +215,64 @@ static char ** cmd_completion(const char *text, int start, int end) {
                     rl_attempted_completion_over = 1;
                     break;
                 case 2:
+                    {
+                        std::lock_guard lock(arg2_additional_verbs_mutex);
+                        arg2_additional_verbs.clear();
+                        if (args.size() < 2) {
+                            matches = nullptr;
+                            rl_attempted_completion_over = 1;
+                            break;
+                        }
+                        const auto & second_arg = args[1];
+                        if (second_arg == "mode") {
+                            arg2_additional_verbs.insert_range(arg2_additional_verbs.begin(), std::vector<std::string>{"rule", "global", "direct"});
+                        } else if (second_arg == "sort_reverse") {
+                            arg2_additional_verbs.insert_range(arg2_additional_verbs.begin(), std::vector<std::string>{"on", "off"});
+                        } else if (second_arg == "vgroup") {
+                            arg2_additional_verbs.insert_range(arg2_additional_verbs.begin(), g_proxy_list | std::views::keys);
+                        } else if (second_arg == "group") {
+                            const auto & list = g_proxy_list | std::views::keys;
+                            arg2_additional_verbs.insert_range(arg2_additional_verbs.begin(),
+                                sanitize_name_list(std::vector<std::string>(list.begin(), list.end())));
+                        }
+                    }
+                    matches = rl_completion_matches(text, set_arg2_verbs);
+                    rl_attempted_completion_over = 1;
+                    break;
                 case 3:
+                    {
+                        if (args.size() < 3) {
+                            matches = nullptr;
+                            rl_attempted_completion_over = 1;
+                            break;
+                        }
+                        const auto & third_arg = args[2];
+                        std::lock_guard lock(arg2_additional_verbs_mutex);
+                        arg2_additional_verbs.clear();
+                        if (std::ranges::all_of(third_arg, [](const char c){ return '0' <= c && c <= '9'; }))
+                        {
+                            const auto group_index = std::strtol(third_arg.c_str(), nullptr, 10);
+                            for (const auto & [group, proxy_candidates] : g_proxy_list)
+                            {
+                                if (group_index == get_index_from_pads(group)) {
+                                    arg2_additional_verbs.clear();
+                                    arg2_additional_verbs.insert_range(arg2_additional_verbs.begin(), proxy_candidates);
+                                    break;
+                                }
+                            }
+                        } else {
+                            // not vector
+                            for (const auto & [group, proxy_candidates] : g_proxy_list)
+                            {
+                                if (third_arg == sanitize_name(group))
+                                {
+                                    arg2_additional_verbs.clear();
+                                    arg2_additional_verbs.insert_range(arg2_additional_verbs.begin(), sanitize_name_list(proxy_candidates));
+                                    break;
+                                }
+                            }
+                        }
+                    }
                     matches = rl_completion_matches(text, set_arg2_verbs);
                     rl_attempted_completion_over = 1;
                     break;
@@ -170,8 +287,6 @@ static char ** cmd_completion(const char *text, int start, int end) {
             matches = nullptr;
             rl_attempted_completion_over = 1;
         }
-
-        free(buf);
     }
     return matches;
 }
@@ -333,10 +448,11 @@ void help_overall()
                 << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(5,5,5) << "NOPAGER" << color::no_color()
                 << " Set NOPAGER to true to disable pagers even if they are available" << std::endl
                 << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(5,5,5) << "NO_0xFE0F_EXPAND_EMOJI" << color::no_color()
-                << " Fix Unicode processing issues like \"" << reinterpret_cast<const char*>(alp_no_expand)
+                << " Fix Unicode processing issues for emoji space expand code, e.g., \"" << reinterpret_cast<const char*>(alp_no_expand)
                 << "\" and \"" << reinterpret_cast<const char*>(alp_expanded) << "\""
-                << ", if you cannot notice any differences, you might want to set this to \"true\""
-                << std::endl;
+                << ".\n" << std::string(33, ' ') << "If you cannot notice any differences of the above emojis, you might want to set this to `true`" << std::endl
+                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(5,5,5) << "COLOR" << color::no_color()
+                << " Set it to `never` to disable color codes" << std::endl;
     pager(ss.str());
 }
 
@@ -358,11 +474,57 @@ void help_sub_cmds(const std::string & cmd_text, const std::map <std::string, st
         if (longest_subcmd_length < s.length()) longest_subcmd_length = static_cast<int>(s.length());
     }
 
+    auto replace_all =
+    [](std::string & original,
+        const std::string & target,
+        const std::string & replacement)
+    {
+        if (target.empty()) return; // Avoid infinite loop if target is empty
+
+        if (target == " " && replacement.empty()) {
+            std::erase_if(original, [](const char c) { return c == ' '; });
+        }
+
+        size_t pos = 0;
+        while ((pos = original.find(target, pos)) != std::string::npos) {
+            original.replace(pos, target.length(), replacement);
+            pos += replacement.length(); // Move past the replacement to avoid infinite loop
+        }
+    };
+
     for (const auto & [sub_cmd_text, des] : map)
     {
+        std::string processed_des = des;
+        replace_all(processed_des, ". ", ".\n");
+        std::vector<std::string> sentences;
+        std::string sentence;
+        std::ranges::for_each(processed_des, [&sentences, &sentence](const char & s)
+        {
+            if (s != '\n') {
+                sentence += s;
+            } else {
+                sentences.push_back(sentence);
+                sentence.clear();
+            }
+        });
+
+        if (!sentence.empty()) sentences.push_back(sentence);
+        const auto padding = std::string(longest_subcmd_length - sub_cmd_text.length() + 1, ' ');
+        const auto pre_text = 15 + sub_cmd_text.length();
+        bool right_after = true;
         ss << "            " << color::color(0,0,5) << "*" << color::no_color() << " ";
-        ss << color::color(0,5,5) << sub_cmd_text << color::no_color() << ":" << std::string(longest_subcmd_length - sub_cmd_text.length() + 1, ' ') << des;
-        ss << std::endl;
+        ss  << color::color(0,5,5) << sub_cmd_text << color::no_color() << ":";
+        std::ranges::for_each(sentences, [&](const std::string & s)
+        {
+            if (right_after) {
+                ss << padding << s << std::endl;
+                right_after = false;
+            } else {
+                ss << std::string(pre_text, ' ') << padding << s << std::endl;
+            }
+        });
+
+        if (sentences.size() > 1) ss << std::endl;
     }
 
     pager(ss.str());
@@ -1005,11 +1167,11 @@ void nload(
             return str + std::string(max_pre_slash_content_len - str.length(), ' ');
         };
 
-        info_list.push_back(std::string("        Cur: ") + value_to_speed(*speed));
-        info_list.push_back(std::string("        Min: ") + min_speed_on_page_str);
+        info_list.push_back(std::string("    Cur (P): ") + value_to_speed(*speed));
+        info_list.push_back(std::string("    Min (P): ") + min_speed_on_page_str);
         info_list.push_back(std::string("  Max (P/O): ") + generate_padding(max_speed_on_page_str) + " / " + max_speed_overall_str);
         info_list.push_back(std::string("  Avg (P/O): ") + generate_padding(avg_speed_on_page_str) + " / " + avg_speed_overall_str);
-        info_list.push_back(std::string("        Ttl: ") + value_to_size(*total));
+        info_list.push_back(std::string("    Ttl (O): ") + value_to_size(*total));
 
         std::vector<uint64_t> size_list;
         for (const auto & str : info_list) {
@@ -1138,6 +1300,17 @@ void nload(
                     total_upload_since_start);
             }
             std::cout << color::no_color();
+        }
+
+        if (const auto free_space = row - window_space * 2 - 5; free_space > 0)
+        {
+            if (const auto msg = "* P: On this page, O: Overall";
+                col >= static_cast<int>(strlen(msg)))
+            {
+                std::cout << color::color(5,5,5, 0,0,5)
+                          << msg << std::string(col - strlen(msg), ' ')
+                          << color::no_color() << std::flush;
+            }
         }
 
         for (int i = 0; i < 1000; i++)
@@ -1273,43 +1446,45 @@ int main(int argc, char ** argv)
         };
 
         std::map < uint64_t, std::string > index_to_proxy_name_list;
-
+        std::map < std::string, int > latency_backups;
         auto update_providers = [&]
         {
+            backend_instance.update_proxy_list();
+            auto proxy_list = backend_instance.get_proxies_and_latencies_as_pair().first;
+            std::map <std::string, std::vector < std::string> > groups;
             if (index_to_proxy_name_list.empty())
             {
-                backend_instance.update_proxy_list();
-                auto proxy_list = backend_instance.get_proxies_and_latencies_as_pair().first;
-                std::vector<std::string> groups;
-                std::vector<std::string> proxies;
-
-                for (const auto & [group, proxy] : proxy_list)
-                {
-                    if (std::ranges::find(groups, group) == groups.end())
-                    {
-                        groups.push_back("\"" + group + "\"");
-                    }
-
-                    std::ranges::for_each(proxy.first, [&](const std::string & _p)
-                    {
-                        if (std::ranges::find(proxies, _p) == proxies.end()) proxies.push_back("\"" + _p + "\"");
-                    });
+                for (const auto & [group, proxy] : proxy_list) {
+                    groups[group] = proxy.first;
                 }
-
-                std::lock_guard lock(arg2_additional_verbs_mutex);
-                arg2_additional_verbs.clear();
-                arg2_additional_verbs.insert(arg2_additional_verbs.end(), proxies.begin(), proxies.end());
-                arg2_additional_verbs.insert(arg2_additional_verbs.end(), groups.begin(), groups.end());
             }
             else
             {
-                std::lock_guard lock(arg2_additional_verbs_mutex);
-                arg2_additional_verbs.clear();
-                for (const auto & [index, proxy_endpoint] : index_to_proxy_name_list) {
-                    const auto index_str = std::to_string(index);
-                    arg2_additional_verbs.emplace_back(index_str + ": \"" += proxy_endpoint + "\"");
+                auto get_index_by_name = [&](const std::string & name)
+                {
+                    for (const auto & [index, proxy] : index_to_proxy_name_list) {
+                        if (proxy == name) return std::to_string(index) + ": " + proxy;
+                    }
+
+                    throw std::logic_error("Unknown name");
+                };
+
+                auto get_index_by_name_vec = [&](const std::vector < std::string > & name_list)
+                {
+                    std::vector < std::string > proxy_list_ret;
+                    std::ranges::for_each(name_list, [&](const std::string & name) {
+                        proxy_list_ret.push_back(get_index_by_name(name));
+                    });
+                    return proxy_list_ret;
+                };
+
+                for (const auto & [group, proxy] : proxy_list) {
+                    groups[get_index_by_name(group)] = get_index_by_name_vec(proxy.first);
                 }
             }
+
+            std::lock_guard lock(arg2_additional_verbs_mutex);
+            g_proxy_list = groups;
         };
 
         backend_instance.start_continuous_updates();
@@ -1836,7 +2011,7 @@ int main(int argc, char ** argv)
                     }
                     else if (command_vector[1] == "latency")
                     {
-                        std::cout << "Testing latency with url " << latency_url << " ..." << std::endl;
+                        std::cout << "Testing latency with the url " << latency_url << " ..." << std::endl;
                         backend_instance.update_proxy_list(); // update the proxy first
                         backend_instance.latency_test(latency_url);
                         auto latency_list = backend_instance.get_proxies_and_latencies_as_pair();
@@ -1911,13 +2086,29 @@ int main(int argc, char ** argv)
                         }
 
                         if (input_getc_worker.joinable()) input_getc_worker.join();
-                    } else if (command_vector[1] == "mode") {
+                    }
+                    else if (command_vector[1] == "mode") {
                         std::cout << backend_instance.get_current_mode() << std::endl;
                     }
                     else if (command_vector[1] == "proxy") {
+                        auto [proxy_list, proxy_lat] = backend_instance.get_proxies_and_latencies_as_pair();
+                        bool is_all_uninited = true;
+                        for (const auto & lat : proxy_lat | std::views::values)
+                        {
+                            if (lat != -1) {
+                                is_all_uninited = false;
+                                break;
+                            }
+                        }
+
+                        // has results, then we update local backups
+                        if (!is_all_uninited) {
+                            latency_backups = proxy_lat;
+                        }
+                        // mandatory update for each pull
                         backend_instance.update_proxy_list();
                         update_providers();
-                        auto [proxy_list, proxy_lat] = backend_instance.get_proxies_and_latencies_as_pair();
+                        proxy_list = backend_instance.get_proxies_and_latencies_as_pair().first;
                         std::vector<std::string> table_titles = { "Group", "Sel", "Proxy Candidates" };
                         std::vector<std::vector<std::string>> table_vals;
 
@@ -1935,8 +2126,12 @@ int main(int argc, char ** argv)
                             push_line(element.first, "", "");
                             std::ranges::for_each(element.second.first, [&](const std::string & proxy)
                             {
+                                int latency = -1;
+                                if (latency_backups.contains(proxy)) latency = latency_backups.at(proxy);
                                 push_line("", proxy == element.second.second ? "*" : "",
-                                    (proxy == element.second.second ? "=> " : "") + proxy);
+                                    (proxy == element.second.second ? "=> " : "") + proxy +
+                                    (latency == -1 ? "" : " (" + std::to_string(latency) + ")")
+                                );
                             });
                         });
 
@@ -1974,7 +2169,7 @@ int main(int argc, char ** argv)
                         std::ranges::for_each(proxy_list, [&](const std::pair < std::string, std::pair < std::vector<std::string>, std::string> > & element)
                         {
                             // add group
-                            if (!index_to_name_group_name.contains(element.first)) {
+                            if (!index_to_name_group_name.contains(element.first) && !index_to_name_proxy_endpoint.contains(element.first)) {
                                 index_to_name_group_name.emplace(element.first, vector_index++);
                             }
                             std::ranges::for_each(element.second.first, [&](const std::string & proxy)
