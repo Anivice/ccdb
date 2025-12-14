@@ -102,7 +102,7 @@ private:
 
 public:
     general_info_pulling(const std::string & ip, const int port, const std::string& token) : backend_client(ip, port, token) { }
-    ~general_info_pulling() = default;
+    ~general_info_pulling() { stop_continuous_updates(); };
 
 protected:
     // need continuous updates

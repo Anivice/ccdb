@@ -24,15 +24,13 @@ std::u32string utf8_to_u32(const std::string& s)
 
 const char clear[] = { 0x1b, 0x5b, 0x48, 0x1b, 0x5b, 0x32, 0x4a, 0x1b, 0x5b, 0x33, 0x4a };
 
-volatile std::atomic_bool sysint_pressed = false;
+std::atomic_bool sysint_pressed = false;
 void sigint_handler(int)
 {
-    // const auto msg = "\n\033[F\033[Kccdb> ";
-    // (void)write(1, msg, strlen(msg));
     sysint_pressed = true;
 }
 
-volatile std::atomic_bool window_size_change = false;
+std::atomic_bool window_size_change = false;
 void window_size_change_handler(int) {
     window_size_change = true;
 }
@@ -1224,7 +1222,7 @@ void nload(
             {
                 const auto index = j - start;
                 const auto [full_blocks, partial_block_percentage] = metric_list[index];
-                const auto actual_content_height = full_blocks + (partial_block_percentage == 0 ? 0 : 1);
+                const auto actual_content_height = full_blocks + (partial_block_percentage == 0 ? 0 : 1) + 1;
                 if (actual_content_height == current_height_on_screen) // see partial
                 {
                     if (1 <= partial_block_percentage && partial_block_percentage <= 40) {
@@ -1232,16 +1230,6 @@ void nload(
                     } else if (41 <= partial_block_percentage && partial_block_percentage <= 80) {
                         std::cout << l_41_to_80;
                     } else if (81 <= partial_block_percentage && partial_block_percentage <= 100) {
-                        std::cout << l_81_to_100;
-                    } else {
-                        std::cout << " ";
-                    }
-                }
-                else if (actual_content_height >= 2 && (current_height_on_screen == actual_content_height - 1))
-                {
-                    if (1 <= partial_block_percentage && partial_block_percentage <= 40) {
-                        std::cout << l_41_to_80;
-                    } else if (41 <= partial_block_percentage && partial_block_percentage <= 100) {
                         std::cout << l_81_to_100;
                     } else {
                         std::cout << " ";
@@ -1291,11 +1279,23 @@ void nload(
             auto_clear(down_speed_list, col - info_space_size);
 
             std::ranges::for_each(up_speed_list, [&](const uint64_t i) {
-                up_list.push_back(static_cast<float>(i) / static_cast<float>(max(up_speed_list)));
+                const auto max_num = static_cast<float>(max(up_speed_list));
+                if (max_num != 0) {
+                    const auto val = static_cast<float>(i) / max_num;
+                    up_list.push_back(val);
+                } else {
+                    up_list.push_back(0);
+                }
             });
 
             std::ranges::for_each(down_speed_list, [&](const uint64_t i) {
-                down_list.push_back(static_cast<float>(i) / static_cast<float>(max(down_speed_list)));
+                const auto max_num = static_cast<float>(max(down_speed_list));
+                if (max_num != 0) {
+                    const auto val = static_cast<float>(i) / max_num;
+                    down_list.push_back(val);
+                } else {
+                    down_list.push_back(0);
+                }
             });
 
             std::cout.write(clear, sizeof(clear)); // clear the screen
@@ -1614,8 +1614,9 @@ int main(int argc, char ** argv)
         while ((line = readline("ccdb> ")) != nullptr)
         {
             if (sysint_pressed) {
-                continue;
+                free(line);
                 sysint_pressed = false;
+                continue;
             }
 
             const auto presented_history = remove_leading_and_tailing_spaces(line);

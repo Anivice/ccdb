@@ -379,9 +379,11 @@ void general_info_pulling::pull_continuous_updates()
 
 void general_info_pulling::stop_continuous_updates()
 {
-    keep_pull_continuous_updates = false;
-    backend_client.abort();
-    if (pull_continuous_updates_worker.joinable()) pull_continuous_updates_worker.join();
+    if (keep_pull_continuous_updates) {
+        keep_pull_continuous_updates = false;
+        backend_client.abort();
+        if (pull_continuous_updates_worker.joinable()) pull_continuous_updates_worker.join();
+    }
 }
 
 void general_info_pulling::change_focus(const std::string & info)
