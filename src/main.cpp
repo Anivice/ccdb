@@ -1203,6 +1203,10 @@ void nload(
         }
 
         info_space_size = std::max(static_cast<int>(max(size_list)), info_space_size);
+        if (col < info_space_size) {
+            std::cout << color::color(0,0,0,5,0,0) << "TOO SMALL" << std::endl;
+            return;
+        }
 
         for (int i = 0; i < window_space; ++i)
         {
@@ -1273,8 +1277,8 @@ void nload(
     const auto now = std::chrono::high_resolution_clock::now();
     while (*running)
     {
-        const auto free_space = row - window_space * 2 - reserved_lines;
-        if (window_space > 5)
+        const int free_space = row - window_space * 2 - reserved_lines;
+        if (window_space > reserved_lines)
         {
             up_list.clear();
             down_list.clear();
@@ -1294,7 +1298,9 @@ void nload(
             });
 
             std::cout.write(clear, sizeof(clear)); // clear the screen
-            std::cout << "C++ Clash Dashboard:" << std::endl;
+            std::string title = "C++ Clash Dashboard:";
+            if (title.length() > col) title = title.substr(0, col);
+            std::cout << title << std::endl;
             std::cout << color::color(5,3,3) << std::string(col, '=') << color::no_color() << std::endl;
             std::cout << "Incoming:" << std::endl;
             {
@@ -1329,18 +1335,42 @@ void nload(
 
             {
                 std::lock_guard<std::mutex> lock_gud(*top_3_connections_using_most_speed_mtx);
-                std::ranges::for_each(top_3_connections_using_most_speed, [&](const std::string & line) {
-                    std::cout << line << std::endl;
+                std::ranges::for_each(top_3_connections_using_most_speed, [&](const std::string & line)
+                {
+                    auto new_line = line;
+                    if (UnicodeDisplayWidth::get_width_utf8(line) > col)
+                    {
+                        auto utf32 = utf8_to_u32(line);
+                        decltype(utf32) utf32_cut;
+                        int len = 0;
+                        for (const auto & c : utf32)
+                        {
+                            len += UnicodeDisplayWidth::get_width_utf32({c});
+                            if (len >= (col - 1)) {
+                                break;
+                            }
+
+                            utf32_cut += c;
+                        }
+
+                        new_line = utf8::utf32to8(utf32_cut) + color::color(0,0,0,3,3,3) + ">";
+                    }
+                    std::cout   << color::color(3,3,3) << new_line
+                                << color::no_color() << std::endl;
                 });
             }
-        }
 
-        if (const auto msg = "* P: On this page, O: Overall";
-                col >= static_cast<int>(strlen(msg)))
+            if (const auto msg = "* P: On this page, O: Overall"; col >= static_cast<int>(strlen(msg)))
+            {
+                std::cout << color::color(5,5,5, 0,0,5)
+                          << msg << std::string(col - strlen(msg), ' ')
+                          << color::no_color() << std::flush;
+            }
+        }
+        else
         {
-            std::cout << color::color(5,5,5, 0,0,5)
-                      << msg << std::string(col - strlen(msg), ' ')
-                      << color::no_color() << std::flush;
+            std::cout.write(clear, sizeof(clear));
+            std::cout << color::color(0,0,0,5,0,0) << "TOO SMALL" << color::no_color() << std::endl;
         }
 
         for (int i = 0; i < 1000; i++)
@@ -1678,8 +1708,9 @@ int main(int argc, char ** argv)
 
                         int max_host_len = 0;
                         int max_upload_len = 0;
-                        std::ranges::for_each(conn, [&](general_info_pulling::connection_t & c) {
-                            c.host = c.host + " <" + c.networkType + " - " + c.chainName + ">";
+                        std::ranges::for_each(conn, [&](general_info_pulling::connection_t & c)
+                        {
+                            c.host = c.host + " " + (c.chainName == "DIRECT" ? "- " : "x ");
                             if (max_host_len < UnicodeDisplayWidth::get_width_utf8(c.host)) {
                                 max_host_len = UnicodeDisplayWidth::get_width_utf8(c.host);
                             }
@@ -1698,12 +1729,10 @@ int main(int argc, char ** argv)
                         {
                             const std::string padding(max_host_len - UnicodeDisplayWidth::get_width_utf8(c.host), ' ');
                             std::stringstream ss;
-                            ss  << color::color(3,3,3)
-                                << c.host << padding
-                                << color::color(3,3,2) << " UP: " << c.chainName // already up speed by temp save
+                            ss  << c.host << padding
+                                << " UP: " << c.chainName // already up speed by temp save
                                 << std::string(max_upload_len - c.chainName.length(), ' ')
-                                << color::color(2,3,3) << " DL: " << value_to_speed(c.downloadSpeed)
-                                << color::no_color();
+                                << " DL: " << value_to_speed(c.downloadSpeed);
                             conn_str.push_back(ss.str());
                         });
 

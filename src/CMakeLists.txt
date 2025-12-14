@@ -6,13 +6,14 @@ set(CMAKE_CXX_STANDARD 23)
 # readline only supports Makefile
 find_program(MAKE_EXECUTABLE NAMES make gmake REQUIRED)
 include(ExternalProject)
-
+set(NCURSES_MAKE_ENTIRE "${MAKE_EXECUTABLE} ${NCURSES_MAKE_ADDITIONAL_FLAGS}")
+message(STATUS "NCRUSES: ${NCURSES_MAKE_ENTIRE}")
 ExternalProject_Add(NCURSES
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/ncurses
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/ncurses-6.5
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/ncurses/install
         CONFIGURE_COMMAND   <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> ${NCURSES_CONFIGURE_ADDITIONAL_FLAGS}
-        BUILD_COMMAND       ${MAKE_EXECUTABLE} ${NCURSES_MAKE_ADDITIONAL_FLAGS}
+        BUILD_COMMAND       /bin/sh -c "${NCURSES_MAKE_ENTIRE}"
         INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${NCURSES_MAKE_INSTALL_ADDITIONAL_FLAGS}
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libncursesw.a
         TEST_COMMAND        ""
@@ -34,13 +35,14 @@ set_target_properties(ncurses::ncurses PROPERTIES
 add_dependencies(ncurses::ncurses NCURSES)
 include_directories("${NCURSES_INCLUDE_DIR}/ncursesw")
 include_directories("${NCURSES_INCLUDE_DIR}")
-
+set(READLINE_MAKE_ENTIRE "${MAKE_EXECUTABLE} ${READLINE_MAKE_ADDITIONAL_FLAGS}")
+message(STATUS "READLINE: ${READLINE_MAKE_ENTIRE}")
 ExternalProject_Add(READLINE
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/readline
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/readline-8.3
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/readline/install
         CONFIGURE_COMMAND   <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --with-curses ${READLINE_CONFIGURE_ADDITIONAL_FLAGS}
-        BUILD_COMMAND       ${MAKE_EXECUTABLE} ${READLINE_MAKE_ADDITIONAL_FLAGS}
+        BUILD_COMMAND       /bin/sh -c "${READLINE_MAKE_ENTIRE}"
         INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${READLINE_MAKE_INSTALL_ADDITIONAL_FLAGS}
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libhistory.a <INSTALL_DIR>/lib/libreadline.a <INSTALL_DIR>/lib/libreadline.so <INSTALL_DIR>/lib/libhistory.so
         TEST_COMMAND        ""
@@ -75,7 +77,7 @@ add_executable(ccdb
         key_raw.cpp
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR})
-target_compile_definitions(ccdb PUBLIC CCDB_VERSION="0.8.4-rc1")
+target_compile_definitions(ccdb PUBLIC CCDB_VERSION="0.8.4-rc2")
 
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     if ("${CMAKE_SANITIZER_TYPE}" STREQUAL "address")
@@ -97,7 +99,7 @@ else ()
     else ()
         message(WARNING "GLIBC IS DYNAMICALLY LINKED!")
     endif ()
-    target_compile_options(ccdb PUBLIC
+    target_compile_options(ccdb PRIVATE
             -O3
             # -flto
             -fomit-frame-pointer
@@ -106,12 +108,13 @@ else ()
             -fdata-sections
             -ffunction-sections
             -D_FORTIFY_SOURCE=2
-            -fstack-protector-strong
+            -fno-stack-protector
+            #-fstack-protector-strong
             -Wl,-z,relro -Wl,-z,now
             -s
             ${CC_ADDITIONAL_OPTIONS}
     )
-    target_link_options(ccdb PUBLIC
+    target_link_options(ccdb PRIVATE
             ${LD_STATIC}
             -O3
             # -flto
@@ -122,7 +125,8 @@ else ()
             -ffunction-sections
             -Wl,--gc-sections
             -D_FORTIFY_SOURCE=2
-            -fstack-protector-strong
+            -fno-stack-protector
+            #-fstack-protector-strong
             -Wl,-z,relro -Wl,-z,now
             -s
             ${LD_ADDITIONAL_OPTIONS}

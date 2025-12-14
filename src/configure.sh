@@ -8,6 +8,9 @@ TARGET="$(basename "$script_dir/../toolchains"/"$ARCH"-*/bin/*-addr2line | awk -
 TARGET=$(echo $TARGET)
 if [ -z "$TARGET" ]; then echo "Unknown arch $ARCH" >&2; exit 1; fi
 
+CMAKE_CFLAGS="-O3 -fomit-frame-pointer -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2 -fno-stack-protector -Wl,-z,relro -Wl,-z,now -s"
+export CXXFLAGS="$CMAKE_CFLAGS"
+export CFLAGS="$CMAKE_CFLAGS"
 export CC="$TARGET"-gcc
 export CXX="$TARGET"-g++
 export AR="$TARGET"-ar
@@ -28,10 +31,10 @@ env PATH="$MUSL_SYSROOT"/bin/:"$PATH" cmake -B "$BUILD_DIR" -S "$script_dir" \
             -DREADLINE_CONFIGURE_ADDITIONAL_FLAGS="--host=$ARCH" \
             -DNCURSES_CONFIGURE_ADDITIONAL_FLAGS="--disable-stripping;--host=$ARCH" \
             -DCMAKE_STRIP="$STRIP" \
-            -DNCURSES_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
-            -DREADLINE_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
+            -DNCURSES_MAKE_ADDITIONAL_FLAGS="CFLAGS=\"$CMAKE_CFLAGS\" CXXFLAGS=\"$CMAKE_CFLAGS\" -j$(nproc)" \
+            -DREADLINE_MAKE_ADDITIONAL_FLAGS="CFLAGS=\"$CMAKE_CFLAGS\" CXXFLAGS=\"$CMAKE_CFLAGS\" -j$(nproc)" \
             -DCMAKE_BUILD_STATIC="True"
 pushd "$PWD"
 cd "$BUILD_DIR"
-env PATH="$MUSL_SYSROOT"/bin/:"$PATH" make -j"$(nproc)"
+env PATH="$MUSL_SYSROOT"/bin/:"$PATH" make CFLAGS="$CMAKE_CFLAGS" CXXFLAGS="$CMAKE_CFLAGS" -j"$(nproc)"
 popd
