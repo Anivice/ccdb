@@ -1074,21 +1074,31 @@ void nload(
     const std::atomic < uint64_t > * total_download,
     const std::atomic < uint64_t > * upload_speed,
     const std::atomic < uint64_t > * download_speed,
-    const std::atomic_bool * running)
+    const std::atomic_bool * running,
+    std::vector < std::string > & top_3_connections_using_most_speed,
+    std::mutex * top_3_connections_using_most_speed_mtx)
 {
     pthread_setname_np(pthread_self(), "nload");
-    auto [ row, col ] = get_col_line_size();
-    auto window_space = (row - 5) / 2;
+    constexpr int reserved_lines = 4 + 3;
+    int row = 0, col = 0;
+    int window_space = 0;
+    auto update_window_spaces = [&row, &col, &window_space]() {
+        const auto [ r, c ] = get_col_line_size();
+        row = r;
+        col = c;
+        window_space = (row - reserved_lines) / 2;
+    };
+
     constexpr char l_1_to_40 = '.';
     constexpr char l_41_to_80 = '|';
     constexpr char l_81_to_100 = '#';
 
-    auto generate_from_metric = [&](const std::vector <float> & list)->std::vector < std::pair < int, int > >
+    auto generate_from_metric = [&](const std::vector <float> & list, int height)->std::vector < std::pair < int, int > >
     {
         std::vector <float> image;
         std::ranges::for_each(list, [&](const float f)
         {
-            image.push_back(f * static_cast<float>(row));
+            image.push_back(f * static_cast<float>(height));
         });
 
         std::vector < std::pair < int, int > > meter_list;
@@ -1152,7 +1162,7 @@ void nload(
         const std::atomic<uint64_t> * total,
         const std::vector<uint64_t> & list,
         uint64_t & max_speed_out_of_loop, uint64_t & min_speed_out_of_loop,
-        const decltype(generate_from_metric({})) & metric_list,
+        const decltype(generate_from_metric({}, 0)) & metric_list,
         const std::chrono::time_point<std::chrono::high_resolution_clock> start_time_point,
         const uint64_t total_bytes_since_started)
     {
@@ -1251,6 +1261,7 @@ void nload(
         }
     };
 
+    update_window_spaces();
     std::vector < uint64_t > up_speed_list, down_speed_list;
     std::vector<float> up_list, down_list;
     uint64_t max_up_speed = 0, min_up_speed = UINT64_MAX, max_down_speed = 0, min_down_speed = UINT64_MAX;
@@ -1262,6 +1273,7 @@ void nload(
     const auto now = std::chrono::high_resolution_clock::now();
     while (*running)
     {
+        const auto free_space = row - window_space * 2 - reserved_lines;
         if (window_space > 5)
         {
             up_list.clear();
@@ -1287,7 +1299,7 @@ void nload(
             std::cout << "Incoming:" << std::endl;
             {
                 std::cout << color::color(0,5,1);
-                const auto metric_list = generate_from_metric(down_list);
+                const auto metric_list = generate_from_metric(down_list, window_space);
                 const auto total_download_since_start = *total_download - download_total_bytes_when_started;
                 print_win(download_speed,
                     total_download,
@@ -1302,7 +1314,7 @@ void nload(
             std::cout << "Outgoing:" << std::endl;
             {
                 std::cout << color::color(5,1,0);
-                const auto metric_list = generate_from_metric(up_list);
+                const auto metric_list = generate_from_metric(up_list, window_space - (free_space == 0 ? 1 : 0));
                 const auto total_upload_since_start = *total_upload - upload_total_bytes_when_started;
                 print_win(upload_speed,
                     total_upload,
@@ -1314,17 +1326,21 @@ void nload(
                     total_upload_since_start);
             }
             std::cout << color::no_color();
+
+            {
+                std::lock_guard<std::mutex> lock_gud(*top_3_connections_using_most_speed_mtx);
+                std::ranges::for_each(top_3_connections_using_most_speed, [&](const std::string & line) {
+                    std::cout << line << std::endl;
+                });
+            }
         }
 
-        if (const auto free_space = row - window_space * 2 - 5; free_space > 0)
-        {
-            if (const auto msg = "* P: On this page, O: Overall";
+        if (const auto msg = "* P: On this page, O: Overall";
                 col >= static_cast<int>(strlen(msg)))
-            {
-                std::cout << color::color(5,5,5, 0,0,5)
-                          << msg << std::string(col - strlen(msg), ' ')
-                          << color::no_color() << std::flush;
-            }
+        {
+            std::cout << color::color(5,5,5, 0,0,5)
+                      << msg << std::string(col - strlen(msg), ' ')
+                      << color::no_color() << std::flush;
         }
 
         for (int i = 0; i < 1000; i++)
@@ -1338,9 +1354,7 @@ void nload(
             std::this_thread::sleep_for(std::chrono::milliseconds(1l));
         }
 
-        row = get_line_size();
-        col = get_col_size();
-        window_space = (row - 5) / 2;
+        update_window_spaces();
     }
 }
 
@@ -1623,8 +1637,10 @@ int main(int argc, char ** argv)
                     std::atomic<uint64_t> total_up = 0, total_down = 0, up_speed = 0, down_speed = 0;
                     std::atomic_bool running = true;
                     sysint_pressed = false;
+                    std::mutex lock;
+                    std::vector<std::string> top_3_conn;
 
-                    std::thread Worker(nload, &total_up, &total_down, &up_speed, &down_speed, &running);
+                    std::thread Worker(nload, &total_up, &total_down, &up_speed, &down_speed, &running, std::ref(top_3_conn), &lock);
                     std::thread input_watcher([&]
                     {
                         std::cout << "\033[?25l";
@@ -1649,6 +1665,52 @@ int main(int argc, char ** argv)
                         total_down = backend_instance.get_total_downloaded_bytes();
                         up_speed = backend_instance.get_current_upload_speed();
                         down_speed = backend_instance.get_current_download_speed();
+                        auto conn = backend_instance.get_active_connections();
+                        std::ranges::sort(conn, [](const general_info_pulling::connection_t & a,
+                            const general_info_pulling::connection_t & b)->bool
+                        {
+                            return (a.downloadSpeed + a.uploadSpeed) > (b.downloadSpeed + b.uploadSpeed);
+                        });
+
+                        if (conn.size() > 3) {
+                            conn.resize(3);
+                        }
+
+                        int max_host_len = 0;
+                        int max_upload_len = 0;
+                        std::ranges::for_each(conn, [&](general_info_pulling::connection_t & c) {
+                            c.host = c.host + " <" + c.networkType + " - " + c.chainName + ">";
+                            if (max_host_len < UnicodeDisplayWidth::get_width_utf8(c.host)) {
+                                max_host_len = UnicodeDisplayWidth::get_width_utf8(c.host);
+                            }
+
+                            const auto str = value_to_speed(c.uploadSpeed);
+                            if (max_upload_len < str.length())
+                            {
+                                max_upload_len = static_cast<int>(str.length());
+                            }
+
+                            c.chainName = str; // temp save
+                        });
+
+                        std::vector<std::string> conn_str;
+                        std::ranges::for_each(conn, [&](const general_info_pulling::connection_t & c)
+                        {
+                            const std::string padding(max_host_len - UnicodeDisplayWidth::get_width_utf8(c.host), ' ');
+                            std::stringstream ss;
+                            ss  << color::color(3,3,3)
+                                << c.host << padding
+                                << color::color(3,3,2) << " UP: " << c.chainName // already up speed by temp save
+                                << std::string(max_upload_len - c.chainName.length(), ' ')
+                                << color::color(2,3,3) << " DL: " << value_to_speed(c.downloadSpeed)
+                                << color::no_color();
+                            conn_str.push_back(ss.str());
+                        });
+
+                        {
+                            std::lock_guard<std::mutex> lock_gud(lock);
+                            top_3_conn = conn_str;
+                        }
                         std::this_thread::sleep_for(std::chrono::milliseconds(500l));
                     }
 
