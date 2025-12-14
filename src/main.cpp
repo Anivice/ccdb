@@ -225,15 +225,18 @@ static char ** cmd_completion(const char *text, int start, int end) {
                         }
                         const auto & second_arg = args[1];
                         if (second_arg == "mode") {
-                            arg2_additional_verbs.insert_range(arg2_additional_verbs.begin(), std::vector<std::string>{"rule", "global", "direct"});
+                            const auto & list = std::vector<std::string>{"rule", "global", "direct"};
+                            arg2_additional_verbs.insert(arg2_additional_verbs.begin(), list.begin(), list.end());
                         } else if (second_arg == "sort_reverse") {
-                            arg2_additional_verbs.insert_range(arg2_additional_verbs.begin(), std::vector<std::string>{"on", "off"});
+                            const auto & list = std::vector<std::string>{"on", "off"};
+                            arg2_additional_verbs.insert(arg2_additional_verbs.begin(), list.begin(), list.end());
                         } else if (second_arg == "vgroup") {
-                            arg2_additional_verbs.insert_range(arg2_additional_verbs.begin(), g_proxy_list | std::views::keys);
+                            const auto & list = g_proxy_list | std::views::keys;
+                            arg2_additional_verbs.insert(arg2_additional_verbs.begin(), list.begin(), list.end());
                         } else if (second_arg == "group") {
                             const auto & list = g_proxy_list | std::views::keys;
-                            arg2_additional_verbs.insert_range(arg2_additional_verbs.begin(),
-                                sanitize_name_list(std::vector<std::string>(list.begin(), list.end())));
+                            const auto & processed_list = sanitize_name_list(std::vector<std::string>(list.begin(), list.end()));
+                            arg2_additional_verbs.insert(arg2_additional_verbs.begin(), processed_list.begin(), processed_list.end());
                         }
                     }
                     matches = rl_completion_matches(text, set_arg2_verbs);
@@ -256,7 +259,7 @@ static char ** cmd_completion(const char *text, int start, int end) {
                             {
                                 if (group_index == get_index_from_pads(group)) {
                                     arg2_additional_verbs.clear();
-                                    arg2_additional_verbs.insert_range(arg2_additional_verbs.begin(), proxy_candidates);
+                                    arg2_additional_verbs.insert(arg2_additional_verbs.begin(), proxy_candidates.begin(), proxy_candidates.end());
                                     break;
                                 }
                             }
@@ -266,8 +269,9 @@ static char ** cmd_completion(const char *text, int start, int end) {
                             {
                                 if (third_arg == sanitize_name(group))
                                 {
+                                    const auto & list = sanitize_name_list(proxy_candidates);
                                     arg2_additional_verbs.clear();
-                                    arg2_additional_verbs.insert_range(arg2_additional_verbs.begin(), sanitize_name_list(proxy_candidates));
+                                    arg2_additional_verbs.insert(arg2_additional_verbs.begin(), list.begin(), list.end());
                                     break;
                                 }
                             }
