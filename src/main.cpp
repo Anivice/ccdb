@@ -27,8 +27,8 @@ const char clear[] = { 0x1b, 0x5b, 0x48, 0x1b, 0x5b, 0x32, 0x4a, 0x1b, 0x5b, 0x3
 volatile std::atomic_bool sysint_pressed = false;
 void sigint_handler(int)
 {
-    const char *msg = "\r[===> KEYBOARD INTERRUPT / PRESS Enter TO CONTINUE <===]\n";
-    (void)write(1, msg, strlen(msg));
+    // const auto msg = "\n\033[F\033[Kccdb> ";
+    // (void)write(1, msg, strlen(msg));
     sysint_pressed = true;
 }
 
@@ -198,7 +198,17 @@ static char ** cmd_completion(const char *text, int start, int end) {
             }
             else if (cmd == "get" && arg == 2)
             {
-                matches = rl_completion_matches(text, get_voc_sup_generator);
+                if (args.size() < 2) {
+                    matches = nullptr;
+                } else {
+                    const auto & second_arg = args[1];
+                    if (second_arg == "connections") {
+                        matches = rl_completion_matches(text, get_voc_sup_generator);
+                    } else {
+                        matches = nullptr;
+                    }
+                }
+                rl_attempted_completion_over = 1;
             }
             else if (arg > 1)
             {
@@ -1456,18 +1466,43 @@ int main(int argc, char ** argv)
             backend_instance.update_proxy_list();
             auto proxy_list = backend_instance.get_proxies_and_latencies_as_pair().first;
             std::map <std::string, std::vector < std::string> > groups;
+            auto mask_with_latency_when_fit = [&](const std::string & name)->std::string
+            {
+                if (const auto ptr = latency_backups.find(name);
+                    ptr != latency_backups.end() && ptr->second != -1)
+                {
+                    return name + " (" + std::to_string(ptr->second) + ")";
+                }
+
+                return name;
+            };
+
+            auto mask_with_latency_when_fit_vec = [&](const std::vector < std::string > & name)->std::vector < std::string >
+            {
+                std::vector < std::string > ret;
+                std::ranges::for_each(name, [&](const std::string & name_){ ret.push_back(mask_with_latency_when_fit(name_)); });
+                return ret;
+            };
+
             if (index_to_proxy_name_list.empty())
             {
                 for (const auto & [group, proxy] : proxy_list) {
-                    groups[group] = proxy.first;
+                    groups[mask_with_latency_when_fit(group)] = mask_with_latency_when_fit_vec(proxy.first);
                 }
             }
             else
             {
                 auto get_index_by_name = [&](const std::string & name)
                 {
+                    std::string suffix;
+                    if (const auto ptr = latency_backups.find(name);
+                        ptr != latency_backups.end() && ptr->second != -1)
+                    {
+                        suffix = " (" + std::to_string(ptr->second) + ")";
+                    }
+
                     for (const auto & [index, proxy] : index_to_proxy_name_list) {
-                        if (proxy == name) return std::to_string(index) + ": " + proxy;
+                        if (proxy == name) return std::to_string(index) + ": " + proxy + suffix;
                     }
 
                     throw std::logic_error("Unknown name");
@@ -1531,6 +1566,7 @@ int main(int argc, char ** argv)
         while ((line = readline("ccdb> ")) != nullptr)
         {
             if (sysint_pressed) {
+                continue;
                 sysint_pressed = false;
             }
 
@@ -2012,6 +2048,7 @@ int main(int argc, char ** argv)
                         }
 
                         if (input_getc_worker.joinable()) input_getc_worker.join();
+                        sysint_pressed = false;
                     }
                     else if (command_vector[1] == "latency")
                     {
@@ -2039,6 +2076,8 @@ int main(int argc, char ** argv)
                             table_vals.emplace_back(table_line);
                             table_line.clear();
                         }
+                        latency_backups = latency_list.second;
+                        update_providers();
                         print_table(titles_lat, table_vals, false,
                             true, { }, 0, nullptr,
                             is_less_available());
@@ -2090,6 +2129,8 @@ int main(int argc, char ** argv)
                         }
 
                         if (input_getc_worker.joinable()) input_getc_worker.join();
+                        backend_instance.change_focus("overview");
+                        sysint_pressed = false;
                     }
                     else if (command_vector[1] == "mode") {
                         std::cout << backend_instance.get_current_mode() << std::endl;
