@@ -1119,17 +1119,19 @@ void nload(
         std::ranges::reverse(list);
     };
 
-    auto max_in_vec = [](std::vector<uint64_t> list)->uint64_t
+    auto max_in_vec = [](const std::vector<uint64_t> & list_)->uint64_t
     {
-        if (list.empty()) return 0;
+        if (list_.empty()) return 0;
+        std::vector<uint64_t> list = list_;
         std::ranges::sort(list, [](const uint64_t a, const uint64_t b) { return a > b; });
         const uint64_t max_val = list.front();
         return max_val;
     };
 
-    auto min_in_vec = [](std::vector<uint64_t> list)->uint64_t
+    auto min_in_vec = [](const std::vector<uint64_t> & list_)->uint64_t
     {
-        if (list.empty()) return 0;
+        if (list_.empty()) return 0;
+        std::vector<uint64_t> list = list_;
         std::ranges::sort(list, [](const uint64_t a, const uint64_t b) { return a < b; });
         const uint64_t min_val = list.front();
         return min_val;
