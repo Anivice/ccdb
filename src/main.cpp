@@ -1112,38 +1112,30 @@ void nload(
 
     auto auto_clear = [](std::vector<uint64_t> & list, const uint64_t size)
     {
+        std::ranges::reverse(list);
         while (list.size() > size) {
-            list.erase(list.begin());
+            list.pop_back();
         }
+        std::ranges::reverse(list);
     };
 
-    auto max = [](const std::vector<uint64_t> & list)
+    auto max_in_vec = [](std::vector<uint64_t> list)->uint64_t
     {
-        uint64_t max_val = 0;
-        std::ranges::for_each(list, [&](const uint64_t i)
-        {
-            if (i > max_val) {
-                max_val = i;
-            }
-        });
-
+        if (list.empty()) return 0;
+        std::ranges::sort(list, [](const uint64_t a, const uint64_t b) { return a > b; });
+        const uint64_t max_val = list.front();
         return max_val;
     };
 
-    auto min = [](const std::vector<uint64_t> & list)
+    auto min_in_vec = [](std::vector<uint64_t> list)->uint64_t
     {
-        uint64_t min_val = UINT64_MAX;
-        std::ranges::for_each(list, [&](const uint64_t i)
-        {
-            if (i < min_val) {
-                min_val = i;
-            }
-        });
-
+        if (list.empty()) return 0;
+        std::ranges::sort(list, [](const uint64_t a, const uint64_t b) { return a < b; });
+        const uint64_t min_val = list.front();
         return min_val;
     };
 
-    auto avg = [](const std::vector<uint64_t> & list)
+    auto avg_in_vec = [](const std::vector<uint64_t> & list)
     {
         uint64_t sum = 0;
         std::ranges::for_each(list, [&](const uint64_t i)
@@ -1155,7 +1147,7 @@ void nload(
     };
 
     int info_space_size = 20;
-    auto print_win = [&max, &min, &avg, &info_space_size, &col](
+    auto print_win = [&max_in_vec, &min_in_vec, &avg_in_vec, &info_space_size, &col](
         const std::atomic<uint64_t> * speed,
         const std::atomic<uint64_t> * total,
         const std::vector<uint64_t> & list,
@@ -1167,8 +1159,8 @@ void nload(
     {
         const auto now = std::chrono::high_resolution_clock::now();
         const auto time_escalated = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time_point).count();
-        const auto min_speed = min(list);
-        const auto max_speed = max(list);
+        const auto min_speed = min_in_vec(list);
+        const auto max_speed = max_in_vec(list);
         max_speed_out_of_loop = std::max(max_speed, max_speed_out_of_loop);
         min_speed_out_of_loop = std::min(min_speed, min_speed_out_of_loop);
         std::vector < std::string > info_list;
@@ -1178,9 +1170,9 @@ void nload(
         const auto max_speed_on_page_str = value_to_speed(max_speed);
         // const auto min_speed_overall_str = value_to_speed(min_speed_out_of_loop);
         const auto max_speed_overall_str = value_to_speed(max_speed_out_of_loop);
-        const auto avg_speed_on_page_str = value_to_speed(static_cast<uint64_t>(avg(list)));
+        const auto avg_speed_on_page_str = value_to_speed(static_cast<uint64_t>(avg_in_vec(list)));
         const auto avg_speed_overall_str = value_to_speed(static_cast<long>(avg_speed_overall));
-        const auto max_pre_slash_content_len = max({
+        const auto max_pre_slash_content_len = max_in_vec({
             // min_speed_on_page_str.length(),
             max_speed_on_page_str.length(),
             avg_speed_on_page_str.length()
@@ -1201,7 +1193,7 @@ void nload(
             size_list.push_back(str.size());
         }
 
-        info_space_size = std::max(static_cast<int>(max(size_list)), info_space_size);
+        info_space_size = std::max(static_cast<int>(max_in_vec(size_list)), info_space_size);
         if (col < info_space_size) {
             std::cout << color::color(0,0,0,5,0,0) << "TOO SMALL" << std::endl;
             return;
@@ -1220,9 +1212,9 @@ void nload(
             std::cout << std::string(start, ' ');
             for (auto j = start; j < (col - info_space_size); ++j)
             {
-                const auto index = j - start;
+                const auto index = j - start; // starts from 0
                 const auto [full_blocks, partial_block_percentage] = metric_list[index];
-                const auto actual_content_height = full_blocks + (partial_block_percentage == 0 ? 0 : 1) + 1;
+                const auto actual_content_height = full_blocks + (partial_block_percentage > 0 ? 1 : 0);
                 if (actual_content_height == current_height_on_screen) // see partial
                 {
                     if (1 <= partial_block_percentage && partial_block_percentage <= 40) {
@@ -1230,6 +1222,8 @@ void nload(
                     } else if (41 <= partial_block_percentage && partial_block_percentage <= 80) {
                         std::cout << l_41_to_80;
                     } else if (81 <= partial_block_percentage && partial_block_percentage <= 100) {
+                        std::cout << l_81_to_100;
+                    } else if (partial_block_percentage == 0 && full_blocks == windows_space_local) {
                         std::cout << l_81_to_100;
                     } else {
                         std::cout << " ";
@@ -1267,7 +1261,7 @@ void nload(
     while (*running)
     {
         const int free_space = row - window_space * 2 - reserved_lines;
-        if (window_space > reserved_lines)
+        if (window_space > reserved_lines && col > info_space_size)
         {
             up_list.clear();
             down_list.clear();
@@ -1279,7 +1273,7 @@ void nload(
             auto_clear(down_speed_list, col - info_space_size);
 
             std::ranges::for_each(up_speed_list, [&](const uint64_t i) {
-                const auto max_num = static_cast<float>(max(up_speed_list));
+                const auto max_num = static_cast<float>(max_in_vec(up_speed_list));
                 if (max_num != 0) {
                     const auto val = static_cast<float>(i) / max_num;
                     up_list.push_back(val);
@@ -1289,7 +1283,7 @@ void nload(
             });
 
             std::ranges::for_each(down_speed_list, [&](const uint64_t i) {
-                const auto max_num = static_cast<float>(max(down_speed_list));
+                const auto max_num = static_cast<float>(max_in_vec(down_speed_list));
                 if (max_num != 0) {
                     const auto val = static_cast<float>(i) / max_num;
                     down_list.push_back(val);
