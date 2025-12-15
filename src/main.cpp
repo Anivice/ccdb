@@ -2103,9 +2103,9 @@ int main(int argc, char ** argv)
                                     &max_skip_lines);
                                 int local_leading_spaces = leading_spaces;
                                 int local_skip_lines = current_skip_lines;
-                                for (int i = 0; i < 100; i++)
+                                for (int i = 0; i < 500; i++)
                                 {
-                                    std::this_thread::sleep_for(std::chrono::milliseconds(10l));
+                                    std::this_thread::sleep_for(std::chrono::milliseconds(1l));
                                     if (local_leading_spaces != leading_spaces
                                         || local_skip_lines != current_skip_lines
                                         || sysint_pressed || window_size_change)
@@ -2139,8 +2139,8 @@ int main(int argc, char ** argv)
                             }
                         }
 
-                        if (input_getc_worker.joinable()) input_getc_worker.join();
                         sysint_pressed = false;
+                        if (input_getc_worker.joinable()) input_getc_worker.join();
                     }
                     else if (command_vector[1] == "latency")
                     {
@@ -2220,9 +2220,9 @@ int main(int argc, char ** argv)
                             }
                         }
 
+                        sysint_pressed = false;
                         if (input_getc_worker.joinable()) input_getc_worker.join();
                         backend_instance.change_focus("overview");
-                        sysint_pressed = false;
                     }
                     else if (command_vector[1] == "mode") {
                         std::cout << backend_instance.get_current_mode() << std::endl;
