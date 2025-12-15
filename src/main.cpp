@@ -454,16 +454,16 @@ void help_overall()
                 << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "get\n" << color::no_color()
                 << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "set\n" << color::no_color()
                 << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "close_connections\n"
-                << "  " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5) << "ENVIRONMENT" << color::no_color() << ":\n"
-                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(5,5,5) << "PAGER" << color::no_color()
+                << "  " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(1,4,5,0,0,5) << "ENVIRONMENT" << color::no_color() << ":\n"
+                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(0,0,0,5,5,5) << "PAGER" << color::no_color()
                 << " Specify a pager command for `get proxy/latency`" << std::endl
-                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(5,5,5) << "NOPAGER" << color::no_color()
+                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(0,0,0,5,5,5) << "NOPAGER" << color::no_color()
                 << " Set NOPAGER to true to disable pagers even if they are available" << std::endl
-                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(5,5,5) << "NO_0xFE0F_EXPAND_EMOJI" << color::no_color()
+                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(0,0,0,5,5,5) << "NO_0xFE0F_EXPAND_EMOJI" << color::no_color()
                 << " Fix Unicode processing issues for emoji space expand code, e.g., \"" << reinterpret_cast<const char*>(alp_no_expand)
                 << "\" and \"" << reinterpret_cast<const char*>(alp_expanded) << "\""
                 << ".\n" << std::string(33, ' ') << "If you cannot notice any differences of the above emojis, you might want to set this to `true`" << std::endl
-                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(5,5,5) << "COLOR" << color::no_color()
+                << "        " << color::color(0,0,5) << "*" << color::no_color() << " " << color::color(0,0,0,5,5,5) << "COLOR" << color::no_color()
                 << " Set it to `never` to disable color codes" << std::endl;
     pager(ss.str());
 }
