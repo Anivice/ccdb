@@ -476,6 +476,25 @@ void help(const std::string & cmd_text, const std::string & description)
     pager(ss.str());
 }
 
+void replace_all(std::string & original,
+        const std::string & target,
+        const std::string & replacement)
+{
+    if (target.empty()) return; // Avoid infinite loop if target is empty
+    if (target == replacement) return; // Skip if both target and replacement are the same
+
+    if (target.size() == 1 && replacement.empty()) {
+        const char bc = target.front();
+        std::erase_if(original, [&bc](const char c) { return c == bc; });
+    }
+
+    size_t pos = 0;
+    while ((pos = original.find(target, pos)) != std::string::npos) {
+        original.replace(pos, target.length(), replacement);
+        pos += replacement.length(); // Move past the replacement to avoid infinite loop
+    }
+}
+
 void help_sub_cmds(const std::string & cmd_text, const std::map <std::string, std::string > & map)
 {
     std::stringstream ss;
@@ -485,24 +504,6 @@ void help_sub_cmds(const std::string & cmd_text, const std::map <std::string, st
     for (const auto & s : map | std::views::keys) {
         if (longest_subcmd_length < s.length()) longest_subcmd_length = static_cast<int>(s.length());
     }
-
-    auto replace_all =
-    [](std::string & original,
-        const std::string & target,
-        const std::string & replacement)
-    {
-        if (target.empty()) return; // Avoid infinite loop if target is empty
-
-        if (target == " " && replacement.empty()) {
-            std::erase_if(original, [](const char c) { return c == ' '; });
-        }
-
-        size_t pos = 0;
-        while ((pos = original.find(target, pos)) != std::string::npos) {
-            original.replace(pos, target.length(), replacement);
-            pos += replacement.length(); // Move past the replacement to avoid infinite loop
-        }
-    };
 
     for (const auto & [sub_cmd_text, des] : map)
     {
@@ -1355,8 +1356,9 @@ void nload(
 
                         new_line = utf8::utf32to8(utf32_cut) + color::color(0,0,0,3,3,3) + ">";
                     }
-                    std::cout   << color::color(3,3,3) << new_line
-                                << color::no_color() << std::endl;
+                    replace_all(new_line, "UP:", color::color(3,3,2) + "UP:");
+                    replace_all(new_line, "DL:", color::color(2,3,3) + "DL:");
+                    std::cout << color::color(3,3,3) << new_line << color::no_color() << std::endl;
                 });
             }
 
@@ -1744,10 +1746,11 @@ int main(int argc, char ** argv)
                         std::this_thread::sleep_for(std::chrono::milliseconds(500l));
                     }
 
-                    sysint_pressed = false;
+                    sysint_pressed = true;
                     running = false;
                     if (Worker.joinable()) Worker.join();
                     if (input_watcher.joinable()) input_watcher.join();
+                    sysint_pressed = false;
                 }
                 else if (command_vector.front() == "help")
                 {
@@ -2139,8 +2142,9 @@ int main(int argc, char ** argv)
                             }
                         }
 
-                        sysint_pressed = false;
+                        sysint_pressed = true;
                         if (input_getc_worker.joinable()) input_getc_worker.join();
+                        sysint_pressed = false;
                     }
                     else if (command_vector[1] == "latency")
                     {
@@ -2220,9 +2224,10 @@ int main(int argc, char ** argv)
                             }
                         }
 
-                        sysint_pressed = false;
+                        sysint_pressed = true;
                         if (input_getc_worker.joinable()) input_getc_worker.join();
                         backend_instance.change_focus("overview");
+                        sysint_pressed = false;
                     }
                     else if (command_vector[1] == "mode") {
                         std::cout << backend_instance.get_current_mode() << std::endl;
