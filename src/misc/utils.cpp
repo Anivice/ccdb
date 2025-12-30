@@ -6,6 +6,7 @@
 #include <string>
 #include <sstream>
 #include <chrono>
+#include <iomanip>
 
 std::string ccdb::utils::getenv(const std::string& name) noexcept
 {

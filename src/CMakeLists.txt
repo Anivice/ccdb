@@ -104,7 +104,7 @@ add_executable(ccdb
         ccdb.cpp                    include/ccdb.h
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
-target_compile_definitions(ccdb PRIVATE CCDB_VERSION="0.8.4-rc3")
+target_compile_definitions(ccdb PRIVATE CCDB_VERSION="0.8.4-rc4")
 add_dependencies(ccdb command.readline)
 target_link_libraries(ccdb PRIVATE resource_command.readline)
 
