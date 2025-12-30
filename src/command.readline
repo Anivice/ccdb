@@ -1,0 +1,22 @@
+{
+    < help (Show help message): [NONE] >,
+    < quit (Quit the program): [NONE] >,
+    < exit (Quit the program): [NONE] >,
+    < get (Pull information):
+        latency (Latency of an endpoint),
+        proxy (Proxy list),
+        connections (Active connections),
+        mode (Proxy mode),
+        log (Active backend logs),
+        vecGroupProxy (Vector proxy groups),
+    >,
+    < set (Set parameters): < mode (Proxy mode): global, rule, direct >,
+                            < group (Switch proxy group): [NONE], [NONE] >,
+                            < vgroup (Vector group): [NONE], [NONE] >,
+                            < chain_parser (Chain parser): on, off >,
+                            < sort_by (Sort column): [NONE] >,
+                            < sort_reverse (Reverse sorting): on, off >,
+    >,
+    < close_connections (Close all connection): [NONE] >,
+    < nload (nload-like connection speed pulling): [NONE] >,
+}

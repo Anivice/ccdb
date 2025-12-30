@@ -67,17 +67,46 @@ add_dependencies(READLINE NCURSES)
 include_directories("${READLINE_INCLUDE_DIR}/readline")
 include_directories("${READLINE_INCLUDE_DIR}")
 
+find_program(XXD_EXEC   xxd     REQUIRED)
+find_program(SED_EXEC   sed     REQUIRED)
+find_program(GREP_EXEC  grep    REQUIRED)
+find_program(CAT_EXEC   cat     REQUIRED)
+function(generate_from_resource_file RES SRC_FILE HEADER XXD_NAME)
+    set(_in   "${CMAKE_SOURCE_DIR}/${RES}")
+    set(_outc "${CMAKE_BINARY_DIR}/${SRC_FILE}")
+    set(_outh "${CMAKE_BINARY_DIR}/${HEADER}")
+
+    add_custom_target(${RES} ALL
+            BYPRODUCTS  "${_outc}" "${_outh}"
+            COMMAND "${CMAKE_SOURCE_DIR}/script/gen_header.sh" "${_outc}" "${_outh}" "${XXD_NAME}" "${_in}"
+            DEPENDS "${_in}"
+            COMMENT "Generating ${SRC_FILE} and ${HEADER}..."
+            VERBATIM
+    )
+
+    file(TOUCH "${CMAKE_BINARY_DIR}/${SRC_FILE}")
+    file(TOUCH "${CMAKE_BINARY_DIR}/${HEADER}")
+    add_library(resource_${RES} STATIC ${_outc} ${_outh})
+endfunction()
+
+generate_from_resource_file(command.readline command.readline.cpp command.readline.h command_readline)
+
 # CCDB
 add_executable(ccdb
         main.cpp
         include/httplib.h
         general_info_pulling.cpp    include/general_info_pulling.h
         mihomo.cpp                  include/mihomo.h
-        exec.cpp                    include/exec.h
-        key_raw.cpp
+        commandTemplateTree.cpp     include/commandTemplateTree.h
+        misc/color.cpp              include/colors.h
+        misc/utils.cpp              include/utils.h
+        misc/execute.cpp
+        ccdb.cpp                    include/ccdb.h
 )
-target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR})
+target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
 target_compile_definitions(ccdb PRIVATE CCDB_VERSION="0.8.4-rc3")
+add_dependencies(ccdb command.readline)
+target_link_libraries(ccdb PRIVATE resource_command.readline)
 
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     if ("${CMAKE_SANITIZER_TYPE}" STREQUAL "address")

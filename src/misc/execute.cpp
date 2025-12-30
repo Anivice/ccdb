@@ -1,15 +1,17 @@
-#include "exec.h"
 #include <unistd.h>
 #include <cstring>
 #include <sstream>
 #include <sys/wait.h>
+#include "utils.h"
 
 inline std::string get_errno_message(const std::string &prefix = "") {
     return prefix + std::strerror(errno);
 }
 
-cmd_status exec_command_(const std::string &cmd,
-    const std::vector<std::string> &args, const std::string &input)
+ccdb::utils::cmd_status ccdb::utils::exec_command_(
+    const std::string &cmd,
+    const std::vector<std::string> &args,
+    const std::string &input)
 {
     cmd_status status = {"", "", 1};
 
