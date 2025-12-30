@@ -36,19 +36,20 @@ namespace ccdb
         std::atomic_bool reverse;
         std::map < uint64_t, std::string > index_to_proxy_name_list;
         std::map < std::string, int > latency_backups;
-        std::mutex arg2_additional_verbs_mutex;
-        std::vector < std::string > arg2_additional_verbs = { "" };
-        std::map < std::string, std::vector < std::string > > g_proxy_list;
+        std::map < std::string /* groups */, std::vector < std::string > /* endpoint */ > g_proxy_list;
         const std::string latency_url;
 
         void update_providers();
-        void nload(
+
+        static void nload(
             const std::atomic < uint64_t > * total_upload, const std::atomic < uint64_t > * total_download,
             const std::atomic < uint64_t > * upload_speed, const std::atomic < uint64_t > * download_speed,
             const std::atomic_bool * running, std::vector < std::string > & top_3_connections_using_most_speed,
             std::mutex * top_3_connections_using_most_speed_mtx);
-        void pager(const std::string & str, bool override_less_check = false, bool use_pager = true);
-        void print_table(
+
+        static void pager(const std::string & str, bool override_less_check = false, bool use_pager = true);
+
+        static void print_table(
             std::vector<std::string> const & table_keys,
             std::vector < std::vector<std::string> > const & table_values,
             bool muff_non_ascii = true,
@@ -62,6 +63,11 @@ namespace ccdb
             std::atomic_int * max_skip_lines_ptr = nullptr,
             bool enforce_no_pager = false // disable line shrinking, used when NOPAGER=y or pager is not available
         );
+
+        std::vector<std::string> get_groups();
+        std::vector<std::string> get_endpoints();
+        std::vector<std::string> get_vgroups();
+        std::vector<std::string> get_vendpoints();
 
     public:
         void nload();

@@ -69,7 +69,7 @@ void ccdb::ccdb::update_providers()
             }
 
             for (const auto & [index, proxy] : index_to_proxy_name_list) {
-                if (proxy == name) return std::to_string(index) + ": " + proxy + suffix;
+                if (proxy == name) return std::to_string(index) + ": " + (proxy + suffix);
             }
 
             throw std::logic_error("Unknown name");
@@ -89,7 +89,6 @@ void ccdb::ccdb::update_providers()
         }
     }
 
-    std::lock_guard lock(arg2_additional_verbs_mutex);
     g_proxy_list = groups;
 }
 
@@ -247,9 +246,9 @@ void ccdb::ccdb::nload(
                         std::cout << l_1_to_40;
                     } else if (41 <= partial_block_percentage && partial_block_percentage <= 80) {
                         std::cout << l_41_to_80;
-                    } else if (81 <= partial_block_percentage && partial_block_percentage <= 100) {
-                        std::cout << l_81_to_100;
-                    } else if (partial_block_percentage == 0 && full_blocks == windows_space_local) {
+                    } else if ((81 <= partial_block_percentage && partial_block_percentage <= 100) ||
+                        (partial_block_percentage == 0 && full_blocks == windows_space_local))
+                    {
                         std::cout << l_81_to_100;
                     } else {
                         std::cout << " ";
@@ -708,6 +707,70 @@ void ccdb::ccdb::print_table(
     pager(output, true, using_less);
 }
 
+std::vector<std::string> ccdb::ccdb::get_groups()
+{
+    std::vector<std::string> groups;
+    groups.reserve(g_proxy_list.size());
+    for (const auto & group : g_proxy_list | std::views::keys) {
+        groups.push_back(group);
+    }
+
+    return groups;
+}
+
+std::vector<std::string> ccdb::ccdb::get_endpoints()
+{
+    std::map <std::string, bool> deduped_endpoints;
+    for (const auto & endpoint : g_proxy_list | std::views::values) {
+        std::ranges::for_each(endpoint, [&](const std::string & sig){ deduped_endpoints.emplace(sig, false); });
+    }
+
+    const auto ret = deduped_endpoints | std::views::keys;
+    return {ret.begin(), ret.end()};
+}
+
+std::vector<std::string> ccdb::ccdb::get_vgroups()
+{
+    auto groups = get_groups();
+    std::map < std::string, uint64_t > reverse_search_map;
+    std::ranges::for_each(index_to_proxy_name_list, [&](const std::pair < uint64_t, std::string> & pair) {
+        reverse_search_map.emplace(pair.second, pair.first);
+    });
+
+    for (auto & group : groups)
+    {
+        if (auto ptr = reverse_search_map.find(group); ptr != reverse_search_map.end())
+        {
+            std::stringstream ss;
+            ss << ptr->second << ": " << group;
+            group = ss.str();
+        }
+    }
+
+    return groups;
+}
+
+std::vector<std::string> ccdb::ccdb::get_vendpoints()
+{
+    auto endpoints = get_endpoints();
+    std::map < std::string, uint64_t > reverse_search_map;
+    std::ranges::for_each(index_to_proxy_name_list, [&](const std::pair < uint64_t, std::string> & pair) {
+        reverse_search_map.emplace(pair.second, pair.first);
+    });
+
+    for (auto & endpoint : endpoints)
+    {
+        if (auto ptr = reverse_search_map.find(endpoint); ptr != reverse_search_map.end())
+        {
+            std::stringstream ss;
+            ss << ptr->second << ": " << endpoint;
+            endpoint = ss.str();
+        }
+    }
+
+    return endpoints;
+}
+
 void ccdb::ccdb::nload()
 {
     backend_instance.change_focus("overview");
@@ -939,9 +1002,9 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     {
         if (command_vector[2] == "hide")
         {
-            std::string numeric_expression = command_vector[3], str_num;
+            std::string str_num;
             std::vector<int> numeric_values;
-            std::istringstream numeric_stream(numeric_expression);
+            std::istringstream numeric_stream(command_vector[3]);
             while (std::getline(numeric_stream, str_num, ','))
             {
                 try {
@@ -1401,7 +1464,6 @@ void ccdb::ccdb::set_vgroup(const std::vector<std::string> & command_vector)
         }
     } catch (...) {
         std::cerr << "Cannot parse vector or vector doesn't exist" << std::endl;
-        return;
     }
 }
 
@@ -1531,7 +1593,24 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
 
             return true;
         },
-        [&](const std::string &)-> std::vector<std::string> { return {}; }, "ccdb> ");
+        [&](const std::string & special_filler)->std::vector<std::string>
+        {
+            if (special_filler == "[GROUP]") {
+                return get_groups();
+            }
+            else if (special_filler == "[PROXY]") {
+                return get_endpoints();
+            }
+            else if (special_filler == "[VGROUP]") {
+                return get_vgroups();
+            }
+            else if (special_filler == "[VPROXY]") {
+                return get_vendpoints();
+            }
+
+            std::cerr << "Unknown directive `" << special_filler << "`" << std::endl;
+            return {};
+        }, "ccdb> ");
 
         backend_instance.stop_continuous_updates();
     }
