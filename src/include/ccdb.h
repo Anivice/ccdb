@@ -65,9 +65,9 @@ namespace ccdb
         );
 
         std::vector<std::string> get_groups();
-        std::vector<std::string> get_endpoints();
+        std::vector<std::string> get_endpoints(const std::string & group);
         std::vector<std::string> get_vgroups();
-        std::vector<std::string> get_vendpoints();
+        std::vector<std::string> get_vendpoints(const std::string & group);
 
     public:
         void nload();

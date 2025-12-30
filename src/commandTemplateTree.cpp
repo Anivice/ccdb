@@ -308,7 +308,7 @@ namespace cmdTpTree
             });
         };
 
-        auto special_handler = [&](const std::string & current_special)
+        auto special_handler = [&](const std::string & current_special, const int index)
         {
             if (current_special == arbitrary_length) {
                 matches = rl_completion_matches(text, rl_filename_completion_function);
@@ -319,7 +319,7 @@ namespace cmdTpTree
             else
             {
                 if (SpecialArgumentCandidatesGenerator) {
-                    current_verbs = SpecialArgumentCandidatesGenerator(current_special);
+                    current_verbs = SpecialArgumentCandidatesGenerator(args, current_special, arg_index);
                     matches = rl_completion_matches(text, arg_generator);
                 }
                 else {
@@ -338,7 +338,7 @@ namespace cmdTpTree
                 special_index = arg_index;
                 args_completion_list = sub_commands;
                 const auto & current_special = args_completion_list.front();
-                special_handler(current_special);
+                special_handler(current_special, arg_index);
             }
             else {
                 args_completion_list.clear();
@@ -349,12 +349,12 @@ namespace cmdTpTree
             auto complete = [&]
             {
                 if (args_completion_list.size() == 1 && args_completion_list.front() == arbitrary_length) {
-                    special_handler(arbitrary_length);
+                    special_handler(arbitrary_length, arg_index);
                 } else {
                     if (const auto current_index = arg_index - special_index;
                         current_index < args_completion_list.size())
                     {
-                        special_handler(args_completion_list[current_index]);
+                        special_handler(args_completion_list[current_index], arg_index);
                     } else {
                         matches = nullptr;
                     }

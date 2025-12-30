@@ -51,42 +51,8 @@ void ccdb::ccdb::update_providers()
         return ret;
     };
 
-    if (index_to_proxy_name_list.empty())
-    {
-        for (const auto & [group, proxy] : proxy_list) {
-            groups[mask_with_latency_when_fit(group)] = mask_with_latency_when_fit_vec(proxy.first);
-        }
-    }
-    else
-    {
-        auto get_index_by_name = [&](const std::string & name)
-        {
-            std::string suffix;
-            if (const auto ptr = latency_backups.find(name);
-                ptr != latency_backups.end() && ptr->second != -1)
-            {
-                suffix = " (" + std::to_string(ptr->second) + ")";
-            }
-
-            for (const auto & [index, proxy] : index_to_proxy_name_list) {
-                if (proxy == name) return std::to_string(index) + ": " + (proxy + suffix);
-            }
-
-            throw std::logic_error("Unknown name");
-        };
-
-        auto get_index_by_name_vec = [&](const std::vector < std::string > & name_list)
-        {
-            std::vector < std::string > proxy_list_ret;
-            std::ranges::for_each(name_list, [&](const std::string & name) {
-                proxy_list_ret.push_back(get_index_by_name(name));
-            });
-            return proxy_list_ret;
-        };
-
-        for (const auto & [group, proxy] : proxy_list) {
-            groups[get_index_by_name(group)] = get_index_by_name_vec(proxy.first);
-        }
+    for (const auto & [group, proxy] : proxy_list) {
+        groups[mask_with_latency_when_fit(group)] = mask_with_latency_when_fit_vec(proxy.first);
     }
 
     g_proxy_list = groups;
@@ -718,11 +684,11 @@ std::vector<std::string> ccdb::ccdb::get_groups()
     return groups;
 }
 
-std::vector<std::string> ccdb::ccdb::get_endpoints()
+std::vector<std::string> ccdb::ccdb::get_endpoints(const std::string & group)
 {
     std::map <std::string, bool> deduped_endpoints;
-    for (const auto & endpoint : g_proxy_list | std::views::values) {
-        std::ranges::for_each(endpoint, [&](const std::string & sig){ deduped_endpoints.emplace(sig, false); });
+    for (const auto & endpoint : g_proxy_list.at(group)) {
+        deduped_endpoints.emplace(endpoint, false);
     }
 
     const auto ret = deduped_endpoints | std::views::keys;
@@ -750,9 +716,9 @@ std::vector<std::string> ccdb::ccdb::get_vgroups()
     return groups;
 }
 
-std::vector<std::string> ccdb::ccdb::get_vendpoints()
+std::vector<std::string> ccdb::ccdb::get_vendpoints(const std::string & group)
 {
-    auto endpoints = get_endpoints();
+    auto endpoints = get_endpoints(group);
     std::map < std::string, uint64_t > reverse_search_map;
     std::ranges::for_each(index_to_proxy_name_list, [&](const std::pair < uint64_t, std::string> & pair) {
         reverse_search_map.emplace(pair.second, pair.first);
@@ -1593,19 +1559,31 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
 
             return true;
         },
-        [&](const std::string & special_filler)->std::vector<std::string>
+        [&](const std::vector<std::string> & args, const std::string & special_filler, const int arg_index)->std::vector<std::string>
         {
-            if (special_filler == "[GROUP]") {
-                return get_groups();
-            }
-            else if (special_filler == "[PROXY]") {
-                return get_endpoints();
-            }
-            else if (special_filler == "[VGROUP]") {
-                return get_vgroups();
-            }
-            else if (special_filler == "[VPROXY]") {
-                return get_vendpoints();
+            try {
+                if (special_filler == "[GROUP]") {
+                    return get_groups();
+                }
+                else if (special_filler == "[PROXY]") {
+                    std::string group;
+                    if (args.size() >= 3) {
+                        group = args[2];
+                    }
+                    return get_endpoints(group);
+                }
+                else if (special_filler == "[VGROUP]") {
+                    return get_vgroups();
+                }
+                else if (special_filler == "[VPROXY]") {
+                    std::string group;
+                    if (args.size() >= 3) {
+                        group = args[2];
+                    }
+                    return get_vendpoints(index_to_proxy_name_list.at(std::strtol(group.c_str(), nullptr, 10)));
+                }
+            } catch (std::out_of_range &) {
+                return { };
             }
 
             std::cerr << "Unknown directive `" << special_filler << "`" << std::endl;
