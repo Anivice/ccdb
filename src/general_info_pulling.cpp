@@ -20,7 +20,7 @@ void general_info_pulling::update_from_traffic(std::string info)
     }
 }
 
-#if !(__cplusplus >= 202302L)
+#if !((__cplusplus >= 202302L) && defined(_FORCE_CXX23))
 bool parse_rfc3339_to_unix_ns(const std::string &s, std::int64_t &out_ns)
 {
     std::tm tm = {};
@@ -66,9 +66,9 @@ bool parse_rfc3339_to_unix_ns(const std::string &s, std::int64_t &out_ns)
     if (std::sscanf(offset.c_str() + 1, "%d:%d", &tz_h, &tz_m) != 2) {
         return false;
     }
-    int tz_sec = tz_h * 3600 + tz_m * 60;
+    const int tz_sec = tz_h * 3600 + tz_m * 60;
 
-    std::time_t t = timegm(&tm);
+    const std::time_t t = timegm(&tm);
     if (t == static_cast<std::time_t>(-1)) {
         return false;
     }
@@ -94,7 +94,7 @@ void general_info_pulling::update_from_connections(std::string info)
             time += "+00:00";
         }
 
-#if __cplusplus >= 202302L
+#if ((__cplusplus >= 202302L) && defined(_FORCE_CXX23))
 // #ifdef _FORCE_CPP_23
         using namespace std;
         using namespace std::chrono;
