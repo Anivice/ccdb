@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-
+set -euo pipefail
 _outc="$1"
 _outh="$2"
 _name="$3"
