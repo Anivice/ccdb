@@ -158,12 +158,12 @@ std::string ccdb::utils::second_to_human_readable(unsigned long long value)
         return std::to_string(value / (60 * 60)) + " H";
     }
 
-    const auto day = value / (60 * 60 * 24);
+    const unsigned long long day = value / (60 * 60 * 24);
     value %= (60 * 60 * 24);
-    const auto hour = value / (60 * 60);
+    const unsigned long long hour = value / (60 * 60);
     value %= (60 * 60);
-    const auto minute = value / 60;
-    const auto second = value % 60;
+    const unsigned long long minute = value / 60;
+    const unsigned long long second = value % 60;
     return std::to_string(day) + "d" + std::to_string(hour) + "h" + std::to_string(minute) + "m" + std::to_string(second) + "s";
 }
 

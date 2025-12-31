@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <iostream>
+#include <chrono>
 
 void general_info_pulling::update_from_traffic(std::string info)
 {
@@ -19,6 +20,7 @@ void general_info_pulling::update_from_traffic(std::string info)
     }
 }
 
+#if !(__cplusplus >= 202302L)
 bool parse_rfc3339_to_unix_ns(const std::string &s, std::int64_t &out_ns)
 {
     std::tm tm = {};
@@ -26,19 +28,19 @@ bool parse_rfc3339_to_unix_ns(const std::string &s, std::int64_t &out_ns)
     char tz_sign = '+';
     int tz_h = 0, tz_m = 0;
 
-    std::size_t pos = s.find_last_of("+-");
+    const std::size_t pos = s.find_last_of("+-");
     if (pos == std::string::npos || pos < 10) {
         return false; // no timezone sign, or clearly bogus
     }
 
     std::string datetime = s.substr(0, pos);
-    std::string offset   = s.substr(pos);
+    const std::string offset   = s.substr(pos);
 
     std::string base = datetime;
-    std::size_t dot = datetime.find('.');
-    if (dot != std::string::npos) {
+    if (const std::size_t dot = datetime.find('.'); dot != std::string::npos)
+    {
         base = datetime.substr(0, dot);
-        std::string frac = datetime.substr(dot + 1);
+        const std::string frac = datetime.substr(dot + 1);
 
         int digits = 0;
         for (std::size_t i = 0;
@@ -54,7 +56,7 @@ bool parse_rfc3339_to_unix_ns(const std::string &s, std::int64_t &out_ns)
         }
     }
 
-    std::istringstream iss(base);
+    std::stringstream iss(base);
     iss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S");
     if (iss.fail()) {
         return false;
@@ -81,12 +83,19 @@ bool parse_rfc3339_to_unix_ns(const std::string &s, std::int64_t &out_ns)
     out_ns = sec * 1000000000LL + frac_nanos;
     return true;
 }
+#endif
 
 void general_info_pulling::update_from_connections(std::string info)
 {
-    auto get_time = [](const std::string & time)->unsigned long long
+    auto get_time = [](std::string time)->unsigned long long
     {
-#ifdef _FORCE_CPP_23
+        if (!time.empty() && (time.back() == 'Z' || time.back() == 'z')) {
+            time.pop_back();
+            time += "+00:00";
+        }
+
+#if __cplusplus >= 202302L
+// #ifdef _FORCE_CPP_23
         using namespace std;
         using namespace std::chrono;
         sys_time<nanoseconds> tp;
@@ -96,17 +105,16 @@ void general_info_pulling::update_from_connections(std::string info)
         // T
         // %H:%M:%S
         // %Ez
-        iss >> parse("%Y-%m-%dT%H:%M:%S%Ez", tp);
+        iss >> std::chrono::parse("%Y-%m-%dT%H:%M:%S%Ez", tp);
         if (iss.fail()) {
-            cerr << "parse failed\n";
-            return 1;
+            return 0;
         }
 
         const auto ns_since_epoch = tp.time_since_epoch();
         const auto sec_since_epoch = duration_cast<seconds>(ns_since_epoch);
 
         const long long unix_seconds = sec_since_epoch.count();
-        long long extra_nanos  = (ns_since_epoch - sec_since_epoch).count();
+        // long long extra_nanos  = (ns_since_epoch - sec_since_epoch).count();
         return unix_seconds;
 #else
         std::int64_t unix_ns = 0;

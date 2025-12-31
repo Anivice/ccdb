@@ -1461,9 +1461,6 @@ void ccdb::ccdb::set_sort_reverse(const std::vector<std::string> & command_vecto
     else std::cerr << "Unknown option for parser `" << command_vector[2] << "`" << std::endl;
 }
 
-void ccdb::ccdb::close_connections() {
-}
-
 void ccdb::ccdb::reset_terminal_mode()
 {
     tcsetattr(STDIN_FILENO, TCSANOW, &old_tio);
@@ -1494,6 +1491,11 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
         {
             if (sysint_pressed) {
                 sysint_pressed = false;
+                return true;
+            }
+
+            if (command_vector.empty()) {
+                return true;
             }
 
             if (command_vector.front() == "quit" || command_vector.front() == "exit") {
@@ -1503,7 +1505,9 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
             if (command_vector.front() == "nload") {
                 nload();
             } else if (command_vector.front() == "help") {
-                std::cout << cmdTpTree::command_template_tree.get_help() << std::endl;
+                const auto str = cmdTpTree::command_template_tree.get_help();
+                pager(str);
+                std::cout << str << std::flush;
             } else if (command_vector.front() == "get" && command_vector.size() >= 2) {
                 if (command_vector[1] == "connections") {
                     get_connections(command_vector);

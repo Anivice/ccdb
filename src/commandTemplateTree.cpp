@@ -214,10 +214,9 @@ namespace cmdTpTree
         uint64_t max_command_length = 0;
         for_each([&](const NodeType& node, const int depth)
         {
-            if (!node.help_text_.empty())
-            {
+            if (node.name_ != no_subcommands) {
                 std::ostringstream oss;
-                oss << std::string(depth * 2, ' ') << node.name_;
+                oss << std::string(depth * 3, ' ') << " " << node.name_;
                 const auto str = oss.str();
                 command_help_text.emplace_back(str, node.help_text_);
                 if (max_command_length < str.length()) {
@@ -227,9 +226,15 @@ namespace cmdTpTree
         });
 
         std::ostringstream oss;
-        for (const auto & [command, help] : command_help_text) {
-            oss << command << std::string(max_command_length - command.length(), ' ');
-            oss << ": " << help << std::endl;
+        for (const auto & [command, help] : command_help_text)
+        {
+            oss << command;
+            if (!help.empty())
+            {
+                oss << std::string(max_command_length - command.length(), ' ');
+                oss << ": " << help;
+            }
+            oss << std::endl;
         }
 
         return oss.str();
@@ -382,7 +387,7 @@ namespace cmdTpTree
                     matches = nullptr;
                 }
                 else {
-                    special_index = list.size();
+                    special_index = static_cast<int>(list.size());
                     args_completion_list = commands;
                     complete();
                 }

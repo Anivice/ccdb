@@ -133,11 +133,15 @@ public:
             }
             else
             {
-                while (*keep_running) // pull every 1s for
+                while (*keep_running) // pull every 300ms
                 {
                     stance = true;
-                    std::thread T(worker);
-                    std::this_thread::sleep_for(std::chrono::seconds(1l));
+                    std::thread T([&] {
+                        pthread_setname_np(pthread_self(), (endpoint_name + " rept").c_str());
+                        try { worker(); }
+                        catch (std::exception & e) { std::cerr << e.what() << std::endl; exit(1); }
+                    });
+                    std::this_thread::sleep_for(std::chrono::milliseconds(300l));
                     stance = false;
                     if (T.joinable()) {
                         T.join();

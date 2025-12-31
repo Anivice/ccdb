@@ -82,7 +82,6 @@ namespace ccdb
         void set_chain_parser(const std::vector<std::string> & command_vector);
         void set_sort_by(const std::vector<std::string> & command_vector);
         void set_sort_reverse(const std::vector<std::string> & command_vector);
-        void close_connections();
         void reset_terminal_mode();
         void set_conio_terminal_mode();
         ~ccdb();
