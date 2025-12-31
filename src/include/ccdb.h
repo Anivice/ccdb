@@ -32,8 +32,8 @@ namespace ccdb
             "Chains",       // 11
         };
 
-        std::atomic_int leading_spaces = 0, sort_by;
-        std::atomic_bool reverse;
+        std::atomic_int leading_spaces = 0, sort_by = 4;
+        std::atomic_bool reverse = false;
         std::map < uint64_t, std::string > index_to_proxy_name_list;
         std::map < std::string, int > latency_backups;
         std::map < std::string /* groups */, std::vector < std::string > /* endpoint */ > g_proxy_list;

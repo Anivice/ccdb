@@ -12,7 +12,7 @@ int main(int argc, char ** argv)
     std::string backend;
     int port = 0;
     std::string token;
-    std::string latency_url = "https://api.epicgames.dev/";
+    std::string latency_url = "https://www.google.com/generate_204/";
 
     try
     {
