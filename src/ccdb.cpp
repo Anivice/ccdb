@@ -33,26 +33,8 @@ void ccdb::ccdb::update_providers()
     backend_instance.update_proxy_list();
     auto proxy_list = backend_instance.get_proxies_and_latencies_as_pair().first;
     std::map <std::string, std::vector < std::string> > groups;
-    auto mask_with_latency_when_fit = [&](const std::string & name)->std::string
-    {
-        if (const auto ptr = latency_backups.find(name);
-            ptr != latency_backups.end() && ptr->second != -1)
-        {
-            return name + " (" + std::to_string(ptr->second) + ")";
-        }
-
-        return name;
-    };
-
-    auto mask_with_latency_when_fit_vec = [&](const std::vector < std::string > & name)->std::vector < std::string >
-    {
-        std::vector < std::string > ret;
-        std::ranges::for_each(name, [&](const std::string & name_){ ret.push_back(mask_with_latency_when_fit(name_)); });
-        return ret;
-    };
-
     for (const auto & [group, proxy] : proxy_list) {
-        groups[mask_with_latency_when_fit(group)] = mask_with_latency_when_fit_vec(proxy.first);
+        groups[group] = proxy.first;
     }
 
     g_proxy_list = groups;
@@ -709,6 +691,11 @@ std::vector<std::string> ccdb::ccdb::get_vgroups()
         {
             std::stringstream ss;
             ss << ptr->second << ": " << group;
+            if (auto lptr = latency_backups.find(group); 
+                    lptr != latency_backups.end() && lptr->second != -1)
+            {
+                ss << " (" << lptr->second << ")";
+            }
             group = ss.str();
         }
     }
@@ -730,6 +717,11 @@ std::vector<std::string> ccdb::ccdb::get_vendpoints(const std::string & group)
         {
             std::stringstream ss;
             ss << ptr->second << ": " << endpoint;
+            if (auto lptr = latency_backups.find(endpoint); 
+                    lptr != latency_backups.end() && lptr->second != -1)
+            {
+                ss << " (" << lptr->second << ")";
+            }
             endpoint = ss.str();
         }
     }
@@ -1217,7 +1209,9 @@ void ccdb::ccdb::get_latency()
     update_providers();
     print_table(titles_lat, table_vals, false,
         true, { }, 0, nullptr,
-        is_less_available());
+        is_less_available(),
+        "", 0, nullptr,
+        !is_less_available());
 }
 
 void ccdb::ccdb::get_log()
@@ -1304,15 +1298,34 @@ void ccdb::ccdb::get_proxy()
         table_vals.emplace_back(table_line);
     };
 
+    auto auto_add_index_vec = [&](const std::string & str)->std::string
+    {
+        int index = -1;
+        for (const auto & [ index_q, name ] : index_to_proxy_name_list) {
+            if (name == str)
+            {
+                index = index_q;
+                break;
+            }
+        }
+
+        if (index != -1)
+        {
+            return std::to_string(index) + ": " + str;
+        }
+
+        return str;
+    };
+
     std::ranges::for_each(proxy_list, [&](const std::pair < std::string, std::pair < std::vector<std::string>, std::string> > & element)
     {
-        push_line(element.first, "", "");
+        push_line(auto_add_index_vec(element.first), "", "");
         std::ranges::for_each(element.second.first, [&](const std::string & proxy)
         {
             int latency = -1;
             if (latency_backups.contains(proxy)) latency = latency_backups.at(proxy);
             push_line("", proxy == element.second.second ? "*" : "",
-                (proxy == element.second.second ? "=> " : "") + proxy +
+                (proxy == element.second.second ? "=> " : "") + auto_add_index_vec(proxy) +
                 (latency == -1 ? "" : " (" + std::to_string(latency) + ")")
             );
         });
