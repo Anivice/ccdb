@@ -1498,6 +1498,7 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
     : backend_instance(backend, port, token), latency_url(std::move(latency_url_))
 {
     try {
+        pthread_setname_np(pthread_self(), "readline");
         backend_instance.start_continuous_updates();
         update_providers();
         cmdTpTree::read_command([&](const std::vector<std::string> &command_vector)-> bool
