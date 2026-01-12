@@ -7,25 +7,113 @@
 #include <utility>
 
 static std::atomic_bool sysint_pressed = false;
-void sigint_handler(int) {
+void sigint_handler(int)
+{
     sysint_pressed = true;
 }
+
+std::string get_term()
+{
+    char buf[512] { };
+    if (isatty(STDIN_FILENO)) {
+        if (ttyname_r(STDIN_FILENO, buf, sizeof(buf)) == 0) {
+            return {buf};
+        }
+    }
+
+    const int fd = open("/dev/tty", O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return {""}; // no controlling terminal (daemon/cron)
+    const int rc = ttyname_r(fd, buf, sizeof(buf)); // should yield /dev/pts/N.
+    close(fd);
+    if (rc == 0) {
+        return {buf};
+    }
+
+    return {""};
+}
+
+static class watcher_ {
+public:
+    std::atomic_bool watcher_clear_disable = false; // disable auto clear
+
+    class autoSIGINTstatus_t {
+    private:
+        ::watcher_ * watcher_;
+        explicit autoSIGINTstatus_t(::watcher_ * watcher) : watcher_(watcher) {
+            watcher_->watcher_clear_disable = true;
+            watcher_->sigint_caught = false;
+        }
+
+    public:
+        friend class watcher_;
+        ~autoSIGINTstatus_t() {
+            watcher_->watcher_clear_disable = false;
+            write(STDOUT_FILENO, ccdb::utils::clear, sizeof(ccdb::utils::clear));
+        }
+
+        [[nodiscard]] explicit operator bool() const { return watcher_->sigint_caught.load(); }
+    };
+
+    autoSIGINTstatus_t make_status_watcher() {
+        return autoSIGINTstatus_t(this);
+    }
+
+    void clear()
+    {
+        const std::string term = get_term();
+        const std::string clear = "\033[K";
+        if (const int fd = open(term.c_str(), O_RDWR | O_CLOEXEC); fd > 0)
+        {
+            const auto llen = ccdb::utils::get_col_size();
+            write(fd, clear.c_str(), clear.size());
+            write(fd, std::string(llen, ' ').c_str(), llen);
+            write(fd, clear.c_str(), clear.size());
+            close(fd);
+        }
+        cmdTpTree::clear_read_cache();
+        tcflush(STDIN_FILENO, TCIFLUSH);
+    }
+
+protected:
+    std::atomic_bool sigint_watcher_running = true;
+    std::atomic_bool sigint_caught = false;
+    std::thread worker_thread;
+    void sigint_watcher()
+    {
+        pthread_setname_np(pthread_self(), "SIGINT Watcher");
+        while (sigint_watcher_running)
+        {
+            if (sysint_pressed)
+            {
+                sigint_caught = true;
+
+                if (!watcher_clear_disable) {
+                    clear();
+                }
+
+                sysint_pressed = false;
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+    }
+public:
+
+    watcher_() {
+        worker_thread = std::thread(&watcher_::sigint_watcher, this);
+    }
+
+    ~watcher_() {
+        sigint_watcher_running = false;
+        if (worker_thread.joinable()) { worker_thread.join(); }
+    }
+} watcher;
 
 static std::atomic_bool window_size_change = false;
 void window_size_change_handler(int) {
     window_size_change = true;
 }
 
-class initialize_locale
-{
-public:
-    initialize_locale() noexcept {
-        std::setlocale(LC_ALL, "en_US.UTF-8");
-        std::signal(SIGINT, sigint_handler);
-        std::signal(SIGPIPE, SIG_IGN);
-        std::signal(SIGWINCH, window_size_change_handler);
-    }
-} initialize_locale_;
 using namespace ccdb::utils;
 
 void ccdb::ccdb::update_providers()
@@ -734,7 +822,6 @@ void ccdb::ccdb::nload()
     backend_instance.change_focus("overview");
     std::atomic<uint64_t> total_up = 0, total_down = 0, up_speed = 0, down_speed = 0;
     std::atomic_bool running = true;
-    sysint_pressed = false;
     std::mutex lock;
     std::vector<std::string> top_3_conn;
 
@@ -753,11 +840,12 @@ void ccdb::ccdb::nload()
     {
         std::cout << "\033[?25l";
         pthread_setname_np(pthread_self(), "get/nload:input");
+        auto sigint_status = watcher.make_status_watcher();
         set_conio_terminal_mode();
         int ch;
-        while (((ch = getchar()) != EOF) && !sysint_pressed)
+        while (((ch = getchar()) != EOF))
         {
-            if (ch == 'q' || ch == 'Q')
+            if (ch == 'q' || ch == 'Q' || sigint_status)
             {
                 running = false;
                 break;
@@ -767,7 +855,7 @@ void ccdb::ccdb::nload()
         std::cout << "\033[?25h";
     });
 
-    while (running && !sysint_pressed)
+    while (running)
     {
         total_up = backend_instance.get_total_uploaded_bytes();
         total_down = backend_instance.get_total_downloaded_bytes();
@@ -821,11 +909,9 @@ void ccdb::ccdb::nload()
         std::this_thread::sleep_for(std::chrono::milliseconds(500l));
     }
 
-    sysint_pressed = true;
     running = false;
     if (Worker.joinable()) Worker.join();
     if (input_watcher.joinable()) input_watcher.join();
-    sysint_pressed = false;
 }
 
 void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
@@ -837,22 +923,23 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::atomic_int current_skip_lines = 0;
     std::thread input_getc_worker;
     bool use_input = true;
+    std::atomic_bool running = true;
     auto input_worker = [&]
     {
         std::cout << "\033[?25l";
         pthread_setname_np(pthread_self(), "get/conn:input");
+        auto sigint_status = watcher.make_status_watcher();
         set_conio_terminal_mode();
         std::vector <int> ch_list;
         int ch;
-        while (((ch = getchar()) != EOF) && !sysint_pressed)
+        while (((ch = getchar()) != EOF) && running)
         {
             const auto [row, col] = get_screen_row_col();
             const auto row_step = std::max(row / 8, 1);
             const auto col_step = std::max(col / 8, 1);
             const auto page_size = std::max(row - 8 /* list headers, etc. */, 1);
-            if (ch == 'q' || ch == 'Q')
+            if (ch == 'q' || ch == 'Q' || sigint_status)
             {
-                sysint_pressed = true;
                 break;
             }
 
@@ -950,6 +1037,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 }
             }
         }
+        running = false;
         reset_terminal_mode();
         std::cout << "\033[?25h";
     };
@@ -999,7 +1087,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         input_getc_worker = std::thread(input_worker);
     }
 
-    while (!sysint_pressed)
+    while (running)
     {
         auto connections = backend_instance.get_active_connections();
         std::vector<std::vector<std::string>> table_vals;
@@ -1143,7 +1231,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 std::this_thread::sleep_for(std::chrono::milliseconds(1l));
                 if (local_leading_spaces != leading_spaces
                     || local_skip_lines != current_skip_lines
-                    || sysint_pressed || window_size_change)
+                    || window_size_change)
                 {
                     window_size_change = false;
                     break;
@@ -1174,9 +1262,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         }
     }
 
-    sysint_pressed = true;
+    running = false;
     if (input_getc_worker.joinable()) input_getc_worker.join();
-    sysint_pressed = false;
 }
 
 void ccdb::ccdb::get_latency()
@@ -1217,17 +1304,19 @@ void ccdb::ccdb::get_latency()
 void ccdb::ccdb::get_log()
 {
     backend_instance.change_focus("logs");
+    std::atomic_bool running = true;
     std::thread input_getc_worker([&]
     {
         std::cout << "\033[?25l";
         pthread_setname_np(pthread_self(), "get/log:input");
+        auto sigint_status = watcher.make_status_watcher();
         set_conio_terminal_mode();
         int ch;
-        while (((ch = getchar()) != EOF) && !sysint_pressed)
+        while (((ch = getchar()) != EOF) && running)
         {
-            if (ch == 'q' || ch == 'Q')
+            if (ch == 'q' || ch == 'Q' || sigint_status)
             {
-                sysint_pressed = true;
+                running = false;
                 break;
             }
         }
@@ -1235,7 +1324,7 @@ void ccdb::ccdb::get_log()
         std::cout << "\033[?25h";
     });
 
-    while (!sysint_pressed)
+    while (running)
     {
         auto current_vector = backend_instance.get_logs();
         uint32_t lines = get_line_size();
@@ -1254,16 +1343,12 @@ void ccdb::ccdb::get_log()
         for (int i = 0; i < 50; i++)
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(10l));
-            if (sysint_pressed) {
-                break;
-            }
         }
     }
 
-    sysint_pressed = true;
+    running = false;
     if (input_getc_worker.joinable()) input_getc_worker.join();
     backend_instance.change_focus("overview");
-    sysint_pressed = false;
 }
 
 void ccdb::ccdb::get_proxy()
@@ -1476,7 +1561,10 @@ void ccdb::ccdb::set_sort_reverse(const std::vector<std::string> & command_vecto
 
 void ccdb::ccdb::reset_terminal_mode()
 {
-    tcsetattr(STDIN_FILENO, TCSANOW, &old_tio);
+    if (terminal_mode_changed) {
+        tcsetattr(STDIN_FILENO, TCSANOW, &old_tio);
+        terminal_mode_changed = false;
+    }
 }
 
 void ccdb::ccdb::set_conio_terminal_mode()
@@ -1487,6 +1575,28 @@ void ccdb::ccdb::set_conio_terminal_mode()
     new_tio.c_cc[VMIN] = 1;
     new_tio.c_cc[VTIME] = 0;
     tcsetattr(STDIN_FILENO, TCSANOW, &new_tio);
+    terminal_mode_changed = true;
+}
+
+void ccdb::ccdb::help()
+{
+    const auto str = cmdTpTree::command_template_tree.get_help();
+    std::stringstream oss;
+    constexpr unsigned char alp_no_expand[] = { 0xe2, 0x9c, 0x88, 0x00 };
+    constexpr unsigned char alp_expanded[] = { 0xe2, 0x9c, 0x88, 0xef, 0xb8, 0x8f, 0x00 };
+    oss
+    << "C++ Clash Dashboard Version " CCDB_VERSION " (commit " GIT_HASH ")" << std::endl
+    << str
+    <<  "Environment:\n"
+        "   PAGER:    Specify a pager. Pager availability check is ignored when this environmental variable is set\n"
+        "   NOPAGER:  Set this to 'y' and force ccdb to ignore pager\n"
+        "   COLOR:    Set it to `never` to disable color codes\n"
+        "   NO_0xFE0F_EXPAND_EMOJI: Fix Unicode processing issues for emoji space expand code, e.g., \""
+    << reinterpret_cast<const char*>(alp_no_expand) << "\" and \"" << reinterpret_cast<const char*>(alp_expanded) << "\".\n"
+    << std::string(27, ' ')
+    << "If you cannot notice any differences of the above emojis, you might want to set this to `true`" << std::endl;
+    pager(oss.str());
+    std::cout << oss.str() << std::flush;
 }
 
 ccdb::ccdb::~ccdb()
@@ -1497,17 +1607,17 @@ ccdb::ccdb::~ccdb()
 ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &token, std::string latency_url_)
     : backend_instance(backend, port, token), latency_url(std::move(latency_url_))
 {
+    std::setlocale(LC_ALL, "en_US.UTF-8");
+    std::signal(SIGINT, sigint_handler);
+    std::signal(SIGPIPE, SIG_IGN);
+    std::signal(SIGWINCH, window_size_change_handler);
+
     try {
         pthread_setname_np(pthread_self(), "readline");
         backend_instance.start_continuous_updates();
         update_providers();
         cmdTpTree::read_command([&](const std::vector<std::string> &command_vector)-> bool
         {
-            if (sysint_pressed) {
-                sysint_pressed = false;
-                return true;
-            }
-
             if (command_vector.empty()) {
                 return true;
             }
@@ -1518,11 +1628,12 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
 
             if (command_vector.front() == "nload") {
                 nload();
-            } else if (command_vector.front() == "help") {
-                const auto str = cmdTpTree::command_template_tree.get_help();
-                pager(str);
-                std::cout << str << std::flush;
-            } else if (command_vector.front() == "get" && command_vector.size() >= 2) {
+            }
+            else if (command_vector.front() == "help")  {
+                help();
+            }
+            else if (command_vector.front() == "get" && command_vector.size() >= 2)
+            {
                 if (command_vector[1] == "connections") {
                     get_connections(command_vector);
                 } else if (command_vector[1] == "latency") {

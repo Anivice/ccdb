@@ -108,6 +108,19 @@ target_compile_definitions(ccdb PRIVATE CCDB_VERSION="0.8.4-rc5")
 add_dependencies(ccdb command.readline)
 target_link_libraries(ccdb PRIVATE resource_command.readline)
 
+find_program(GIT_EXEC NAMES git REQUIRED)
+find_program(HEAD_EXEC NAMES head REQUIRED)
+execute_process(
+        COMMAND /bin/sh -c "git ls-remote \"${CMAKE_SOURCE_DIR}\"/.. HEAD | head -c 8"
+        OUTPUT_VARIABLE GIT_HASH
+)
+
+if ("X${GIT_HASH}" STREQUAL "X")
+    set(GIT_HASH "Unknown")
+endif ()
+
+add_compile_definitions(GIT_HASH="${GIT_HASH}")
+
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     if ("${CMAKE_SANITIZER_TYPE}" STREQUAL "address")
         target_compile_options(ccdb PRIVATE -fsanitize=address -fsanitize=undefined)

@@ -208,19 +208,39 @@ namespace cmdTpTree
         return node->help_text_;
     }
 
+    static std::string generate_padding(uint32_t depth)
+    {
+        std::stringstream oss;
+        if (depth > 1)
+        {
+            depth /= 2;
+            for (auto i = 0; i < depth - 1; i++) {
+                oss << " │";
+            }
+            oss << " ├ ";
+        } else if (depth == 1) {
+            oss << " |";
+        }
+
+        return oss.str();
+    }
+
     std::string commandTemplateTree_t::get_help()
     {
         std::vector<std::pair<std::string, std::string>> command_help_text;
         uint64_t max_command_length = 0;
-        for_each([&](const NodeType& node, const int depth)
+        for_each([&](const NodeType& node, int depth)
         {
-            if (node.name_ != no_subcommands) {
+            if (node.name_ != no_subcommands)
+            {
                 std::ostringstream oss;
-                oss << std::string(depth * 3, ' ') << " " << node.name_;
+                if (depth & 0x01) depth++; // argument alignment
+                oss << generate_padding(depth) << node.name_;
                 const auto str = oss.str();
                 command_help_text.emplace_back(str, node.help_text_);
-                if (max_command_length < str.length()) {
-                    max_command_length = str.length();
+                const auto len = ccdb::utils::UnicodeDisplayWidth::get_width_utf8(str);
+                if (max_command_length < len) {
+                    max_command_length = len;
                 }
             }
         });
@@ -231,7 +251,7 @@ namespace cmdTpTree
             oss << command;
             if (!help.empty())
             {
-                oss << std::string(max_command_length - command.length(), ' ');
+                oss << std::string(max_command_length - ccdb::utils::UnicodeDisplayWidth::get_width_utf8(command), ' ');
                 oss << ": " << help;
             }
             oss << std::endl;
@@ -396,5 +416,13 @@ namespace cmdTpTree
 
         rl_attempted_completion_over = 1;
         return matches;
+    }
+
+    void clear_read_cache()
+    {
+        rl_clear_pending_input();
+        rl_replace_line("", 1);   // empty line + clear undo
+        rl_on_new_line();
+        rl_redisplay();
     }
 } // cmdTpTree

@@ -16,6 +16,7 @@ namespace ccdb
     {
     private:
         termios old_tio { }, new_tio { };
+        bool terminal_mode_changed = false;
         general_info_pulling backend_instance;
         const std::vector<std::string> titles = {
             "Host",         // 0
@@ -69,7 +70,7 @@ namespace ccdb
         std::vector<std::string> get_vgroups();
         std::vector<std::string> get_vendpoints(const std::string & group);
 
-    public:
+    protected:
         void nload();
         void get_connections(const std::vector<std::string>& command_vector);
         void get_latency();
@@ -84,6 +85,9 @@ namespace ccdb
         void set_sort_reverse(const std::vector<std::string> & command_vector);
         void reset_terminal_mode();
         void set_conio_terminal_mode();
+        void help();
+
+    public:
         ~ccdb();
         ccdb(const std::string & backend, int port, const std::string & token, std::string  latency_url_);
     };

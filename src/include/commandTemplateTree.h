@@ -56,7 +56,7 @@ namespace cmdTpTree
     template < Function function >
     void for_each(const NodeType & entry, function func_, const int depth = 0)
     {
-        // put func(..., depth - 2) because root is empty, so first depth, depth 0 will be depth 2 is unhandled
+        // func(..., depth - 2) because root is empty
         if (!entry.name_.empty()) {
             func_(entry, depth - 2);
         }
@@ -151,6 +151,8 @@ namespace cmdTpTree
     };
 
     char ** cmd_completion(const char *text, int start, int end);
+
+    void clear_read_cache();
 
     template < CommandHandler handler, SpecialArgumentCandidatePointer spc_gen>
     void read_command(handler handler_, spc_gen spc_gen_, const std::string & prompt)

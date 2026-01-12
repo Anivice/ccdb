@@ -44,8 +44,8 @@ int main(int argc, char ** argv)
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////
+    std::cout << "C++ Clash Dashboard Version " CCDB_VERSION " (commit " GIT_HASH ")" << std::endl;
     std::cout << "Connecting to http://" << backend << ":" << port << std::endl;
-    std::cout << "C++ Clash Dashboard Version " << CCDB_VERSION << std::endl;
     ////////////////////////////////////////////////////////////////////////////////////////
     ccdb::ccdb ccdb(backend, port, token, latency_url);
     return EXIT_SUCCESS;
