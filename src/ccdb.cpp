@@ -1304,7 +1304,7 @@ void ccdb::ccdb::get_proxy()
         for (const auto & [ index_q, name ] : index_to_proxy_name_list) {
             if (name == str)
             {
-                index = index_q;
+                index = static_cast<int>(index_q);
                 break;
             }
         }
