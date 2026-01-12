@@ -2,12 +2,22 @@
 
 bool mihomo::change_proxy(const std::string & group_name, const std::string & proxy_name)
 {
+    httplib::Client http_cli(backend_address_, port_);
+    http_cli.set_decompress(false);
+    http_cli.set_read_timeout(3, 0);
     const httplib::Headers headers = {
-        {"Authorization", "Bearer " + token},
+        {"Authorization", "Bearer " + token_},
     };
 
     const std::string body = R"({"name": ")" + proxy_name +  "\"}";
-    auto res = http_cli.Put("/proxies/" + group_name, headers, body, "application/json");
+    httplib::Result res;
+
+    if (!token_.empty()) {
+        res = http_cli.Put("/proxies/" + group_name, headers, body, "application/json");
+    } else {
+        res = http_cli.Put("/proxies/" + group_name, body, "application/json");
+    }
+
     if (!res) {
         std::cerr << "Request failed: " << httplib::to_string(res.error()) << "\n";
         return false;
@@ -22,45 +32,51 @@ bool mihomo::change_proxy(const std::string & group_name, const std::string & pr
 
 void mihomo::get_info_no_instance(const std::string & endpoint_name, const std::function < void(std::string) > & method)
 {
-    try
+    httplib::Client http_cli(backend_address_, port_);
+    http_cli.set_decompress(false);
+    http_cli.set_read_timeout(3, 0);
+    const httplib::Headers headers = {
+        {"Authorization", "Bearer " + token_},
+    };
+
+    std::string buffer;
+    httplib::Result res;
+    auto resp = [&](const char *data, const size_t len)
     {
-        const httplib::Headers headers = {
-            {"Authorization", "Bearer " + token},
-        };
+        buffer.append(data, len);
+        return true;
+    };
 
-        std::string buffer;
-        decltype(http_cli.Get("/")) res;
-        {
-            // std::lock_guard lock(http_cli_mutex);
-            res = http_cli.Get("/" + endpoint_name, headers,
-                [&](const char *data, const size_t len)
-                {
-                    buffer.append(data, len);
-                    return true;
-                }
-            );
-        }
-
-        if (!res) {
-            // logger.dlog("Request failed: ", httplib::to_string(res.error()), "\n");
-            throw std::runtime_error(httplib::to_string(res.error()));
-        }
-
-        method(buffer);
+    if (!token_.empty()) {
+        res = http_cli.Get("/" + endpoint_name, headers, resp);
+    } else {
+        res = http_cli.Get("/" + endpoint_name, resp);
     }
-    catch (const std::exception& e)
-    {
-        throw std::runtime_error(e.what());
+
+    if (!res) {
+        throw std::runtime_error(httplib::to_string(res.error()));
     }
+
+    method(buffer);
 }
 
 bool mihomo::change_proxy_mode(const std::string& mode)
 {
+    httplib::Client http_cli(backend_address_, port_);
+    http_cli.set_decompress(false);
+    http_cli.set_read_timeout(3, 0);
     const httplib::Headers headers = {
-        {"Authorization", "Bearer " + token},
+        {"Authorization", "Bearer " + token_},
     };
     const std::string body = R"({"mode": ")" + mode +  "\"}";
-    auto res = http_cli.Patch("/configs", headers, body, "application/json");
+
+    httplib::Result res;
+    if (!token_.empty()) {
+        res = http_cli.Patch("/configs", headers, body, "application/json");
+    } else {
+        res = http_cli.Patch("/configs", body, "application/json");
+    }
+
     if (!res) {
         std::cerr << "Request failed: " << httplib::to_string(res.error()) << "\n";
         return false;
@@ -75,10 +91,20 @@ bool mihomo::change_proxy_mode(const std::string& mode)
 
 bool mihomo::close_all_connections()
 {
+    httplib::Client http_cli(backend_address_, port_);
+    http_cli.set_decompress(false);
+    http_cli.set_read_timeout(3, 0);
     const httplib::Headers headers = {
-        {"Authorization", "Bearer " + token},
+        {"Authorization", "Bearer " + token_},
     };
-    auto res = http_cli.Delete("/connections");
+
+    httplib::Result res;
+    if (!token_.empty()) {
+        res = http_cli.Delete("/connections", headers);
+    } else {
+        res = http_cli.Delete("/connections");
+    }
+
     if (!res) {
         std::cerr << "Request failed: " << httplib::to_string(res.error()) << "\n";
         return false;

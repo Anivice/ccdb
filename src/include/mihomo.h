@@ -1,7 +1,6 @@
 #ifndef MIHOMO_H
 #define MIHOMO_H
 
-#include <cstdint>
 #include <functional>
 #include <mutex>
 #include <stdexcept>
@@ -15,21 +14,18 @@ class general_info_pulling;
 
 class mihomo
 {
-    std::string token;
-    httplib::Client http_cli;
-    // std::mutex http_cli_mutex;
+    std::string token_;
+    std::string backend_address_;
+    int port_ = 0;
+    std::atomic_bool info_streaming_pulling_ = true;
 
 public:
-    explicit mihomo(const std::string& backend, int port, std::string token_) : token(std::move(token_)), http_cli(backend, port)
-    {
-        // std::lock_guard lock(http_cli_mutex);
-        http_cli.set_decompress(false);
-        http_cli.set_read_timeout(10, 0);
-    }
+    explicit mihomo(std::string  backend, const int port, std::string token_)
+    : token_(std::move(token_)), backend_address_(std::move(backend)), port_(port) { }
     ~mihomo() = default;
 
     bool change_proxy(const std::string & group_name, const std::string & proxy_name);
-    void abort() { http_cli.stop(); }
+    void abort() { info_streaming_pulling_ = false; }
     void get_info_no_instance(const std::string & endpoint_name, const std::function < void(std::string) > & method);
     bool change_proxy_mode(const std::string & mode);
     bool close_all_connections();
@@ -56,6 +52,9 @@ public:
         {
             std::atomic_bool stance(true);
             std::atomic_bool is_running(false);
+            httplib::Client http_cli(backend_address_, port_);
+            http_cli.set_decompress(false);
+            http_cli.set_read_timeout(10, 0);
             auto worker = [&]()->void
             {
                 if (is_running) return;
@@ -63,13 +62,8 @@ public:
                 std::string buffer;
                 std::string first_line;
                 std::vector < std::thread > thread_pool;
-                const httplib::Headers headers = {
-                    {"Authorization", "Bearer " + token},
-                };
 
-                // std::lock_guard lock(http_cli_mutex);
-                http_cli.Get("/" + endpoint_name, headers,
-                    [&](const char *data, const size_t len)
+                auto puller = [&](const char *data, const size_t len)
                 {
                     buffer.append(data, len);
                     if (const auto pos = buffer.find('\n'); pos != std::string::npos)
@@ -80,7 +74,7 @@ public:
                             pthread_setname_np(pthread_self(), (endpoint_name + " hdlr").c_str());
                             (instance->*method)(_first_line);
                         }, first_line);
-                        thread_pool.emplace_back(std::move(T));
+                        thread_pool.emplace_back(std::move(T)); // execute handler but doesn't block receive threads
 
                         if (thread_pool.size() > 32) // oversized pool cleanup
                         {
@@ -99,7 +93,17 @@ public:
                     }
 
                     return true;
-                });
+                };
+
+                const httplib::Headers headers = {
+                    {"Authorization", "Bearer " + token_},
+                };
+
+                if (!token_.empty()) {
+                    http_cli.Get("/" + endpoint_name, headers, puller);
+                } else {
+                    http_cli.Get("/" + endpoint_name, puller);
+                }
 
                 for (auto & thread : thread_pool)
                 {
@@ -143,9 +147,7 @@ public:
                     });
                     std::this_thread::sleep_for(std::chrono::milliseconds(300l));
                     stance = false;
-                    if (T.joinable()) {
-                        T.join();
-                    }
+                    if (T.joinable()) { T.join(); }
                 }
             }
         } catch (std::exception & e) {
