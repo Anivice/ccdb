@@ -51,7 +51,9 @@ public:
             write(STDOUT_FILENO, ccdb::utils::clear, sizeof(ccdb::utils::clear));
         }
 
-        [[nodiscard]] explicit operator bool() const { return watcher_->sigint_caught.load(); }
+        [[nodiscard]] explicit operator bool() const {
+            return watcher_->sigint_caught.load();
+        }
     };
 
     autoSIGINTstatus_t make_status_watcher() {
@@ -836,24 +838,7 @@ void ccdb::ccdb::nload()
             &lock);
     });
 
-    std::thread input_watcher([&]
-    {
-        std::cout << "\033[?25l";
-        pthread_setname_np(pthread_self(), "get/nload:input");
-        auto sigint_status = watcher.make_status_watcher();
-        set_conio_terminal_mode();
-        int ch;
-        while (((ch = getchar()) != EOF))
-        {
-            if (ch == 'q' || ch == 'Q' || sigint_status)
-            {
-                running = false;
-                break;
-            }
-        }
-        reset_terminal_mode();
-        std::cout << "\033[?25h";
-    });
+    std::thread input_watcher(&ccdb::generic_input_watcher, this, "get/nload:input", &running);
 
     while (running)
     {
@@ -924,124 +909,6 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::thread input_getc_worker;
     bool use_input = true;
     std::atomic_bool running = true;
-    auto input_worker = [&]
-    {
-        std::cout << "\033[?25l";
-        pthread_setname_np(pthread_self(), "get/conn:input");
-        auto sigint_status = watcher.make_status_watcher();
-        set_conio_terminal_mode();
-        std::vector <int> ch_list;
-        int ch;
-        while (((ch = getchar()) != EOF) && running)
-        {
-            const auto [row, col] = get_screen_row_col();
-            const auto row_step = std::max(row / 8, 1);
-            const auto col_step = std::max(col / 8, 1);
-            const auto page_size = std::max(row - 8 /* list headers, etc. */, 1);
-            if (ch == 'q' || ch == 'Q' || sigint_status)
-            {
-                break;
-            }
-
-            ch_list.push_back(ch);
-
-            if (!ch_list.empty() && ch_list.front() != 27) {
-                while (!ch_list.empty() && ch_list.front() != 27) ch_list.erase(ch_list.begin()); // remove wrong paddings
-            }
-
-            if (ch_list.size() >= 3 && ch_list[0] == 27 && ch_list[1] == 91)
-            {
-                if (ch_list.size() == 3)
-                {
-                    switch (ch_list[2])
-                    {
-                        case 68: // left arrow
-                            if (leading_spaces > 0)
-                            {
-                                if (leading_spaces > col_step) {
-                                    leading_spaces -= col_step;
-                                } else {
-                                    leading_spaces = 0;
-                                }
-                            }
-
-                            break;
-                        case 67: // right arrow
-                            if (leading_spaces < max_leading_spaces) {
-                                if ((leading_spaces + col_step) < max_leading_spaces)
-                                {
-                                    leading_spaces += col_step;
-                                } else {
-                                    leading_spaces = max_leading_spaces.load();
-                                }
-                            }
-
-                            break;
-                        case 66: // down arrow
-                            if (current_skip_lines < max_skip_lines) {
-                                if ((current_skip_lines + row_step) < max_skip_lines)
-                                {
-                                    current_skip_lines += row_step;
-                                } else {
-                                    current_skip_lines = max_skip_lines.load();
-                                }
-                            }
-
-                            break;
-                        case 65: // up arrow
-                            if (current_skip_lines > 0)
-                            {
-                                if (current_skip_lines > row_step) {
-                                    current_skip_lines -= row_step;
-                                } else {
-                                    current_skip_lines = 0;
-                                }
-                            }
-
-                            break;
-                        case 'H': // Home
-                            leading_spaces = 0;
-                            ch_list.clear();
-                            break;
-                        case 'F': // End
-                            leading_spaces = max_leading_spaces.load();
-                            ch_list.clear();
-                            break;
-
-                        default:
-                            continue;
-                    }
-
-                    ch_list.clear();
-                }
-                else if (ch_list.size() == 4 && ch_list[3] == 0x7E)
-                {
-                    switch (ch_list[2])
-                    {
-                        case '5': // Page up
-                            current_skip_lines -= page_size;
-                            if (current_skip_lines < 0) {
-                                current_skip_lines = 0;
-                            }
-                            break;
-                        case '6': // Page down
-                            current_skip_lines += page_size;
-                            if (current_skip_lines > max_skip_lines) {
-                                current_skip_lines = max_skip_lines.load();
-                            }
-                            break;
-                        default:
-                            break;
-                    }
-                    ch_list.clear();
-                }
-            }
-        }
-        running = false;
-        reset_terminal_mode();
-        std::cout << "\033[?25h";
-    };
-
     std::vector < bool > do_col_hide;
     do_col_hide.resize(titles.size(), false);
     if (command_vector.size() == 4)
@@ -1084,7 +951,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     }
 
     if (use_input) {
-        input_getc_worker = std::thread(input_worker);
+        input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
+            &running, &max_leading_spaces, &current_skip_lines, &max_skip_lines);
     }
 
     while (running)
@@ -1305,24 +1173,7 @@ void ccdb::ccdb::get_log()
 {
     backend_instance.change_focus("logs");
     std::atomic_bool running = true;
-    std::thread input_getc_worker([&]
-    {
-        std::cout << "\033[?25l";
-        pthread_setname_np(pthread_self(), "get/log:input");
-        auto sigint_status = watcher.make_status_watcher();
-        set_conio_terminal_mode();
-        int ch;
-        while (((ch = getchar()) != EOF) && running)
-        {
-            if (ch == 'q' || ch == 'Q' || sigint_status)
-            {
-                running = false;
-                break;
-            }
-        }
-        reset_terminal_mode();
-        std::cout << "\033[?25h";
-    });
+    std::thread input_watcher(&ccdb::generic_input_watcher, this, "get/log:input", &running);
 
     while (running)
     {
@@ -1347,7 +1198,7 @@ void ccdb::ccdb::get_log()
     }
 
     running = false;
-    if (input_getc_worker.joinable()) input_getc_worker.join();
+    if (input_watcher.joinable()) input_watcher.join();
     backend_instance.change_focus("overview");
 }
 
@@ -1563,6 +1414,7 @@ void ccdb::ccdb::reset_terminal_mode()
 {
     if (terminal_mode_changed) {
         tcsetattr(STDIN_FILENO, TCSANOW, &old_tio);
+        fcntl(STDIN_FILENO, F_SETFL, old_flags);
         terminal_mode_changed = false;
     }
 }
@@ -1575,6 +1427,8 @@ void ccdb::ccdb::set_conio_terminal_mode()
     new_tio.c_cc[VMIN] = 1;
     new_tio.c_cc[VTIME] = 0;
     tcsetattr(STDIN_FILENO, TCSANOW, &new_tio);
+    old_flags = fcntl(STDIN_FILENO, F_GETFL, 0);
+    fcntl(STDIN_FILENO, F_SETFL, old_flags | O_NONBLOCK);
     terminal_mode_changed = true;
 }
 
@@ -1597,6 +1451,172 @@ void ccdb::ccdb::help()
     << "If you cannot notice any differences of the above emojis, you might want to set this to `true`" << std::endl;
     pager(oss.str());
     std::cout << oss.str() << std::flush;
+}
+
+void ccdb::ccdb::generic_input_watcher(const std::string &name, std::atomic_bool *running)
+{
+    std::cout << "\033[?25l";
+    pthread_setname_np(pthread_self(), name.c_str());
+    auto sigint_status = watcher.make_status_watcher();
+    std::thread T([&] { while (*running) {
+        if (sigint_status) { (*running) = false; break; }
+        std::this_thread::sleep_for(std::chrono::milliseconds(50l));
+    } });
+    set_conio_terminal_mode();
+    char ch;
+    while (*running)
+    {
+        if (const ssize_t sz = read(STDIN_FILENO, &ch, 1); sz <= 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1l));
+            continue;
+        }
+
+        if (ch == 'q' || ch == 'Q')
+        {
+            *running = false;
+            break;
+        }
+    }
+    reset_terminal_mode();
+    std::cout << "\033[?25h";
+    if (T.joinable()) T.join();
+}
+
+void ccdb::ccdb::get_conn_input_watcher(
+    std::atomic_bool * running_ptr,
+    const std::atomic_int * max_leading_spaces_ptr,
+    std::atomic_int * current_skip_lines_ptr,
+    const std::atomic_int * max_skip_lines_ptr)
+{
+    std::atomic_bool & running = *running_ptr;
+    const std::atomic_int & max_leading_spaces = *max_leading_spaces_ptr;
+    std::atomic_int & current_skip_lines = *current_skip_lines_ptr;
+    const std::atomic_int & max_skip_lines = *max_skip_lines_ptr;
+
+    std::cout << "\033[?25l";
+    pthread_setname_np(pthread_self(), "get/conn:input");
+    auto sigint_status = watcher.make_status_watcher();
+    std::thread T([&] { while (running) {
+        if (sigint_status) { running = false; break; }
+        std::this_thread::sleep_for(std::chrono::milliseconds(50l));
+    } });
+    set_conio_terminal_mode();
+    std::vector <int> ch_list;
+    char ch;
+    while (running)
+    {
+        if (const ssize_t sz = read(STDIN_FILENO, &ch, 1); sz <= 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1l));
+            continue;
+        }
+
+        const auto [row, col] = get_screen_row_col();
+        const auto row_step = std::max(row / 8, 1);
+        const auto col_step = std::max(col / 8, 1);
+        const auto page_size = std::max(row - 8 /* list headers, etc. */, 1);
+        if (ch == 'q' || ch == 'Q')
+        {
+            break;
+        }
+
+        ch_list.push_back(ch);
+
+        if (!ch_list.empty() && ch_list.front() != 27) {
+            while (!ch_list.empty() && ch_list.front() != 27) ch_list.erase(ch_list.begin()); // remove wrong paddings
+        }
+
+        if (ch_list.size() >= 3 && ch_list[0] == 27 && ch_list[1] == 91)
+        {
+            if (ch_list.size() == 3)
+            {
+                switch (ch_list[2])
+                {
+                    case 68: // left arrow
+                        if (leading_spaces > 0)
+                        {
+                            if (leading_spaces > col_step) {
+                                leading_spaces -= col_step;
+                            } else {
+                                leading_spaces = 0;
+                            }
+                        }
+
+                        break;
+                    case 67: // right arrow
+                        if (leading_spaces < max_leading_spaces) {
+                            if ((leading_spaces + col_step) < max_leading_spaces)
+                            {
+                                leading_spaces += col_step;
+                            } else {
+                                leading_spaces = max_leading_spaces.load();
+                            }
+                        }
+
+                        break;
+                    case 66: // down arrow
+                        if (current_skip_lines < max_skip_lines) {
+                            if ((current_skip_lines + row_step) < max_skip_lines)
+                            {
+                                current_skip_lines += row_step;
+                            } else {
+                                current_skip_lines = max_skip_lines.load();
+                            }
+                        }
+
+                        break;
+                    case 65: // up arrow
+                        if (current_skip_lines > 0)
+                        {
+                            if (current_skip_lines > row_step) {
+                                current_skip_lines -= row_step;
+                            } else {
+                                current_skip_lines = 0;
+                            }
+                        }
+
+                        break;
+                    case 'H': // Home
+                        leading_spaces = 0;
+                        ch_list.clear();
+                        break;
+                    case 'F': // End
+                        leading_spaces = max_leading_spaces.load();
+                        ch_list.clear();
+                        break;
+
+                    default:
+                        continue;
+                }
+
+                ch_list.clear();
+            }
+            else if (ch_list.size() == 4 && ch_list[3] == 0x7E)
+            {
+                switch (ch_list[2])
+                {
+                    case '5': // Page up
+                        current_skip_lines -= page_size;
+                        if (current_skip_lines < 0) {
+                            current_skip_lines = 0;
+                        }
+                        break;
+                    case '6': // Page down
+                        current_skip_lines += page_size;
+                        if (current_skip_lines > max_skip_lines) {
+                            current_skip_lines = max_skip_lines.load();
+                        }
+                        break;
+                    default:
+                        break;
+                }
+                ch_list.clear();
+            }
+        }
+    }
+    running = false;
+    reset_terminal_mode();
+    std::cout << "\033[?25h";
+    if (T.joinable()) T.join();
 }
 
 ccdb::ccdb::~ccdb()

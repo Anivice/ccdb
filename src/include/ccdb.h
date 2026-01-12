@@ -16,6 +16,7 @@ namespace ccdb
     {
     private:
         termios old_tio { }, new_tio { };
+        int old_flags = 0;
         bool terminal_mode_changed = false;
         general_info_pulling backend_instance;
         const std::vector<std::string> titles = {
@@ -86,6 +87,13 @@ namespace ccdb
         void reset_terminal_mode();
         void set_conio_terminal_mode();
         void help();
+
+        void generic_input_watcher(const std::string & name, std::atomic_bool * running);
+        void get_conn_input_watcher(
+            std::atomic_bool * running_ptr,
+            const std::atomic_int * max_leading_spaces_ptr,
+            std::atomic_int * current_skip_lines_ptr,
+            const std::atomic_int * max_skip_lines_ptr);
 
     public:
         ~ccdb();
