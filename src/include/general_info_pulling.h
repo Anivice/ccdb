@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <thread>
 
+#include "tsl/hopscotch_map.h"
+
 using json = nlohmann::json;
 
 class general_info_pulling
@@ -44,7 +46,7 @@ public:
 
 private:
     std::mutex connection_map_mutex;
-    std::map < std::string, connection_t > connection_map;
+    tsl::hopscotch_map < std::string, connection_t > connection_map;
 
     template <typename T, typename = void> struct is_container : std::false_type{};
     template <typename T>
@@ -88,14 +90,16 @@ private:
     std::thread pull_continuous_updates_worker;
 
     std::mutex proxy_list_mtx;
-    std::map < std::string /* group name */, std::pair < std::vector < std::string > /* proxies */, std::string /* current */ > > proxy_groups;
+    tsl::hopscotch_map < std::string /* group name */, std::pair < std::vector < std::string > /* proxies */, std::string /* current */ > > proxy_groups;
     std::map < std::string /* proxy name */, std::atomic_int /* latency in ms */ > proxy_latency;
+    // -- tsl::hopscotch_map doesn't support std::atomic_int -- //
+
     struct proxy_info_t
     {
         std::string type;
         bool udp;
     };
-    std::map < std::string, proxy_info_t > proxy_list;
+    tsl::hopscotch_map < std::string, proxy_info_t > proxy_list;
 
     void pull_continuous_updates(); // blocked
     static void replace_all(std::string & original, const std::string & target, const std::string & replacement);
@@ -111,7 +115,7 @@ protected:
     void update_from_logs(std::string info);
 
 public:
-    using proxy_info_summary_t = std::pair < decltype(proxy_groups), std::map < std::string /* proxy name */, int /* latency in ms */ > /* proxy_latency */ >;
+    using proxy_info_summary_t = std::pair < decltype(proxy_groups), tsl::hopscotch_map < std::string /* proxy name */, int /* latency in ms */ > /* proxy_latency */ >;
     [[nodiscard]] uint64_t get_current_upload_speed() const { return current_upload_speed.load(); }
     [[nodiscard]] uint64_t get_current_download_speed() const { return current_download_speed.load(); }
     [[nodiscard]] uint64_t get_total_uploaded_bytes() const { return total_uploaded_bytes.load(); }

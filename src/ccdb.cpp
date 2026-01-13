@@ -109,7 +109,7 @@ void ccdb::ccdb::update_providers()
 {
     backend_instance.update_proxy_list();
     auto proxy_list = backend_instance.get_proxies_and_latencies_as_pair().first;
-    std::map <std::string, std::vector < std::string> > groups;
+    tsl::hopscotch_map <std::string, std::vector < std::string> > groups;
     for (const auto & [group, proxy] : proxy_list) {
         groups[group] = proxy.first;
     }
@@ -485,7 +485,7 @@ void ccdb::ccdb::print_table(
         return;
     }
 
-    std::map < std::string /* table keys */, uint32_t /* longest value in this column */ > size_map;
+    tsl::hopscotch_map < std::string /* table keys */, uint32_t /* longest value in this column */ > size_map;
     for (const auto & key : table_keys) {
         size_map[key] = key.length();
     }
@@ -746,7 +746,7 @@ std::vector<std::string> ccdb::ccdb::get_groups()
 std::vector<std::string> ccdb::ccdb::get_endpoints(const std::string & group)
 {
     const auto chosen_proxy = backend_instance.get_proxies_and_latencies_as_pair().first.at(group).second;
-    std::map <std::string, bool> deduped_endpoints;
+    tsl::hopscotch_map <std::string, bool> deduped_endpoints;
     for (const auto & endpoint : g_proxy_list.at(group)) {
         if (chosen_proxy == endpoint) {
             deduped_endpoints.emplace(" * " + endpoint, false);
@@ -762,7 +762,7 @@ std::vector<std::string> ccdb::ccdb::get_endpoints(const std::string & group)
 std::vector<std::string> ccdb::ccdb::get_vgroups()
 {
     auto groups = get_groups();
-    std::map < std::string, uint64_t > reverse_search_map;
+    tsl::hopscotch_map < std::string, uint64_t > reverse_search_map;
     std::ranges::for_each(index_to_proxy_name_list, [&](const std::pair < uint64_t, std::string> & pair) {
         reverse_search_map.emplace(pair.second, pair.first);
     });
@@ -788,7 +788,7 @@ std::vector<std::string> ccdb::ccdb::get_vgroups()
 std::vector<std::string> ccdb::ccdb::get_vendpoints(const std::string & group)
 {
     auto endpoints = get_endpoints(group);
-    std::map < std::string, uint64_t > reverse_search_map;
+    tsl::hopscotch_map < std::string, uint64_t > reverse_search_map;
     std::ranges::for_each(index_to_proxy_name_list, [&](const std::pair < uint64_t, std::string> & pair) {
         reverse_search_map.emplace(pair.second, pair.first);
     });
@@ -1283,8 +1283,8 @@ void ccdb::ccdb::get_vecGroupProxy(const bool show_vgroups)
     std::vector<std::vector<std::string>> table_vals;
 
     uint64_t vector_index = 0;
-    std::map < std::string, uint64_t > index_to_name_proxy_endpoint;
-    std::map < std::string, uint64_t > index_to_name_group_name;
+    tsl::hopscotch_map < std::string, uint64_t > index_to_name_proxy_endpoint;
+    tsl::hopscotch_map < std::string, uint64_t > index_to_name_group_name;
     auto push_line = [&table_vals](const std::string & s1, const std::string & s2)
     {
         std::vector<std::string> table_line;

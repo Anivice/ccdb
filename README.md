@@ -17,6 +17,7 @@ CCDB is using multiple open-source libraries:
  - [GNU Ncurses 6.5](https://ftp.gnu.org/gnu/ncurses/)
  - [TSL Hopscotch-Hashing Map](https://github.com/Tessil/hopscotch-map/)
  - [UTF8-CPP](https://github.com/nemtrif/utfcpp)
+ - [JSON for Modern C++](https://github.com/nlohmann/json)
 
 ## Functionalities provided
 

@@ -130,7 +130,7 @@ void general_info_pulling::update_from_connections(std::string info)
         total_downloaded_bytes = static_cast<uint64_t>(data["downloadTotal"]);
         total_uploaded_bytes = static_cast<uint64_t>(data["uploadTotal"]);
         std::lock_guard map_lock(connection_map_mutex);
-        std::map < std::string, connection_t > new_connection_map;
+        tsl::hopscotch_map < std::string, connection_t > new_connection_map;
         for (const auto& connection : data["connections"])
         {
             std::string id = connection["id"];
@@ -376,7 +376,7 @@ void general_info_pulling::pull_continuous_updates()
 {
     std::lock_guard<std::mutex> lock(proxy_list_mtx);
     auto _group = proxy_groups;
-    std::map < std::string /* proxy name */, int /* latency in ms */ > _lat;
+    tsl::hopscotch_map < std::string /* proxy name */, int /* latency in ms */ > _lat;
     for (const auto & [proxy, latency] : proxy_latency)
     {
         _lat[proxy] = latency;
@@ -460,7 +460,7 @@ void general_info_pulling::update_proxy_list()
 
 void general_info_pulling::latency_test(const std::string & url)
 {
-    std::map < std::string, std::atomic_int * > proxy_latency_local;
+    tsl::hopscotch_map < std::string, std::atomic_int * > proxy_latency_local;
     {
         std::lock_guard<std::mutex> lock(proxy_list_mtx);
         std::ranges::for_each(proxy_list, [&](const std::pair < std::string, proxy_info_t > & proxy_)

@@ -4,8 +4,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include "utils.h"
-#include <stdio.h>
-#include <string.h>
+#include <cstdio>
+#include <cstring>
 
 static int read_file_line(const char *path, char *buf, const size_t n)
 {

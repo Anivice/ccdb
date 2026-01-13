@@ -11,6 +11,7 @@
 #include <csignal>
 #include <map>
 #include <iostream>
+#include "tsl/hopscotch_map.h"
 
 namespace cmdTpTree
 {
@@ -28,7 +29,7 @@ namespace cmdTpTree
         std::string verb_;
         std::vector < std::string > verbs_;
         std::string help_text_;
-        std::map < std::string, std::string > help_map_;
+        tsl::hopscotch_map < std::string, std::string > help_map_;
         NodeType * entry_ = nullptr;
         CurrentStatusType status_ = NoOperation;
     };

@@ -9,6 +9,7 @@
 #include <termios.h>
 #include "general_info_pulling.h"
 #include "commandTemplateTree.h"
+#include "tsl/hopscotch_map.h"
 
 namespace ccdb
 {
@@ -39,9 +40,9 @@ namespace ccdb
 
         std::atomic_int sort_by = 4; // get connections table: sort by which column
         std::atomic_bool reverse = false; // get connections table: if sort is reversed?
-        std::map < uint64_t, std::string > index_to_proxy_name_list; // vector translation list
-        std::map < std::string, int > latency_backups; // results of latency test
-        std::map < std::string /* groups */, std::vector < std::string > /* endpoint */ > g_proxy_list; // group-proxy list
+        tsl::hopscotch_map < uint64_t, std::string > index_to_proxy_name_list; // vector translation list
+        tsl::hopscotch_map < std::string, int > latency_backups; // results of latency test
+        tsl::hopscotch_map < std::string /* groups */, std::vector < std::string > /* endpoint */ > g_proxy_list; // group-proxy list
         const std::string latency_url; // latency URL
 
         /// Pull groups and proxies from the backend
