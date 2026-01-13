@@ -1649,9 +1649,12 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
     if (const auto terminal_name = get_terminal_emulator_name();
         terminal_name == "gnome-terminal"
         || terminal_name == "android-termux"
-        || terminal_name == "ptyxis")
+        || terminal_name == "ptyxis"
+        || terminal_name == "xterm"
+        || terminal_name == "VTE-based terminal"
+        || terminal_name == "wezterm")
     {
-        std::cout << "Set NO_0xFE0F_EXPAND_EMOJI to true since terminal " << terminal_name << " doesn't support emoji expand." << std::endl;
+        std::cout << "Set NO_0xFE0F_EXPAND_EMOJI to true since " << terminal_name << " doesn't support emoji expand." << std::endl;
         setenv("NO_0xFE0F_EXPAND_EMOJI", "true");
     }
     else if (terminal_name == "konsole"

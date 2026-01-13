@@ -1,4 +1,6 @@
 #include "term_name.h"
+#include <algorithm>
+#include <ranges>
 #include <unistd.h>
 #include <sys/fcntl.h>
 #include "utils.h"
@@ -48,25 +50,29 @@ static const char * detect_terminal_emulator()
         const pid_t ppid = get_ppid(pid);
         if (ppid <= 1) break;
         char comm[256] = {0};
-        if (get_comm(ppid, comm, sizeof(comm)) == 0) {
+        if (get_comm(ppid, comm, sizeof(comm)) == 0)
+        {
+            std::string cmd = comm;
+            std::ranges::transform(cmd, cmd.begin(), ::tolower);
             // Add whatever you care about here
-            if (strcmp(comm, "konsole") == 0) return "konsole"; // false
-            if (std::string(comm).find("gnome-terminal") != std::string::npos) return "gnome-terminal"; // true
-            if (std::string(comm).find("com.termux") != std::string::npos) return "android-termux"; // true
-            if (std::string(comm).find("Ptyxis") != std::string::npos) return "ptyxis"; // true
-            if (std::string(comm).find("ptyxis") != std::string::npos) return "ptyxis"; // true
-            if (strcmp(comm, "kgx") == 0) return "GNOME Console (kgx)";
-            if (strcmp(comm, "xterm") == 0) return "xterm";
-            if (strcmp(comm, "kitty") == 0) return "kitty"; // false
-            if (strcmp(comm, "wezterm") == 0) return "wezterm";
-            if (strcmp(comm, "alacritty") == 0) return "alacritty";
-
+            if (cmd.find("konsole") != std::string::npos) return "konsole"; // false
+            if (cmd.find("gnome-terminal") != std::string::npos) return "gnome-terminal"; // true
+            if (cmd.find("com.termux") != std::string::npos) return "android-termux"; // true
+            if (cmd.find("ptyxis") != std::string::npos) return "ptyxis"; // true
+            if (cmd.find("kgx") != std::string::npos) return "GNOME Console (kgx)";
+            if (cmd.find("xterm") != std::string::npos) return "xterm"; // true
+            if (cmd.find("kitty") != std::string::npos) return "kitty"; // false
+            if (cmd.find("wezterm") != std::string::npos) return "wezterm"; // true
         }
         pid = ppid;
     }
 
-    if (getenv("VTE_VERSION"))
+    if (secure_getenv("VTE_VERSION"))
         return "VTE-based terminal";
+
+    if (secure_getenv("WEZTERM_UNIX_SOCKET")) {
+        return "wezterm";
+    }
 
     return "Unknown";
 }
