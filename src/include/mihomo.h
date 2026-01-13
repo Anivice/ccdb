@@ -9,6 +9,7 @@
 #include <vector>
 #include "httplib.h"
 #include "json.hpp"
+#include "utils.h"
 
 class general_info_pulling;
 
@@ -71,7 +72,7 @@ public:
                         first_line = buffer.substr(0, pos);
                         buffer = buffer.substr(pos + 1);
                         std::thread T([&](std::string _first_line) {
-                            pthread_setname_np(pthread_self(), (endpoint_name + " hdlr").c_str());
+                            ccdb::utils::set_thread_name(endpoint_name + " hdlr");
                             (instance->*method)(_first_line);
                         }, first_line);
                         thread_pool.emplace_back(std::move(T)); // execute handler but doesn't block receive threads
@@ -124,7 +125,7 @@ public:
                     {
                         if (T.joinable()) { T.join(); }
                         T = std::thread([&] {
-                            pthread_setname_np(pthread_self(), (endpoint_name + " cont").c_str());
+                            ccdb::utils::set_thread_name(endpoint_name + " cont");
                             try { worker(); } catch (...) { }
                         });
                     }
@@ -141,7 +142,7 @@ public:
                 {
                     stance = true;
                     std::thread T([&] {
-                        pthread_setname_np(pthread_self(), (endpoint_name + " rept").c_str());
+                        ccdb::utils::set_thread_name(endpoint_name + " rept");
                         try { worker(); }
                         catch (std::exception & e) { std::cerr << e.what() << std::endl; exit(1); }
                     });

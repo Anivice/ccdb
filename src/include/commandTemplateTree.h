@@ -158,7 +158,7 @@ namespace cmdTpTree
     template < CommandHandler handler, SpecialArgumentCandidatePointer spc_gen>
     void read_command(handler handler_, spc_gen spc_gen_, const std::string & prompt)
     {
-        pthread_setname_np(pthread_self(), "readline");
+        ccdb::utils::set_thread_name("readline");
         SpecialArgumentCandidatesGenerator = spc_gen_;
 
         auto remove_leading_and_tailing_spaces = [](const std::string & text)->std::string

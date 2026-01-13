@@ -10,7 +10,12 @@
 
 std::string ccdb::utils::getenv(const std::string& name) noexcept
 {
-    const auto var = secure_getenv(name.c_str());
+    const auto var =
+#ifndef _CCDB_CYGWIN_BUILD_
+        secure_getenv(name.c_str());
+#else
+        ::getenv(name.c_str());
+#endif
     if (var == nullptr) {
         return "";
     }

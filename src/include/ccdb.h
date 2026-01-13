@@ -136,7 +136,7 @@ namespace ccdb
         void set_chain_parser(const std::vector<std::string> & command_vector);
         void set_sort_by(const std::vector<std::string> & command_vector);
         void set_sort_reverse(const std::vector<std::string> & command_vector);
-        void help();
+        static void help();
 
         /// terminal mode guard. Create this instance to change and reset term mode automatically
         class mode_guard_t {

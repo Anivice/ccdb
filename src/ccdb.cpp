@@ -46,7 +46,7 @@ public:
     }
 
     /// readline clear screen.
-    void clear()
+    static void clear()
     {
         const std::string term = get_term_path();
         const std::string clear = "\033[K";
@@ -68,7 +68,7 @@ protected:
     std::thread worker_thread;
     void sigint_watcher()
     {
-        pthread_setname_np(pthread_self(), "SIGINT Watcher");
+        ccdb::utils::set_thread_name("SIGINT Watcher");
         while (sigint_watcher_running)
         {
             if (sysint_pressed)
@@ -124,7 +124,7 @@ void ccdb::ccdb::nload(
     std::vector<std::string> &top_3_connections_using_most_speed,
     std::mutex *top_3_connections_using_most_speed_mtx)
 {
-    pthread_setname_np(pthread_self(), "nload");
+    set_thread_name("nload");
     constexpr int reserved_lines = 4 + 3;
     int row = 0, col = 0;
     int window_space = 0;
@@ -1465,7 +1465,7 @@ ccdb::ccdb::mode_guard_t::~mode_guard_t()
 
 void ccdb::ccdb::generic_input_watcher(const std::string &name, std::atomic_bool *running)
 {
-    pthread_setname_np(pthread_self(), name.c_str());
+    set_thread_name(name);
     auto sigint_status = watcher.make_status_watcher();
     mode_guard_t input_mode_guard(this);
 
@@ -1500,7 +1500,7 @@ void ccdb::ccdb::get_conn_input_watcher(
     std::atomic_int * current_skip_lines_ptr,
     const std::atomic_int * max_skip_lines_ptr)
 {
-    pthread_setname_np(pthread_self(), "get/conn:input");
+    set_thread_name("get/conn:input");
 
     std::atomic_bool & running = *running_ptr;
     std::atomic_int & leading_spaces = *leading_spaces_ptr;
@@ -1663,7 +1663,7 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
     }
 
     try {
-        pthread_setname_np(pthread_self(), "readline");
+        set_thread_name("readline");
         backend_instance.start_continuous_updates();
         get_vecGroupProxy(false);
         cmdTpTree::read_command([&](const std::vector<std::string> &command_vector)-> bool

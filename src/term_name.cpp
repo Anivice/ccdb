@@ -67,10 +67,22 @@ static const char * detect_terminal_emulator()
         pid = ppid;
     }
 
-    if (secure_getenv("VTE_VERSION"))
+    if (
+#ifndef _CCDB_CYGWIN_BUILD_
+        secure_getenv("VTE_VERSION")
+#else
+        ::getenv("VTE_VERSION")
+#endif
+        )
         return "VTE-based terminal";
 
-    if (secure_getenv("WEZTERM_UNIX_SOCKET")) {
+    if (
+#ifndef _CCDB_CYGWIN_BUILD_
+        secure_getenv("WEZTERM_UNIX_SOCKET")
+#else
+        ::getenv("WEZTERM_UNIX_SOCKET")
+#endif
+        ) {
         return "wezterm";
     }
 

@@ -12,7 +12,7 @@ ExternalProject_Add(NCURSES
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/ncurses
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/ncurses-6.6
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/ncurses/install
-        CONFIGURE_COMMAND   <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> ${NCURSES_CONFIGURE_ADDITIONAL_FLAGS}
+        CONFIGURE_COMMAND   <SOURCE_DIR>/configure --with-termlib --prefix=<INSTALL_DIR> ${NCURSES_CONFIGURE_ADDITIONAL_FLAGS}
         BUILD_COMMAND       /bin/sh -c "${NCURSES_MAKE_ENTIRE}"
         INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${NCURSES_MAKE_INSTALL_ADDITIONAL_FLAGS}
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libncursesw.a
@@ -124,6 +124,10 @@ endif ()
 add_compile_definitions(GIT_HASH="${GIT_HASH}")
 
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+    if ("${CCDB_CYGWIN_BUILD}" STREQUAL "True")
+        message(FATAL_ERROR "CCDB for Cygwin CANNOT be build on debug mode")
+    endif ()
+    
     if ("${CMAKE_SANITIZER_TYPE}" STREQUAL "address")
         target_compile_options(ccdb PRIVATE -fsanitize=address -fsanitize=undefined)
         target_link_libraries(ccdb PRIVATE asan ubsan atomic readline::readline ncurses::ncurses)
@@ -159,7 +163,7 @@ else ()
             -D_FORTIFY_SOURCE=2
             -fno-stack-protector
             #-fstack-protector-strong
-            -Wl,-z,relro -Wl,-z,now
+            #-Wl,-z,relro -Wl,-z,now
             -s
             ${CC_ADDITIONAL_OPTIONS}
     )
@@ -176,10 +180,13 @@ else ()
             -D_FORTIFY_SOURCE=2
             -fno-stack-protector
             #-fstack-protector-strong
-            -Wl,-z,relro -Wl,-z,now
+            #-Wl,-z,relro -Wl,-z,now
             -s
             ${LD_ADDITIONAL_OPTIONS}
     )
     target_link_libraries(ccdb PRIVATE atomic readline::readline ncurses::ncurses)
     add_dependencies(ccdb READLINE NCURSES)
+    if ("${CCDB_CYGWIN_BUILD}" STREQUAL "True")
+        target_compile_definitions(ccdb PRIVATE _CCDB_CYGWIN_BUILD_=1)
+    endif ()
 endif ()

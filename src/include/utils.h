@@ -99,6 +99,12 @@ namespace ccdb::utils {
     }
 
     bool is_less_available();
+
+    inline void set_thread_name(const std::string & name) {
+#ifndef _CCDB_CYGWIN_BUILD_
+        pthread_setname_np(pthread_self(), name.c_str());
+#endif
+    }
 }
 
 #endif //CFS_UTILS_H

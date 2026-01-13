@@ -270,7 +270,7 @@ void general_info_pulling::pull_continuous_updates()
             auto traffic_running = std::make_shared<std::atomic_bool>(true);
             auto run_traffic = [this](const std::atomic_bool * _traffic_running)
             {
-                pthread_setname_np(pthread_self(), "/traffic");
+                ccdb::utils::set_thread_name("/traffic");
                 try
                 {
                     backend_client.get_stream_info("traffic",
@@ -294,7 +294,7 @@ void general_info_pulling::pull_continuous_updates()
             auto connection_running = std::make_shared<std::atomic_bool>(true);
             auto run_connections = [this](const std::atomic_bool * _connection_running)
             {
-                pthread_setname_np(pthread_self(), "/connections");
+                ccdb::utils::set_thread_name("/connections");
                 while (*_connection_running)
                 {
                     try
@@ -333,7 +333,7 @@ void general_info_pulling::pull_continuous_updates()
             auto log_running = std::make_shared<std::atomic_bool>(true);
             auto run_logs = [&](const std::atomic_bool * _log_running)
             {
-                pthread_setname_np(pthread_self(), "/logs");
+                ccdb::utils::set_thread_name("/logs");
                 try
                 {
                     backend_client.get_stream_info("logs",
@@ -486,7 +486,7 @@ void general_info_pulling::latency_test(const std::string & url)
                 if (std::isprint(c)) name += c;
                 else break;
             }
-            pthread_setname_np(pthread_self(), ("ping " + name).c_str());
+            ccdb::utils::set_thread_name("ping " + name);
             replace_all(proxy_, " ", "%20");
             try
             {
