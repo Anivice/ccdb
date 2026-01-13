@@ -6,6 +6,9 @@ set(CMAKE_CXX_STANDARD 23)
 # readline only supports Makefile
 find_program(MAKE_EXECUTABLE NAMES make gmake REQUIRED)
 include(ExternalProject)
+
+# Ncurses
+
 set(NCURSES_MAKE_ENTIRE "${MAKE_EXECUTABLE} ${NCURSES_MAKE_ADDITIONAL_FLAGS}")
 message(STATUS "NCRUSES: ${NCURSES_MAKE_ENTIRE}")
 ExternalProject_Add(NCURSES
@@ -27,14 +30,31 @@ set(NCURSES_LIB_DIR     "${INSTALL_DIR}/lib")
 file(MAKE_DIRECTORY "${NCURSES_INCLUDE_DIR}" "${NCURSES_LIB_DIR}")
 
 # Export to CMake
-add_library(ncurses::ncurses UNKNOWN IMPORTED)
-set_target_properties(ncurses::ncurses PROPERTIES
-        IMPORTED_LOCATION             "${NCURSES_LIB_DIR}/libncursesw.a" # <= ncurses lib location
+add_library(ncurses::ncursesw STATIC IMPORTED GLOBAL)
+set_target_properties(ncurses::ncursesw PROPERTIES
+        IMPORTED_LOCATION             "${NCURSES_LIB_DIR}/libncursesw.a"
         INTERFACE_INCLUDE_DIRECTORIES "${NCURSES_INCLUDE_DIR}"
 )
+
+add_library(ncurses::tinfow STATIC IMPORTED GLOBAL)
+set_target_properties(ncurses::tinfow PROPERTIES
+        IMPORTED_LOCATION "${NCURSES_LIB_DIR}/libtinfow.a"
+        INTERFACE_INCLUDE_DIRECTORIES "${NCURSES_INCLUDE_DIR}"
+)
+
+# Bundle target consumers can link to
+add_library(ncurses::ncurses INTERFACE IMPORTED GLOBAL)
+target_link_libraries(ncurses::ncurses INTERFACE
+        ncurses::ncursesw
+        ncurses::tinfow  # MUST ncursesw then tinfow
+)
+
 add_dependencies(ncurses::ncurses NCURSES)
 include_directories("${NCURSES_INCLUDE_DIR}/ncursesw")
 include_directories("${NCURSES_INCLUDE_DIR}")
+
+# Readline
+
 set(READLINE_MAKE_ENTIRE "${MAKE_EXECUTABLE} ${READLINE_MAKE_ADDITIONAL_FLAGS}")
 message(STATUS "READLINE: ${READLINE_MAKE_ENTIRE}")
 ExternalProject_Add(READLINE
@@ -56,12 +76,25 @@ set(READLINE_LIB_DIR     "${INSTALL_DIR}/lib")
 file(MAKE_DIRECTORY "${READLINE_INCLUDE_DIR}" "${READLINE_LIB_DIR}")
 
 # Export to CMake
-add_library(readline::readline UNKNOWN IMPORTED)
-set_target_properties(readline::readline PROPERTIES
-        IMPORTED_LOCATION               "${READLINE_LIB_DIR}/libhistory.a"
+add_library(readline::readlineas STATIC IMPORTED GLOBAL)
+set_target_properties(readline::readlineas PROPERTIES
         IMPORTED_LOCATION               "${READLINE_LIB_DIR}/libreadline.a"
         INTERFACE_INCLUDE_DIRECTORIES   "${READLINE_INCLUDE_DIR}"
 )
+
+add_library(readline::libhistory STATIC IMPORTED GLOBAL)
+set_target_properties(readline::libhistory PROPERTIES
+        IMPORTED_LOCATION               "${READLINE_LIB_DIR}/libhistory.a"
+        INTERFACE_INCLUDE_DIRECTORIES   "${READLINE_INCLUDE_DIR}"
+)
+
+# Bundle target consumers can link to
+add_library(readline::readline INTERFACE IMPORTED GLOBAL)
+target_link_libraries(readline::readline INTERFACE
+        readline::readlineas
+        readline::libhistory
+)
+
 add_dependencies(readline::readline READLINE)
 add_dependencies(READLINE NCURSES)
 include_directories("${READLINE_INCLUDE_DIR}/readline")
