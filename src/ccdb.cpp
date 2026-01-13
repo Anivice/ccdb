@@ -302,9 +302,9 @@ void ccdb::ccdb::nload(
     std::vector < uint64_t > up_speed_list, down_speed_list;
     std::vector<float> up_list, down_list;
     uint64_t max_up_speed = 0, min_up_speed = UINT64_MAX, max_down_speed = 0, min_down_speed = UINT64_MAX;
-    for (int i = 0; i < 250; i++) {
+    for (int i = 0; i < 25; i++) {
         if (*total_upload && *total_download) break;
-        std::this_thread::sleep_for(std::chrono::milliseconds(10l));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100l));
     }
     const uint64_t upload_total_bytes_when_started = *total_upload, download_total_bytes_when_started = *total_download;
     const auto now = std::chrono::high_resolution_clock::now();
@@ -422,7 +422,7 @@ void ccdb::ccdb::nload(
             std::cout << color::color(0,0,0,5,0,0) << "TOO SMALL" << color::no_color() << std::endl;
         }
 
-        for (int i = 0; i < 500; i++)
+        for (int i = 0; i < 25; i++)
         {
             if (window_size_change) {
                 window_size_change = false;
@@ -430,7 +430,7 @@ void ccdb::ccdb::nload(
             }
 
             if (!*running) break;
-            std::this_thread::sleep_for(std::chrono::milliseconds(1l));
+            std::this_thread::sleep_for(std::chrono::milliseconds(20l));
         }
 
         update_window_spaces();
@@ -1088,9 +1088,9 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 &max_skip_lines);
             int local_leading_spaces = leading_spaces;
             int local_skip_lines = current_skip_lines;
-            for (int i = 0; i < 500; i++)
+            for (int i = 0; i < 25; i++)
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(1l));
+                std::this_thread::sleep_for(std::chrono::milliseconds(20l));
                 if (local_leading_spaces != leading_spaces
                     || local_skip_lines != current_skip_lines
                     || window_size_change)
@@ -1185,10 +1185,7 @@ void ccdb::ccdb::get_log()
             }
         }
 
-        for (int i = 0; i < 50; i++)
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10l));
-        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(500l));
     }
 
     running = false;
@@ -1479,7 +1476,7 @@ void ccdb::ccdb::generic_input_watcher(const std::string &name, std::atomic_bool
     while (*running)
     {
         if (const ssize_t sz = read(STDIN_FILENO, &ch, 1); sz <= 0) { // unblocked read
-            std::this_thread::sleep_for(std::chrono::milliseconds(1l));
+            std::this_thread::sleep_for(std::chrono::milliseconds(10l));
             continue;
         }
 
@@ -1522,7 +1519,7 @@ void ccdb::ccdb::get_conn_input_watcher(
     while (running)
     {
         if (const ssize_t sz = read(STDIN_FILENO, &ch, 1); sz <= 0) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1l));
+            std::this_thread::sleep_for(std::chrono::milliseconds(10l));
             continue;
         }
 
