@@ -1,0 +1,46 @@
+name: cygwin-build
+
+on:
+  workflow_dispatch:    # Enables manual triggering
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      # Avoid CRLF
+      - name: Git line endings
+        run: git config --global core.autocrlf input
+
+      - uses: actions/checkout@v4
+
+      - name: Set up Cygwin (cmake, make, gcc/g++)
+        uses: egor-tensin/setup-cygwin@v4
+        with:
+          packages: cmake make gcc-g++
+
+      - name: Configure (Cygwin)
+        shell: C:\tools\cygwin\bin\bash.exe --login --norc -eo pipefail -o igncr '{0}'
+        run: |
+          cmake -S src -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DCCDB_CYGWIN_BUILD=True -DNCURSES_MAKE_ADDITIONAL_FLAGS=-j2 -DREADLINE_MAKE_ADDITIONAL_FLAGS=-j2
+
+      - name: Build (Cygwin)
+        shell: C:\tools\cygwin\bin\bash.exe --login --norc -eo pipefail -o igncr '{0}'
+        run: |
+          cmake --build build -- -j2
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cygwin-build
+          path: build/ccdb.exe
