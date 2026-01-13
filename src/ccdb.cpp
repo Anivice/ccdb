@@ -5,6 +5,7 @@
 #include <thread>
 #include <csignal>
 #include <utility>
+#include "term_name.h"
 
 static std::atomic_bool sysint_pressed = false;
 void sigint_handler(int)
@@ -12,41 +13,25 @@ void sigint_handler(int)
     sysint_pressed = true;
 }
 
-std::string get_term()
-{
-    char buf[512] { };
-    if (isatty(STDIN_FILENO)) {
-        if (ttyname_r(STDIN_FILENO, buf, sizeof(buf)) == 0) {
-            return {buf};
-        }
-    }
-
-    const int fd = open("/dev/tty", O_RDONLY | O_CLOEXEC);
-    if (fd < 0) return {""}; // no controlling terminal (daemon/cron)
-    const int rc = ttyname_r(fd, buf, sizeof(buf)); // should yield /dev/pts/N.
-    close(fd);
-    if (rc == 0) {
-        return {buf};
-    }
-
-    return {""};
-}
-
-static class watcher_ {
+/// signal SIGINT watcher
+static class sigint_watcher_ {
 public:
     std::atomic_bool watcher_clear_disable = false; // disable auto clear
 
-    class autoSIGINTstatus_t {
+    /// Create this instance to skip readline screen clear on SIGINT.
+    /// SIGINT watcher will resume clear when this instance is destroyed.
+    /// This instance can also be used in if() to check if SIGINT is received.
+    class auto_SIGINT_status_t {
     private:
-        ::watcher_ * watcher_;
-        explicit autoSIGINTstatus_t(::watcher_ * watcher) : watcher_(watcher) {
+        ::sigint_watcher_ * watcher_;
+        explicit auto_SIGINT_status_t(::sigint_watcher_ * watcher) : watcher_(watcher) {
             watcher_->watcher_clear_disable = true;
             watcher_->sigint_caught = false;
         }
 
     public:
-        friend class watcher_;
-        ~autoSIGINTstatus_t() {
+        friend class sigint_watcher_;
+        ~auto_SIGINT_status_t() {
             watcher_->watcher_clear_disable = false;
             write(STDOUT_FILENO, ccdb::utils::clear, sizeof(ccdb::utils::clear));
         }
@@ -56,13 +41,14 @@ public:
         }
     };
 
-    autoSIGINTstatus_t make_status_watcher() {
-        return autoSIGINTstatus_t(this);
+    auto_SIGINT_status_t make_status_watcher() {
+        return auto_SIGINT_status_t(this);
     }
 
+    /// readline clear screen.
     void clear()
     {
-        const std::string term = get_term();
+        const std::string term = get_term_path();
         const std::string clear = "\033[K";
         if (const int fd = open(term.c_str(), O_RDWR | O_CLOEXEC); fd > 0)
         {
@@ -101,11 +87,11 @@ protected:
     }
 public:
 
-    watcher_() {
-        worker_thread = std::thread(&watcher_::sigint_watcher, this);
+    sigint_watcher_() {
+        worker_thread = std::thread(&sigint_watcher_::sigint_watcher, this);
     }
 
-    ~watcher_() {
+    ~sigint_watcher_() {
         sigint_watcher_running = false;
         if (worker_thread.joinable()) { worker_thread.join(); }
     }
@@ -116,6 +102,7 @@ void window_size_change_handler(int) {
     window_size_change = true;
 }
 
+// --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;
 
 void ccdb::ccdb::update_providers()
@@ -485,7 +472,7 @@ void ccdb::ccdb::print_table(
     const std::vector<bool> &table_hide,
     uint64_t leading_offset,
     std::atomic_int *max_tailing_size_ptr,
-    bool using_less,
+    bool using_pager,
     const std::string &additional_info_before_table,
     int skip_lines,
     std::atomic_int *max_skip_lines_ptr,
@@ -576,7 +563,7 @@ void ccdb::ccdb::print_table(
     auto print_line = [&](const std::string& line_, const std::string & color = "")->void
     {
         auto line = utils::utf8_to_u32(line_);
-        if (max_tailing_size_ptr && !using_less && !enforce_no_pager)
+        if (max_tailing_size_ptr && !using_pager && !enforce_no_pager)
         {
             if (leading_offset != 0)
             {
@@ -633,7 +620,7 @@ void ccdb::ccdb::print_table(
             }
         }
 
-        if (using_less || enforce_no_pager) {
+        if (using_pager || enforce_no_pager) {
             less_output_redirect << color << line_ << color::no_color() << std::endl;
         } else {
             std::string utf8_str;
@@ -653,7 +640,7 @@ void ccdb::ccdb::print_table(
     if (!additional_info_before_table.empty())
     {
         printed_lines++;
-        if (using_less) {
+        if (using_pager) {
             less_output_redirect << additional_info_before_table << std::endl;
         } else {
             std::cout << additional_info_before_table << std::endl;
@@ -683,7 +670,7 @@ void ccdb::ccdb::print_table(
 
     for (const auto & vals : table_values)
     {
-        if (!using_less)
+        if (!using_pager)
         {
             // skip n elements
             if (i < skip_lines)
@@ -742,7 +729,7 @@ void ccdb::ccdb::print_table(
     }
 
     const auto output = less_output_redirect.str();
-    pager(output, true, using_less);
+    pager(output, true, using_pager);
 }
 
 std::vector<std::string> ccdb::ccdb::get_groups()
@@ -758,9 +745,14 @@ std::vector<std::string> ccdb::ccdb::get_groups()
 
 std::vector<std::string> ccdb::ccdb::get_endpoints(const std::string & group)
 {
+    const auto chosen_proxy = backend_instance.get_proxies_and_latencies_as_pair().first.at(group).second;
     std::map <std::string, bool> deduped_endpoints;
     for (const auto & endpoint : g_proxy_list.at(group)) {
-        deduped_endpoints.emplace(endpoint, false);
+        if (chosen_proxy == endpoint) {
+            deduped_endpoints.emplace(" * " + endpoint, false);
+        } else {
+            deduped_endpoints.emplace(endpoint, false);
+        }
     }
 
     const auto ret = deduped_endpoints | std::views::keys;
@@ -803,10 +795,12 @@ std::vector<std::string> ccdb::ccdb::get_vendpoints(const std::string & group)
 
     for (auto & endpoint : endpoints)
     {
+        const bool is_chosen = endpoint.find(" * ") != std::string::npos;
+        replace_all(endpoint, " * ", "");
         if (auto ptr = reverse_search_map.find(endpoint); ptr != reverse_search_map.end())
         {
             std::stringstream ss;
-            ss << ptr->second << ": " << endpoint;
+            ss << ptr->second << ": " << (is_chosen ? "* " : "") << endpoint;
             if (auto lptr = latency_backups.find(endpoint); 
                     lptr != latency_backups.end() && lptr->second != -1)
             {
@@ -901,7 +895,7 @@ void ccdb::ccdb::nload()
 
 void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 {
-    leading_spaces = 0;
+    std::atomic_int leading_spaces = 0;
     std::atomic_int max_leading_spaces = get_col_size() / 4;
     backend_instance.change_focus("overview");
     std::atomic_int max_skip_lines = 0;
@@ -952,7 +946,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
     if (use_input) {
         input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
-            &running, &max_leading_spaces, &current_skip_lines, &max_skip_lines);
+            &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines);
     }
 
     while (running)
@@ -1281,7 +1275,7 @@ void ccdb::ccdb::get_proxy()
         true);
 }
 
-void ccdb::ccdb::get_vecGroupProxy()
+void ccdb::ccdb::get_vecGroupProxy(const bool show_vgroups)
 {
     backend_instance.update_proxy_list();
     auto [proxy_list, proxy_lat] = backend_instance.get_proxies_and_latencies_as_pair();
@@ -1326,18 +1320,21 @@ void ccdb::ccdb::get_vecGroupProxy()
     // add my shit in it
     update_providers();
 
-    print_table(table_titles,
-        table_vals,
-        false,
-        true,
-        { },
-        0,
-        nullptr,
-        is_less_available(),
-        "",
-        0,
-        nullptr,
-        true);
+    if (show_vgroups)
+    {
+        print_table(table_titles,
+            table_vals,
+            false,
+            true,
+            { },
+            0,
+            nullptr,
+            is_less_available(),
+            "",
+            0,
+            nullptr,
+            true);
+    }
 }
 
 void ccdb::ccdb::set_mode(const std::vector<std::string> & command_vector)
@@ -1448,59 +1445,78 @@ void ccdb::ccdb::help()
         "   NO_0xFE0F_EXPAND_EMOJI: Fix Unicode processing issues for emoji space expand code, e.g., \""
     << reinterpret_cast<const char*>(alp_no_expand) << "\" and \"" << reinterpret_cast<const char*>(alp_expanded) << "\".\n"
     << std::string(27, ' ')
-    << "If you cannot notice any differences of the above emojis, you might want to set this to `true`" << std::endl;
+    << "If you cannot notice any differences of the above emojis, or there's wierd Unicode processing bugs in your terminal,\n"
+    << std::string(27, ' ') << "you might want to set this to `true`" << std::endl;
     pager(oss.str());
     std::cout << oss.str() << std::flush;
 }
 
+ccdb::ccdb::mode_guard_t::mode_guard_t(ccdb *parent): parent_(parent)
+{
+    std::cout << "\033[?25l"; // hide cursor
+    parent_->set_conio_terminal_mode();
+}
+
+ccdb::ccdb::mode_guard_t::~mode_guard_t()
+{
+    parent_->reset_terminal_mode();
+    std::cout << "\033[?25h"; // show cursor
+}
+
 void ccdb::ccdb::generic_input_watcher(const std::string &name, std::atomic_bool *running)
 {
-    std::cout << "\033[?25l";
     pthread_setname_np(pthread_self(), name.c_str());
     auto sigint_status = watcher.make_status_watcher();
+    mode_guard_t input_mode_guard(this);
+
+    // pull SIGINT status every 50ms
     std::thread T([&] { while (*running) {
         if (sigint_status) { (*running) = false; break; }
         std::this_thread::sleep_for(std::chrono::milliseconds(50l));
     } });
-    set_conio_terminal_mode();
+
     char ch;
     while (*running)
     {
-        if (const ssize_t sz = read(STDIN_FILENO, &ch, 1); sz <= 0) {
+        if (const ssize_t sz = read(STDIN_FILENO, &ch, 1); sz <= 0) { // unblocked read
             std::this_thread::sleep_for(std::chrono::milliseconds(1l));
             continue;
         }
 
         if (ch == 'q' || ch == 'Q')
         {
-            *running = false;
             break;
         }
     }
-    reset_terminal_mode();
-    std::cout << "\033[?25h";
+
+    *running = false;
     if (T.joinable()) T.join();
 }
 
 void ccdb::ccdb::get_conn_input_watcher(
     std::atomic_bool * running_ptr,
+    std::atomic_int * leading_spaces_ptr,
     const std::atomic_int * max_leading_spaces_ptr,
     std::atomic_int * current_skip_lines_ptr,
     const std::atomic_int * max_skip_lines_ptr)
 {
+    pthread_setname_np(pthread_self(), "get/conn:input");
+
     std::atomic_bool & running = *running_ptr;
+    std::atomic_int & leading_spaces = *leading_spaces_ptr;
     const std::atomic_int & max_leading_spaces = *max_leading_spaces_ptr;
     std::atomic_int & current_skip_lines = *current_skip_lines_ptr;
     const std::atomic_int & max_skip_lines = *max_skip_lines_ptr;
 
-    std::cout << "\033[?25l";
-    pthread_setname_np(pthread_self(), "get/conn:input");
     auto sigint_status = watcher.make_status_watcher();
+    mode_guard_t input_mode_guard(this);
+
+    // pull SIGINT every 50ms
     std::thread T([&] { while (running) {
         if (sigint_status) { running = false; break; }
         std::this_thread::sleep_for(std::chrono::milliseconds(50l));
     } });
-    set_conio_terminal_mode();
+
     std::vector <int> ch_list;
     char ch;
     while (running)
@@ -1614,8 +1630,6 @@ void ccdb::ccdb::get_conn_input_watcher(
         }
     }
     running = false;
-    reset_terminal_mode();
-    std::cout << "\033[?25h";
     if (T.joinable()) T.join();
 }
 
@@ -1632,10 +1646,23 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
     std::signal(SIGPIPE, SIG_IGN);
     std::signal(SIGWINCH, window_size_change_handler);
 
+    if (const auto terminal_name = get_terminal_emulator_name();
+        terminal_name == "gnome-terminal"
+        || terminal_name == "android-termux"
+        || terminal_name == "ptyxis")
+    {
+        std::cout << "Set NO_0xFE0F_EXPAND_EMOJI to true since terminal " << terminal_name << " doesn't support emoji expand." << std::endl;
+        setenv("NO_0xFE0F_EXPAND_EMOJI", "true");
+    }
+    else if (terminal_name == "konsole"
+        || terminal_name == "kitty") {
+        setenv("NO_0xFE0F_EXPAND_EMOJI", "false");
+    }
+
     try {
         pthread_setname_np(pthread_self(), "readline");
         backend_instance.start_continuous_updates();
-        update_providers();
+        get_vecGroupProxy(false);
         cmdTpTree::read_command([&](const std::vector<std::string> &command_vector)-> bool
         {
             if (command_vector.empty()) {

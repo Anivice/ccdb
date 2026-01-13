@@ -10,12 +10,17 @@
 
 std::string ccdb::utils::getenv(const std::string& name) noexcept
 {
-    const auto var = ::getenv(name.c_str());
+    const auto var = secure_getenv(name.c_str());
     if (var == nullptr) {
         return "";
     }
 
     return var;
+}
+
+void ccdb::utils::setenv(const std::string &name, const std::string &value) noexcept
+{
+    ::setenv(name.c_str(), value.c_str(), 1);
 }
 
 std::vector<std::string> ccdb::utils::splitString(const std::string& s, const char delim)

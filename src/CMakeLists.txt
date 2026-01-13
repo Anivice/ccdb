@@ -102,6 +102,8 @@ add_executable(ccdb
         misc/utils.cpp              include/utils.h
         misc/execute.cpp
         ccdb.cpp                    include/ccdb.h
+        term_name.cpp
+        include/term_name.h
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
 target_compile_definitions(ccdb PRIVATE CCDB_VERSION="0.8.4-rc5")

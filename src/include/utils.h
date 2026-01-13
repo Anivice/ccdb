@@ -16,6 +16,11 @@ namespace ccdb::utils {
     /// @return Return the environment variable, or empty string if unset
     std::string getenv(const std::string& name) noexcept;
 
+    /// Set environment variable
+    /// @param name Name of the environment variable
+    /// @return Return the environment variable, or empty string if unset
+    void setenv(const std::string& name, const std::string & value) noexcept;
+
     std::vector<std::string> splitString(const std::string& s, char delim = ' ');
 
     /// Replace string inside a string
