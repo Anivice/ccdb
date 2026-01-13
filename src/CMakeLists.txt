@@ -97,22 +97,20 @@ find_program(XXD_EXEC   xxd     REQUIRED)
 find_program(SED_EXEC   sed     REQUIRED)
 find_program(GREP_EXEC  grep    REQUIRED)
 find_program(CAT_EXEC   cat     REQUIRED)
-function(generate_from_resource_file RES SRC_FILE HEADER XXD_NAME)
-    set(_in   "${CMAKE_SOURCE_DIR}/${RES}")
-    set(_outc "${CMAKE_BINARY_DIR}/${SRC_FILE}")
-    set(_outh "${CMAKE_BINARY_DIR}/${HEADER}")
 
-    add_custom_target(${RES} ALL
-            BYPRODUCTS  "${_outc}" "${_outh}"
-            COMMAND "${CMAKE_SOURCE_DIR}/script/gen_header.sh" "${_outc}" "${_outh}" "${XXD_NAME}" "${_in}"
-            DEPENDS "${_in}"
-            COMMENT "Generating ${SRC_FILE} and ${HEADER}..."
-            VERBATIM
+function(generate_from_resource_file RES OUT_CPP OUT_H XXD_NAME)
+    set(_in   "${CMAKE_SOURCE_DIR}/${RES}")
+    set(_outc "${CMAKE_CURRENT_BINARY_DIR}/${OUT_CPP}")
+    set(_outh "${CMAKE_CURRENT_BINARY_DIR}/${OUT_H}")
+
+    add_custom_command(
+        OUTPUT "${_outc}" "${_outh}"
+        COMMAND "${CMAKE_SOURCE_DIR}/script/gen_header.sh" "${_outc}" "${_outh}" "${XXD_NAME}" "${_in}"
+        DEPENDS "${_in}" "${CMAKE_SOURCE_DIR}/script/gen_header.sh"
+        VERBATIM
     )
 
-    file(TOUCH "${CMAKE_BINARY_DIR}/${SRC_FILE}")
-    file(TOUCH "${CMAKE_BINARY_DIR}/${HEADER}")
-    add_library(resource_${RES} STATIC ${_outc} ${_outh})
+    add_library(resource_${RES} STATIC "${_outc}" "${_outh}")
 endfunction()
 
 generate_from_resource_file(command.readline command.readline.cpp command.readline.h command_readline)
@@ -133,7 +131,7 @@ add_executable(ccdb
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
 target_compile_definitions(ccdb PRIVATE CCDB_VERSION="0.8.4-rc5")
-add_dependencies(ccdb command.readline)
+# add_dependencies(ccdb command.readline)
 target_link_libraries(ccdb PRIVATE resource_command.readline)
 
 find_program(GIT_EXEC NAMES git REQUIRED)

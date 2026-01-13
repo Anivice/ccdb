@@ -38,6 +38,7 @@ jobs:
       - name: Build (Cygwin)
         shell: C:\tools\cygwin\bin\bash.exe --login --norc -eo pipefail -o igncr '{0}'
         run: |
+          find /cygdrive/d/a/ccdb/ccdb/src -type f
           cmake --build build
 
       - name: Upload artifact
