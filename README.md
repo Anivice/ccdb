@@ -12,12 +12,12 @@ or simply for users who don't want to allocate any over-the-top resources
 for a simple dashboard.
 
 CCDB is using multiple open-source libraries:
- - [CPP-HTTPLIB](https://github.com/yhirose/cpp-httplib)
+ - [CPP-HTTPLIB v0.30.1](https://github.com/yhirose/cpp-httplib)
  - [GNU Readline 8.3](https://ftp.gnu.org/gnu/readline/)
  - [GNU Ncurses 6.6](https://ftp.gnu.org/gnu/ncurses/)
- - [TSL Hopscotch-Hashing Map](https://github.com/Tessil/hopscotch-map/)
- - [UTF8-CPP](https://github.com/nemtrif/utfcpp)
- - [JSON for Modern C++](https://github.com/nlohmann/json)
+ - [TSL Hopscotch-Hashing Map v2.4.0](https://github.com/Tessil/hopscotch-map)
+ - [UTF8-CPP 4.0.9](https://github.com/nemtrif/utfcpp)
+ - [JSON for Modern C++ 3.12.0](https://github.com/nlohmann/json)
 
 ## Functionalities provided
 
