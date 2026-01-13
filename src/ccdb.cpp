@@ -422,7 +422,7 @@ void ccdb::ccdb::nload(
             std::cout << color::color(0,0,0,5,0,0) << "TOO SMALL" << color::no_color() << std::endl;
         }
 
-        for (int i = 0; i < 25; i++)
+        for (int i = 0; i < 10; i++)
         {
             if (window_size_change) {
                 window_size_change = false;
@@ -430,7 +430,7 @@ void ccdb::ccdb::nload(
             }
 
             if (!*running) break;
-            std::this_thread::sleep_for(std::chrono::milliseconds(20l));
+            std::this_thread::sleep_for(std::chrono::milliseconds(50l));
         }
 
         update_window_spaces();
@@ -1088,9 +1088,9 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 &max_skip_lines);
             int local_leading_spaces = leading_spaces;
             int local_skip_lines = current_skip_lines;
-            for (int i = 0; i < 25; i++)
+
+            for (int i = 0; i < 10; i++)
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(20l));
                 if (local_leading_spaces != leading_spaces
                     || local_skip_lines != current_skip_lines
                     || window_size_change)
@@ -1098,6 +1098,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     window_size_change = false;
                     break;
                 }
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(50l));
             }
 
             if (leading_spaces > max_leading_spaces) {
