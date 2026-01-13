@@ -7,6 +7,8 @@
 #include <cstdio>
 #include <cstring>
 
+#ifndef _CCDB_CYGWIN_BUILD_
+
 static int read_file_line(const char *path, char *buf, const size_t n)
 {
     FILE *f = fopen(path, "r");
@@ -67,32 +69,26 @@ static const char * detect_terminal_emulator()
         pid = ppid;
     }
 
-    if (
-#ifndef _CCDB_CYGWIN_BUILD_
-        secure_getenv("VTE_VERSION")
-#else
-        ::getenv("VTE_VERSION")
-#endif
-        )
+    if (secure_getenv("VTE_VERSION"))
         return "VTE-based terminal";
 
-    if (
-#ifndef _CCDB_CYGWIN_BUILD_
-        secure_getenv("WEZTERM_UNIX_SOCKET")
-#else
-        ::getenv("WEZTERM_UNIX_SOCKET")
-#endif
-        ) {
+    if (secure_getenv("WEZTERM_UNIX_SOCKET")) {
         return "wezterm";
     }
 
     return "Unknown";
 }
 
+#endif
+
 std::string get_terminal_emulator_name()
 {
+#ifndef _CCDB_CYGWIN_BUILD_
     using namespace ccdb;
     return detect_terminal_emulator();
+#else
+    return {};
+#endif
 }
 
 /// get term location under /dev

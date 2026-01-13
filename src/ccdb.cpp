@@ -1646,6 +1646,7 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
     std::signal(SIGPIPE, SIG_IGN);
     std::signal(SIGWINCH, window_size_change_handler);
 
+#ifndef _CCDB_CYGWIN_BUILD_
     if (const auto terminal_name = get_terminal_emulator_name();
         terminal_name == "gnome-terminal"
         || terminal_name == "android-termux"
@@ -1661,6 +1662,9 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
         || terminal_name == "kitty") {
         setenv("NO_0xFE0F_EXPAND_EMOJI", "false");
     }
+#else
+    ::setenv("NO_0xFE0F_EXPAND_EMOJI", "true", 0); // no override
+#endif
 
     try {
         set_thread_name("readline");
