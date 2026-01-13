@@ -14,7 +14,7 @@ for a simple dashboard.
 CCDB is using multiple open-source libraries:
  - [CPP-HTTPLIB](https://github.com/yhirose/cpp-httplib)
  - [GNU Readline 8.3](https://ftp.gnu.org/gnu/readline/)
- - [GNU Ncurses 6.5](https://ftp.gnu.org/gnu/ncurses/)
+ - [GNU Ncurses 6.6](https://ftp.gnu.org/gnu/ncurses/)
  - [TSL Hopscotch-Hashing Map](https://github.com/Tessil/hopscotch-map/)
  - [UTF8-CPP](https://github.com/nemtrif/utfcpp)
  - [JSON for Modern C++](https://github.com/nlohmann/json)

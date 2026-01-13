@@ -261,13 +261,16 @@ rl_gather_tyi (void)
   input = 0;
   tty = fileno (rl_instream);
 
-  /* Move this up here to give it first shot, but it can't set chars_avail */
+  /* Move this up here to give it first shot, but it can't set chars_avail,
+     so we assume a single character is available. */
   /* XXX - need rl_chars_available_hook? */
   if (rl_input_available_hook)
     {
       result = (*rl_input_available_hook) ();
       if (result == 0)
         result = -1;
+      else
+        chars_avail = 1;
     }
 
 #if defined (HAVE_PSELECT) || defined (HAVE_SELECT)
@@ -285,6 +288,7 @@ rl_gather_tyi (void)
 #endif
       if (result <= 0)
 	return 0;	/* Nothing to read. */
+      result = -1;	/* there is something, so check how many chars below */
     }
 #endif
 
@@ -971,11 +975,11 @@ postproc_signal:
 	 call the application's signal event hook. */
       if (rl_signal_event_hook)
 	(*rl_signal_event_hook) ();
-#if defined (READLINE_CALLBACKS)
-      else if (osig == SIGINT && (ostate & RL_STATE_CALLBACK) && (ostate & (RL_STATE_ISEARCH|RL_STATE_NSEARCH|RL_STATE_NUMERICARG)))
+      /* If the application's SIGINT handler returns, make sure we abort out of
+	 searches and numeric arguments because we've freed necessary state. */
+      if (osig == SIGINT && (ostate & (RL_STATE_ISEARCH|RL_STATE_NSEARCH|RL_STATE_NUMERICARG)))
         /* just these cases for now */
         _rl_abort_internal ();
-#endif
     }
 }
 

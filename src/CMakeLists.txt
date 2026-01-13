@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.30)
-project(src)
+project(CCDB C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 
@@ -10,7 +10,7 @@ set(NCURSES_MAKE_ENTIRE "${MAKE_EXECUTABLE} ${NCURSES_MAKE_ADDITIONAL_FLAGS}")
 message(STATUS "NCRUSES: ${NCURSES_MAKE_ENTIRE}")
 ExternalProject_Add(NCURSES
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/ncurses
-        SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/ncurses-6.5
+        SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/ncurses-6.6
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/ncurses/install
         CONFIGURE_COMMAND   <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> ${NCURSES_CONFIGURE_ADDITIONAL_FLAGS}
         BUILD_COMMAND       /bin/sh -c "${NCURSES_MAKE_ENTIRE}"
