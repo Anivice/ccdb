@@ -15,7 +15,7 @@ ExternalProject_Add(NCURSES
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/ncurses
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/ncurses-6.6
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/ncurses/install
-        CONFIGURE_COMMAND   <SOURCE_DIR>/configure --with-termlib --prefix=<INSTALL_DIR> ${NCURSES_CONFIGURE_ADDITIONAL_FLAGS}
+        CONFIGURE_COMMAND   <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --without-shared ${NCURSES_CONFIGURE_ADDITIONAL_FLAGS}
         BUILD_COMMAND       /bin/sh -c "${NCURSES_MAKE_ENTIRE}"
         INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${NCURSES_MAKE_INSTALL_ADDITIONAL_FLAGS}
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libncursesw.a
@@ -36,18 +36,8 @@ set_target_properties(ncurses::ncursesw PROPERTIES
         INTERFACE_INCLUDE_DIRECTORIES "${NCURSES_INCLUDE_DIR}"
 )
 
-add_library(ncurses::tinfow STATIC IMPORTED GLOBAL)
-set_target_properties(ncurses::tinfow PROPERTIES
-        IMPORTED_LOCATION "${NCURSES_LIB_DIR}/libtinfow.a"
-        INTERFACE_INCLUDE_DIRECTORIES "${NCURSES_INCLUDE_DIR}"
-)
-
-# Bundle target consumers can link to
 add_library(ncurses::ncurses INTERFACE IMPORTED GLOBAL)
-target_link_libraries(ncurses::ncurses INTERFACE
-        ncurses::ncursesw
-        ncurses::tinfow  # MUST ncursesw then tinfow
-)
+target_link_libraries(ncurses::ncurses INTERFACE ncurses::ncursesw)
 
 add_dependencies(ncurses::ncurses NCURSES)
 include_directories("${NCURSES_INCLUDE_DIR}/ncursesw")
@@ -61,7 +51,10 @@ ExternalProject_Add(READLINE
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/readline
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/readline-8.3
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/readline/install
-        CONFIGURE_COMMAND   <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --with-curses ${READLINE_CONFIGURE_ADDITIONAL_FLAGS}
+        CONFIGURE_COMMAND   /bin/sh -c
+                                "CPPFLAGS='-DNCURSES_STATIC -I${NCURSES_INCLUDE_DIR} -I${NCURSES_INCLUDE_DIR}/ncursesw' \
+                                LDFLAGS='-L${NCURSES_LIB_DIR}' \
+                                <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --with-curses ${READLINE_CONFIGURE_ADDITIONAL_FLAGS}"
         BUILD_COMMAND       /bin/sh -c "${READLINE_MAKE_ENTIRE}"
         INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${READLINE_MAKE_INSTALL_ADDITIONAL_FLAGS}
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libhistory.a <INSTALL_DIR>/lib/libreadline.a <INSTALL_DIR>/lib/libreadline.so <INSTALL_DIR>/lib/libhistory.so
@@ -222,4 +215,6 @@ else ()
     if ("${CCDB_CYGWIN_BUILD}" STREQUAL "True")
         target_compile_definitions(ccdb PRIVATE _CCDB_CYGWIN_BUILD_=1)
     endif ()
+
+    target_compile_definitions(ccdb PRIVATE NCURSES_STATIC)
 endif ()
