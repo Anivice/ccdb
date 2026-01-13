@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <ranges>
 #include <unistd.h>
-#include <sys/fcntl.h>
+#include <fcntl.h>
 #include "utils.h"
 #include <stdio.h>
 #include <string.h>
@@ -36,7 +36,7 @@ static pid_t get_ppid(const pid_t pid)
     return ppid;
 }
 
-static int get_comm(const pid_t pid, char *buf, size_t n) {
+static int get_comm(const pid_t pid, char *buf, const size_t n) {
     char path[64];
     snprintf(path, sizeof(path), "/proc/%d/comm", pid);
     return read_file_line(path, buf, n);
