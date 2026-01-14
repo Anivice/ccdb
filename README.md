@@ -52,9 +52,81 @@ As a result, CCDB is licensed under GPLv3 as per dictated.
 
 Use `help` command to see usage details.
 
-Use double Tab to list possible candidates in a command.
+Currently, CCDB has the following usage:
 
-### Switch Proxy in a Proxy Group
+```bash
+help             : Show this help message
+quit             : Quit the program
+exit             : Quit the program
+get              : Pull information
+ ├ connections   : Active connections
+ │ ├ hide        : Hide the column
+ │ │ ├ 0         : Host
+ │ │ ├ 1         : Process
+ │ │ ├ 2         : DL
+ │ │ ├ 3         : UP
+ │ │ ├ 4         : DL Speed
+ │ │ ├ 5         : UP Speed
+ │ │ ├ 6         : Rules
+ │ │ ├ 7         : Time
+ │ │ ├ 8         : Source IP
+ │ │ ├ 9         : Destination IP
+ │ │ ├ 10        : Type
+ │ │ ├ 11        : Chains
+ │ ├ shot        : Use pager and pull the active connections once
+ ├ latency       : Latency of an endpoint
+ ├ proxy         : Proxy list
+ ├ mode          : Proxy mode
+ ├ log           : Active backend logs
+ ├ vecGroupProxy : Vector proxy groups
+set              : Set parameters
+ ├ mode          : Proxy mode
+ │ ├ global      : Global mode
+ │ ├ rule        : Rule mode
+ │ ├ direct      : Direct mode
+ ├ group         : Switch proxy group
+ │ ├ [GROUP]     : Group name
+ │ ├ [PROXY]     : Proxy endpoint name
+ ├ vgroup        : Vector group
+ │ ├ [VGROUP]    : Group vector number
+ │ ├ [VPROXY]    : Proxy vector number
+ ├ chain_parser  : Chain parser
+ │ ├ on
+ │ ├ off
+ ├ sort_by       : Sort by column
+ │ ├ 0           : Host
+ │ ├ 1           : Process
+ │ ├ 2           : DL
+ │ ├ 3           : UP
+ │ ├ 4           : DL Speed
+ │ ├ 5           : UP Speed
+ │ ├ 6           : Rules
+ │ ├ 7           : Time
+ │ ├ 8           : Source IP
+ │ ├ 9           : Destination IP
+ │ ├ 10          : Type
+ │ ├ 11          : Chains
+ ├ sort_reverse  : Reverse sorting
+ │ ├ on
+ │ ├ off
+close_connections: Close all connections
+nload            : nload-like connection speed monitoring
+Environment:
+   PAGER:    Specify a pager. Pager availability check is ignored when this environmental variable is set
+   NOPAGER:  Set this to 'y' and force ccdb to ignore pager
+   COLOR:    Set it to `never` to disable color codes
+   NO_0xFE0F_EXPAND_EMOJI: Fix Unicode processing issues for emoji space expand code, e.g., "✈" and "✈️".
+                           If you cannot notice any differences of the above emojis, or there's wierd Unicode processing bugs in your terminal,
+                           you might want to set this to `true`
+```
+
+Use double Tab to list possible candidates in a command,
+this will list all the available candidates like proxy endpoints or groups,
+with additional information like latency (if tested) and vector index.
+
+### Example: Switch Proxy in a Proxy Group
+
+#### Step 1
 
 Select the group you want to switch by the following command:
 
@@ -66,6 +138,8 @@ You should see the vector results similar to this image (groups and endpoints ar
 
 ![Image](img/set_vgroup.png)
 
+#### Step 2
+
 Say, I want to change group `58`.
 Use the following command to list the proxy I can set for this group:
 
@@ -74,6 +148,11 @@ Use the following command to list the proxy I can set for this group:
 ```
 
 ![Image](img/set_vgroup2.png)
+
+> As is shown in the above image, currently selected proxy is marked with a prefix " * ".
+> In the above image, the selected endpoint for proxy group `58` is `5`.
+
+#### Additional Note
 
 If you tested latency before using `get latency`,
 the latency results will be shown in the parentheses, i.e., `([\d]+)`,
@@ -98,6 +177,8 @@ You need `wget` and `git` for the script to work properly.
 
 ## How to Build
 
+### Linux
+
 Use the command
 
 ```bash
@@ -114,21 +195,44 @@ with `configure.sh` as `src/configure.sh [ARCH] [BUILD TEMP DIR]`
 to automatically build for toolchain-supported architectire.
 Currently, ccdb has the toolchains embedded for the following architectures:
 
-  - ARM
-  - ARMv5l
-  - ARMv7hf
-  - ARMv7
-  - i586
-  - i686
+  - *ARM*
+  - *ARMv5l*
+  - *ARMv7hf*
+  - *ARMv7*
+  - *i586*
+  - *i686*
   - AARCH64
   - x86_64
 
-> ***WARNINGS***:
-> 
-> 1. CPP-HTTPLIB doesn't support 32bit CPUs but so far it seems to be working as intended.
-> However, vulnerabilities or exploitative behaviors might present in these executables since they
-> do not receive any human oversight to any degree.
-> 
-> 2. **This is free software;
-> There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-> If you choose CCDB in production environment (which you should *NEVER* do), you are on your own.** 
+> Architectures in cursive are 32bit architectures that `CPP-HTTPLIB` has already
+> announced as **deprecated**.
+> The executable runs as expected but vulnerabilities and BUGs might present in these executables
+> as they do not receive any test apart from a simple functionality check.
+> ***If you choose to use these executables, you are on your own.***
+> You have been warned.
+
+### Windows
+
+CCDB runs on [Cygwin](https://www.cygwin.com/) on Windows.
+You can obtain the cygwin build from [the release page](https://github.com/Anivice/ccdb/releases) published by GitHub Actions.
+Tags for Cygwin build is `ccdb.cygwin.NightlyBuild.[FIST 8 CHARACTERS OF GIT COMMIT HASH]`.
+
+Since GitHub tags are very unorganized, you can use the following script
+to directly pull the latest executable from the release page.
+You have to execute this script under Cygwin environment.
+
+```bash
+    curl -fsSL "https://raw.githubusercontent.com/Anivice/ccdb/refs/heads/main/src/script/update_cygwin.sh" | bash -s -- [DESTINATION]
+```
+
+Currently, all builds are nightly builds marked as pre-release.
+No "stable" build has been released, yet.
+
+## WARNING
+
+**This is free software; 
+There is *NO* warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+If you choose CCDB in your production environment (which you should *NEVER EVER* do), 
+you are on your own.**
+
+**YOU HAVE BEEN WARNED**
