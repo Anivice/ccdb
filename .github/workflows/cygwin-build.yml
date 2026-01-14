@@ -32,16 +32,15 @@ jobs:
       - name: Configure (Cygwin)
         shell: C:\tools\cygwin\bin\bash.exe --login --norc -eo pipefail -o igncr '{0}'
         run: |
-          pushd "$PWD"
           cd /cygdrive/d/a/ccdb/ccdb
-          git ls-files | grep "script/"
-          popd
-          cmake -S /cygdrive/d/a/ccdb/ccdb/src -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DCCDB_CYGWIN_BUILD=True -DNCURSES_MAKE_ADDITIONAL_FLAGS=-j2 -DREADLINE_MAKE_ADDITIONAL_FLAGS=-j2
+          file src/script/gen_header.sh
+          cmake -S src -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DCCDB_CYGWIN_BUILD=True -DNCURSES_MAKE_ADDITIONAL_FLAGS=-j2 -DREADLINE_MAKE_ADDITIONAL_FLAGS=-j2
 
       - name: Build (Cygwin)
         shell: C:\tools\cygwin\bin\bash.exe --login --norc -eo pipefail -o igncr '{0}'
         run: |
-          cmake --build build
+          cd /cygdrive/d/a/ccdb/ccdb
+          cmake --build build -- -j2
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
