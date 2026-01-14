@@ -33,16 +33,16 @@ jobs:
         shell: C:\tools\cygwin\bin\bash.exe --login --norc -eo pipefail -o igncr '{0}'
         run: |
           cd /cygdrive/d/a/ccdb/ccdb
-          cmake -S src -DCMAKE_MAKE_PROGRAM=/usr/bin/make -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DCCDB_CYGWIN_BUILD=True -DNCURSES_MAKE_ADDITIONAL_FLAGS=-j2 -DREADLINE_MAKE_ADDITIONAL_FLAGS=-j2
+          cmake -S src -DCMAKE_MAKE_PROGRAM=/usr/bin/make -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DCCDB_CYGWIN_BUILD=True -DNCURSES_MAKE_ADDITIONAL_FLAGS=-j$(nproc) -DREADLINE_MAKE_ADDITIONAL_FLAGS=-j$(nproc)
 
       - name: Build (Cygwin)
         shell: C:\tools\cygwin\bin\bash.exe --login --norc -eo pipefail -o igncr '{0}'
         run: |
           cd /cygdrive/d/a/ccdb/ccdb
-          cmake --build build -- -j2
+          cmake --build build -- -j$(nproc)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: cygwin-build
-          path: C:\tools\cygwin\cygdrive\d\a\ccdb\ccdb\build\ccdb.exe
+          path: D:\a\ccdb\ccdb\build\ccdb.exe
