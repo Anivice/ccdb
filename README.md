@@ -4,6 +4,13 @@ A Clash Dashboard in C++
 
 ![Nload](img/nload.png)
 
+ - [Introduction](#introduction)
+ - [Functionalities Provided](#functionalities-provided)
+ - [Usage](#usage)
+   * [Switch Proxy Endpoint](#example-switch-proxy-in-a-proxy-group)
+ - [How to Obtain](#how-to-obtain)
+ - [How to Build](#how-to-build)
+
 ## Introduction
 
 CCDB is intended as a lightweight C++ implementation of a clash dashboard
@@ -45,7 +52,7 @@ CCDB is using multiple open-source libraries:
 > There are many ways to achieve this,
 > but the simplest is using a bare-metal X display server like Xorg or XLibre.
 
-CCDB is using dependencies that is published under GPL.
+CCDB is using dependencies that are published under GPL.
 As a result, CCDB is licensed under GPLv3 as per dictated.
 
 ## Usage
@@ -162,6 +169,8 @@ as is shown in the following image.
 
 ## How to Obtain
 
+### Linux
+
 You can download pre-built binaries from
 [the release page](https://github.com/Anivice/ccdb/releases)
 (well bye-bye free 2k minutes per months),
@@ -174,6 +183,25 @@ or use the command
 to download the latest executable to the location you want to download to from the release page automatically.
 
 You need `wget` and `git` for the script to work properly.
+
+### Windows
+
+CCDB runs on [Cygwin](https://www.cygwin.com/) on Windows.
+You can obtain the cygwin build from [the release page](https://github.com/Anivice/ccdb/releases) published by GitHub Actions.
+Tags for Cygwin build is `ccdb.cygwin.NightlyBuild.[FIST 8 CHARACTERS OF GIT COMMIT HASH]`.
+
+Since GitHub tags are very unorganized, you can use the following script
+to directly pull the latest executable from the release page.
+You have to execute this script under Cygwin environment.
+
+```bash
+    curl -fsSL "https://raw.githubusercontent.com/Anivice/ccdb/refs/heads/main/src/script/update_cygwin.sh" | bash -s -- [DESTINATION]
+```
+
+Again, you need `wget` and `git` for the script to work properly.
+
+Currently, all builds are nightly builds marked as pre-release.
+No "stable" build has been released, yet.
 
 ## How to Build
 
@@ -213,20 +241,15 @@ Currently, ccdb has the toolchains embedded for the following architectures:
 
 ### Windows
 
-CCDB runs on [Cygwin](https://www.cygwin.com/) on Windows.
-You can obtain the cygwin build from [the release page](https://github.com/Anivice/ccdb/releases) published by GitHub Actions.
-Tags for Cygwin build is `ccdb.cygwin.NightlyBuild.[FIST 8 CHARACTERS OF GIT COMMIT HASH]`.
-
-Since GitHub tags are very unorganized, you can use the following script
-to directly pull the latest executable from the release page.
-You have to execute this script under Cygwin environment.
+Use the command
 
 ```bash
-    curl -fsSL "https://raw.githubusercontent.com/Anivice/ccdb/refs/heads/main/src/script/update_cygwin.sh" | bash -s -- [DESTINATION]
+  git clone https://github.com/Anivice/ccdb && cd ccdb && mkdir build && cd build && cmake ../src/ -DCCDB_CYGWIN_BUILD=True && make
 ```
+to build locally.
 
-Currently, all builds are nightly builds marked as pre-release.
-No "stable" build has been released, yet.
+x86_64 is the only architecture ever tested. The build system must live under cygwin.
+Debug builds for Windows are not supported.
 
 ## WARNING
 
