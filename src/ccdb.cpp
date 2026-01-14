@@ -665,7 +665,7 @@ void ccdb::ccdb::print_table(
                 << color::color(3,3,3) << "/" << color::color(5,0,5) << table_values.size()
                 << color::color(3,3,3) << "/" << color::color(0,0,0) << std::fixed << std::setprecision(2)
                 << (static_cast<double>(i) / static_cast<double>(table_values.size())) * 100 << "%"
-                << color::no_color() << std::endl;
+                << color::no_color() << std::flush;
     };
 
     for (const auto & vals : table_values)
@@ -680,7 +680,7 @@ void ccdb::ccdb::print_table(
             }
 
             // last element on screen
-            if (i > skip_lines && printed_lines >= (utils::get_line_size() - 2))
+            if (i > skip_lines && printed_lines >= (utils::get_line_size() - 1))
             {
                 print_progress();
                 return;
@@ -725,6 +725,21 @@ void ccdb::ccdb::print_table(
     if (skip_lines == 0) {
         print_line(separation_line);
     } else {
+        const auto col_sz = get_col_size();
+        const auto line_sz = get_line_size();
+        if (col_sz > 2)
+        {
+            if (printed_lines <= (col_sz - 2)) {
+                std::cout << "+" << std::string(col_sz - 2, '-') << "+" << std::endl;
+            }
+        }
+
+        if (line_sz > 2)
+        {
+            for (int j = printed_lines; j < (line_sz - 2); j++)
+                std::cout << std::endl;
+        }
+
         print_progress();
     }
 
