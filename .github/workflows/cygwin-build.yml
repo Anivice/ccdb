@@ -24,10 +24,10 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      - name: Set up Cygwin (cmake, make, gcc/g++, xxd)
+      - name: Set up Cygwin (git, cmake, make, gcc/g++, xxd)
         uses: egor-tensin/setup-cygwin@v4
         with:
-          packages: cmake make gcc-g++ xxd
+          packages: cmake make gcc-g++ xxd git
 
       - name: Configure (Cygwin)
         shell: C:\tools\cygwin\bin\bash.exe --login --norc -eo pipefail -o igncr '{0}'
