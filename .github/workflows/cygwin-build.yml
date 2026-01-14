@@ -1,4 +1,4 @@
-name: cygwin-build
+name: Cygwin (Windows) Nightly Build
 
 on:
   workflow_dispatch:    # Enables manual triggering
@@ -45,4 +45,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cygwin-build
-          path: cd /cygdrive/d/a/ccdb/ccdb/build/ccdb.exe
+          path: C:\tools\cygwin\cygdrive\d\a\ccdb\ccdb\build\ccdb.exe

@@ -1,4 +1,4 @@
-name: Automated CMake Test Workflow
+name: Linux Automatic Nightly Build
 
 on:
   workflow_dispatch:    # Enables manual triggering
