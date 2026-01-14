@@ -33,8 +33,6 @@ jobs:
         shell: C:\tools\cygwin\bin\bash.exe --login --norc -eo pipefail -o igncr '{0}'
         run: |
           cd /cygdrive/d/a/ccdb/ccdb
-          file src/script/gen_header.sh
-          file /cygdrive/d/a/ccdb/ccdb/src/script/gen_header.sh
           cmake -S src -DCMAKE_MAKE_PROGRAM=/usr/bin/make -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DCCDB_CYGWIN_BUILD=True -DNCURSES_MAKE_ADDITIONAL_FLAGS=-j2 -DREADLINE_MAKE_ADDITIONAL_FLAGS=-j2
 
       - name: Build (Cygwin)
@@ -47,4 +45,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cygwin-build
-          path: build/ccdb.exe
+          path: cd /cygdrive/d/a/ccdb/ccdb/build/ccdb.exe
