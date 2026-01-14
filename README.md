@@ -19,7 +19,7 @@ CCDB is using multiple open-source libraries:
  - [UTF8-CPP 4.0.9](https://github.com/nemtrif/utfcpp)
  - [JSON for Modern C++ 3.12.0](https://github.com/nlohmann/json)
 
-## Functionalities provided
+## Functionalities Provided
 
 ### CCDB provides
 
