@@ -34,6 +34,7 @@ jobs:
         run: |
           cd /cygdrive/d/a/ccdb/ccdb
           file src/script/gen_header.sh
+          file /cygdrive/d/a/ccdb/ccdb/src/script/gen_header.sh
           cmake -S src -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DCCDB_CYGWIN_BUILD=True -DNCURSES_MAKE_ADDITIONAL_FLAGS=-j2 -DREADLINE_MAKE_ADDITIONAL_FLAGS=-j2
 
       - name: Build (Cygwin)
