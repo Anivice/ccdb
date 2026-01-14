@@ -6,10 +6,11 @@
 #include "json.hpp"
 #include <algorithm>
 #include <thread>
-
 #include "tsl/hopscotch_map.h"
 
 using json = nlohmann::json;
+
+class broken_connection_this_force_quit : public std::exception { };
 
 class general_info_pulling
 {
@@ -21,6 +22,7 @@ private:
 
 public:
     std::atomic < bool > parse_chains = true;
+    std::atomic < bool > force_quit = false;
 
     struct connection_t
     {

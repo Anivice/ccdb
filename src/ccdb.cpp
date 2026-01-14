@@ -1580,7 +1580,7 @@ void ccdb::ccdb::generic_input_watcher(const std::string &name, std::atomic_bool
 
     // pull SIGINT status every 50ms
     std::thread T([&] { while (*running) {
-        if (sigint_status) { (*running) = false; break; }
+        if (sigint_status || backend_instance.force_quit) { (*running) = false; break; }
         std::this_thread::sleep_for(std::chrono::milliseconds(50l));
     } });
 
@@ -1622,7 +1622,7 @@ void ccdb::ccdb::get_conn_input_watcher(
 
     // pull SIGINT every 50ms
     std::thread T([&] { while (running) {
-        if (sigint_status) { running = false; break; }
+        if (sigint_status || backend_instance.force_quit) { running = false; break; }
         std::this_thread::sleep_for(std::chrono::milliseconds(50l));
     } });
 
@@ -1781,6 +1781,10 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
         get_vecGroupProxy(false);
         cmdTpTree::read_command([&](const std::vector<std::string> &command_vector)-> bool
         {
+            if (backend_instance.force_quit) {
+                return false;
+            }
+
             if (command_vector.empty()) {
                 return true;
             }
@@ -1860,6 +1864,10 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
                 std::cerr << "Unknown command `" << command_vector.front() << "` or invalid syntax" << std::endl;
             }
 
+            if (backend_instance.force_quit) {
+                return false;
+            }
+
             return true;
         },
         [&](const std::vector<std::string> & args, const std::string & special_filler, const int arg_index)->std::vector<std::string>
@@ -1894,6 +1902,10 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
         }, "ccdb> ");
 
         backend_instance.stop_continuous_updates();
+
+        if (backend_instance.force_quit) {
+            std::cout << "Connection broken, force quit" << std::endl;
+        }
     }
     catch (std::exception & e)
     {

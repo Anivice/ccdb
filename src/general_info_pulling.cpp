@@ -271,6 +271,7 @@ void general_info_pulling::pull_continuous_updates()
             auto run_traffic = [this](const std::atomic_bool * _traffic_running)
             {
                 ccdb::utils::set_thread_name("/traffic");
+                if (force_quit) return;
                 try
                 {
                     backend_client.get_stream_info("traffic",
@@ -281,7 +282,7 @@ void general_info_pulling::pull_continuous_updates()
                 catch (std::exception & e)
                 {
                     std::cerr << "Error when pulling traffic: " << e.what() << std::endl;
-                    exit(1);
+                    force_quit = true;
                 }
             };
             std::atomic_bool * ptr = traffic_running.get();
@@ -295,7 +296,7 @@ void general_info_pulling::pull_continuous_updates()
             auto run_connections = [this](const std::atomic_bool * _connection_running)
             {
                 ccdb::utils::set_thread_name("/connections");
-                while (*_connection_running)
+                while (*_connection_running && !force_quit)
                 {
                     try
                     {
@@ -307,7 +308,7 @@ void general_info_pulling::pull_continuous_updates()
                     catch (std::exception & e)
                     {
                         std::cerr << "Error when pulling traffic: " << e.what() << std::endl;
-                        exit(1);
+                        force_quit = true;
                     }
                 }
             };
@@ -334,6 +335,7 @@ void general_info_pulling::pull_continuous_updates()
             auto run_logs = [&](const std::atomic_bool * _log_running)
             {
                 ccdb::utils::set_thread_name("/logs");
+                if (force_quit) return;
                 try
                 {
                     backend_client.get_stream_info("logs",
@@ -345,7 +347,7 @@ void general_info_pulling::pull_continuous_updates()
                 catch (std::exception & e)
                 {
                     std::cerr << "Error when pulling traffic: " << e.what() << std::endl;
-                    exit(1);
+                    force_quit = true;
                 }
             };
             std::atomic_bool * ptr = log_running.get();
@@ -403,7 +405,17 @@ void general_info_pulling::change_focus(const std::string & info)
 void general_info_pulling::start_continuous_updates()
 {
     change_focus("overview");
-    pull_continuous_updates_worker = std::thread(&general_info_pulling::pull_continuous_updates, this);
+    pull_continuous_updates_worker = std::thread([&]
+    {
+        try {
+            pull_continuous_updates();
+        } catch (broken_connection_this_force_quit &) {
+            force_quit = true;
+        }
+        catch (const std::exception & e) {
+            std::cerr << "Error when pulling continuous updates: " << e.what() << std::endl;
+        }
+    });
     std::this_thread::sleep_for(std::chrono::milliseconds(100l));
 }
 
@@ -487,6 +499,7 @@ void general_info_pulling::latency_test(const std::string & url)
                 else break;
             }
             ccdb::utils::set_thread_name("ping " + name);
+            if (force_quit) return;
             replace_all(proxy_, " ", "%20");
             try
             {
