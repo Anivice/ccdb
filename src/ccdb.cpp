@@ -732,6 +732,56 @@ void ccdb::ccdb::print_table(
     pager(output, true, using_pager);
 }
 
+bool ccdb::ccdb::is_connection_valid
+(   const general_info_pulling::connection_t &conn,
+    const tsl::hopscotch_map<uint64_t, std::string> &filter_patterns)
+{
+    try {
+        bool result = false;
+        bool hit = false;
+        if (filter_patterns.contains(0)) {
+            hit = true;
+            result |= std::regex_search(conn.host, std::regex(filter_patterns.at(0)));
+        }
+
+        if (filter_patterns.contains(1)) {
+            hit = true;
+            result |= std::regex_search(conn.processName, std::regex(filter_patterns.at(1)));
+        }
+
+        if (filter_patterns.contains(6)) {
+            hit = true;
+            result |= std::regex_search(conn.ruleName, std::regex(filter_patterns.at(6)));
+        }
+
+        if (filter_patterns.contains(8)) {
+            hit = true;
+            result |= std::regex_search(conn.src, std::regex(filter_patterns.at(8)));
+        }
+
+        if (filter_patterns.contains(9)) {
+            hit = true;
+            result |= std::regex_search(conn.destination, std::regex(filter_patterns.at(9)));
+        }
+
+        if (filter_patterns.contains(10)) {
+            hit = true;
+            result |= std::regex_search(conn.networkType, std::regex(filter_patterns.at(10)));
+        }
+
+        if (filter_patterns.contains(11)) {
+            hit = true;
+            result |= std::regex_search(conn.chainName, std::regex(filter_patterns.at(11)));
+        }
+
+        if (hit) return result; // when hit, return filtering result.
+        return filter_patterns.empty(); // no pattern filtering => true, has pattern filtering => false
+    } catch(const std::exception& e) {
+        std::cerr << e.what() << std::endl;
+        return true; // pattern failed, show the result
+    }
+}
+
 std::vector<std::string> ccdb::ccdb::get_groups()
 {
     std::vector<std::string> groups;
@@ -949,6 +999,15 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines);
     }
 
+    auto valid_check = [&](const general_info_pulling::connection_t & c)->bool
+    {
+        if (reverse_filter_list) {
+            return !is_connection_valid(c, filter_patterns);
+        }
+
+        return is_connection_valid(c, filter_patterns);
+    };
+
     while (running)
     {
         auto connections = backend_instance.get_active_connections();
@@ -988,20 +1047,24 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         if (reverse) std::ranges::reverse(connections);
         for (const auto & connection : connections)
         {
-            table_vals.push_back({
-                connection.host,
-                connection.processName,
-                value_to_size(connection.totalDownloadedBytes),
-                value_to_size(connection.totalUploadedBytes),
-                value_to_speed(connection.downloadSpeed),
-                value_to_speed(connection.uploadSpeed),
-                connection.ruleName,
-                second_to_human_readable(connection.timeElapsedSinceConnectionEstablished),
-                connection.src,
-                connection.destination,
-                connection.networkType,
-                connection.chainName,
-            });
+            // determine if we need to filter out the result
+            if (valid_check(connection))
+            {
+                table_vals.push_back({
+                    connection.host,
+                    connection.processName,
+                    value_to_size(connection.totalDownloadedBytes),
+                    value_to_size(connection.totalUploadedBytes),
+                    value_to_speed(connection.downloadSpeed),
+                    value_to_speed(connection.uploadSpeed),
+                    connection.ruleName,
+                    second_to_human_readable(connection.timeElapsedSinceConnectionEstablished),
+                    connection.src,
+                    connection.destination,
+                    connection.networkType,
+                    connection.chainName,
+                });
+            }
         }
 
         std::stringstream ss;
@@ -1406,6 +1469,53 @@ void ccdb::ccdb::set_sort_reverse(const std::vector<std::string> & command_vecto
     else std::cerr << "Unknown option for parser `" << command_vector[2] << "`" << std::endl;
 }
 
+void ccdb::ccdb::set_filter_reverse(const std::vector<std::string> &command_vector)
+{
+    if (command_vector[2] == "on") reverse_filter_list = true;
+    else if (command_vector[2] == "off") reverse_filter_list = false;
+    else std::cerr << "Unknown option for parser `" << command_vector[2] << "`" << std::endl;
+}
+
+void ccdb::ccdb::set_filter(const std::vector<std::string> &command_vector)
+{
+    const std::string & index = command_vector[2], & pattern = command_vector[3];
+    try {
+        const uint64_t index_num = std::strtoul(index.c_str(), nullptr, 10);
+        if (index_num > titles.size()) {
+            throw std::invalid_argument("Invalid number `" + index + "`");
+        }
+
+        auto clean_filer = [](std::string pattern_)->std::string
+        {
+            if (!pattern_.empty()) {
+                if ((pattern_.front() == pattern_.back()) && (pattern_.back() == '\'' || pattern_.back() == '"')) {
+                    pattern_.pop_back();
+                    pattern_.erase(pattern_.begin());
+                }
+            }
+
+            return pattern_;
+        };
+
+        const std::regex r(pattern); // test if it actually works
+        filter_patterns[index_num] = clean_filer(pattern);
+    } catch (std::exception &e) {
+        std::cerr << e.what() << std::endl;
+    }
+}
+
+void ccdb::ccdb::clear_filter()
+{
+    filter_patterns.clear();
+}
+
+void ccdb::ccdb::get_filter()
+{
+    std::ranges::for_each(filter_patterns, [](const std::pair <uint64_t, std::string> & pattern) {
+        std::cout << std::setw(2) << std::setfill('0') << pattern.first << ": " << "`" << pattern.second << "`" << std::endl;
+    });
+}
+
 void ccdb::ccdb::reset_terminal_mode()
 {
     if (terminal_mode_changed) {
@@ -1699,6 +1809,8 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
                     get_proxy();
                 } else if (command_vector[1] == "vecGroupProxy") {
                     get_vecGroupProxy();
+                } else if (command_vector[1] == "filter") {
+                    get_filter();
                 } else {
                     std::cerr << "Unknown command `" << command_vector[1] << "`" << std::endl;
                 }
@@ -1724,6 +1836,12 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
                 else if (command_vector.size() == 3 && command_vector[1] == "sort_reverse") { // set sort_reverse on/off
                     set_sort_reverse(command_vector);
                 }
+                else if (command_vector.size() == 3 && command_vector[1] == "filter_reverse") { // set filter_reverse on/off
+                    set_filter_reverse(command_vector);
+                }
+                else if (command_vector.size() == 4 && command_vector[1] == "filter") { // set filter [index] [pattern]
+                    set_filter(command_vector);
+                }
                 else {
                     if (command_vector.size() == 2) {
                         std::cerr << "Unknown command `" << command_vector[1] << "` or invalid syntax" << std::endl;
@@ -1734,6 +1852,9 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
             }
             else if (command_vector.front() == "close_connections") {
                 backend_instance.close_all_connections();
+            }
+            else if (command_vector.front() == "clear_filter") {
+                clear_filter();
             }
             else {
                 std::cerr << "Unknown command `" << command_vector.front() << "` or invalid syntax" << std::endl;

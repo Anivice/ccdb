@@ -86,6 +86,7 @@ get              : Pull information
  ├ mode          : Proxy mode
  ├ log           : Active backend logs
  ├ vecGroupProxy : Vector proxy groups
+ ├ filter        : Currently recorded filter
 set              : Set parameters
  ├ mode          : Proxy mode
  │ ├ global      : Global mode
@@ -113,10 +114,22 @@ set              : Set parameters
  │ ├ 9           : Destination IP
  │ ├ 10          : Type
  │ ├ 11          : Chains
+ ├ filter        : get connections filter pattern
+ │ ├ 0           : Host
+ │ ├ 1           : Process
+ │ ├ 6           : Rules
+ │ ├ 8           : Source IP
+ │ ├ 9           : Destination IP
+ │ ├ 10          : Type
+ │ ├ 11          : Chains
  ├ sort_reverse  : Reverse sorting
  │ ├ on
  │ ├ off
+ ├ filter_reverse: Reverse filter
+ │ ├ on
+ │ ├ off
 close_connections: Close all connections
+clear_filter     : Clear get connection filtering patterns
 nload            : nload-like connection speed monitoring
 Environment:
    PAGER:    Specify a pager. Pager availability check is ignored when this environmental variable is set

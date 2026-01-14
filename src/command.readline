@@ -25,6 +25,7 @@
         mode            (Proxy mode),
         log             (Active backend logs),
         vecGroupProxy   (Vector proxy groups),
+        filter          (Currently recorded filter),
     >,
     < set (Set parameters): < mode          (Proxy mode):           global (Global mode), rule (Rule mode), direct (Direct mode) >,
                             < group         (Switch proxy group):   [GROUP] (Group name), [PROXY] (Proxy endpoint name) >,
@@ -44,8 +45,19 @@
                                                                     10 (Type),
                                                                     11 (Chains),
                             >,
+                            < filter        (get connections filter pattern):
+                                                                    0 (Host),
+                                                                    1 (Process),
+                                                                    6 (Rules),
+                                                                    8 (Source IP),
+                                                                    9 (Destination IP),
+                                                                    10 (Type),
+                                                                    11 (Chains),
+                            >, # set filter [INDEX] [PATTERN], pattern cannot be auto completed, so it's simply ignored
                             < sort_reverse  (Reverse sorting):      on, off >,
+                            < filter_reverse (Reverse filter):      on, off >,
     >,
     < close_connections (Close all connections): [NONE] >,
+    < clear_filter (Clear get connection filtering patterns): [NONE] >,
     < nload (nload-like connection speed monitoring): [NONE] >,
 }

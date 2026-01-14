@@ -161,9 +161,10 @@ namespace cmdTpTree
         ccdb::utils::set_thread_name("readline");
         SpecialArgumentCandidatesGenerator = spc_gen_;
 
-        auto remove_leading_and_tailing_spaces = [](const std::string & text)->std::string
+        auto remove_leading_and_tailing_spaces = [](std::string text)->std::string
         {
             if (text.empty()) return text;
+            ccdb::utils::replace_all(text, "\t", "    ");
             const auto pos = text.find_first_not_of(' ');
             if (pos == std::string::npos) return text;
             std::string middle = text.substr(pos);
@@ -176,6 +177,23 @@ namespace cmdTpTree
         rl_attempted_completion_function = cmd_completion;
         using_history();
         std::string last_line;
+
+        auto split_history = [](const std::string& line)->std::vector<std::string>
+        {
+            static char delims[] = " \t\n";
+            history_word_delimiters = delims;
+
+            char** toks = history_tokenize(line.c_str());
+            std::vector<std::string> out;
+            if (!toks) return out;
+
+            for (char** p = toks; *p; ++p) {
+                out.emplace_back(*p);
+                std::free(*p);
+            }
+            std::free(toks);
+            return out;
+        };
 
         char * line = nullptr;
         while ((line = readline(prompt.c_str())) != nullptr)
@@ -190,51 +208,10 @@ namespace cmdTpTree
                     }
 
                     if (!presented_history.empty()) last_line = presented_history;
-
                     /// compose a command vector
                     std::string cmd = line;
                     cmd = remove_leading_and_tailing_spaces(cmd);
-                    std::string buffer;
-                    bool override = false;
-                    bool escape = false;
-                    for (const auto c : cmd)
-                    {
-                        if (c == '\\') {
-                            escape = true;
-                            continue;
-                        }
-
-                        if (escape) {
-                            buffer += c;
-                            escape = false;
-                            continue;
-                        }
-
-                        if (c == '"') {
-                            override = !override;
-                            continue;
-                        }
-
-                        if (override)
-                        {
-                            buffer += c;
-                            continue;
-                        }
-
-                        if (c != ' ') {
-                            buffer.push_back(c);
-                        }
-                        else if (!buffer.empty())
-                        {
-                            command_vector.push_back(buffer);
-                            buffer.clear();
-                        }
-                    }
-
-                    if (!buffer.empty()) {
-                        command_vector.push_back(buffer);
-                        buffer.clear();
-                    }
+                    command_vector = split_history(cmd);
                 }
                 free(line);
                 if (!handler_(command_vector)) {

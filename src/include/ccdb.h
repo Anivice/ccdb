@@ -38,6 +38,8 @@ namespace ccdb
             "Chains",       // 11
         };
 
+        bool reverse_filter_list = false; // reverse white list
+        tsl::hopscotch_map < uint64_t, std::string > filter_patterns; // Regex filter patterns for `get connections`
         std::atomic_int sort_by = 4; // get connections table: sort by which column
         std::atomic_bool reverse = false; // get connections table: if sort is reversed?
         tsl::hopscotch_map < uint64_t, std::string > index_to_proxy_name_list; // vector translation list
@@ -104,6 +106,8 @@ namespace ccdb
             bool enforce_no_pager = false // disable line shrinking, used when NOPAGER=y or pager is not available
         );
 
+        static bool is_connection_valid(const general_info_pulling::connection_t & conn,
+            const tsl::hopscotch_map < uint64_t, std::string > & filter_patterns);
 
         /// get proxy groups
         std::vector<std::string> get_groups();
@@ -136,6 +140,10 @@ namespace ccdb
         void set_chain_parser(const std::vector<std::string> & command_vector);
         void set_sort_by(const std::vector<std::string> & command_vector);
         void set_sort_reverse(const std::vector<std::string> & command_vector);
+        void set_filter_reverse(const std::vector<std::string> & command_vector);
+        void set_filter(const std::vector<std::string> & command_vector);
+        void clear_filter();
+        void get_filter();
         static void help();
 
         /// terminal mode guard. Create this instance to change and reset term mode automatically
