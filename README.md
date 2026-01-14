@@ -220,7 +220,7 @@ to build fully statically-linked, self-contained executables
 (that are already published per-git-commit on GitHub by GitHub Actions automatically) locally
 with `configure.sh` as `src/configure.sh [ARCH] [BUILD TEMP DIR]`
 (e.g., `src/configure.sh aarch64 /tmp/build_aarch64`)
-to automatically build for toolchain-supported architectire.
+to automatically build for toolchain-supported architecture.
 Currently, ccdb has the toolchains embedded for the following architectures:
 
   - *ARM*
