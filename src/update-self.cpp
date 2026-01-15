@@ -57,6 +57,6 @@ void update_self(const std::string & executable_path)
     }
 
     assert_in_update(pid != -1);
-    waitpid(pid, nullptr, 0);
+    if (kill(pid, 0) == 0) waitpid(pid, nullptr, 0);
     exit(0);
 }
