@@ -1,14 +1,12 @@
 #include "update-self.h"
 #include "utils.h"
-#include <fcntl.h>            /* Definition of AT_* constants */
-#include <sys/syscall.h>      /* Definition of SYS_* constants */
+#include <fcntl.h>
 #include <unistd.h>
 #include <stdexcept>
 #include <memory>
 #include <iostream>
 #include <sys/wait.h>
 #include <sstream>
-#include "term_name.h"
 
 #define assert_in_update(condition) if (!(condition)) { throw std::runtime_error("Assertion of " #condition " failed"); }
 
