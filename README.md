@@ -216,6 +216,27 @@ Again, you need `wget` and `git` for the script to work properly.
 Currently, all builds are nightly builds marked as pre-release.
 No "stable" build has been released, yet.
 
+### Self update
+
+You can use the command
+
+```bash
+   ccdb update
+```
+
+to update the program from the GitHub directly.
+This will spawn an orphaned subprocess to update the executable when possible.
+
+Be sure to kill all `ccdb` process before updating.
+
+However, DO BE ALARMED that this updater assumed a stable network environment
+and is by no means atomic, which CAN BREAK the existing file
+when the updater cannot correctly pull the desired content from GitHub.
+Use this at your own risk.
+
+If you ran into an issue when updating and the original `ccdb` is damaged,
+you can resume the update process by the methods mentioned above.
+
 ## How to Build
 
 ### Linux

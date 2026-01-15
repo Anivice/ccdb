@@ -6,6 +6,7 @@
 #include <fstream>
 #include "ccdb.h"
 #include "general_info_pulling.h"
+#include "update-self.h"
 
 int main(int argc, char ** argv)
 {
@@ -16,6 +17,13 @@ int main(int argc, char ** argv)
 
     try
     {
+        if (argc == 2 && std::string(argv[1]) == "update")
+        {
+            std::cout << "Attempting to update the executable " << argv[0] << "..." << std::endl;
+            update_self(argv[0]);
+            return EXIT_SUCCESS;
+        }
+
         if (argc >= 3)
         {
             backend = argv[1];
@@ -33,6 +41,7 @@ int main(int argc, char ** argv)
         if (argc < 3 || argc > 5)
         {
             std::cout << argv[0] << " [BACKEND] [PORT] <TOKEN> <LATENCY URL>" << std::endl;
+            std::cout << argv[0] << " update: update this executable" << std::endl;
             std::cout << " [...] is required, <...> is optional." << std::endl;
             return EXIT_FAILURE;
         }
