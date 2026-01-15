@@ -178,23 +178,20 @@ else ()
     endif ()
     target_compile_options(ccdb PRIVATE
             -O3
-            # -flto
             -fomit-frame-pointer
             -ffast-math
             -fstrict-aliasing
             -fdata-sections
             -ffunction-sections
             -D_FORTIFY_SOURCE=2
-            -fno-stack-protector
-            #-fstack-protector-strong
-            #-Wl,-z,relro -Wl,-z,now
+            #-fno-stack-protector
+            -fstack-protector-strong
             -s
             ${CC_ADDITIONAL_OPTIONS}
     )
     target_link_options(ccdb PRIVATE
             ${LD_STATIC}
             -O3
-            # -flto
             -fomit-frame-pointer
             -ffast-math
             -fstrict-aliasing
@@ -202,9 +199,8 @@ else ()
             -ffunction-sections
             -Wl,--gc-sections
             -D_FORTIFY_SOURCE=2
-            -fno-stack-protector
-            #-fstack-protector-strong
-            #-Wl,-z,relro -Wl,-z,now
+            #-fno-stack-protector
+            -fstack-protector-strong
             -s
             ${LD_ADDITIONAL_OPTIONS}
     )

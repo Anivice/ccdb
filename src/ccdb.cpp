@@ -53,9 +53,9 @@ public:
         if (const int fd = open(term.c_str(), O_RDWR | O_CLOEXEC); fd > 0)
         {
             const auto llen = ccdb::utils::get_col_size();
-            write(fd, clear.c_str(), clear.size());
-            write(fd, std::string(llen, ' ').c_str(), llen);
-            write(fd, clear.c_str(), clear.size());
+            (void)write(fd, clear.c_str(), clear.size());
+            (void)write(fd, std::string(llen, ' ').c_str(), llen);
+            (void)write(fd, clear.c_str(), clear.size());
             close(fd);
         }
         cmdTpTree::clear_read_cache();
@@ -560,7 +560,7 @@ void ccdb::ccdb::print_table(
     leading_offset = std::min(static_cast<decltype(separation_line.size())>(leading_offset), max_tailing_size);
     std::stringstream less_output_redirect;
     int printed_lines = 0;
-    auto print_line = [&](const std::string& line_, const std::string & color = "")->void
+    auto print_line = [&](const std::string& line_, const std::string & color = "", bool endl = true)->void
     {
         auto line = utils::utf8_to_u32(line_);
         if (max_tailing_size_ptr && !using_pager && !enforce_no_pager)
@@ -621,7 +621,8 @@ void ccdb::ccdb::print_table(
         }
 
         if (using_pager || enforce_no_pager) {
-            less_output_redirect << color << line_ << color::no_color() << std::endl;
+            less_output_redirect << color << line_ << color::no_color();
+            if (endl) less_output_redirect << std::endl;
         } else {
             std::string utf8_str;
             utf8::utf32to8(line.begin(), line.end(), std::back_inserter(utf8_str));
@@ -632,7 +633,8 @@ void ccdb::ccdb::print_table(
             } else {
                 utf8_str = color + utf8_str;
             }
-            std::cout << utf8_str << color::no_color() << std::endl;
+            std::cout << utf8_str << color::no_color();
+            if (endl) std::cout << std::endl;
             printed_lines++;
         }
     };
@@ -723,13 +725,13 @@ void ccdb::ccdb::print_table(
     }
 
     if (skip_lines == 0) {
-        print_line(separation_line);
+        print_line(separation_line, "", false);
     } else {
         const auto col_sz = get_col_size();
         const auto line_sz = get_line_size();
         if (col_sz > 2)
         {
-            if (printed_lines <= (col_sz - 2)) {
+            if (printed_lines <= (line_sz - 2)) {
                 std::cout << "+" << std::string(col_sz - 2, '-') << "+" << std::endl;
             }
         }
@@ -1085,7 +1087,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         std::stringstream ss;
         int ss_printed_size = 0;
         int skipped_size = 0;
-        std::cout.write(clear, sizeof(clear)); // clear the screen
+        (void)write(1, clear, sizeof(clear)); // clear the screen
+        fflush(stdout);
         const int col = get_col_size();
         bool did_i_add_no_color = false;
         auto append_msg = [&](std::string msg,
@@ -1255,7 +1258,8 @@ void ccdb::ccdb::get_log()
         uint32_t lines = get_line_size();
         if (lines == 0) lines = 1;
         while (current_vector.size() > (lines - 1)) current_vector.erase(current_vector.begin());
-        std::cout.write(clear, sizeof(clear));
+        (void)write(1, clear, sizeof(clear)); // clear the screen
+        fflush(stdout);
         for (const auto & [level, log] : current_vector)
         {
             if (level == "INFO") {
