@@ -971,7 +971,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     bool use_input = true;
     std::atomic_bool running = true;
     std::vector < bool > do_col_hide;
-    do_col_hide.resize(titles.size(), false);
+    do_col_hide.resize(get_conn_titles.size(), false);
     if (command_vector.size() == 4)
     {
         if (command_vector[2] == "hide")
@@ -1156,7 +1156,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
         if (use_input)
         {
-            print_table(titles,
+            print_table(get_conn_titles,
                 table_vals,
                 false,
                 true,
@@ -1194,7 +1194,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         else
         {
             // print once to the pager, then quit
-            print_table(titles,
+            print_table(get_conn_titles,
                 table_vals,
                 false,
                 true,
@@ -1248,32 +1248,68 @@ void ccdb::ccdb::get_latency()
 
 void ccdb::ccdb::get_log()
 {
-    backend_instance.change_focus("logs");
+    const std::vector < std::string > log_titles = { "Level", "Log" };
+    std::atomic_int leading_spaces = 0;
+    std::atomic_int max_leading_spaces = get_col_size() / 4;
+    std::atomic_int max_skip_lines = 0;
+    std::atomic_int current_skip_lines = 0;
     std::atomic_bool running = true;
-    std::thread input_watcher(&ccdb::generic_input_watcher, this, "get/log:input", &running);
+    std::vector < bool > do_col_hide;
+    do_col_hide.resize(log_titles.size(), false);
+    backend_instance.change_focus("logs");
+    auto input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
+        &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines);
 
     while (running)
     {
         auto current_vector = backend_instance.get_logs();
-        uint32_t lines = get_line_size();
-        if (lines == 0) lines = 1;
-        while (current_vector.size() > (lines - 1)) current_vector.erase(current_vector.begin());
-        (void)write(1, clear, sizeof(clear)); // clear the screen
-        fflush(stdout);
-        for (const auto & [level, log] : current_vector)
-        {
-            if (level == "INFO") {
-                std::cout << color::color(2,2,2) << level << color::no_color() << ": " << log << std::endl;
-            } else {
-                std::cout << color::color(5,0,0) << level << color::no_color() << ": " << log << std::endl;
-            }
+        std::ranges::reverse(current_vector);
+        std::vector < std::vector < std::string > > lines;
+        for (const auto & [level, log] : current_vector) {
+            lines.emplace_back(std::vector{ level, log });
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(500l));
+        std::cout.write(clear, sizeof(clear));
+        std::cout.flush();
+        print_table(log_titles,
+            lines,
+            false,
+            true,
+            do_col_hide,
+            leading_spaces,
+            &max_leading_spaces,
+            false,
+            "",
+            current_skip_lines,
+            &max_skip_lines);
+
+        const int local_leading_spaces = leading_spaces;
+        const int local_skip_lines = current_skip_lines;
+
+        for (int i = 0; i < 10; i++)
+        {
+            if (local_leading_spaces != leading_spaces
+                || local_skip_lines != current_skip_lines
+                || window_size_change)
+            {
+                window_size_change = false;
+                break;
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(50l));
+        }
+
+        if (leading_spaces > max_leading_spaces) {
+            leading_spaces = max_leading_spaces.load();
+        }
+
+        if (current_skip_lines > max_skip_lines) {
+            current_skip_lines = max_skip_lines.load();
+        }
     }
 
     running = false;
-    if (input_watcher.joinable()) input_watcher.join();
+    if (input_getc_worker.joinable()) input_getc_worker.join();
     backend_instance.change_focus("overview");
 }
 
@@ -1500,7 +1536,7 @@ void ccdb::ccdb::set_filter(const std::vector<std::string> &command_vector)
     const std::string & index = command_vector[2], & pattern = command_vector[3];
     try {
         const uint64_t index_num = std::strtoul(index.c_str(), nullptr, 10);
-        if (index_num > titles.size()) {
+        if (index_num > get_conn_titles.size()) {
             throw std::invalid_argument("Invalid number `" + index + "`");
         }
 

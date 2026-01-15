@@ -23,7 +23,7 @@ namespace ccdb
         general_info_pulling backend_instance; // backend instance
 
         // get connections table: titles
-        const std::vector<std::string> titles = {
+        const std::vector<std::string> get_conn_titles = {
             "Host",         // 0
             "Process",      // 1
             "DL",           // 2

@@ -201,7 +201,7 @@ void general_info_pulling::update_from_logs(std::string info)
     std::ranges::transform(type, type.begin(), ::toupper);
 
     std::lock_guard lock(logs_mutex);
-    if (logs.size() >= 512) {
+    while (logs.size() >= 4096) {
         logs.erase(logs.begin());
     }
     logs.emplace_back(type, payload);
