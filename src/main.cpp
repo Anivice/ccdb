@@ -17,12 +17,14 @@ int main(int argc, char ** argv)
 
     try
     {
+#ifdef __ENABLE_EXPERIMENTAL__
         if (argc == 2 && std::string(argv[1]) == "update")
         {
             std::cout << "Attempting to update the executable " << argv[0] << "..." << std::endl;
             update_self(argv[0]);
             return EXIT_SUCCESS;
         }
+#endif
 
         if (argc >= 3)
         {
@@ -41,7 +43,9 @@ int main(int argc, char ** argv)
         if (argc < 3 || argc > 5)
         {
             std::cout << argv[0] << " [BACKEND] [PORT] <TOKEN> <LATENCY URL>" << std::endl;
+#ifdef __ENABLE_EXPERIMENTAL__
             std::cout << argv[0] << " update: update this executable" << std::endl;
+#endif
             std::cout << " [...] is required, <...> is optional." << std::endl;
             return EXIT_FAILURE;
         }

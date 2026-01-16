@@ -12,6 +12,7 @@
 
 void update_self(const std::string & executable_path)
 {
+#ifdef __ENABLE_EXPERIMENTAL__
     assert_in_update(access(executable_path.c_str(), W_OK) == 0);
     const int pid = fork();
     if (pid == 0)
@@ -59,4 +60,5 @@ void update_self(const std::string & executable_path)
     assert_in_update(pid != -1);
     if (kill(pid, 0) == 0) waitpid(pid, nullptr, 0);
     exit(0);
+#endif // __ENABLE_EXPERIMENTAL__
 }
