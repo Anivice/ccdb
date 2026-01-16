@@ -731,8 +731,8 @@ void ccdb::ccdb::print_table(
         const auto line_sz = get_line_size();
         if (col_sz > 2)
         {
-            if (printed_lines <= (line_sz - 2)) {
-                std::cout << "+" << std::string(col_sz - 2, '-') << "+" << std::endl;
+            if (printed_lines <= (line_sz - 2) && col_sz > 2 && separation_line.size() > 2) {
+                std::cout << "+" << std::string(std::min(col_sz - 2ul, separation_line.size() - 2), '-') << "+" << std::endl;
             }
         }
 
