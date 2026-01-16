@@ -33,7 +33,8 @@ public:
         friend class sigint_watcher_;
         ~auto_SIGINT_status_t() {
             watcher_->watcher_clear_disable = false;
-            write(STDOUT_FILENO, ccdb::utils::clear, sizeof(ccdb::utils::clear));
+            std::cout.write(ccdb::utils::clear, sizeof(ccdb::utils::clear));
+            std::cout.flush();
         }
 
         [[nodiscard]] explicit operator bool() const {
@@ -48,16 +49,10 @@ public:
     /// readline clear screen.
     static void clear()
     {
-        const std::string term = get_term_path();
         const std::string clear = "\033[K";
-        if (const int fd = open(term.c_str(), O_RDWR | O_CLOEXEC); fd > 0)
-        {
-            const auto llen = ccdb::utils::get_col_size();
-            (void)write(fd, clear.c_str(), clear.size());
-            (void)write(fd, std::string(llen, ' ').c_str(), llen);
-            (void)write(fd, clear.c_str(), clear.size());
-            close(fd);
-        }
+        const auto llen = ccdb::utils::get_col_size();
+        std::cout.write(clear.c_str(), static_cast<ssize_t>(clear.size()));
+        std::cout.flush();
         cmdTpTree::clear_read_cache();
         tcflush(STDIN_FILENO, TCIFLUSH);
     }
@@ -1087,8 +1082,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         std::stringstream ss;
         int ss_printed_size = 0;
         int skipped_size = 0;
-        (void)write(1, clear, sizeof(clear)); // clear the screen
-        fflush(stdout);
+        std::cout.write(clear, sizeof(clear)); // clear the screen
+        std::cout.flush();
         const int col = get_col_size();
         bool did_i_add_no_color = false;
         auto append_msg = [&](std::string msg,
