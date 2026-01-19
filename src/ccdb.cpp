@@ -471,7 +471,8 @@ void ccdb::ccdb::print_table(
     int skip_lines,
     std::atomic_int *max_skip_lines_ptr,
     const bool enforce_no_pager,
-    tsl::hopscotch_map < uint64_t, std::string > color_code_overrides)
+    tsl::hopscotch_map < uint64_t, std::string > color_code_overrides,
+    int highlight_screen_line)
 {
     const auto col = utils::get_col_size();
 
@@ -560,7 +561,7 @@ void ccdb::ccdb::print_table(
     const auto tabsz_str = utils::getenv("TABSIZE");
     int tab_space_size = -1;
     try {
-        tab_space_size = std::strtol(tabsz_str.c_str(), nullptr, 10);
+        tab_space_size = static_cast<int>(std::strtol(tabsz_str.c_str(), nullptr, 10));
     } catch (...) { }
     if (tab_space_size <= 0) {
         tab_space_size = 4;
@@ -596,8 +597,7 @@ void ccdb::ccdb::print_table(
                 line = utils::utf8_to_u32("<") + line; // add color code here will mess up formation bc color codes occupies no spaces on screen
             }
 
-            int total_size = get_string_screen_length_u32(line);
-            if (total_size > col)
+            if (const int total_size = get_string_screen_length_u32(line); total_size > col)
             {
                 if (col > 1)
                 {
@@ -635,13 +635,18 @@ void ccdb::ccdb::print_table(
         } else {
             std::string utf8_str;
             utf8::utf32to8(line.begin(), line.end(), std::back_inserter(utf8_str));
+            const bool use_line_highlighter = ((printed_lines + 1) == highlight_screen_line);
             if (!utf8_str.empty() && utf8_str.front() == '<') // add color code for '<' at the beginning
             {
                 utf8_str.erase(utf8_str.begin());
-                utf8_str = color::bg_color(5,5,5) + color::color(0,0,0) + "<" + color::no_color() + color + utf8_str;
+                utf8_str =
+                    (use_line_highlighter ? "" : (color::bg_color(5,5,5) + color::color(0,0,0) + "<" + color::no_color() + color))
+                    + utf8_str;
             } else {
-                utf8_str = color + utf8_str;
+                utf8_str = (use_line_highlighter ? "" : color) + utf8_str;
             }
+
+            if (use_line_highlighter) std::cout << color::color(0,0,0,5,5,5);
             std::cout << utf8_str << color::no_color();
             if (endl) std::cout << std::endl;
             printed_lines++;
@@ -990,6 +995,9 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::atomic_bool running = true;
     std::vector < bool > do_col_hide;
     do_col_hide.resize(get_conn_titles.size(), false);
+    std::atomic_int mouse_x;
+    std::atomic_int mouse_y;
+
     if (command_vector.size() == 4)
     {
         if (command_vector[2] == "hide")
@@ -1031,7 +1039,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
     if (use_input) {
         input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
-            &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines);
+            &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
+            &mouse_x, &mouse_y);
     }
 
     auto valid_check = [&](const general_info_pulling::connection_t & c)->bool
@@ -1184,14 +1193,20 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 false,
                 title_line,
                 current_skip_lines,
-                &max_skip_lines);
+                &max_skip_lines,
+                false,
+                {},
+                mouse_y);
+
             int local_leading_spaces = leading_spaces;
             int local_skip_lines = current_skip_lines;
+            const int local_mouse_y = mouse_y;
 
             for (int i = 0; i < 10; i++)
             {
                 if (local_leading_spaces != leading_spaces
                     || local_skip_lines != current_skip_lines
+                    || local_mouse_y != mouse_y
                     || window_size_change)
                 {
                     window_size_change = false;
@@ -1272,11 +1287,13 @@ void ccdb::ccdb::get_log()
     std::atomic_int max_skip_lines = 0;
     std::atomic_int current_skip_lines = 0;
     std::atomic_bool running = true;
+    std::atomic_int mouse_x, mouse_y;
     std::vector < bool > do_col_hide;
     do_col_hide.resize(log_titles.size(), false);
     backend_instance.change_focus("logs");
     auto input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
-        &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines);
+        &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
+        &mouse_x, &mouse_y);
 
     while (running)
     {
@@ -1289,7 +1306,7 @@ void ccdb::ccdb::get_log()
         {
             lines.emplace_back(std::vector{ level, log });
             auto upper_case_level = level;
-            auto toupper = [](const char c) -> char { return std::toupper(c); };
+            auto toupper = [](const char c) -> char { return static_cast<char>(std::toupper(c)); };
             std::ranges::transform(upper_case_level, upper_case_level.begin(), toupper);
             if (upper_case_level == "WARNING" || upper_case_level == "ERROR") {
                 line_color_overrides[line_off] = color::color(5,0,0);
@@ -1313,15 +1330,18 @@ void ccdb::ccdb::get_log()
             current_skip_lines,
             &max_skip_lines,
             false,
-            line_color_overrides);
+            line_color_overrides,
+            mouse_y);
 
         const int local_leading_spaces = leading_spaces;
         const int local_skip_lines = current_skip_lines;
+        const int local_mouse_y = mouse_y;
 
         for (int i = 0; i < 10; i++)
         {
             if (local_leading_spaces != leading_spaces
                 || local_skip_lines != current_skip_lines
+                || local_mouse_y != mouse_y
                 || window_size_change)
             {
                 window_size_change = false;
@@ -1613,7 +1633,7 @@ void ccdb::ccdb::reset_terminal_mode()
 #ifndef _CCDB_CYGWIN_BUILD_
         // disable mouse tracking
         const auto * off = "\x1b[?1006l\x1b[?1000l";
-        std::cout.write(off, std::char_traits<char>::length(off));
+        std::cout.write(off, static_cast<std::streamsize>(std::char_traits<char>::length(off)));
         std::cout.flush();
 #endif //_CCDB_CYGWIN_BUILD_
     }
@@ -1634,7 +1654,7 @@ void ccdb::ccdb::set_conio_terminal_mode()
 #ifndef _CCDB_CYGWIN_BUILD_
     // enable mouse tracking + SGR mode
     const auto on = "\x1b[?1000h\x1b[?1006h";
-    std::cout.write(on, std::char_traits<char>::length(on));
+    std::cout.write(on, static_cast<std::streamsize>(std::char_traits<char>::length(on)));
     std::cout.flush();
 #endif //_CCDB_CYGWIN_BUILD_
 }
@@ -1710,7 +1730,9 @@ void ccdb::ccdb::get_conn_input_watcher(
     std::atomic_int * leading_spaces_ptr,
     const std::atomic_int * max_leading_spaces_ptr,
     std::atomic_int * current_skip_lines_ptr,
-    const std::atomic_int * max_skip_lines_ptr)
+    const std::atomic_int * max_skip_lines_ptr,
+    std::atomic_int * mouse_x,
+    std::atomic_int * mouse_y)
 {
     set_thread_name("get/conn:input");
 
@@ -1744,7 +1766,7 @@ void ccdb::ccdb::get_conn_input_watcher(
     };
 
     namespace chrono = std::chrono;
-    const std::regex mouse_pattern(R"(\#27\#\[\<([\d]+)\;([\d]+)\;([\d]+)[Mm]$)");
+    const std::regex mouse_pattern(R"(\#27\#\[\<[\d]+\;([\d]+)\;([\d]+)[Mm]$)");
     const std::regex mouse_scroll_down_pattern(R"(\#27\#\[\<65\;([\d]+)\;([\d]+)[Mm]$)");
     const std::regex mouse_scroll_up_pattern(R"(\#27\#\[\<64\;([\d]+)\;([\d]+)[Mm]$)");
 
@@ -1837,6 +1859,25 @@ void ccdb::ccdb::get_conn_input_watcher(
             }
         };
 
+        auto mouse_get_xy = [](const std::string& fmt, const std::regex & reg)->std::pair<int, int>
+        {
+            std::smatch match;
+            std::regex_match(fmt, match, reg);
+            if (match.size() == 3) {
+                return { std::strtol(match[1].str().c_str(), nullptr, 10),
+                    std::strtol(match[2].str().c_str(), nullptr, 10) };
+            }
+
+            return { -1, -1 };
+        };
+
+        auto set_mouse_xy = [&mouse_x, &mouse_y, &mouse_get_xy](const std::string& fmt, const std::regex & reg)
+        {
+            const auto [x, y] = mouse_get_xy(fmt, reg);
+            if (mouse_x) mouse_x->store(x);
+            if (mouse_y) mouse_y->store(y);
+        };
+
         if (str_buffer == "#27#[D") // left arrow
         {
             if (leading_spaces > 0)
@@ -1907,6 +1948,10 @@ void ccdb::ccdb::get_conn_input_watcher(
         }
         else if (std::regex_match(str_buffer, mouse_scroll_up_pattern)) {
             if (utils::getenv("REVERSE_MOUSE") == "true") down(); else up();
+            parsed = true;
+        }
+        else if (std::regex_match(str_buffer, mouse_pattern)) {
+            set_mouse_xy(str_buffer, mouse_pattern);
             parsed = true;
         }
 #endif //_CCDB_CYGWIN_BUILD_

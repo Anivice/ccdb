@@ -91,6 +91,7 @@ namespace ccdb
         /// according to the screen size. This flag is here to enforce that `using_pager = false` status and tells print_table to print the whole content
         /// without any sifting instead of partially trimmed content
         /// @param color_code_overrides Override color code for a specific line
+        /// @param highlight_screen_line Lines to be selected or highlighted
         /// @returns NONE
         static void print_table(
             std::vector<std::string> const & table_keys,
@@ -105,7 +106,8 @@ namespace ccdb
             int skip_lines = 0,
             std::atomic_int * max_skip_lines_ptr = nullptr,
             bool enforce_no_pager = false, // disable line shrinking, used when NOPAGER=y or pager is not available
-            tsl::hopscotch_map < uint64_t, std::string > color_code_overrides = { } // override color code for a specific line
+            tsl::hopscotch_map < uint64_t, std::string > color_code_overrides = { }, // override color code for a specific line
+            int highlight_screen_line = -1
         );
 
         static bool is_connection_valid(const general_info_pulling::connection_t & conn,
@@ -167,12 +169,16 @@ namespace ccdb
         /// @param max_leading_spaces_ptr max leading space the watcher can set
         /// @param current_skip_lines_ptr Skip lines, set by up/down keys
         /// @param max_skip_lines_ptr max skip lines the watcher can set
+        /// @param mouse_x Input captured mouse x
+        /// @param mouse_y Input captured mouse y
         void get_conn_input_watcher(
             std::atomic_bool * running_ptr,
             std::atomic_int * leading_spaces_ptr,
             const std::atomic_int * max_leading_spaces_ptr,
             std::atomic_int * current_skip_lines_ptr,
-            const std::atomic_int * max_skip_lines_ptr);
+            const std::atomic_int * max_skip_lines_ptr,
+            std::atomic_int * mouse_x,
+            std::atomic_int * mouse_y);
 
     public:
         ccdb(const std::string & backend, int port, const std::string & token, std::string  latency_url_);
