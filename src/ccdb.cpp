@@ -1637,7 +1637,6 @@ void ccdb::ccdb::set_conio_terminal_mode()
     std::cout.write(on, std::char_traits<char>::length(on));
     std::cout.flush();
 #endif //_CCDB_CYGWIN_BUILD_
-
 }
 
 void ccdb::ccdb::help()
@@ -1654,7 +1653,7 @@ void ccdb::ccdb::help()
         "   NOPAGER:  Set this to 'y' and force ccdb to ignore pager\n"
         "   COLOR:    Set it to `never` to disable color codes\n"
         "   TABSIZE:  Set tab size when printing tables, default is 4\n"
-        "   REVERSE_MOUSE: Reverse mouse scrolling direction\n"
+        "   REVERSE_MOUSE: Reverse mouse scrolling direction when set to `true`\n"
         "   NO_0xFE0F_EXPAND_EMOJI: Fix Unicode processing issues for emoji space expand code, e.g., \""
     << reinterpret_cast<const char*>(alp_no_expand) << "\" and \"" << reinterpret_cast<const char*>(alp_expanded) << "\".\n"
     << std::string(27, ' ')
