@@ -639,8 +639,8 @@ void ccdb::ccdb::print_table(
             if (!utf8_str.empty() && utf8_str.front() == '<') // add color code for '<' at the beginning
             {
                 utf8_str.erase(utf8_str.begin());
-                utf8_str =
-                    (use_line_highlighter ? "" : (color::bg_color(5,5,5) + color::color(0,0,0) + "<" + color::no_color() + color))
+                utf8_str = (color::bg_color(5,5,5) + color::color(0,0,0) + "<")
+                    + (use_line_highlighter ? "" : color::no_color() + color)
                     + utf8_str;
             } else {
                 utf8_str = (use_line_highlighter ? "" : color) + utf8_str;
