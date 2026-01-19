@@ -90,6 +90,7 @@ namespace ccdb
         /// @param enforce_no_pager If using_pager is set to false, and max_tailing_size_ptr is valid, this will create an illusion that the table should shift
         /// according to the screen size. This flag is here to enforce that `using_pager = false` status and tells print_table to print the whole content
         /// without any sifting instead of partially trimmed content
+        /// @param color_code_overrides Override color code for a specific line
         /// @returns NONE
         static void print_table(
             std::vector<std::string> const & table_keys,
@@ -103,7 +104,8 @@ namespace ccdb
             const std::string & additional_info_before_table = "",
             int skip_lines = 0,
             std::atomic_int * max_skip_lines_ptr = nullptr,
-            bool enforce_no_pager = false // disable line shrinking, used when NOPAGER=y or pager is not available
+            bool enforce_no_pager = false, // disable line shrinking, used when NOPAGER=y or pager is not available
+            tsl::hopscotch_map < uint64_t, std::string > color_code_overrides = { } // override color code for a specific line
         );
 
         static bool is_connection_valid(const general_info_pulling::connection_t & conn,

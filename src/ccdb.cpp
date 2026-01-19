@@ -50,7 +50,6 @@ public:
     static void clear()
     {
         const std::string clear = "\033[K";
-        const auto llen = ccdb::utils::get_col_size();
         std::cout.write(clear.c_str(), static_cast<ssize_t>(clear.size()));
         std::cout.flush();
         cmdTpTree::clear_read_cache();
@@ -471,7 +470,8 @@ void ccdb::ccdb::print_table(
     const std::string &additional_info_before_table,
     int skip_lines,
     std::atomic_int *max_skip_lines_ptr,
-    const bool enforce_no_pager)
+    const bool enforce_no_pager,
+    tsl::hopscotch_map < uint64_t, std::string > color_code_overrides)
 {
     const auto col = utils::get_col_size();
 
@@ -555,8 +555,22 @@ void ccdb::ccdb::print_table(
     leading_offset = std::min(static_cast<decltype(separation_line.size())>(leading_offset), max_tailing_size);
     std::stringstream less_output_redirect;
     int printed_lines = 0;
-    auto print_line = [&](const std::string& line_, const std::string & color = "", bool endl = true)->void
+
+    // define Tab size
+    const auto tabsz_str = utils::getenv("TABSIZE");
+    int tab_space_size = -1;
+    try {
+        tab_space_size = std::strtol(tabsz_str.c_str(), nullptr, 10);
+    } catch (...) { }
+    if (tab_space_size <= 0) {
+        tab_space_size = 4;
+    }
+
+    auto print_line = [&](std::string line_, const std::string & color = "", bool endl = true)->void
     {
+        replace_all(line_, "\n", "");
+        replace_all(line_, "\r", "");
+        replace_all(line_, "\t", std::string(tab_space_size, ' ')); // Tab
         auto line = utils::utf8_to_u32(line_);
         if (max_tailing_size_ptr && !using_pager && !enforce_no_pager)
         {
@@ -653,40 +667,45 @@ void ccdb::ccdb::print_table(
     const int max_skip_lines = std::max(static_cast<int>(table_values.size()) - (utils::get_line_size() - 2 - printed_lines), 0);
     if (max_skip_lines_ptr) *max_skip_lines_ptr = max_skip_lines;
     if (skip_lines > max_skip_lines) skip_lines = max_skip_lines;
-    int i = 0;
+    int current_line_index = 0;
 
     auto print_progress = [&]
     {
         std::cout << color::bg_color(5,5,5) << color::color(5,0,0) << skip_lines
-                << color::color(3,3,3) << "/" << color::color(0,0,5) << i
+                << color::color(3,3,3) << "/" << color::color(0,0,5) << current_line_index
                 << color::color(3,3,3) << "/" << color::color(5,0,5) << table_values.size()
                 << color::color(3,3,3) << "/" << color::color(0,0,0) << std::fixed << std::setprecision(2)
-                << (static_cast<double>(i) / static_cast<double>(table_values.size())) * 100 << "%"
+                << (static_cast<double>(current_line_index) / static_cast<double>(table_values.size())) * 100 << "%"
                 << color::no_color() << std::flush;
     };
 
+    /// content
     for (const auto & vals : table_values)
     {
         if (!using_pager)
         {
             // skip n elements
-            if (i < skip_lines)
+            if (current_line_index < skip_lines)
             {
-                i++;
+                current_line_index++;
                 continue;
             }
 
             // last element on screen
-            if (i > skip_lines && printed_lines >= (utils::get_line_size() - 1))
+            if (current_line_index > skip_lines && printed_lines >= (utils::get_line_size() - 1))
             {
                 print_progress();
                 return;
             }
         }
 
-        i++;
         std::string color_line;
-        if (i & 0x01) color_line = color::color(0,5,5);
+        if (color_code_overrides.empty() || !color_code_overrides.contains(current_line_index)) {
+            if (current_line_index & 0x01) color_line = color::color(0,5,5);
+        } else {
+            color_line = color_code_overrides.at(current_line_index);
+        }
+
         int index = 0;
         std::stringstream val_line_stream;
         for (const auto & val : vals)
@@ -717,8 +736,10 @@ void ccdb::ccdb::print_table(
             val_line_stream << "|";
         }
         print_line(val_line_stream.str(), color_line);
+        current_line_index++;
     }
 
+    /// tailings
     if (skip_lines == 0) {
         print_line(separation_line, "", false);
     } else {
@@ -1262,8 +1283,20 @@ void ccdb::ccdb::get_log()
         auto current_vector = backend_instance.get_logs();
         std::ranges::reverse(current_vector);
         std::vector < std::vector < std::string > > lines;
-        for (const auto & [level, log] : current_vector) {
+        tsl::hopscotch_map<uint64_t, std::string> line_color_overrides;
+        uint64_t line_off = 0;
+        for (const auto & [level, log] : current_vector)
+        {
             lines.emplace_back(std::vector{ level, log });
+            auto upper_case_level = level;
+            auto toupper = [](const char c) -> char { return std::toupper(c); };
+            std::ranges::transform(upper_case_level, upper_case_level.begin(), toupper);
+            if (upper_case_level == "WARNING" || upper_case_level == "ERROR") {
+                line_color_overrides[line_off] = color::color(5,0,0);
+            } else if (upper_case_level == "DEBUG") {
+                line_color_overrides[line_off] = color::color(0,5,0);
+            }
+            line_off++;
         }
 
         std::cout.write(clear, sizeof(clear));
@@ -1278,7 +1311,9 @@ void ccdb::ccdb::get_log()
             false,
             "",
             current_skip_lines,
-            &max_skip_lines);
+            &max_skip_lines,
+            false,
+            line_color_overrides);
 
         const int local_leading_spaces = leading_spaces;
         const int local_skip_lines = current_skip_lines;
@@ -1574,6 +1609,13 @@ void ccdb::ccdb::reset_terminal_mode()
         tcsetattr(STDIN_FILENO, TCSANOW, &old_tio);
         fcntl(STDIN_FILENO, F_SETFL, old_flags);
         terminal_mode_changed = false;
+
+#ifndef _CCDB_CYGWIN_BUILD_
+        // disable mouse tracking
+        const auto * off = "\x1b[?1006l\x1b[?1000l";
+        std::cout.write(off, std::char_traits<char>::length(off));
+        std::cout.flush();
+#endif //_CCDB_CYGWIN_BUILD_
     }
 }
 
@@ -1588,6 +1630,14 @@ void ccdb::ccdb::set_conio_terminal_mode()
     old_flags = fcntl(STDIN_FILENO, F_GETFL, 0);
     fcntl(STDIN_FILENO, F_SETFL, old_flags | O_NONBLOCK);
     terminal_mode_changed = true;
+
+#ifndef _CCDB_CYGWIN_BUILD_
+    // enable mouse tracking + SGR mode
+    const auto on = "\x1b[?1000h\x1b[?1006h";
+    std::cout.write(on, std::char_traits<char>::length(on));
+    std::cout.flush();
+#endif //_CCDB_CYGWIN_BUILD_
+
 }
 
 void ccdb::ccdb::help()
@@ -1603,6 +1653,8 @@ void ccdb::ccdb::help()
         "   PAGER:    Specify a pager. Pager availability check is ignored when this environmental variable is set\n"
         "   NOPAGER:  Set this to 'y' and force ccdb to ignore pager\n"
         "   COLOR:    Set it to `never` to disable color codes\n"
+        "   TABSIZE:  Set tab size when printing tables, default is 4\n"
+        "   REVERSE_MOUSE: Reverse mouse scrolling direction\n"
         "   NO_0xFE0F_EXPAND_EMOJI: Fix Unicode processing issues for emoji space expand code, e.g., \""
     << reinterpret_cast<const char*>(alp_no_expand) << "\" and \"" << reinterpret_cast<const char*>(alp_expanded) << "\".\n"
     << std::string(27, ' ')
@@ -1668,22 +1720,75 @@ void ccdb::ccdb::get_conn_input_watcher(
     const std::atomic_int & max_leading_spaces = *max_leading_spaces_ptr;
     std::atomic_int & current_skip_lines = *current_skip_lines_ptr;
     const std::atomic_int & max_skip_lines = *max_skip_lines_ptr;
-
-    auto sigint_status = watcher.make_status_watcher();
+    std::vector<std::thread> threads;
+    const auto sigint_status = watcher.make_status_watcher();
     mode_guard_t input_mode_guard(this);
 
     // pull SIGINT every 50ms
-    std::thread T([&] { while (running) {
+    threads.emplace_back([&] { while (running) {
         if (sigint_status || backend_instance.force_quit) { running = false; break; }
         std::this_thread::sleep_for(std::chrono::milliseconds(50l));
     } });
 
+    auto ch_list_to_string = [](const std::vector < int > & list)->std::string {
+        std::string str;
+        std::ranges::for_each(list, [&str](const int c) {
+            if (const char cc = *reinterpret_cast<const char *>(&c); std::isprint(cc)) {
+                str.push_back(cc);
+            } else {
+                str.append("#");
+                str.append(std::to_string(c));
+                str.append("#");
+            }
+        });
+        return str;
+    };
+
+    namespace chrono = std::chrono;
+    const std::regex mouse_pattern(R"(\#27\#\[\<([\d]+)\;([\d]+)\;([\d]+)[Mm]$)");
+    const std::regex mouse_scroll_down_pattern(R"(\#27\#\[\<65\;([\d]+)\;([\d]+)[Mm]$)");
+    const std::regex mouse_scroll_up_pattern(R"(\#27\#\[\<64\;([\d]+)\;([\d]+)[Mm]$)");
+
+    chrono::time_point<chrono::high_resolution_clock> last_recorded_time = chrono::high_resolution_clock::now();
     std::vector <int> ch_list;
     char ch;
+    std::atomic_bool parsed = false;
+    std::mutex mutex;
+    threads.emplace_back([&]
+    {
+        while (running)
+        {
+            {
+                std::lock_guard<std::mutex> guard(mutex);
+                if (const auto now = std::chrono::system_clock::now();
+                parsed || (ch_list.size() > 3 && chrono::duration_cast<chrono::milliseconds>(now - last_recorded_time ).count() >
+#ifdef _CCDB_CYGWIN_BUILD_
+                    500
+#else // _CCDB_CYGWIN_BUILD_
+                    50
+#endif // _CCDB_CYGWIN_BUILD_
+                    ))
+                {
+                    ch_list.clear();
+                }
+            }
+
+#ifdef _CCDB_CYGWIN_BUILD_
+            std::this_thread::sleep_for(std::chrono::milliseconds(10l));
+#else // _CCDB_CYGWIN_BUILD_
+            std::this_thread::sleep_for(std::chrono::milliseconds(1l));
+#endif // _CCDB_CYGWIN_BUILD_
+        }
+    });
+
     while (running)
     {
         if (const ssize_t sz = read(STDIN_FILENO, &ch, 1); sz <= 0) {
+#ifdef _CCDB_CYGWIN_BUILD_
             std::this_thread::sleep_for(std::chrono::milliseconds(10l));
+#else
+            std::this_thread::sleep_for(std::chrono::microseconds(800l));
+#endif
             continue;
         }
 
@@ -1691,107 +1796,127 @@ void ccdb::ccdb::get_conn_input_watcher(
         const auto row_step = std::max(row / 8, 1);
         const auto col_step = std::max(col / 8, 1);
         const auto page_size = std::max(row - 8 /* list headers, etc. */, 1);
+        std::string str_buffer;
         if (ch == 'q' || ch == 'Q')
         {
             break;
         }
 
-        ch_list.push_back(ch);
-
-        if (!ch_list.empty() && ch_list.front() != 27) {
-            while (!ch_list.empty() && ch_list.front() != 27) ch_list.erase(ch_list.begin()); // remove wrong paddings
-        }
-
-        if (ch_list.size() >= 3 && ch_list[0] == 27 && ch_list[1] == 91)
         {
-            if (ch_list.size() == 3)
-            {
-                switch (ch_list[2])
-                {
-                    case 68: // left arrow
-                        if (leading_spaces > 0)
-                        {
-                            if (leading_spaces > col_step) {
-                                leading_spaces -= col_step;
-                            } else {
-                                leading_spaces = 0;
-                            }
-                        }
-
-                        break;
-                    case 67: // right arrow
-                        if (leading_spaces < max_leading_spaces) {
-                            if ((leading_spaces + col_step) < max_leading_spaces)
-                            {
-                                leading_spaces += col_step;
-                            } else {
-                                leading_spaces = max_leading_spaces.load();
-                            }
-                        }
-
-                        break;
-                    case 66: // down arrow
-                        if (current_skip_lines < max_skip_lines) {
-                            if ((current_skip_lines + row_step) < max_skip_lines)
-                            {
-                                current_skip_lines += row_step;
-                            } else {
-                                current_skip_lines = max_skip_lines.load();
-                            }
-                        }
-
-                        break;
-                    case 65: // up arrow
-                        if (current_skip_lines > 0)
-                        {
-                            if (current_skip_lines > row_step) {
-                                current_skip_lines -= row_step;
-                            } else {
-                                current_skip_lines = 0;
-                            }
-                        }
-
-                        break;
-                    case 'H': // Home
-                        leading_spaces = 0;
-                        ch_list.clear();
-                        break;
-                    case 'F': // End
-                        leading_spaces = max_leading_spaces.load();
-                        ch_list.clear();
-                        break;
-
-                    default:
-                        continue;
-                }
-
-                ch_list.clear();
+            std::lock_guard<std::mutex> guard(mutex);
+            ch_list.push_back(ch);
+            last_recorded_time = chrono::high_resolution_clock::now();
+            if (!ch_list.empty() && ch_list.front() != 27) {
+                while (!ch_list.empty() && ch_list.front() != 27) ch_list.erase(ch_list.begin()); // remove wrong paddings
             }
-            else if (ch_list.size() == 4 && ch_list[3] == 0x7E)
-            {
-                switch (ch_list[2])
-                {
-                    case '5': // Page up
-                        current_skip_lines -= page_size;
-                        if (current_skip_lines < 0) {
-                            current_skip_lines = 0;
-                        }
-                        break;
-                    case '6': // Page down
-                        current_skip_lines += page_size;
-                        if (current_skip_lines > max_skip_lines) {
-                            current_skip_lines = max_skip_lines.load();
-                        }
-                        break;
-                    default:
-                        break;
-                }
-                ch_list.clear();
-            }
+
+            str_buffer = ch_list_to_string(ch_list);
         }
+
+        auto up = [&]
+        {
+            if (current_skip_lines > 0)
+            {
+                if (current_skip_lines > row_step) {
+                    current_skip_lines -= row_step;
+                } else {
+                    current_skip_lines = 0;
+                }
+            }
+        };
+
+        auto down = [&]
+        {
+            if (current_skip_lines < max_skip_lines)
+            {
+                if ((current_skip_lines + row_step) < max_skip_lines)
+                {
+                    current_skip_lines += row_step;
+                } else {
+                    current_skip_lines = max_skip_lines.load();
+                }
+            }
+        };
+
+        if (str_buffer == "#27#[D") // left arrow
+        {
+            if (leading_spaces > 0)
+            {
+                if (leading_spaces > col_step) {
+                    leading_spaces -= col_step;
+                } else {
+                    leading_spaces = 0;
+                }
+            }
+
+            parsed = true;
+        }
+        else if (str_buffer == "#27#[C") // right arrow
+        {
+            if (leading_spaces < max_leading_spaces)
+            {
+                if ((leading_spaces + col_step) < max_leading_spaces)
+                {
+                    leading_spaces += col_step;
+                } else {
+                    leading_spaces = max_leading_spaces.load();
+                }
+            }
+
+            parsed = true;
+        }
+        else if (str_buffer == "#27#[A") // up arrow
+        {
+            up();
+            parsed = true;
+        }
+        else if (str_buffer == "#27#[B") // down arrow
+        {
+            down();
+            parsed = true;
+        }
+        else if (str_buffer == "#27#[H") // Home
+        {
+            leading_spaces = 0;
+            parsed = true;
+        }
+        else if (str_buffer == "#27#[F") // End
+        {
+            leading_spaces = max_leading_spaces.load();
+            parsed = true;
+        }
+        else if (str_buffer == "#27#[5~") // Page up
+        {
+            current_skip_lines -= page_size;
+            if (current_skip_lines < 0) {
+                current_skip_lines = 0;
+            }
+            parsed = true;
+        }
+        else if (str_buffer == "#27#[6~") // Page down
+        {
+            current_skip_lines += page_size;
+            if (current_skip_lines > max_skip_lines) {
+                current_skip_lines = max_skip_lines.load();
+            }
+            parsed = true;
+        }
+#ifndef _CCDB_CYGWIN_BUILD_
+        else if (std::regex_match(str_buffer, mouse_scroll_down_pattern)) {
+            if (utils::getenv("REVERSE_MOUSE") == "true") up(); else down();
+            parsed = true;
+        }
+        else if (std::regex_match(str_buffer, mouse_scroll_up_pattern)) {
+            if (utils::getenv("REVERSE_MOUSE") == "true") down(); else up();
+            parsed = true;
+        }
+#endif //_CCDB_CYGWIN_BUILD_
     }
+
     running = false;
-    if (T.joinable()) T.join();
+    std::ranges::for_each(threads, [](std::thread & T) {
+        if (T.joinable()) T.join();
+    });
 }
 
 ccdb::ccdb::~ccdb()
