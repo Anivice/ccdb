@@ -1297,6 +1297,17 @@ void ccdb::ccdb::get_log()
         &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
         &mouse_x, &mouse_y);
 
+    std::string log_level_filter, log_content_filter;
+    if (filter_patterns.contains(12)) log_level_filter = filter_patterns.at(12);
+    if (filter_patterns.contains(13)) log_content_filter = filter_patterns.at(13);
+
+    auto if_filter_out = [&](const std::string & line, const std::string & pattern)->bool
+    {
+        const auto ret = std::regex_match(line, std::regex(pattern));
+        if (reverse_filter_list) return ret;
+        return !ret;
+    };
+
     while (running)
     {
         auto current_vector = backend_instance.get_logs();
@@ -1306,6 +1317,11 @@ void ccdb::ccdb::get_log()
         uint64_t line_off = 0;
         for (const auto & [level, log] : current_vector)
         {
+            bool skip = false;
+            if (!log_level_filter.empty()) skip |= if_filter_out(level, log_level_filter);
+            if (!log_content_filter.empty()) skip |= if_filter_out(log, log_content_filter);
+            if (skip) continue;
+
             lines.emplace_back(std::vector{ level, log });
             auto upper_case_level = level;
             auto toupper = [](const char c) -> char { return static_cast<char>(std::toupper(c)); };
@@ -1590,7 +1606,20 @@ void ccdb::ccdb::set_filter(const std::vector<std::string> &command_vector)
     const std::string & index = command_vector[2], & pattern = command_vector[3];
     try {
         const uint64_t index_num = std::strtoul(index.c_str(), nullptr, 10);
-        if (index_num > get_conn_titles.size()) {
+        constexpr int allowed_indexes[] = {
+            0, 1, 6, 8, 9, 10, 11, 12, 13
+        };
+
+        bool found_index = false;
+        for (const auto n : allowed_indexes)
+        {
+            if (index_num == n) {
+                found_index = true;
+                break;
+            }
+        }
+
+        if (!found_index) {
             throw std::invalid_argument("Invalid number `" + index + "`");
         }
 

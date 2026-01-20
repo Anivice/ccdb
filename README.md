@@ -122,6 +122,8 @@ set              : Set parameters
  │ ├ 9           : Destination IP
  │ ├ 10          : Type
  │ ├ 11          : Chains
+ │ ├ 12          : Log level
+ │ ├ 13          : Log content
  ├ sort_reverse  : Reverse sorting
  │ ├ on
  │ ├ off
@@ -135,7 +137,9 @@ Environment:
    PAGER:    Specify a pager. Pager availability check is ignored when this environmental variable is set
    NOPAGER:  Set this to 'y' and force ccdb to ignore pager
    COLOR:    Set it to `never` to disable color codes
-   NO_0xFE0F_EXPAND_EMOJI: Fix Unicode processing issues for emoji space expand code, e.g., "✈" and "✈️".
+   TABSIZE:  Set tab size when printing tables, default is 4
+   REVERSE_MOUSE: Reverse mouse scrolling direction when set to `true`
+   NO_0xFE0F_EXPAND_EMOJI: Fix Unicode processing issues for emoji space expand code, e.g., "✈" and "✈".
                            If you cannot notice any differences of the above emojis, or there's wierd Unicode processing bugs in your terminal,
                            you might want to set this to `true`
 ```

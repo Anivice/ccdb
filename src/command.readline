@@ -53,6 +53,8 @@
                                                                     9 (Destination IP),
                                                                     10 (Type),
                                                                     11 (Chains),
+                                                                    12 (Log level),
+                                                                    13 (Log content),
                             >, # set filter [INDEX] [PATTERN], pattern cannot be auto completed, so it's simply ignored
                             < sort_reverse  (Reverse sorting):      on, off >,
                             < filter_reverse (Reverse filter):      on, off >,
