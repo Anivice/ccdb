@@ -74,7 +74,7 @@ int main(int argc, char **argv)
 
         size_t pos = 0;
         while (pos < st.st_size) {
-            const size_t inSize = std::min(kChunk, st.st_size - pos);
+            const size_t inSize = std::min<size_t>(kChunk, st.st_size - pos);
 
             const size_t bound = LZ4F_compressBound(inSize, &prefs);
             tmp.resize(bound);
