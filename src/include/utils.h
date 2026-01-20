@@ -137,6 +137,9 @@ namespace ccdb::utils {
         pthread_setname_np(pthread_self(), name.c_str());
 #endif
     }
+
+    std::vector<uint8_t> compress_lz4(const std::vector<uint8_t>& data);
+    std::vector<uint8_t> decompress_lz4(const std::vector<uint8_t>& data);
 }
 
 #endif //CFS_UTILS_H

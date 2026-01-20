@@ -93,6 +93,19 @@ add_dependencies(READLINE NCURSES)
 include_directories("${READLINE_INCLUDE_DIR}/readline")
 include_directories("${READLINE_INCLUDE_DIR}")
 
+add_library(lz4 STATIC
+        include/lz4.h         lz4/lz4.c
+        include/lz4frame.h    lz4/lz4frame.c
+        include/lz4hc.h       lz4/lz4hc.c
+        include/xxhash.h      lz4/xxhash.c)
+add_executable(compress compile_utils/compress.cpp)
+add_executable(decompress compile_utils/decompress.cpp)
+target_include_directories(compress PRIVATE include)
+target_include_directories(decompress PRIVATE include)
+target_include_directories(lz4 PRIVATE include)
+target_link_libraries(compress PRIVATE lz4)
+target_link_libraries(decompress PRIVATE lz4)
+
 find_program(XXD_EXEC   xxd     REQUIRED)
 find_program(SED_EXEC   sed     REQUIRED)
 find_program(GREP_EXEC  grep    REQUIRED)
@@ -105,8 +118,8 @@ function(generate_from_resource_file RES OUT_CPP OUT_H XXD_NAME)
 
     add_custom_command(
         OUTPUT "${_outc}" "${_outh}"
-        COMMAND "${CMAKE_SOURCE_DIR}/script/gen_header.sh" "${_outc}" "${_outh}" "${XXD_NAME}" "${_in}"
-        DEPENDS "${_in}" "${CMAKE_SOURCE_DIR}/script/gen_header.sh"
+        COMMAND "${CMAKE_SOURCE_DIR}/script/gen_header.sh" "${_outc}" "${_outh}" "${XXD_NAME}" "${_in}" "${CMAKE_CURRENT_BINARY_DIR}/compress"
+        DEPENDS "${_in}" "${CMAKE_SOURCE_DIR}/script/gen_header.sh" compress
         VERBATIM
     )
 
@@ -132,8 +145,7 @@ add_executable(ccdb
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
 target_compile_definitions(ccdb PRIVATE CCDB_VERSION="0.8.4-rc5")
-# add_dependencies(ccdb command.readline)
-target_link_libraries(ccdb PRIVATE resource_command.readline)
+target_link_libraries(ccdb PRIVATE resource_command.readline lz4)
 
 find_program(GIT_EXEC NAMES git REQUIRED)
 find_program(HEAD_EXEC NAMES head REQUIRED)

@@ -282,9 +282,15 @@ namespace cmdTpTree
 
     static std::string convert_from_raw()
     {
-        std::vector<char> raw(command_readline_len + 1, 0);
+        std::vector<uint8_t> raw(command_readline_len + 1, 0);
         std::memcpy(raw.data(), command_readline, command_readline_len);
-        return { raw.data() };
+        std::vector<uint8_t> decompressed_raw = ccdb::utils::decompress_lz4(raw);
+        std::vector<char> decompressed_raw_char;
+        decompressed_raw_char.reserve(decompressed_raw.size());
+        std::ranges::for_each(decompressed_raw, [&decompressed_raw_char](const uint8_t &c) {
+            decompressed_raw_char.push_back(*reinterpret_cast<const char *>(&c));
+        });
+        return { decompressed_raw_char.begin(), decompressed_raw_char.end() };
     }
 
     commandTemplateTree_t command_template_tree = convert_from_raw();
