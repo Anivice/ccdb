@@ -28,7 +28,9 @@ jobs:
             build-essential \
             software-properties-common \
             apt-transport-https \
-            cmake make musl
+            cmake make musl qemu-user qemu-user-static binfmt-support
+          sudo update-binfmts --enable qemu-arm
+          sudo update-binfmts --enable qemu-aarch64
 
       - name: Configure and Build
         run: |
