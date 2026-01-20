@@ -1,3 +1,23 @@
+// general_info_pulling.cpp
+//
+// Copyright 2026 Anivice Ives
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY// without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+
 #include "general_info_pulling.h"
 #include <ctime>
 #include <iomanip>
@@ -5,11 +25,10 @@
 #include <string>
 #include <cctype>
 #include <cstdio>
-#include <cstdint>
 #include <iostream>
 #include <chrono>
 
-void general_info_pulling::update_from_traffic(std::string info)
+void general_info_pulling::update_from_traffic(const std::string& info)
 {
     try {
         json data = json::parse(info);
@@ -25,7 +44,6 @@ bool parse_rfc3339_to_unix_ns(const std::string &s, std::int64_t &out_ns)
 {
     std::tm tm = {};
     std::int64_t frac_nanos = 0;
-    char tz_sign = '+';
     int tz_h = 0, tz_m = 0;
 
     const std::size_t pos = s.find_last_of("+-");
@@ -62,7 +80,7 @@ bool parse_rfc3339_to_unix_ns(const std::string &s, std::int64_t &out_ns)
         return false;
     }
 
-    tz_sign = offset[0];
+    const char tz_sign = offset[0];
     if (std::sscanf(offset.c_str() + 1, "%d:%d", &tz_h, &tz_m) != 2) {
         return false;
     }
@@ -85,7 +103,7 @@ bool parse_rfc3339_to_unix_ns(const std::string &s, std::int64_t &out_ns)
 }
 #endif
 
-void general_info_pulling::update_from_connections(std::string info)
+void general_info_pulling::update_from_connections(const std::string& info)
 {
     auto get_time = [](std::string time)->unsigned long long
     {
@@ -187,7 +205,7 @@ void general_info_pulling::update_from_connections(std::string info)
     }
 }
 
-void general_info_pulling::update_from_logs(std::string info)
+void general_info_pulling::update_from_logs(const std::string& info)
 {
     json data;
     try {
@@ -422,7 +440,7 @@ void general_info_pulling::start_continuous_updates()
 void general_info_pulling::update_proxy_list()
 {
     const std::vector<std::string> ignored_proxies = { "COMPATIBLE", "PASS", "REJECT", "REJECT-DROP" };
-    backend_client.get_info_no_instance("proxies", [&](std::string proxies)
+    backend_client.get_info_no_instance("proxies", [&](const std::string& proxies)
     {
         try
         {
@@ -504,7 +522,7 @@ void general_info_pulling::latency_test(const std::string & url)
             try
             {
                 backend_client.get_info_no_instance("proxies/" + proxy_ + "/delay?url=" + url_ +"&timeout=5000",
-                    [&ptr_, &proxy_bk](std::string result)
+                    [&ptr_, &proxy_bk](const std::string& result)
                     {
                         if (const json data = json::parse(result);
                             data.contains("delay"))
@@ -543,7 +561,7 @@ bool general_info_pulling::change_proxy_using_backend(const std::string & group_
 std::string general_info_pulling::get_current_mode()
 {
     std::string result = "[ERROR]";
-    backend_client.get_info_no_instance("configs", [&](std::string configs)
+    backend_client.get_info_no_instance("configs", [&](const std::string& configs)
     {
         try
         {

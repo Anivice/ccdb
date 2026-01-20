@@ -1,3 +1,23 @@
+// mihomo.cpp
+//
+// Copyright 2026 Anivice Ives
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY// without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+
 #include "mihomo.h"
 
 bool mihomo::change_proxy(const std::string & group_name, const std::string & proxy_name)
@@ -30,7 +50,7 @@ bool mihomo::change_proxy(const std::string & group_name, const std::string & pr
     return false;
 }
 
-void mihomo::get_info_no_instance(const std::string & endpoint_name, const std::function < void(std::string) > & method)
+void mihomo::get_info_no_instance(const std::string & endpoint_name, const std::function < void(const std::string&) > & method)
 {
     httplib::Client http_cli(backend_address_, port_);
     http_cli.set_decompress(false);

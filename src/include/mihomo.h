@@ -1,8 +1,27 @@
+// mihomo.h
+//
+// Copyright 2026 Anivice Ives
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY// without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+
 #ifndef MIHOMO_H
 #define MIHOMO_H
 
 #include <functional>
-#include <mutex>
 #include <stdexcept>
 #include <thread>
 #include <utility>
@@ -27,12 +46,12 @@ public:
 
     bool change_proxy(const std::string & group_name, const std::string & proxy_name);
     void abort() { info_streaming_pulling_ = false; }
-    void get_info_no_instance(const std::string & endpoint_name, const std::function < void(std::string) > & method);
+    void get_info_no_instance(const std::string & endpoint_name, const std::function < void(const std::string&) > & method);
     bool change_proxy_mode(const std::string & mode);
     bool close_all_connections();
 
     template < typename InstanceType >
-    void get_info(const std::string & endpoint_name, InstanceType* instance, void (InstanceType::*method)(std::string))
+    void get_info(const std::string & endpoint_name, InstanceType* instance, void (InstanceType::*method)(const std::string&))
     {
         try {
             get_info_no_instance(endpoint_name, [&](std::string buff) { (instance->*method)(buff); });
@@ -46,7 +65,7 @@ public:
         const std::string & endpoint_name,
         const std::atomic_bool * keep_running,
         InstanceType* instance,
-        void (InstanceType::*method)(std::string),
+        void (InstanceType::*method)(const std::string&),
         const std::atomic_bool is_continuous = false)
     {
         try

@@ -1,3 +1,24 @@
+# command.readline
+#
+# Copyright 2026 Anivice Ives
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY# without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Command prompt auto-completion script for GNU readline
+
 {
     < help  (Show this help message):    [NONE] >,
     < quit  (Quit the program):     [NONE] >,
@@ -63,3 +84,100 @@
     < clear_filter (Clear get connection filtering patterns): [NONE] >,
     < nload (nload-like connection speed monitoring): [NONE] >,
 }
+
+# $ ssh me@localhost
+# Welcome, user: you
+# Authentication: succeeded (SSH key: "cope_ed25519")
+# Shell: restricted (git-only)
+# Home: /srv/git/you.git
+#
+# remote: Please push your changes.
+# remote: Talking is deprecated.
+# remote: Please use commits.
+# remote: This is a monitored environment.
+# remote: Your feelings may be used to improve our services.
+# remote: Repository status: BARE.
+# remote: No working tree. No second chances.
+#
+# $ cat ./README.md
+# # You
+#
+# ## Quickstart
+# - Be kind
+# - Drink water
+# - Stop refreshing your notifications like it’s CPR
+#
+# ## Known Issues
+# - Memory leaks
+# - Race conditions (social)
+# - Undefined behavior under stress
+#
+# $ git commit -m "."
+# remote: Detected ref update: refs/heads/main
+# remote: Running hooks/post-receive...
+#
+# + Reading stdin: <oldrev> <newrev> <refname>
+# + oldrev: 0000000000000000000000000000000000000000
+# + newrev: 7e1f...beef
+# + refname: refs/heads/main
+#
+# remote: Enumerating objects: 1 soul, done.
+# remote: Counting objects: 100% (1/1), done.
+# remote: Compressing: 0% (feelings), done.
+# remote: Writing objects: 100% (regrets), done.
+# remote: Total 1 (delta 0), reused 0 (you never learn), pack-reused 0
+#
+# A  /skills/apologizing/README.md
+# M  /relationships/avoidant_attachment.c
+# M  /health/sleep_schedule.yaml
+# D  /boundaries/default_allow_all.rule
+# M  /work/overdelivery/please_stop.txt
+# A  /hobbies/one_more_attempt.md
+# M  /family/unspoken_things.log
+# M  /friends/i_will_reply_soon.flag
+# D  /joy/spontaneity.dll
+# A  /self_respect/experimental_feature.toggle
+# M  /ego/fragile_mode.conf
+#
+# remote: NOTE: Some changes were force-pushed.
+# remote: History rewritten: yes.
+# remote: Reason: "I was embarrassed."
+#
+# remote: Creating incident: INC-0000666
+# remote: Category: Existential
+# remote: Priority: P0 (user is currently deceased)
+# remote: SLA: eternal
+#
+# remote: Deploying to /var/www/reality...
+#
+# remote: TEST 1/7 - "Ask for help": FAILED
+# remote: TEST 2/7 - "Say no": FAILED
+# remote: TEST 3/7 - "Stop dating potential": SEGFAULT
+# remote: TEST 4/7 - "Drink water": PASSED (accidental)
+# remote: TEST 5/7 - "Be present": TIMEOUT
+# remote: TEST 6/7 - "Forgive yourself": PERMISSION DENIED
+# remote: TEST 7/7 - "Stop reading terminal output": FAILED (you are here)
+#
+# remote: Attempting merge: who_you_are <- who_you_tried_to_be
+# remote: CONFLICT (content): /identity/core.txt
+# remote: Automatic merge failed; fix conflicts and then commit the result.
+#
+# remote: Please describe the changes you wish to push.
+# remote: Commit message cannot be empty.
+#
+# fix: try again
+# fix: try again
+# fix: try again
+# fix: try again
+# fix: try again
+# fix: try again
+# fix: try again
+# fix: try again
+# fix: try again
+# fix: try again
+# fix: try again
+# fix: try again
+# fix: try again
+# fix: try again
+# git-shell: Job 1, 'git' terminated by signal SIGSEGV (Address boundary error)
+# git-shell doesn't provide an emergency shell. Bailing out. You are on you own. Good luck
