@@ -4,7 +4,7 @@
 #include <vector>
 #include <string>
 #include <atomic>
-#include <map>
+#include "config.h"
 #include <iomanip>
 #include <termios.h>
 #include "general_info_pulling.h"
@@ -46,6 +46,7 @@ namespace ccdb
         tsl::hopscotch_map < std::string, int > latency_backups; // results of latency test
         tsl::hopscotch_map < std::string /* groups */, std::vector < std::string > /* endpoint */ > g_proxy_list; // group-proxy list
         const std::string latency_url; // latency URL
+        std::unique_ptr<configuration> ccdb_config;
 
         /// Pull groups and proxies from the backend
         void update_providers();

@@ -8,6 +8,8 @@
 #include "utf8.h"
 #include "colors.h"
 #include <atomic>
+#include <functional>
+#include <regex>
 
 /// Utilities
 namespace ccdb::utils {
@@ -32,6 +34,16 @@ namespace ccdb::utils {
         std::string & original,
         const std::string & target,
         const std::string & replacement) noexcept;
+
+    /// Replace string inside a string
+    /// @param original Original string
+    /// @param pattern Match pattern
+    /// @param replacement Replacement when matched std::string (replacement string) (const std::string & matched_string, int group_index)
+    /// @return Replaced string. Original string will be modified as well
+    std::string regex_replace_all(
+        std::string & original,
+        const std::string & pattern,
+        const std::function<std::string(const std::smatch&)>& replacement);
 
     /// Get Row and Column size from terminal
     /// @return Pair in [Col (x), Row (y)], or 80x25 if all possible attempt failed

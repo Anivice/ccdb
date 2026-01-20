@@ -7,6 +7,7 @@
 #include <sstream>
 #include <chrono>
 #include <iomanip>
+#include <regex>
 
 std::string ccdb::utils::getenv(const std::string& name) noexcept
 {
@@ -59,6 +60,38 @@ std::string ccdb::utils::replace_all(
         pos += replacement.length(); // Move past the replacement to avoid infinite loop
     }
 
+    return original;
+}
+
+static std::string regex_replace_callback(
+    const std::string& input,
+    const std::regex& pattern,
+    const std::function<std::string(const std::smatch&)> & replacer)
+{
+    std::string result;
+    std::sregex_iterator it(input.begin(), input.end(), pattern);
+    std::sregex_iterator end;
+    std::size_t last_pos = 0;
+
+    for (; it != end; ++it) {
+        // Append text before match
+        result.append(input, last_pos, it->position() - last_pos);
+        // Call user function to generate replacement
+        result.append(replacer(*it));
+        last_pos = it->position() + it->length();
+    }
+
+    result.append(input, last_pos, std::string::npos);
+    return result;
+}
+
+std::string ccdb::utils::regex_replace_all(std::string &original, const std::string &pattern,
+    const std::function<std::string(const std::smatch& match)> &replacement)
+{
+    original = regex_replace_callback(original, std::regex(pattern),
+        [&replacement](const std::smatch& match) -> std::string {
+            return replacement(match);
+        });
     return original;
 }
 

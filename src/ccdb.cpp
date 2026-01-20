@@ -5,6 +5,8 @@
 #include <thread>
 #include <csignal>
 #include <utility>
+#include <fstream>
+#include "config.h"
 #include "term_name.h"
 
 static std::atomic_bool sysint_pressed = false;
@@ -1971,32 +1973,106 @@ ccdb::ccdb::~ccdb()
 ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &token, std::string latency_url_)
     : backend_instance(backend, port, token), latency_url(std::move(latency_url_))
 {
-    std::setlocale(LC_ALL, "en_US.UTF-8");
-    std::signal(SIGINT, sigint_handler);
-    std::signal(SIGPIPE, SIG_IGN);
-    std::signal(SIGWINCH, window_size_change_handler);
+    try {
+        std::setlocale(LC_ALL, "en_US.UTF-8");
+        std::signal(SIGINT, sigint_handler);
+        std::signal(SIGPIPE, SIG_IGN);
+        std::signal(SIGWINCH, window_size_change_handler);
+        namespace fs = std::filesystem;
+        const auto config = fs::path(utils::getenv("HOME")) / ".ccdbrc";
+        if (fs::exists(config)) {
+            ccdb_config = std::make_unique<configuration>(config);
+        }
+
+        auto flag_helper = [&](const std::string & flag_definition, auto & val)
+        {
+            if (ccdb_config && ccdb_config->config_signal_hash_map.contains(flag_definition))
+            {
+                const auto & result = ccdb_config->config_signal_hash_map.at(flag_definition);
+                if (result != "on" && result != "off") {
+                    throw std::invalid_argument("Unknown flag for boolean only key `" + flag_definition + "`.");
+                }
+
+                val = result == "on";
+            }
+        };
+
+        auto int_helper = [&](const std::string & flag_definition, auto & val, const auto & sanity_check)
+        {
+            if (ccdb_config && ccdb_config->config_signal_hash_map.contains(flag_definition))
+            {
+                const auto & result = ccdb_config->config_signal_hash_map.at(flag_definition);
+                const auto num = std::strtol(result.c_str(), nullptr, 10);
+                if (!sanity_check(num)) {
+                    throw std::invalid_argument("Sanity check failed for key `" + flag_definition + "`.");
+                }
+
+                val = num;
+            }
+        };
+
+        auto string_helper = [&](const std::string & flag_definition, auto & val, const auto & sanity_check)
+        {
+            if (ccdb_config && ccdb_config->config_signal_hash_map.contains(flag_definition))
+            {
+                const auto & result = ccdb_config->config_signal_hash_map.at(flag_definition);
+                if (!sanity_check(result)) {
+                    throw std::invalid_argument("Sanoty check failed for key `" + flag_definition + "`.");
+                }
+
+                val = result;
+            }
+        };
+
+        flag_helper("Global::ReverseFilter", reverse_filter_list);
+        flag_helper("Global::SortReverse", reverse);
+        flag_helper("Global::ChainParser", backend_instance.parse_chains);
+        int_helper("Global::SortBy", sort_by, [&](const long int val) {
+            return (0 <= val && val < get_conn_titles.size());
+        });
+
+        auto filter_helper = [&](const std::string & definition, const int filter_index)
+        {
+            std::string filter;
+            string_helper(definition, filter, [&](const std::string & reg)->bool
+            {
+                try { std::regex regex(reg); } catch (...) { return false; }
+                return true;
+            });
+
+            if (!filter.empty()) {
+                filter_patterns.emplace(filter_index, filter);
+            }
+        };
+
+        filter_helper("Filter::Host", 0);
+        filter_helper("Filter::Process", 1);
+        filter_helper("Filter::Rules", 6);
+        filter_helper("Filter::SourceIP", 8);
+        filter_helper("Filter::DestinationIP", 9);
+        filter_helper("Filter::Type", 10);
+        filter_helper("Filter::Chains", 11);
 
 #ifndef _CCDB_CYGWIN_BUILD_
-    if (const auto terminal_name = get_terminal_emulator_name();
-        terminal_name == "gnome-terminal"
-        || terminal_name == "android-termux"
-        || terminal_name == "ptyxis"
-        || terminal_name == "xterm"
-        || terminal_name == "VTE-based terminal"
-        || terminal_name == "wezterm")
-    {
-        std::cout << "Set NO_0xFE0F_EXPAND_EMOJI to true since " << terminal_name << " doesn't support emoji expand." << std::endl;
-        setenv("NO_0xFE0F_EXPAND_EMOJI", "true");
-    }
-    else if (terminal_name == "konsole"
-        || terminal_name == "kitty") {
-        setenv("NO_0xFE0F_EXPAND_EMOJI", "false");
-    }
+        if (const auto terminal_name = get_terminal_emulator_name();
+            terminal_name == "gnome-terminal"
+            || terminal_name == "android-termux"
+            || terminal_name == "ptyxis"
+            || terminal_name == "xterm"
+            || terminal_name == "VTE-based terminal"
+            || terminal_name == "wezterm")
+        {
+            std::cout << "Set NO_0xFE0F_EXPAND_EMOJI to true since " << terminal_name << " doesn't support emoji expand." << std::endl;
+            setenv("NO_0xFE0F_EXPAND_EMOJI", "true");
+        }
+        else if (terminal_name == "konsole"
+            || terminal_name == "kitty") {
+            setenv("NO_0xFE0F_EXPAND_EMOJI", "false");
+            }
 #else
-    ::setenv("NO_0xFE0F_EXPAND_EMOJI", "true", 0); // no override
+        ::setenv("NO_0xFE0F_EXPAND_EMOJI", "true", 0); // no override
 #endif
 
-    try {
         set_thread_name("readline");
         backend_instance.start_continuous_updates();
         get_vecGroupProxy(false);
