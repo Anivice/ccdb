@@ -25,7 +25,6 @@ CCDB is using multiple open-source libraries:
  - [TSL Hopscotch-Hashing Map v2.4.0](https://github.com/Tessil/hopscotch-map)
  - [UTF8-CPP 4.0.9](https://github.com/nemtrif/utfcpp)
  - [JSON for Modern C++ 3.12.0](https://github.com/nlohmann/json)
- - [LZ4 v1.10.0](https://github.com/lz4/lz4)
 
 ## Functionalities Provided
 

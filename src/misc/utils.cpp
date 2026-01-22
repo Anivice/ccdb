@@ -28,142 +28,23 @@
 #include <chrono>
 #include <iomanip>
 #include <regex>
-#include "lz4frame.h"
+#define USE_TSL_HOPSCOTCH_MAP
+#include "lzw6.h"
 
-static void throw_if_lz4f_error(const size_t code, const char* where)
+std::vector<uint8_t> ccdb::utils::compress(const std::vector<uint8_t>& data)
 {
-    if (LZ4F_isError(code)) {
-        throw std::runtime_error(std::string(where) + ": " + LZ4F_getErrorName(code));
-    }
-}
-
-std::vector<uint8_t> ccdb::utils::compress_lz4(const std::vector<uint8_t>& data)
-{
-    LZ4F_cctx* cctx = nullptr;
-    {
-        const size_t rc = LZ4F_createCompressionContext(&cctx, LZ4F_VERSION);
-        throw_if_lz4f_error(rc, "LZ4F_createCompressionContext");
-    }
-
-    LZ4F_preferences_t prefs = LZ4F_INIT_PREFERENCES;
-    prefs.frameInfo.blockSizeID = LZ4F_max4MB;
-    prefs.frameInfo.blockMode = LZ4F_blockLinked;
-    prefs.frameInfo.contentChecksumFlag = LZ4F_noContentChecksum;
-    prefs.frameInfo.contentSize = static_cast<unsigned long long>(data.size());
-    prefs.compressionLevel = 0;
-
-    LZ4F_compressOptions_t copt{};
-    copt.stableSrc = 1;  // input buffer remains stable during the call
-
     std::vector<uint8_t> out;
-    out.reserve(std::min<size_t>(data.size() + 64, data.size() * 2)); // heuristic
-
-    // 1) Write frame header
-    {
-        uint8_t header[LZ4F_HEADER_SIZE_MAX];
-        const size_t headerBytes = LZ4F_compressBegin(cctx, header, sizeof(header), &prefs);
-        throw_if_lz4f_error(headerBytes, "LZ4F_compressBegin");
-        out.insert(out.end(), header, header + headerBytes);
-    }
-
-    // 2) Stream input in chunks
-    constexpr size_t kChunk = 4u * 1024u * 1024u; // 4MB
-    std::vector<uint8_t> tmp;
-
-    size_t pos = 0;
-    while (pos < data.size()) {
-        const size_t inSize = std::min(kChunk, data.size() - pos);
-
-        const size_t bound = LZ4F_compressBound(inSize, &prefs);
-        tmp.resize(bound);
-
-        const size_t written = LZ4F_compressUpdate(
-            cctx,
-            tmp.data(), tmp.size(),
-            data.data() + pos, inSize,
-            &copt
-        );
-        throw_if_lz4f_error(written, "LZ4F_compressUpdate");
-
-        out.insert(out.end(), tmp.data(), tmp.data() + written);
-        pos += inSize;
-    }
-
-    // 3) Finish frame (writes endMark + optional checksum)
-    {
-        const size_t bound0 = LZ4F_compressBound(0, &prefs);
-        tmp.resize(bound0);
-
-        const size_t written = LZ4F_compressEnd(cctx, tmp.data(), tmp.size(), nullptr);
-        throw_if_lz4f_error(written, "LZ4F_compressEnd");
-
-        out.insert(out.end(), tmp.data(), tmp.data() + written);
-    }
-
-    LZ4F_freeCompressionContext(cctx);
+    lzw::lzw<12> LZW(data, out);
+    LZW.compress();
     return out;
 }
 
 // Decompress a single LZ4 frame from `data`.
-std::vector<uint8_t> ccdb::utils::decompress_lz4(const std::vector<uint8_t>& data)
+std::vector<uint8_t> ccdb::utils::decompress(const std::vector<uint8_t>& data)
 {
-    if (data.empty()) return {};
-
-    LZ4F_dctx* dctx = nullptr;
-    {
-        const size_t rc = LZ4F_createDecompressionContext(&dctx, LZ4F_VERSION);
-        throw_if_lz4f_error(rc, "LZ4F_createDecompressionContext");
-    }
-
     std::vector<uint8_t> out;
-
-    size_t srcPos = 0;
-    {
-        LZ4F_frameInfo_t fi{};
-        size_t srcSize = data.size(); // may include more than header; getFrameInfo only consumes header
-        const size_t hint = LZ4F_getFrameInfo(dctx, &fi, data.data(), &srcSize);
-        throw_if_lz4f_error(hint, "LZ4F_getFrameInfo");
-        srcPos += srcSize;
-
-        if (fi.contentSize != 0 && fi.contentSize <= static_cast<unsigned long long>(out.max_size())) {
-            out.reserve(static_cast<size_t>(fi.contentSize));
-        }
-    }
-
-    // Decompress loop
-    constexpr size_t kOutChunk = 4u * 1024u * 1024u; // 4MB output buffer
-    std::vector<uint8_t> dst(kOutChunk);
-
-    while (true)
-    {
-        size_t dstSize = dst.size();
-        size_t srcSize = data.size() - srcPos;
-
-        const size_t ret = LZ4F_decompress(
-            dctx,
-            dst.data(), &dstSize,
-            data.data() + srcPos, &srcSize,
-            nullptr
-        );
-        throw_if_lz4f_error(ret, "LZ4F_decompress");
-
-        srcPos += srcSize;
-        out.insert(out.end(), dst.data(), dst.data() + dstSize);
-
-        if (ret == 0) { // frame fully decoded
-            break;
-        }
-        if (srcPos >= data.size()) {
-            // No more input but decoder expects more => truncated/corrupt stream
-            LZ4F_freeDecompressionContext(dctx);
-            throw std::runtime_error("LZ4F_decompress: truncated input (more data expected)");
-        }
-    }
-
-    const size_t freeRc = LZ4F_freeDecompressionContext(dctx);
-    // freeRc is 0 when decompression completed cleanly; treat non-zero as suspicious
-    throw_if_lz4f_error(freeRc, "LZ4F_freeDecompressionContext");
-
+    lzw::lzw<12> LZW(data, out);
+    LZW.decompress();
     return out;
 }
 

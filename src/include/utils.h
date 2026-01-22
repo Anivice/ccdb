@@ -138,8 +138,8 @@ namespace ccdb::utils {
 #endif
     }
 
-    std::vector<uint8_t> compress_lz4(const std::vector<uint8_t>& data);
-    std::vector<uint8_t> decompress_lz4(const std::vector<uint8_t>& data);
+    std::vector<uint8_t> compress(const std::vector<uint8_t>& data);
+    std::vector<uint8_t> decompress(const std::vector<uint8_t>& data);
 }
 
 #endif //CFS_UTILS_H

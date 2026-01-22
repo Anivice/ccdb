@@ -284,7 +284,7 @@ namespace cmdTpTree
     {
         std::vector<uint8_t> raw(command_readline_len + 1, 0);
         std::memcpy(raw.data(), command_readline, command_readline_len);
-        std::vector<uint8_t> decompressed_raw = ccdb::utils::decompress_lz4(raw);
+        std::vector<uint8_t> decompressed_raw = ccdb::utils::decompress(raw);
         std::vector<char> decompressed_raw_char;
         decompressed_raw_char.reserve(decompressed_raw.size());
         std::ranges::for_each(decompressed_raw, [&decompressed_raw_char](const uint8_t &c) {
