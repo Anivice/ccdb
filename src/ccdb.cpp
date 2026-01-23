@@ -1699,57 +1699,73 @@ static std::string format_time_local(const std::chrono::system_clock::time_point
 
 void ccdb::ccdb::get_subinfo()
 {
-    if (clash_sublink.empty()) {
-        std::cerr << "No subscription link defined in the configuration file." << std::endl;
-        std::cerr << "Define the link as follows:\n\n"
-                     "[clash]\n"
-                     "link = YOUR CLASH LINK\n\n"
-                     "In the configuration file ~/.ccdbrc\n";
-    }
-    else
+    auto get_info = [&]
     {
-        try {
-            const auto [
-                total_uploaded,
-                total_downloaded,
-                quota,
-                expire_unix_timestamp] = pull_clash_subinfo(clash_sublink);
-            const std::chrono::seconds duration(expire_unix_timestamp);
-            const std::chrono::system_clock::time_point time_point(duration);
-            std::cout
-                << color::color(0,0,5,5,5,5) << "Total uploaded:    " << color::color(0,0,0) << value_to_size(total_uploaded) << std::endl
-                << color::color(0,0,5,5,5,5) << "Total downloaded:  " << color::color(0,0,0) << value_to_size(total_downloaded) << std::endl
-                << color::color(0,0,5,5,5,5) << "Total used data:   " << color::color(0,0,0) << value_to_size(total_uploaded + total_downloaded) << std::endl
-                << color::color(0,0,5,5,5,5) << "Quota:             " << color::color(0,0,0) << value_to_size(quota) << std::endl
-                << color::color(0,0,5,5,5,5) << "Expire on:         " << color::color(0,0,0)
-#if (defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L
-                << std::format("{:%Y-%m-%d %H:%M:%S}", time_point)
-#else
-                << format_time_local(time_point)
-#endif
-                << std::endl
-                << color::no_color();
-
-            std::stringstream ss;
-            const auto percentage = static_cast<double>(total_uploaded + total_downloaded) / static_cast<double>(quota);
-            const int col = get_col_size();
-            const auto col_ptr = static_cast<uint64_t>(percentage * col);
-            ss << " " << std::setprecision(2) << std::setfill('0') << percentage * 100.00 << "% ";
-            const std::string percentage_lit = ss.str();
-            const int left = static_cast<int>(col_ptr - percentage_lit.length()) / 2;
-            const int right = static_cast<int>(col_ptr) - left - static_cast<int>(percentage_lit.length());
-
-            std::cout << color::color(static_cast<int>(5 * percentage),0,static_cast<int>(5 * (1 - percentage)),5,5,5)
-                << std::string((col_ptr >= percentage_lit.length() ? left : col_ptr), '#')
-                << (col_ptr >= percentage_lit.length() ? percentage_lit : "")
-                << std::string((col_ptr >= percentage_lit.length() ? right : 0), '#')
-                << color::color(2,2,2)
-                << std::string(std::max(get_col_size() - static_cast<int>(col_ptr), (int)0), '#') << std::endl
-                << color::no_color();
-        } catch (std::exception & e) {
-            std::cerr << e.what() << std::endl;
+        if (clash_sublink.empty()) {
+            std::cerr << "No subscription link defined in the configuration file." << std::endl;
+            std::cerr << "Define the link as follows:\n\n"
+                         "[clash]\n"
+                         "link = YOUR CLASH LINK\n\n"
+                         "In the configuration file ~/.ccdbrc\n";
         }
-    }
+        else
+        {
+            try {
+                const auto [
+                    total_uploaded,
+                    total_downloaded,
+                    quota,
+                    expire_unix_timestamp] = pull_clash_subinfo(clash_sublink);
+                const std::chrono::seconds duration(expire_unix_timestamp);
+                const std::chrono::system_clock::time_point time_point(duration);
+                const std::vector < std::string > titles = { "Entry", "Value" };
+                std::vector < std::vector < std::string > > lines;
+                lines.emplace_back(std::vector <std::string> { "Total uploaded:    ", value_to_size(total_uploaded) });
+                lines.emplace_back(std::vector <std::string> { "Total downloaded:  ", value_to_size(total_downloaded) });
+                lines.emplace_back(std::vector <std::string> { "Total used data:   ", value_to_size(total_uploaded + total_downloaded) });
+                lines.emplace_back(std::vector <std::string> { "Quota:             ", value_to_size(quota) });
+                lines.emplace_back(std::vector <std::string> { "Expire on:         ",
+    #if (defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L
+                    std::format("{:%Y-%m-%d %H:%M:%S}", time_point)
+    #else
+                    format_time_local(time_point)
+    #endif
+                });
+
+                print_table(titles, lines, false, true, {}, 0, nullptr, false,
+                    "", 0, nullptr, true);
+                std::cout << std::endl;
+
+                std::stringstream ss;
+                const auto percentage = static_cast<double>(total_uploaded + total_downloaded) / static_cast<double>(quota);
+                const int col = get_col_size();
+                const auto col_ptr = static_cast<uint64_t>(percentage * col);
+                ss << " " << std::setprecision(2) << std::setfill('0') << percentage * 100.00 << "% ";
+                const std::string percentage_lit = ss.str();
+                const int left = static_cast<int>(col_ptr - percentage_lit.length()) / 2;
+                const int right = static_cast<int>(col_ptr) - left - static_cast<int>(percentage_lit.length());
+
+                // calculate color (going more and more red when approaching 100%)
+                const int R = static_cast<int>(5 * percentage);
+                const int G = static_cast<int>(5 * std::pow(1 - percentage, 2));
+                const int B = static_cast<int>(5 * std::pow(1 - percentage, 2));
+
+                std::cout << color::color(R,G,B,0,0,0)
+                    << std::string((col_ptr >= percentage_lit.length() ? left : col_ptr), '#')
+                    << (col_ptr >= percentage_lit.length() ? percentage_lit : "")
+                    << std::string((col_ptr >= percentage_lit.length() ? right : 0), '#')
+                    << color::color(2,2,2,0,0,0)
+                    << std::string(std::max(get_col_size() - static_cast<int>(col_ptr), (int)0), '#') << std::endl
+                    << color::no_color();
+            } catch (std::exception & e) {
+                std::cerr << e.what() << std::endl;
+            }
+        }
+    };
+
+    watcher.watcher_clear_disable = true;
+    get_info();
+    watcher.watcher_clear_disable = false;
 }
 
 void ccdb::ccdb::reset_terminal_mode()
