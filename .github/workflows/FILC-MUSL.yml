@@ -32,7 +32,7 @@ jobs:
 
       - name: Configure and Build
         run: |
-          ./src/script/configure-filc.sh ./build
+          SKIP_SETUP= ./src/script/configure-filc.sh ./build
 
       - name: Test
         env:
