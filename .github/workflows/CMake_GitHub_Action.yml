@@ -28,7 +28,7 @@ jobs:
             build-essential \
             software-properties-common \
             apt-transport-https \
-            cmake make musl qemu-user qemu-user-static binfmt-support
+            cmake make musl qemu-user qemu-user-static binfmt-support xxd
           sudo update-binfmts --enable qemu-arm
           sudo update-binfmts --enable qemu-aarch64
 

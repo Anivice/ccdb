@@ -1833,7 +1833,7 @@ void ccdb::ccdb::get_conn_input_watcher(
         {
             {
                 std::lock_guard<std::mutex> guard(mutex);
-                if (const auto now = std::chrono::system_clock::now();
+                if (const auto now = std::chrono::high_resolution_clock::now();
                 parsed || (ch_list.size() > 3 && chrono::duration_cast<chrono::milliseconds>(now - last_recorded_time ).count() >
 #ifdef _CCDB_CYGWIN_BUILD_
                     500
