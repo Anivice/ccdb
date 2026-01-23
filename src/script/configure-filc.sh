@@ -4,7 +4,7 @@ set -euo pipefail
 script_dir="$(dirname "$(readlink -f "$0")")"
 
 BUILD_DIR="$1"
-FILC="$(echo "$script_dir/../../toolchains/filc"-*-"linux-x86_64.*")"
+FILC="$(echo "$script_dir/../../toolchains/filc"-*-"linux-x86_64.tar.xz")"
 tar xf "$FILC"
 FILC_ROOT="$PWD/$(echo "filc"-*-"linux-x86_64/")"
 
