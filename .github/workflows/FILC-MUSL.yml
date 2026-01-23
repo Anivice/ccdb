@@ -2,12 +2,6 @@ name: Linux FILC Automatic Nightly Build
 
 on:
   workflow_dispatch:    # Enables manual triggering
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
 
 permissions:
   contents: write
