@@ -42,7 +42,7 @@ ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url)
     }
 
     const httplib::Headers hdrs = {{"User-Agent", "clash-verge/2.1.0"}}; // dummy header
-    auto res = cli.Get(path, hdrs);
+    auto res = cli.Head(path, hdrs);
     if (!res) {
         throw std::runtime_error(httplib::to_string(res.error()));
     }
