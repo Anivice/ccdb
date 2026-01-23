@@ -28,7 +28,7 @@ jobs:
             build-essential \
             software-properties-common \
             apt-transport-https \
-            cmake make musl xxd patchelf tar xz
+            cmake make musl xxd patchelf tar xz-utils
 
       - name: Configure and Build
         run: |
