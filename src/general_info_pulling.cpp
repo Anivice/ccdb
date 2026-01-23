@@ -40,7 +40,7 @@ void general_info_pulling::update_from_traffic(const std::string& info)
     }
 }
 
-#if !((__cplusplus >= 202302L) && defined(_FORCE_CXX23))
+#if !((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
 bool parse_rfc3339_to_unix_ns(const std::string &s, std::int64_t &out_ns)
 {
     std::tm tm = {};
@@ -113,7 +113,7 @@ void general_info_pulling::update_from_connections(const std::string& info)
             time += "+00:00";
         }
 
-#if ((__cplusplus >= 202302L) && defined(_FORCE_CXX23))
+#if ((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
 // #ifdef _FORCE_CPP_23
         using namespace std;
         using namespace std::chrono;

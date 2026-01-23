@@ -34,30 +34,38 @@ jobs:
 
       - name: Configure and Build
         run: |
-          bash -c 'for arch in x86_64 i686 arm aarch64 armv5l armv7 armv7hf i586; do ./src/configure.sh $arch build_$arch; done'
-
-      - name: Test
-        env:
-          TERM: xterm-256color
-        run: |
-          true
+          bash -c 'for arch in x86_64 i686 arm aarch64 armv5l armv7 armv7hf i586; do if ! ./src/configure.sh $arch build_$arch; then exit 1; fi; done' 2>&1 >log.txt
 
       ########################################################################
-      # OPEN ISSUE IF ANY TEST FAILURE OCCURRED
+      # OPEN ISSUE IF ANY FAILURE OCCURRED
       ########################################################################
+      - name: Upload log artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: log.txt
+          retention-days: 7
+
       - name: Open an Issue on Test Failure
-        # This step runs only if a previous step in the same job has failed
         if: ${{ failure() }}
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: "Test Failure in Automated CMake Test Workflow",
-              body: "# One or more tests have failed!"
-            })
+            const owner = context.repo.owner;
+            const repo  = context.repo.repo;
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            
+            const body =
+                `# One or more steps have failed!\n\n` +
+                `**Log artifact:** \`build-log\` (download it from the workflow run page)\n` +
+                `**Workflow run:** ${runUrl}\n`;
+                
+            await github.rest.issues.create({
+                owner, repo,
+                title: "CCDB Linux Build Failed",
+                body
+            });
 
       - name: Pack
         run: |

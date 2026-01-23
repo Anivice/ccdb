@@ -1676,6 +1676,27 @@ void ccdb::ccdb::get_filter()
     });
 }
 
+static std::tm to_local_tm(std::time_t t)
+{
+    std::tm tm{};
+#if defined(_WIN32)
+    localtime_s(&tm, &t);
+#else
+    localtime_r(&t, &tm);
+#endif
+    return tm;
+}
+
+static std::string format_time_local(const std::chrono::system_clock::time_point tp)
+{
+    const std::time_t t = std::chrono::system_clock::to_time_t(tp);
+    const std::tm tm = to_local_tm(t);
+
+    char buf[128] { };
+    std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm);
+    return { buf };
+}
+
 void ccdb::ccdb::get_subinfo()
 {
     if (clash_sublink.empty()) {
@@ -1700,19 +1721,25 @@ void ccdb::ccdb::get_subinfo()
                 << color::color(0,0,5,5,5,5) << "Total downloaded:  " << color::color(0,0,0) << value_to_size(total_downloaded) << std::endl
                 << color::color(0,0,5,5,5,5) << "Total used data:   " << color::color(0,0,0) << value_to_size(total_uploaded + total_downloaded) << std::endl
                 << color::color(0,0,5,5,5,5) << "Quota:             " << color::color(0,0,0) << value_to_size(quota) << std::endl
-                << color::color(0,0,5,5,5,5) << "Expire on:         " << color::color(0,0,0) << std::format("{:%Y-%m-%d %H:%M:%S}", time_point) << std::endl
+                << color::color(0,0,5,5,5,5) << "Expire on:         " << color::color(0,0,0)
+#if (defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L
+                << std::format("{:%Y-%m-%d %H:%M:%S}", time_point)
+#else
+                << format_time_local(time_point)
+#endif
+                << std::endl
                 << color::no_color();
 
             std::stringstream ss;
             const auto percentage = static_cast<double>(total_uploaded + total_downloaded) / static_cast<double>(quota);
             const int col = get_col_size();
-            const uint64_t col_ptr = percentage * col;
+            const auto col_ptr = static_cast<uint64_t>(percentage * col);
             ss << " " << std::setprecision(2) << std::setfill('0') << percentage * 100.00 << "% ";
             const std::string percentage_lit = ss.str();
-            const int left = (col_ptr - percentage_lit.length()) / 2;
-            const int right = col_ptr - left - percentage_lit.length();
+            const int left = static_cast<int>(col_ptr - percentage_lit.length()) / 2;
+            const int right = static_cast<int>(col_ptr) - left - static_cast<int>(percentage_lit.length());
 
-            std::cout << color::color(5 * percentage,0,5 * (1 - percentage),5,5,5)
+            std::cout << color::color(static_cast<int>(5 * percentage),0,static_cast<int>(5 * (1 - percentage)),5,5,5)
                 << std::string((col_ptr >= percentage_lit.length() ? left : col_ptr), '#')
                 << (col_ptr >= percentage_lit.length() ? percentage_lit : "")
                 << std::string((col_ptr >= percentage_lit.length() ? right : 0), '#')
