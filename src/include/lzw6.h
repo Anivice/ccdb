@@ -516,7 +516,11 @@ namespace lzw
         {
             std::vector < uint64_t > ret;
             std::vector < std::pair <uint64_t, symbol_rep_t > > map;
+#if (defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L
             map.insert_range(map.end(), symbol_map);
+#else
+            map.insert(map.end(), symbol_map.begin(), symbol_map.end());
+#endif
             std::ranges::sort(map, [](const auto & a, const auto & b)->bool{ return a.first < b.first; });
             std::ranges::for_each(map | std::views::values, [&](const symbol_rep_t & p) {
                 uint64_t val = 0;
@@ -563,7 +567,11 @@ namespace lzw
 
             // 2. sort unordered_map
             std::vector < std::pair < uint64_t, symbol_rep_t > > map;
+#if (defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L
             map.insert_range(map.end(), symbol_map);
+#else
+            map.insert(map.end(), symbol_map.begin(), symbol_map.end());
+#endif
             std::ranges::sort(map, [](const std::pair < uint64_t, symbol_rep_t > & a, const std::pair < uint64_t, symbol_rep_t > & b)->bool {
                 return a.first < b.first;
             });
@@ -575,7 +583,11 @@ namespace lzw
                 sym_pos_bitmap.set_bit(sym, true);
                 huffman_table.push_back(*reinterpret_cast<const uint8_t *>(&rep.data_bits));
             }
+#if (defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L
             huffman_table.insert_range(huffman_table.begin() + 1, symbol_bitmap); // add bitmap after symbol size
+#else
+            huffman_table.insert(huffman_table.begin() + 1, symbol_bitmap.begin(), symbol_bitmap.end()); // add bitmap after symbol size
+#endif
 
             // 4. write packed bits
             std::vector<uint8_t> huffman_table_val_section; // [[PACKED BITS]...]
@@ -595,11 +607,15 @@ namespace lzw
             const auto table_size = static_cast<uint16_t>(compressed_huffman_table.size());
 
             // write to buffer
-            output_.insert_range(output_.end(),
-                std::vector<uint8_t>{ reinterpret_cast<const uint8_t *>(&table_size),
-                    reinterpret_cast<const uint8_t *>(&table_size) + sizeof(table_size)
-                });
+#if (defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L
+            output_.insert(output_.end(), reinterpret_cast<const uint8_t *>(&table_size),
+                    reinterpret_cast<const uint8_t *>(&table_size) + sizeof(table_size));
             output_.insert_range(output_.end(), compressed_huffman_table);
+#else
+            output_.insert(output_.end(), reinterpret_cast<const uint8_t *>(&table_size),
+                    reinterpret_cast<const uint8_t *>(&table_size) + sizeof(table_size));
+            output_.insert(output_.end(), compressed_huffman_table.begin(), compressed_huffman_table.end());
+#endif
 
             /// ready to encode actual data
             std::vector<uint8_t> encoded_huffman_stream;
@@ -616,9 +632,15 @@ namespace lzw
                 bits_written += data_bits;
             }
 
-            output_.insert_range(output_.end(), std::vector<uint8_t>
-                { reinterpret_cast<const uint8_t *>(&bits_written), reinterpret_cast<const uint8_t *>(&bits_written) + sizeof(bits_written) });
+#if (defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L
+            output_.insert(output_.end(), reinterpret_cast<const uint8_t *>(&bits_written),
+                reinterpret_cast<const uint8_t *>(&bits_written) + sizeof(bits_written));
             output_.insert_range(output_.end(), encoded_huffman_stream);
+#else
+            output_.insert(output_.end(), reinterpret_cast<const uint8_t *>(&bits_written),
+                reinterpret_cast<const uint8_t *>(&bits_written) + sizeof(bits_written));
+            output_.insert(output_.end(), encoded_huffman_stream.begin(), encoded_huffman_stream.end());
+#endif
         }
 
         void decompress()
