@@ -68,6 +68,7 @@ namespace ccdb
         tsl::hopscotch_map < std::string /* groups */, std::vector < std::string > /* endpoint */ > g_proxy_list; // group-proxy list
         const std::string latency_url; // latency URL
         std::unique_ptr<configuration> ccdb_config;
+        std::string clash_sublink;
 
         /// Pull groups and proxies from the backend
         void update_providers();
@@ -170,6 +171,7 @@ namespace ccdb
         void set_filter(const std::vector<std::string> & command_vector);
         void clear_filter();
         void get_filter();
+        void get_subinfo();
         static void help();
 
         /// terminal mode guard. Create this instance to change and reset term mode automatically

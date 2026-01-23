@@ -29,6 +29,7 @@
 #include <fstream>
 #include "config.h"
 #include "term_name.h"
+#include "pull_subinfo.h"
 
 static std::atomic_bool sysint_pressed = false;
 void sigint_handler(int)
@@ -1675,6 +1676,55 @@ void ccdb::ccdb::get_filter()
     });
 }
 
+void ccdb::ccdb::get_subinfo()
+{
+    if (clash_sublink.empty()) {
+        std::cerr << "No subscription link defined in the configuration file." << std::endl;
+        std::cerr << "Define the link as follows:\n\n"
+                     "[clash]\n"
+                     "link = YOUR CLASH LINK\n\n"
+                     "In the configuration file ~/.ccdbrc\n";
+    }
+    else
+    {
+        try {
+            const auto [
+                total_uploaded,
+                total_downloaded,
+                quota,
+                expire_unix_timestamp] = pull_clash_subinfo(clash_sublink);
+            const std::chrono::seconds duration(expire_unix_timestamp);
+            const std::chrono::system_clock::time_point time_point(duration);
+            std::cout
+                << color::color(0,0,5,5,5,5) << "Total uploaded:    " << color::color(0,0,0) << value_to_size(total_uploaded) << std::endl
+                << color::color(0,0,5,5,5,5) << "Total downloaded:  " << color::color(0,0,0) << value_to_size(total_downloaded) << std::endl
+                << color::color(0,0,5,5,5,5) << "Total used data:   " << color::color(0,0,0) << value_to_size(total_uploaded + total_downloaded) << std::endl
+                << color::color(0,0,5,5,5,5) << "Quota:             " << color::color(0,0,0) << value_to_size(quota) << std::endl
+                << color::color(0,0,5,5,5,5) << "Expire on:         " << color::color(0,0,0) << std::format("{:%Y-%m-%d %H:%M:%S}", time_point) << std::endl
+                << color::no_color();
+
+            std::stringstream ss;
+            const auto percentage = static_cast<double>(total_uploaded + total_downloaded) / static_cast<double>(quota);
+            const int col = get_col_size();
+            const uint64_t col_ptr = percentage * col;
+            ss << " " << std::setprecision(2) << std::setfill('0') << percentage * 100.00 << "% ";
+            const std::string percentage_lit = ss.str();
+            const int left = (col_ptr - percentage_lit.length()) / 2;
+            const int right = col_ptr - left - percentage_lit.length();
+
+            std::cout << color::color(5 * percentage,0,5 * (1 - percentage),5,5,5)
+                << std::string((col_ptr >= percentage_lit.length() ? left : col_ptr), '#')
+                << (col_ptr >= percentage_lit.length() ? percentage_lit : "")
+                << std::string((col_ptr >= percentage_lit.length() ? right : 0), '#')
+                << color::color(2,2,2)
+                << std::string(std::max(get_col_size() - static_cast<int>(col_ptr), (int)0), '#') << std::endl
+                << color::no_color();
+        } catch (std::exception & e) {
+            std::cerr << e.what() << std::endl;
+        }
+    }
+}
+
 void ccdb::ccdb::reset_terminal_mode()
 {
     if (terminal_mode_changed) {
@@ -2102,6 +2152,7 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
         filter_helper("Filter::DestinationIP", 9);
         filter_helper("Filter::Type", 10);
         filter_helper("Filter::Chains", 11);
+        string_helper("clash::link", clash_sublink, [](const std::string &){ return true; });
 
 #ifndef _CCDB_CYGWIN_BUILD_
         if (const auto terminal_name = get_terminal_emulator_name();
@@ -2162,6 +2213,8 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
                     get_vecGroupProxy();
                 } else if (command_vector[1] == "filter") {
                     get_filter();
+                }  else if (command_vector[1] == "subinfo") {
+                    get_subinfo();
                 } else {
                     std::cerr << "Unknown command `" << command_vector[1] << "`" << std::endl;
                 }

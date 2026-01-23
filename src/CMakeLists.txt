@@ -135,9 +135,10 @@ add_executable(ccdb
         term_name.cpp               include/term_name.h
         update-self.cpp             include/update-self.h
         config.cpp                  include/config.h
+        pull_subinfo.cpp            include/pull_subinfo.h
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
-target_compile_definitions(ccdb PRIVATE CCDB_VERSION="0.8.4-rc5")
+target_compile_definitions(ccdb PRIVATE CCDB_VERSION="0.8.4-rc6")
 target_link_libraries(ccdb PRIVATE resource_command.readline)
 
 find_program(GIT_EXEC NAMES git REQUIRED)
