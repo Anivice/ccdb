@@ -32,7 +32,7 @@ jobs:
 
       - name: Configure and Build
         run: |
-          ./src/script/config-filc.sh ./build
+          ./src/script/configure-filc.sh ./build
 
       - name: Test
         env:
