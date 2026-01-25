@@ -644,7 +644,7 @@ void ccdb::ccdb::print_table(
                     }
 
                     line = line.substr(0, offset) + utils::utf8_to_u32(padding) +
-                           utils::utf8_to_u32(color::bg_color(5,5,5) + color::color(0,0,0) + ">" + color::no_color());
+                           utils::utf8_to_u32(color::color(5,5,5,0,0,0) + ">" + color::no_color());
                 }
                 else
                 {
@@ -663,7 +663,7 @@ void ccdb::ccdb::print_table(
             if (!utf8_str.empty() && utf8_str.front() == '<') // add color code for '<' at the beginning
             {
                 utf8_str.erase(utf8_str.begin());
-                utf8_str = (color::bg_color(5,5,5) + color::color(0,0,0) + "<")
+                utf8_str = (color::color(5,5,5,0,0,0) + "<")
                     + (use_line_highlighter ? "" : color::no_color() + color)
                     + utf8_str;
             } else {
@@ -1156,7 +1156,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
                     if (skipped_size < leading_spaces) {
                         msg = msg.substr(leading_spaces - skipped_size);
-                        ss << color::color(0,0,0,5,5,5) << "<" << color::no_color();
+                        ss << color::color(5,5,5,0,0,0) << "<" << color::no_color();
                         skipped_size = leading_spaces;
                         ss_printed_size = leading_spaces - skipped_size + 1;
                     }
@@ -1178,7 +1178,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     msg = msg.substr(0, std::max(col - ss_printed_size - 1, 0));
                     if (msg.empty()) return;
                     ss_printed_size += static_cast<int>(msg.size()) + 1 /* ">" */;
-                    msg += color::color(0,0,0,5,5,5) + ">";
+                    msg += color::color(5,5,5,0,0,0) + ">";
                     ss << color << msg << color::no_color();
                     did_i_add_no_color = true;
                 } else {
@@ -1193,12 +1193,12 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             }
         };
 
-        append_msg("Total uploads: " + value_to_size(backend_instance.get_total_uploaded_bytes()), color::color(5,5,0));
+        append_msg("Total uploads: " + value_to_size(backend_instance.get_total_uploaded_bytes()), color::color(5,5,0,0,0,0));
         append_msg("   ");
         append_msg("Upload speed: " + value_to_speed(backend_instance.get_current_upload_speed()),
             color::color(5,5,5,0,0,5), color::no_color());
         append_msg("   ");
-        append_msg("Total downloads " + value_to_size(backend_instance.get_total_downloaded_bytes()), color::color(0,5,5));
+        append_msg("Total downloads " + value_to_size(backend_instance.get_total_downloaded_bytes()), color::color(0,5,5,0,0,0));
         append_msg("   ");
         append_msg("Download speed: " + value_to_speed(backend_instance.get_current_download_speed()),
             color::color(5,5,5,0,0,5), color::no_color());
