@@ -1755,8 +1755,8 @@ void ccdb::ccdb::get_subinfo()
                     << (col_ptr >= percentage_lit.length() ? percentage_lit : "")
                     << std::string((col_ptr >= percentage_lit.length() ? right : 0), '#')
                     << color::color(2,2,2,0,0,0)
-                    << std::string(std::max(get_col_size() - static_cast<int>(col_ptr), (int)0), '#') << std::endl
-                    << color::no_color();
+                    << std::string(std::max(get_col_size() - static_cast<int>(col_ptr), (int)0), '#')
+                    << color::no_color() << std::endl;
             } catch (std::exception & e) {
                 std::cerr << e.what() << std::endl;
             }
