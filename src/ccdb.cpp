@@ -687,11 +687,11 @@ void ccdb::ccdb::print_table(
         }
     }
 
-    print_line(separation_line);
-    print_line(header_line);
-    print_line(separation_line);
-    print_line(title_line, color::color(5,5,5));
-    print_line(separation_line);
+    print_line(separation_line, color::color(5,5,5,0,0,0));
+    print_line(header_line, color::color(5,5,5,0,0,0));
+    print_line(separation_line, color::color(5,5,5,0,0,0));
+    print_line(title_line, color::color(5,5,5,0,0,0));
+    print_line(separation_line, color::color(5,5,5,0,0,0));
 
     const int max_skip_lines = std::max(static_cast<int>(table_values.size()) - (utils::get_line_size() - 2 - printed_lines), 0);
     if (max_skip_lines_ptr) *max_skip_lines_ptr = max_skip_lines;
@@ -730,9 +730,10 @@ void ccdb::ccdb::print_table(
 
         std::string color_line;
         if (color_code_overrides.empty() || !color_code_overrides.contains(current_line_index)) {
-            if (current_line_index & 0x01) color_line = color::color(0,5,5);
+            if (current_line_index & 0x01) color_line = color::color(5,5,5,0,0,0);
+            else color_line = color::color(5,5,5,0,0,5);
         } else {
-            color_line = color_code_overrides.at(current_line_index);
+            color_line = color::bg_color(0,0,0) + color_code_overrides.at(current_line_index);
         }
 
         int index = 0;
@@ -770,17 +771,16 @@ void ccdb::ccdb::print_table(
 
     /// tailings
     if (skip_lines == 0) {
-        print_line(separation_line, "", false);
+        print_line(separation_line, color::color(5,5,5,0,0,0), false);
     } else {
         const auto col_sz = get_col_size();
         const auto line_sz = get_line_size();
-        if (col_sz > 2)
+        if ((col_sz > 2) && (printed_lines <= (line_sz - 2) && col_sz > 2 && separation_line.size() > 2))
         {
-            if (printed_lines <= (line_sz - 2) && col_sz > 2 && separation_line.size() > 2) {
-                std::cout << "+" << std::string(std::min(static_cast<long long>(col_sz - 2ul),
+            std::cout   << color::color(5,5,5,0,0,0)
+                        << "+" << std::string(std::min(static_cast<long long>(col_sz - 2ul),
                             static_cast<long long>(separation_line.size() - 2)), '-')
-                    << "+" << std::endl;
-            }
+                        << "+" << std::endl;
         }
 
         if (line_sz > 2)
