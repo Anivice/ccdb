@@ -152,7 +152,7 @@ void general_info_pulling::update_from_connections(const std::string& info)
         tsl::hopscotch_map < std::string, connection_t > new_connection_map;
         for (const auto& connection : data["connections"])
         {
-            std::string id = connection["id"];
+            const std::string id = connection["id"];
             const auto network_type = std::string(connection["metadata"]["network"]);
             const auto host = std::string(connection["metadata"]["host"]);
             const auto dest = std::string(connection["metadata"]["destinationIP"]);
@@ -178,7 +178,8 @@ void general_info_pulling::update_from_connections(const std::string& info)
                 cur_time_sec - timepoint_established_sec : timepoint_established_sec - cur_time_sec; // wtf
             const auto now = std::chrono::high_resolution_clock::now();
             conn.timeLastPulled = now;
-            conn.metadata.connectionID = connection["id"];
+            conn.metadata.connectionID = id;
+            conn.metadata.raw_json = connection.dump();
 
             if (auto previous = connection_map.find(id); previous != connection_map.end())
             {

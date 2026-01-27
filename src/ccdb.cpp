@@ -1023,6 +1023,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::atomic_int mouse_y;
     std::atomic_bool kill_connection = false;
     std::atomic_bool focus_to_highlight = false;
+    std::atomic_bool conn_show_detail = false;
     std::string focused_connection_id;
     std::vector<std::pair < std::string, std::chrono::time_point<std::chrono::high_resolution_clock> > > g_title_lines;
     std::vector < std::thread > child_workers;
@@ -1073,7 +1074,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     if (use_input) {
         input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
             &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
-            &mouse_x, &mouse_y, &kill_connection, &focus_to_highlight);
+            &mouse_x, &mouse_y, &kill_connection, &focus_to_highlight, &conn_show_detail);
     }
 
     auto valid_check = [&](const general_info_pulling::connection_t & c)->bool
@@ -1315,6 +1316,33 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 kill_connection = false;
             }
 
+            if (conn_show_detail)
+            {
+                if (focus_line != -1)
+                {
+                    general_info_pulling::connection_t matched_connection;
+                    std::ranges::any_of(connections, [&](const general_info_pulling::connection_t & conn)->bool
+                    {
+                        if (conn.metadata.connectionID == focused_connection_id) {
+                            matched_connection = conn;
+                            return true;
+                        }
+
+                        return false;
+                    });
+
+                    if (jq_available) {
+                        exec_command("/bin/sh", matched_connection.metadata.raw_json,
+                            "-c", "jq --color-output | less -SR -S --rscroll='>'");
+                    } else {
+                        exec_command("/bin/sh", matched_connection.metadata.raw_json,
+                            "-c", "less -SR -S --rscroll='>'");
+                    }
+                }
+
+                conn_show_detail = false;
+            }
+
             print_table(get_conn_titles,
                 table_vals,
                 false,
@@ -1430,7 +1458,7 @@ void ccdb::ccdb::get_log()
     backend_instance.change_focus("logs");
     auto input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
         &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
-        &mouse_x, &mouse_y, nullptr, nullptr);
+        &mouse_x, &mouse_y, nullptr, nullptr, nullptr);
 
     std::string log_level_filter, log_content_filter;
     if (filter_patterns.contains(12)) log_level_filter = filter_patterns.at(12);
@@ -1992,7 +2020,8 @@ void ccdb::ccdb::get_conn_input_watcher(
     std::atomic_int * mouse_x,
     std::atomic_int * mouse_y,
     std::atomic_bool * kill_signal_sent,
-    std::atomic_bool * refocus)
+    std::atomic_bool * refocus,
+    std::atomic_bool * show_detail)
 {
     set_thread_name("get/conn:input");
 
@@ -2058,6 +2087,11 @@ void ccdb::ccdb::get_conn_input_watcher(
 
         if (ch == 'k' || ch == 'K') {
             if (kill_signal_sent) *kill_signal_sent = true;
+            continue;
+        }
+
+        if (ch == 'p' || ch == 'P') {
+            if (show_detail) *show_detail = true;
             continue;
         }
 
@@ -2312,7 +2346,7 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
             || terminal_name == "VTE-based terminal"
             || terminal_name == "wezterm")
         {
-            std::cout << "Set NO_0xFE0F_EXPAND_EMOJI to true since " << terminal_name << " doesn't support emoji expand." << std::endl;
+            std::cout << "Set NO_0xFE0F_EXPAND_EMOJI to true since " << terminal_name << " doesn't support emoji expansion." << std::endl;
             setenv("NO_0xFE0F_EXPAND_EMOJI", "true");
         }
         else if (terminal_name == "konsole"
@@ -2322,6 +2356,9 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
 #else
         ::setenv("NO_0xFE0F_EXPAND_EMOJI", "true", 0); // no override
 #endif
+
+        const auto ret = exec_command("/bin/sh", "jq --version >/dev/null 2>/dev/null\n");
+        jq_available = (ret.exit_status == 0);
 
         set_thread_name("readline");
         backend_instance.start_continuous_updates();

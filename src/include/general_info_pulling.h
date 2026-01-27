@@ -63,6 +63,7 @@ public:
 
         struct {
             std::string connectionID;
+            std::string raw_json;
         } metadata;
 
         friend class general_info_pulling;
