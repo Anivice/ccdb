@@ -1363,6 +1363,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             const int local_mouse_y = mouse_y;
             const bool local_focus_status = focus_to_highlight;
             const bool local_kill_status = kill_connection;
+            const bool local_show_detail = conn_show_detail;
 
             for (int i = 0; i < 10; i++)
             {
@@ -1371,7 +1372,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     || local_mouse_y != mouse_y
                     || window_size_change
                     || local_focus_status != focus_to_highlight
-                    || local_kill_status != kill_connection)
+                    || local_kill_status != kill_connection
+                    || local_show_detail != conn_show_detail)
                 {
                     window_size_change = false;
                     break;
