@@ -169,6 +169,8 @@ if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
         target_link_libraries(ccdb PRIVATE atomic readline::readline ncurses::ncurses)
     endif()
 
+    target_compile_definitions(ccdb PRIVATE __DEBUG__=1)
+
     add_executable(data_race_test data_race.cpp)
     target_compile_options(data_race_test PRIVATE -fsanitize=thread -fno-sanitize-recover=undefined -fno-sanitize=undefined)
     target_link_libraries(data_race_test PRIVATE tsan)

@@ -195,6 +195,8 @@ namespace ccdb
         /// @param max_skip_lines_ptr max skip lines the watcher can set
         /// @param mouse_x Input captured mouse x
         /// @param mouse_y Input captured mouse y
+        /// @param kill_signal_sent Kill one connection, sent by pressing F. Used to kill one connection in `get connections`
+        /// @param refocus Refocus, by pressing F
         void get_conn_input_watcher(
             std::atomic_bool * running_ptr,
             std::atomic_int * leading_spaces_ptr,
@@ -202,7 +204,9 @@ namespace ccdb
             std::atomic_int * current_skip_lines_ptr,
             const std::atomic_int * max_skip_lines_ptr,
             std::atomic_int * mouse_x,
-            std::atomic_int * mouse_y);
+            std::atomic_int * mouse_y,
+            std::atomic_bool * kill_signal_sent,
+            std::atomic_bool * refocus);
 
     public:
         ccdb(const std::string & backend, int port, const std::string & token, std::string  latency_url_);

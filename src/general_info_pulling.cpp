@@ -178,6 +178,7 @@ void general_info_pulling::update_from_connections(const std::string& info)
                 cur_time_sec - timepoint_established_sec : timepoint_established_sec - cur_time_sec; // wtf
             const auto now = std::chrono::high_resolution_clock::now();
             conn.timeLastPulled = now;
+            conn.metadata.connectionID = connection["id"];
 
             if (auto previous = connection_map.find(id); previous != connection_map.end())
             {
@@ -188,8 +189,6 @@ void general_info_pulling::update_from_connections(const std::string& info)
                 const auto download_during_pull = conn.totalDownloadedBytes - previous->second.totalDownloadedBytes;
                 const auto uploaded_bytes_per_second = static_cast<long>(static_cast<double>(uploaded_during_pull) / (static_cast<double>(duration_in_milliseconds) / 1000));
                 const auto downloaded_bytes_per_second = static_cast<long>(static_cast<double>(download_during_pull) / (static_cast<double>(duration_in_milliseconds) / 1000));
-
-                // logger.dlog("====> Download Speed ", downloaded_bytes_per_second, "\n");
 
                 conn.uploadSpeed = uploaded_bytes_per_second;
                 conn.downloadSpeed = downloaded_bytes_per_second;

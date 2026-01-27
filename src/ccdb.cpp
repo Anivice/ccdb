@@ -663,7 +663,7 @@ void ccdb::ccdb::print_table(
             if (!utf8_str.empty() && utf8_str.front() == '<') // add color code for '<' at the beginning
             {
                 utf8_str.erase(utf8_str.begin());
-                utf8_str = (color::color(5,5,5,0,0,0) + "<")
+                utf8_str = ((use_line_highlighter ? "" : color::color(5,5,5,0,0,0)) + "<")
                     + (use_line_highlighter ? "" : color::no_color() + color)
                     + utf8_str;
             } else {
@@ -1021,6 +1021,15 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     do_col_hide.resize(get_conn_titles.size(), false);
     std::atomic_int mouse_x;
     std::atomic_int mouse_y;
+    std::atomic_bool kill_connection = false;
+    std::atomic_bool focus_to_highlight = false;
+    std::string focused_connection_id;
+    std::vector<std::pair < std::string, std::chrono::time_point<std::chrono::high_resolution_clock> > > g_title_lines;
+    std::vector < std::thread > child_workers;
+
+    auto show_info = [&](const std::string & msg, const std::string & level) {
+        g_title_lines.emplace_back("[" + level + "]: " + msg, std::chrono::high_resolution_clock::now());
+    };
 
     if (command_vector.size() == 4)
     {
@@ -1064,7 +1073,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     if (use_input) {
         input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
             &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
-            &mouse_x, &mouse_y);
+            &mouse_x, &mouse_y, &kill_connection, &focus_to_highlight);
     }
 
     auto valid_check = [&](const general_info_pulling::connection_t & c)->bool
@@ -1079,6 +1088,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     while (running)
     {
         auto connections = backend_instance.get_active_connections();
+        decltype(connections) connections_filtered;
         std::vector<std::vector<std::string>> table_vals;
         std::ranges::sort(connections,
                           [&](const general_info_pulling::connection_t & a, const general_info_pulling::connection_t & b)
@@ -1132,6 +1142,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     connection.networkType,
                     connection.chainName,
                 });
+
+                connections_filtered.emplace_back(connection);
             }
         }
 
@@ -1193,20 +1205,116 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             }
         };
 
-        append_msg("Total uploads: " + value_to_size(backend_instance.get_total_uploaded_bytes()), color::color(5,5,0,0,0,0));
-        append_msg("   ");
-        append_msg("Upload speed: " + value_to_speed(backend_instance.get_current_upload_speed()),
-            color::color(5,5,5,0,0,5), color::no_color());
-        append_msg("   ");
-        append_msg("Total downloads " + value_to_size(backend_instance.get_total_downloaded_bytes()), color::color(0,5,5,0,0,0));
-        append_msg("   ");
-        append_msg("Download speed: " + value_to_speed(backend_instance.get_current_download_speed()),
-            color::color(5,5,5,0,0,5), color::no_color());
+        std::string title_line;
+        std::string * g_title_line = nullptr;
 
-        const auto title_line = ss.str();
+        while (!g_title_lines.empty())
+        {
+            const auto now = std::chrono::high_resolution_clock::now();
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - g_title_lines.front().second).count() >=
+                (800 / g_title_lines.size())) // transcendental display time
+            {
+                g_title_lines.erase(g_title_lines.begin());
+                if (!g_title_lines.empty()) g_title_lines.front().second = now;
+                continue; // get next
+            }
+
+            g_title_line = &g_title_lines.front().first;
+            break; // stop here
+        }
+
+        if (!g_title_line)
+        {
+            append_msg("Total uploads: " + value_to_size(backend_instance.get_total_uploaded_bytes()), color::color(5,5,0,0,0,0));
+            append_msg("   ");
+            append_msg("Upload speed: " + value_to_speed(backend_instance.get_current_upload_speed()),
+                color::color(5,5,5,0,0,5), color::no_color());
+            append_msg("   ");
+            append_msg("Total downloads " + value_to_size(backend_instance.get_total_downloaded_bytes()), color::color(0,5,5,0,0,0));
+            append_msg("   ");
+            append_msg("Download speed: " + value_to_speed(backend_instance.get_current_download_speed()),
+                color::color(5,5,5,0,0,5), color::no_color());
+
+            title_line = ss.str();
+            if (title_line.empty()) title_line = " ";
+        }
+        else
+        {
+            if (!g_title_line || (g_title_line && g_title_line->empty())) {
+                title_line = " ";
+            } else if (g_title_line) {
+                append_msg(*g_title_line);
+                title_line = ss.str();
+                if (title_line.empty()) title_line = " ";
+            }
+        }
 
         if (use_input)
         {
+            int focus_line = -1;
+            std::string focused_connection_info;
+            const auto upper_bound = std::min(static_cast<uint64_t>(get_line_size() >= 1 ? get_line_size() - 1 : 0),
+                static_cast<uint64_t>(connections_filtered.size() + 7));
+            const int focus = mouse_y - 7; // focus starts with 0
+            const auto offset = current_skip_lines + focus;
+            // calculate mouse_y to see which one is focused
+            if (mouse_y >= 7 && mouse_y < upper_bound && offset < connections_filtered.size())
+            {
+                focused_connection_id = connections_filtered[offset].metadata.connectionID;
+                mouse_y = -1;
+                show_info("Highlighted " + connections_filtered[offset].host, "DEBUG");
+            }
+
+            if (!focused_connection_id.empty())
+            {
+                uint64_t i = 0;
+                bool found = false;
+                for (;i < connections_filtered.size(); i++)
+                {
+                    if (connections_filtered[i].metadata.connectionID == focused_connection_id) {
+                        focused_connection_info = connections_filtered[i].host;
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (found)
+                {
+                    focus_line = static_cast<int>(i) + 7 - current_skip_lines;
+                    if (focus_to_highlight)
+                    {
+                        if (focus_line < 7 || focus_line > upper_bound) {
+                            current_skip_lines = std::min(static_cast<int>(i), max_skip_lines.load());
+                            focus_line = static_cast<int>(i) + 7 - current_skip_lines;
+                        }
+
+                        focus_to_highlight = false;
+                    }
+                    else {
+                        if (focus_line < 7 || focus_line > upper_bound) focus_line = -1;
+                    }
+                }
+                else {
+                    show_info("Focused connection not present, deleted.", "INFO");
+                    focused_connection_id.clear();
+                    mouse_y = -1;
+                }
+            }
+
+            if (kill_connection)
+            {
+                if (focus_line != -1)
+                {
+                    show_info("Closing " + focused_connection_info + "...", "INFO");
+                    auto worker_finished = std::make_unique<std::atomic_bool>(false);
+                    child_workers.emplace_back([&] {
+                        backend_instance.close_connection(focused_connection_id);
+                    });
+                }
+
+                kill_connection = false;
+            }
+
             print_table(get_conn_titles,
                 table_vals,
                 false,
@@ -1220,18 +1328,22 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 &max_skip_lines,
                 false,
                 {},
-                mouse_y);
+                focus_line);
 
             int local_leading_spaces = leading_spaces;
             int local_skip_lines = current_skip_lines;
             const int local_mouse_y = mouse_y;
+            const bool local_focus_status = focus_to_highlight;
+            const bool local_kill_status = kill_connection;
 
             for (int i = 0; i < 10; i++)
             {
                 if (local_leading_spaces != leading_spaces
                     || local_skip_lines != current_skip_lines
                     || local_mouse_y != mouse_y
-                    || window_size_change)
+                    || window_size_change
+                    || local_focus_status != focus_to_highlight
+                    || local_kill_status != kill_connection)
                 {
                     window_size_change = false;
                     break;
@@ -1266,6 +1378,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
     running = false;
     if (input_getc_worker.joinable()) input_getc_worker.join();
+    std::ranges::for_each(child_workers, [](std::thread & T) { if (T.joinable()) T.join(); });
 }
 
 void ccdb::ccdb::get_latency()
@@ -1317,7 +1430,7 @@ void ccdb::ccdb::get_log()
     backend_instance.change_focus("logs");
     auto input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
         &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
-        &mouse_x, &mouse_y);
+        &mouse_x, &mouse_y, nullptr, nullptr);
 
     std::string log_level_filter, log_content_filter;
     if (filter_patterns.contains(12)) log_level_filter = filter_patterns.at(12);
@@ -1843,7 +1956,7 @@ ccdb::ccdb::mode_guard_t::~mode_guard_t()
 void ccdb::ccdb::generic_input_watcher(const std::string &name, std::atomic_bool *running)
 {
     set_thread_name(name);
-    auto sigint_status = watcher.make_status_watcher();
+    const auto sigint_status = watcher.make_status_watcher();
     mode_guard_t input_mode_guard(this);
 
     // pull SIGINT status every 50ms
@@ -1877,7 +1990,9 @@ void ccdb::ccdb::get_conn_input_watcher(
     std::atomic_int * current_skip_lines_ptr,
     const std::atomic_int * max_skip_lines_ptr,
     std::atomic_int * mouse_x,
-    std::atomic_int * mouse_y)
+    std::atomic_int * mouse_y,
+    std::atomic_bool * kill_signal_sent,
+    std::atomic_bool * refocus)
 {
     set_thread_name("get/conn:input");
 
@@ -1896,7 +2011,8 @@ void ccdb::ccdb::get_conn_input_watcher(
         std::this_thread::sleep_for(std::chrono::milliseconds(50l));
     } });
 
-    auto ch_list_to_string = [](const std::vector < int > & list)->std::string {
+    auto ch_list_to_string = [](const std::vector < int > & list)->std::string
+    {
         std::string str;
         std::ranges::for_each(list, [&str](const int c) {
             if (const char cc = *reinterpret_cast<const char *>(&c); std::isprint(cc)) {
@@ -1911,41 +2027,13 @@ void ccdb::ccdb::get_conn_input_watcher(
     };
 
     namespace chrono = std::chrono;
-    const std::regex mouse_pattern(R"(\#27\#\[\<[\d]+\;([\d]+)\;([\d]+)[Mm]$)");
-    const std::regex mouse_scroll_down_pattern(R"(\#27\#\[\<65\;([\d]+)\;([\d]+)[Mm]$)");
-    const std::regex mouse_scroll_up_pattern(R"(\#27\#\[\<64\;([\d]+)\;([\d]+)[Mm]$)");
+    const std::regex mouse_pattern(R"(^\#27\#\[\<[\d]+\;([\d]+)\;([\d]+)[Mm]$)");
+    const std::regex mouse_scroll_down_pattern(R"(^\#27\#\[\<65\;([\d]+)\;([\d]+)[Mm]$)");
+    const std::regex mouse_scroll_up_pattern(R"(^\#27\#\[\<64\;([\d]+)\;([\d]+)[Mm]$)");
 
     chrono::time_point<chrono::high_resolution_clock> last_recorded_time = chrono::high_resolution_clock::now();
     std::vector <int> ch_list;
     char ch;
-    std::atomic_bool parsed = false;
-    std::mutex mutex;
-    threads.emplace_back([&]
-    {
-        while (running)
-        {
-            {
-                std::lock_guard<std::mutex> guard(mutex);
-                if (const auto now = std::chrono::high_resolution_clock::now();
-                parsed || (ch_list.size() > 3 && chrono::duration_cast<chrono::milliseconds>(now - last_recorded_time ).count() >
-#ifdef _CCDB_CYGWIN_BUILD_
-                    500
-#else // _CCDB_CYGWIN_BUILD_
-                    50
-#endif // _CCDB_CYGWIN_BUILD_
-                    ))
-                {
-                    ch_list.clear();
-                }
-            }
-
-#ifdef _CCDB_CYGWIN_BUILD_
-            std::this_thread::sleep_for(std::chrono::milliseconds(10l));
-#else // _CCDB_CYGWIN_BUILD_
-            std::this_thread::sleep_for(std::chrono::milliseconds(1l));
-#endif // _CCDB_CYGWIN_BUILD_
-        }
-    });
 
     while (running)
     {
@@ -1968,16 +2056,24 @@ void ccdb::ccdb::get_conn_input_watcher(
             break;
         }
 
-        {
-            std::lock_guard<std::mutex> guard(mutex);
-            ch_list.push_back(ch);
-            last_recorded_time = chrono::high_resolution_clock::now();
-            if (!ch_list.empty() && ch_list.front() != 27) {
-                while (!ch_list.empty() && ch_list.front() != 27) ch_list.erase(ch_list.begin()); // remove wrong paddings
-            }
-
-            str_buffer = ch_list_to_string(ch_list);
+        if (ch == 'k' || ch == 'K') {
+            if (kill_signal_sent) *kill_signal_sent = true;
+            continue;
         }
+
+        if (ch == 'f' || ch == 'F') {
+            if (refocus) *refocus = true;
+            continue;
+        }
+
+        const auto now = std::chrono::high_resolution_clock::now();
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_recorded_time).count() > 20) {
+            ch_list.clear();
+        }
+
+        last_recorded_time = now;
+        ch_list.push_back(ch);
+        str_buffer = ch_list_to_string(ch_list);
 
         auto up = [&]
         {
@@ -2008,9 +2104,11 @@ void ccdb::ccdb::get_conn_input_watcher(
         {
             std::smatch match;
             std::regex_match(fmt, match, reg);
-            if (match.size() == 3) {
-                return { std::strtol(match[1].str().c_str(), nullptr, 10),
-                    std::strtol(match[2].str().c_str(), nullptr, 10) };
+            std::vector<std::string> vec { match.begin(), match.end() };
+            if (vec.size() == 3) {
+                const auto x = std::strtol(vec[1].c_str(), nullptr, 10);
+                const auto y = std::strtol(vec[2].c_str(), nullptr, 10);
+                return { x, y };
             }
 
             return { -1, -1 };
@@ -2034,7 +2132,7 @@ void ccdb::ccdb::get_conn_input_watcher(
                 }
             }
 
-            parsed = true;
+            ch_list.clear();
         }
         else if (str_buffer == "#27#[C") // right arrow
         {
@@ -2048,27 +2146,27 @@ void ccdb::ccdb::get_conn_input_watcher(
                 }
             }
 
-            parsed = true;
+            ch_list.clear();
         }
         else if (str_buffer == "#27#[A") // up arrow
         {
             up();
-            parsed = true;
+            ch_list.clear();
         }
         else if (str_buffer == "#27#[B") // down arrow
         {
             down();
-            parsed = true;
+            ch_list.clear();
         }
         else if (str_buffer == "#27#[H") // Home
         {
             leading_spaces = 0;
-            parsed = true;
+            ch_list.clear();
         }
         else if (str_buffer == "#27#[F") // End
         {
             leading_spaces = max_leading_spaces.load();
-            parsed = true;
+            ch_list.clear();
         }
         else if (str_buffer == "#27#[5~") // Page up
         {
@@ -2076,7 +2174,7 @@ void ccdb::ccdb::get_conn_input_watcher(
             if (current_skip_lines < 0) {
                 current_skip_lines = 0;
             }
-            parsed = true;
+            ch_list.clear();
         }
         else if (str_buffer == "#27#[6~") // Page down
         {
@@ -2084,21 +2182,29 @@ void ccdb::ccdb::get_conn_input_watcher(
             if (current_skip_lines > max_skip_lines) {
                 current_skip_lines = max_skip_lines.load();
             }
-            parsed = true;
+            ch_list.clear();
         }
 #ifndef _CCDB_CYGWIN_BUILD_
         else if (std::regex_match(str_buffer, mouse_scroll_down_pattern)) {
             if (utils::getenv("REVERSE_MOUSE") == "true") up(); else down();
-            parsed = true;
+            ch_list.clear();
         }
         else if (std::regex_match(str_buffer, mouse_scroll_up_pattern)) {
             if (utils::getenv("REVERSE_MOUSE") == "true") down(); else up();
-            parsed = true;
+            ch_list.clear();
         }
         else if (std::regex_match(str_buffer, mouse_pattern)) {
             set_mouse_xy(str_buffer, mouse_pattern);
-            parsed = true;
+#ifdef __DEBUG__
+            // std::cerr << "PARSED: " << str_buffer << std::endl;
+#endif //__DEBUG__
+            ch_list.clear();
         }
+#ifdef __DEBUG__
+        else {
+            // std::cerr << str_buffer << std::endl;
+        }
+#endif //__DEBUG__
 #endif //_CCDB_CYGWIN_BUILD_
     }
 

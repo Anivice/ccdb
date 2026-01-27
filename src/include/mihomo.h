@@ -50,6 +50,7 @@ public:
     void get_info_no_instance(const std::string & endpoint_name, const std::function < void(const std::string&) > & method);
     bool change_proxy_mode(const std::string & mode);
     bool close_all_connections();
+    bool close_connection(const std::string & id);
 
     template < typename InstanceType >
     void get_info(const std::string & endpoint_name, InstanceType* instance, void (InstanceType::*method)(const std::string&))

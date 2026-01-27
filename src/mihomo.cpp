@@ -110,7 +110,11 @@ bool mihomo::change_proxy_mode(const std::string& mode)
     return false;
 }
 
-bool mihomo::close_all_connections()
+bool mihomo::close_all_connections() {
+    return close_connection("");
+}
+
+bool mihomo::close_connection(const std::string &id)
 {
     httplib::Client http_cli(backend_address_, port_);
     http_cli.set_decompress(false);
@@ -119,11 +123,16 @@ bool mihomo::close_all_connections()
         {"Authorization", "Bearer " + token_},
     };
 
+    std::string path;
+    if (!id.empty()) {
+        path = "/" + id;
+    }
+
     httplib::Result res;
     if (!token_.empty()) {
-        res = http_cli.Delete("/connections", headers);
+        res = http_cli.Delete("/connections" + path, headers);
     } else {
-        res = http_cli.Delete("/connections");
+        res = http_cli.Delete("/connections" + path);
     }
 
     if (!res) {

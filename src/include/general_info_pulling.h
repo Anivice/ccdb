@@ -61,6 +61,10 @@ public:
         std::string networkType; // Tun, socks5, etc.
         uint64_t timeElapsedSinceConnectionEstablished; // in seconds
 
+        struct {
+            std::string connectionID;
+        } metadata;
+
         friend class general_info_pulling;
 
     private:
@@ -156,6 +160,7 @@ public:
     bool change_proxy_using_backend(const std::string & group_name, const std::string & proxy_name);
     void change_proxy_mode(const std::string & mode) { backend_client.change_proxy_mode(mode); }
     void close_all_connections() { backend_client.close_all_connections(); }
+    void close_connection(const std::string & id) { backend_client.close_connection(id); }
     std::string get_current_mode();
 };
 
