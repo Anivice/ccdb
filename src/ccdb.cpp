@@ -1262,7 +1262,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             {
                 focused_connection_id = connections_filtered[offset].metadata.connectionID;
                 mouse_y = -1;
-                show_info("Highlighted " + connections_filtered[offset].host, "DEBUG");
+                // show_info("Highlighted " + connections_filtered[offset].host, "DEBUG");
             }
 
             if (!focused_connection_id.empty())
