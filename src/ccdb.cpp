@@ -1213,7 +1213,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         {
             const auto now = std::chrono::high_resolution_clock::now();
             if (std::chrono::duration_cast<std::chrono::milliseconds>(now - g_title_lines.front().second).count() >=
-                (800 / g_title_lines.size())) // transcendental display time
+                (3000 / g_title_lines.size())) // transcendental display time
             {
                 g_title_lines.erase(g_title_lines.begin());
                 if (!g_title_lines.empty()) g_title_lines.front().second = now;
@@ -1259,7 +1259,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             const int focus = mouse_y - 7; // focus starts with 0
             const auto offset = current_skip_lines + focus;
             // calculate mouse_y to see which one is focused
-            if (mouse_y >= 7 && mouse_y < upper_bound && offset < connections_filtered.size())
+            if (mouse_y >= 7 && mouse_y <= upper_bound && offset < connections_filtered.size())
             {
                 focused_connection_id = connections_filtered[offset].metadata.connectionID;
                 mouse_y = -1;
