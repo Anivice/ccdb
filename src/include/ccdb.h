@@ -31,6 +31,7 @@
 #include "general_info_pulling.h"
 #include "commandTemplateTree.h"
 #include "tsl/hopscotch_map.h"
+#include "utils.h"
 
 namespace ccdb
 {
@@ -217,6 +218,46 @@ namespace ccdb
 
         friend class mode_guard_t;
     };
+
+    /// signal SIGINT watcher
+    extern class sigint_watcher_ {
+    public:
+        std::atomic_bool watcher_clear_disable = false; // disable auto clear
+
+        /// Create this instance to skip readline screen clear on SIGINT.
+        /// SIGINT watcher will resume clear when this instance is destroyed.
+        /// This instance can also be used in if() to check if SIGINT is received.
+        class auto_SIGINT_status_t {
+        private:
+            sigint_watcher_ * watcher_;
+            explicit auto_SIGINT_status_t(sigint_watcher_ * _watcher);
+
+        public:
+            friend class sigint_watcher_;
+            ~auto_SIGINT_status_t();
+            [[nodiscard]] explicit operator bool() const;
+        };
+
+        auto_SIGINT_status_t make_status_watcher();
+
+        /// readline clear screen.
+        static void clear();
+
+    protected:
+        std::atomic_bool sigint_watcher_running = true;
+        std::atomic_bool sigint_caught = false;
+        std::thread worker_thread;
+        void sigint_watcher();
+    public:
+
+        sigint_watcher_();
+        ~sigint_watcher_();
+    } watcher;
+
+    extern std::atomic_bool window_size_change;
+    extern std::atomic_bool sysint_pressed;
+    void sigint_handler(int);
+    void window_size_change_handler(int);
 }
 
 #endif //CCDB_H

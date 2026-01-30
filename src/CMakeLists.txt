@@ -53,7 +53,7 @@ ExternalProject_Add(READLINE
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/readline-8.3
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/readline/install
         CONFIGURE_COMMAND   /bin/sh -c
-                                "CPPFLAGS='-DNCURSES_STATIC -I${NCURSES_INCLUDE_DIR} -I${NCURSES_INCLUDE_DIR}/ncursesw' \
+                                "CPPFLAGS='-DNCURSES_STATIC -I${NCURSES_INCLUDE_DIR} -I${NCURSES_INCLUDE_DIR}/ncursesw -fPIE' \
                                 LDFLAGS='-L${NCURSES_LIB_DIR}' \
                                 <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --with-curses ${READLINE_CONFIGURE_ADDITIONAL_FLAGS}"
         BUILD_COMMAND       /bin/sh -c "${READLINE_MAKE_ENTIRE}"
@@ -131,7 +131,7 @@ add_executable(ccdb
         misc/color.cpp              include/colors.h
         misc/utils.cpp              include/utils.h
         misc/execute.cpp
-        ccdb.cpp                    include/ccdb.h
+        ccdb.cpp ccdb.misc.cpp ccdb.get.cpp ccdb.set.cpp include/ccdb.h
         term_name.cpp               include/term_name.h
         update-self.cpp             include/update-self.h
         config.cpp                  include/config.h
@@ -143,16 +143,22 @@ target_link_libraries(ccdb PRIVATE resource_command.readline)
 
 find_program(GIT_EXEC NAMES git REQUIRED)
 find_program(HEAD_EXEC NAMES head REQUIRED)
+find_program(DATE_EXEC NAMES date REQUIRED)
 execute_process(
-        COMMAND /bin/sh -c "git ls-remote \"${CMAKE_SOURCE_DIR}\"/.. HEAD | head -c 8"
+        COMMAND /bin/sh -c "echo -n $(git ls-remote \"${CMAKE_SOURCE_DIR}\"/.. HEAD | head -c 8)"
         OUTPUT_VARIABLE GIT_HASH
+)
+
+execute_process(
+        COMMAND /bin/sh -c "echo -n $(date '+%Y-%m-%d %H:%M:%S%Z')"
+        OUTPUT_VARIABLE BUILD_DATE
 )
 
 if ("X${GIT_HASH}" STREQUAL "X")
     set(GIT_HASH "Unknown")
 endif ()
 
-add_compile_definitions(GIT_HASH="${GIT_HASH}")
+add_compile_definitions(GIT_HASH="${GIT_HASH}" BUILD_DATE="${BUILD_DATE}")
 
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     if ("${CCDB_CYGWIN_BUILD}" STREQUAL "True")
