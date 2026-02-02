@@ -39,6 +39,7 @@ CCDB is using multiple open-source libraries:
  - Switch a proxy for a proxy group (with vector numbers)
  - Watch Mihomo backend logs
  - Test latencies
+ - Pull Subscription usage info (You have to specify the subscription link in `~/.ccdbrc`)
 
 ***DORMANT FUNCTIONS***
 
@@ -87,6 +88,7 @@ get              : Pull information
  ├ log           : Active backend logs
  ├ vecGroupProxy : Vector proxy groups
  ├ filter        : Currently recorded filter
+ ├ subinfo       : Subscription usage info
 set              : Set parameters
  ├ mode          : Proxy mode
  │ ├ global      : Global mode
@@ -139,7 +141,7 @@ Environment:
    COLOR:    Set it to `never` to disable color codes
    TABSIZE:  Set tab size when printing tables, default is 4
    REVERSE_MOUSE: Reverse mouse scrolling direction when set to `true`
-   NO_0xFE0F_EXPAND_EMOJI: Fix Unicode processing issues for emoji space expand code, e.g., "✈" and "✈".
+   NO_0xFE0F_EXPAND_EMOJI: Fix Unicode processing issues for emoji space expand code, e.g., "✈" and "✈️".
                            If you cannot notice any differences of the above emojis, or there's wierd Unicode processing bugs in your terminal,
                            you might want to set this to `true`
 ```
