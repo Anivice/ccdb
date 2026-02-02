@@ -200,6 +200,7 @@ namespace ccdb
         /// @param kill_signal_sent Kill one connection, sent by pressing F. Used to kill one connection in `get connections`
         /// @param refocus Refocus, by pressing F
         /// @param show_detail Show full JSON raw output from backend by pressing P
+        /// @param sort_by
         void get_conn_input_watcher(
             std::atomic_bool * running_ptr,
             std::atomic_int * leading_spaces_ptr,
@@ -210,7 +211,8 @@ namespace ccdb
             std::atomic_int * mouse_y,
             std::atomic_bool * kill_signal_sent,
             std::atomic_bool * refocus,
-            std::atomic_bool * show_detail);
+            std::atomic_bool * show_detail,
+            std::atomic_int * sort_by);
 
     public:
         ccdb(const std::string & backend, int port, const std::string & token, std::string  latency_url_);

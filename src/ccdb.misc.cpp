@@ -1020,7 +1020,8 @@ void ccdb::ccdb::get_conn_input_watcher(
     std::atomic_int * mouse_y,
     std::atomic_bool * kill_signal_sent,
     std::atomic_bool * refocus,
-    std::atomic_bool * show_detail)
+    std::atomic_bool * show_detail,
+    std::atomic_int * sort_by)
 {
     set_thread_name("get/conn:input");
 
@@ -1079,22 +1080,25 @@ void ccdb::ccdb::get_conn_input_watcher(
         const auto col_step = std::max(col / 8, 1);
         const auto page_size = std::max(row - 8 /* list headers, etc. */, 1);
         std::string str_buffer;
-        if (ch == 'q' || ch == 'Q')
+        if ((ch == 'q' || ch == 'Q') && ch_list.empty())
         {
             break;
         }
 
-        if (ch == 'k' || ch == 'K') {
+        if ((ch == 'k' || ch == 'K') && ch_list.empty())
+        {
             if (kill_signal_sent) *kill_signal_sent = true;
             continue;
         }
 
-        if (ch == 'p' || ch == 'P') {
+        if ((ch == 'p' || ch == 'P') && ch_list.empty())
+        {
             if (show_detail) *show_detail = true;
             continue;
         }
 
-        if (ch == 'f' || ch == 'F') {
+        if ((ch == 'f' || ch == 'F') && ch_list.empty())
+        {
             if (refocus) *refocus = true;
             continue;
         }
@@ -1231,6 +1235,66 @@ void ccdb::ccdb::get_conn_input_watcher(
 #ifdef __DEBUG__
             // std::cerr << "PARSED: " << str_buffer << std::endl;
 #endif //__DEBUG__
+            ch_list.clear();
+        }
+        else if (str_buffer == "#27#OP") // F1
+        {
+            if (sort_by) *sort_by = 0;
+            ch_list.clear();
+        }
+        else if (str_buffer == "#27#OQ") // F2
+        {
+            if (sort_by) *sort_by = 1;
+            ch_list.clear();
+        }
+        else if (str_buffer == "#27#OR") // F3
+        {
+            if (sort_by) *sort_by = 2;
+            ch_list.clear();
+        }
+        else if (str_buffer == "#27#OS") // F4
+        {
+            if (sort_by) *sort_by = 3;
+            ch_list.clear();
+        }
+        else if (str_buffer == "#27#[15~") // F5
+        {
+            if (sort_by) *sort_by = 4;
+            ch_list.clear();
+        }
+        else if (str_buffer == "#27#[17~") // F6
+        {
+            if (sort_by) *sort_by = 5;
+            ch_list.clear();
+        }
+        else if (str_buffer == "#27#[18~") // F7
+        {
+            if (sort_by) *sort_by = 6;
+            ch_list.clear();
+        }
+        else if (str_buffer == "#27#[19~") // F8
+        {
+            if (sort_by) *sort_by = 7;
+            ch_list.clear();
+        }
+        else if (str_buffer == "#27#[20~") // F9
+        {
+            if (sort_by) *sort_by = 8;
+            ch_list.clear();
+        }
+        else if (str_buffer == "#27#[21~") // F10
+        {
+            if (sort_by) *sort_by = 9;
+            ch_list.clear();
+        }
+        else if (str_buffer == "#27#[23~") // F11
+        {
+            if (sort_by) *sort_by = 10;
+            ch_list.clear();
+        }
+        else if (str_buffer == "#27#[24~") // F12
+        {
+            if (sort_by) *sort_by = 11;
             ch_list.clear();
         }
 #ifdef __DEBUG__

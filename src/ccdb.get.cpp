@@ -128,9 +128,11 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::atomic_bool kill_connection = false;
     std::atomic_bool focus_to_highlight = false;
     std::atomic_bool conn_show_detail = false;
+    std::atomic_int sort_by_from_watcher = -1;
     std::string focused_connection_id;
-    std::vector<std::pair < std::string, std::chrono::time_point<std::chrono::high_resolution_clock> > > g_title_lines;
+    std::vector < std::pair < std::string, std::chrono::time_point<std::chrono::high_resolution_clock> > > g_title_lines;
     std::vector < std::thread > child_workers;
+    std::vector <std::string> title_this_session;
 
     auto show_info = [&](const std::string & msg, const std::string & level) {
         g_title_lines.emplace_back("[" + level + "]: " + msg, std::chrono::high_resolution_clock::now());
@@ -178,7 +180,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     if (use_input) {
         input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
             &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
-            &mouse_x, &mouse_y, &kill_connection, &focus_to_highlight, &conn_show_detail);
+            &mouse_x, &mouse_y, &kill_connection, &focus_to_highlight, &conn_show_detail, &sort_by_from_watcher);
     }
 
     auto valid_check = [&](const general_info_pulling::connection_t & c)->bool
@@ -192,13 +194,42 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
     while (running)
     {
+        int sort_by_final { };
+        if (sort_by_from_watcher == -1) {
+            sort_by_final = sort_by;
+        }
+        else {
+            if (sort_by == sort_by_from_watcher) {
+                reverse = !reverse;
+                sort_by_final = sort_by;
+            } else {
+                sort_by = sort_by_from_watcher.load();
+                sort_by_final = sort_by_from_watcher;
+            }
+
+            sort_by_from_watcher = -1;
+        }
+
+        int index_title = 0;
+        title_this_session.clear();
+
+        std::ranges::for_each(get_conn_titles, [&](const std::string & title) {
+            if (index_title == sort_by_final) {
+                title_this_session.emplace_back(title + (reverse ? " + " : " - "));
+            }
+            else {
+                title_this_session.emplace_back(title);
+            }
+
+            index_title++;
+        });
         auto connections = backend_instance.get_active_connections();
         decltype(connections) connections_filtered;
         std::vector<std::vector<std::string>> table_vals;
         std::ranges::sort(connections,
                           [&](const general_info_pulling::connection_t & a, const general_info_pulling::connection_t & b)
                           {
-                              switch (sort_by)
+                              switch (sort_by_final)
                               {
                               case 0:
                                       return a.host > b.host;
@@ -447,7 +478,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 conn_show_detail = false;
             }
 
-            print_table(get_conn_titles,
+            print_table(title_this_session,
                 table_vals,
                 false,
                 true,
@@ -468,6 +499,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             const bool local_focus_status = focus_to_highlight;
             const bool local_kill_status = kill_connection;
             const bool local_show_detail = conn_show_detail;
+            const int local_sort_by_from_watcher = sort_by_from_watcher;
 
             for (int i = 0; i < 10; i++)
             {
@@ -477,7 +509,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     || window_size_change
                     || local_focus_status != focus_to_highlight
                     || local_kill_status != kill_connection
-                    || local_show_detail != conn_show_detail)
+                    || local_show_detail != conn_show_detail
+                    || local_sort_by_from_watcher != sort_by_from_watcher)
                 {
                     window_size_change = false;
                     break;
@@ -564,7 +597,7 @@ void ccdb::ccdb::get_log()
     backend_instance.change_focus("logs");
     auto input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
         &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
-        &mouse_x, &mouse_y, nullptr, nullptr, nullptr);
+        &mouse_x, &mouse_y, nullptr, nullptr, nullptr, nullptr);
 
     std::string log_level_filter, log_content_filter;
     if (filter_patterns.contains(12)) log_level_filter = filter_patterns.at(12);
