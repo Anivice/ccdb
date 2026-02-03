@@ -27,6 +27,11 @@ if ("${OPENSSL_TARGET}" STREQUAL "")
     set(OPENSSL_TARGET linux-${CMAKE_C_COMPILER_ARCHITECTURE_ID})
 endif ()
 
+set(OPENSSL_LIBP "${OPENSSL_LIBP}")
+if ("${OPENSSL_LIBP}" STREQUAL "")
+    set(OPENSSL_LIBP lib64)
+endif ()
+
 # OpenSSL
 set(OPENSSL_MAKE_ENTIRE "${MAKE_EXECUTABLE} ${OPENSSL_MAKE_ADDITIONAL_FLAGS}")
 message(STATUS "OpenSSL: ${OPENSSL_MAKE_ENTIRE}")
@@ -37,7 +42,7 @@ ExternalProject_Add(OPENSSL
         CONFIGURE_COMMAND   /bin/sh -c "env PERL5LIB=\"${CMAKE_CURRENT_BINARY_DIR}/perl/install/lib/5.42.0/\" PATH=\"${CMAKE_CURRENT_BINARY_DIR}/perl/install/bin:$PATH\" <SOURCE_DIR>/Configure ${OPENSSL_TARGET} no-shared no-docs no-tests --prefix=<INSTALL_DIR> --openssldir=\"<INSTALL_DIR>/ssl\" ${OPENSSL_CONFIGURE_ADDITIONAL_FLAGS}"
         BUILD_COMMAND       /bin/sh -c "${OPENSSL_MAKE_ENTIRE}"
         INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${OPENSSL_MAKE_INSTALL_ADDITIONAL_FLAGS}
-        INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib64/libcrypto.a  <INSTALL_DIR>/lib64/libssl.a
+        INSTALL_BYPRODUCTS  <INSTALL_DIR>/${OPENSSL_LIBP}/libcrypto.a  <INSTALL_DIR>/${OPENSSL_LIBP}/libssl.a
         TEST_COMMAND        ""
         INACTIVITY_TIMEOUT  15
         CONFIGURE_HANDLED_BY_BUILD ON
@@ -49,13 +54,13 @@ file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/openssl/install/include" "${CMA
 # Export to CMake
 add_library(openssl::libcrypto STATIC IMPORTED GLOBAL)
 set_target_properties(openssl::libcrypto PROPERTIES
-        IMPORTED_LOCATION             "${CMAKE_CURRENT_BINARY_DIR}/openssl/install/lib64/libcrypto.a"
+        IMPORTED_LOCATION             "${CMAKE_CURRENT_BINARY_DIR}/openssl/install/${OPENSSL_LIBP}/libcrypto.a"
         INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_BINARY_DIR}/openssl/install/include"
 )
 
 add_library(openssl::libssl STATIC IMPORTED GLOBAL)
 set_target_properties(openssl::libssl PROPERTIES
-        IMPORTED_LOCATION             "${CMAKE_CURRENT_BINARY_DIR}/openssl/install/lib64/libssl.a"
+        IMPORTED_LOCATION             "${CMAKE_CURRENT_BINARY_DIR}/openssl/install/${OPENSSL_LIBP}/libssl.a"
         INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_BINARY_DIR}/openssl/install/include"
 )
 
