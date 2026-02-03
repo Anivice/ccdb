@@ -22,8 +22,8 @@ ExternalProject_Add(PERL
         CONFIGURE_HANDLED_BY_BUILD ON
 )
 
+set(OPENSSL_TARGET "${OPENSSL_TARGET}")
 if ("${OPENSSL_TARGET}" STREQUAL "")
-    message(STATUS ${CMAKE_C_COMPILER_ARCHITECTURE_ID})
     set(OPENSSL_TARGET linux-${CMAKE_C_COMPILER_ARCHITECTURE_ID})
 endif ()
 
@@ -34,7 +34,7 @@ ExternalProject_Add(OPENSSL
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/openssl
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/openssl-3.6.1
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/openssl/install
-        CONFIGURE_COMMAND   /bin/sh -c "env PERL5LIB=\"${CMAKE_CURRENT_BINARY_DIR}/perl/install/lib/5.42.0/\" PATH=\"${CMAKE_CURRENT_BINARY_DIR}/perl/install/bin:$PATH\" <SOURCE_DIR>/Configure linux-${OPENSSL_TARGET} no-shared no-docs no-tests --prefix=<INSTALL_DIR> --openssldir=\"<INSTALL_DIR>/ssl\" ${OPENSSL_CONFIGURE_ADDITIONAL_FLAGS}"
+        CONFIGURE_COMMAND   /bin/sh -c "env PERL5LIB=\"${CMAKE_CURRENT_BINARY_DIR}/perl/install/lib/5.42.0/\" PATH=\"${CMAKE_CURRENT_BINARY_DIR}/perl/install/bin:$PATH\" <SOURCE_DIR>/Configure ${OPENSSL_TARGET} no-shared no-docs no-tests --prefix=<INSTALL_DIR> --openssldir=\"<INSTALL_DIR>/ssl\" ${OPENSSL_CONFIGURE_ADDITIONAL_FLAGS}"
         BUILD_COMMAND       /bin/sh -c "${OPENSSL_MAKE_ENTIRE}"
         INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${OPENSSL_MAKE_INSTALL_ADDITIONAL_FLAGS}
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib64/libcrypto.a  <INSTALL_DIR>/lib64/libssl.a
