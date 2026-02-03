@@ -28,8 +28,6 @@
 #include <cstdio>
 #include <cstring>
 
-#ifndef _CCDB_CYGWIN_BUILD_
-
 static int read_file_line(const char *path, char *buf, const size_t n)
 {
     FILE *f = fopen(path, "r");
@@ -100,16 +98,10 @@ static const char * detect_terminal_emulator()
     return "Unknown";
 }
 
-#endif
-
 std::string get_terminal_emulator_name()
 {
-#ifndef _CCDB_CYGWIN_BUILD_
     using namespace ccdb;
     return detect_terminal_emulator();
-#else
-    return {};
-#endif
 }
 
 /// get term location under /dev

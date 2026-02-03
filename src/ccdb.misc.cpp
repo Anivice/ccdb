@@ -915,12 +915,10 @@ void ccdb::ccdb::reset_terminal_mode()
         fcntl(STDIN_FILENO, F_SETFL, old_flags);
         terminal_mode_changed = false;
 
-// #ifndef _CCDB_CYGWIN_BUILD_
         // disable mouse tracking
         const auto * off = "\x1b[?1006l\x1b[?1000l";
         std::cout.write(off, static_cast<std::streamsize>(std::char_traits<char>::length(off)));
         std::cout.flush();
-// #endif //_CCDB_CYGWIN_BUILD_
     }
 }
 
@@ -936,12 +934,10 @@ void ccdb::ccdb::set_conio_terminal_mode()
     fcntl(STDIN_FILENO, F_SETFL, old_flags | O_NONBLOCK);
     terminal_mode_changed = true;
 
-// #ifndef _CCDB_CYGWIN_BUILD_
     // enable mouse tracking + SGR mode
     const auto on = "\x1b[?1000h\x1b[?1006h";
     std::cout.write(on, static_cast<std::streamsize>(std::char_traits<char>::length(on)));
     std::cout.flush();
-// #endif //_CCDB_CYGWIN_BUILD_
 }
 
 void ccdb::ccdb::help()
@@ -1154,14 +1150,26 @@ void ccdb::ccdb::get_conn_input_watcher(
         return false;
     };
 
+    auto hl_up=[&]
+    {
+        if (mouse_y) {
+            const int result = *current_focus_ptr + 7 - 1;
+            *mouse_y = (result >= 0 ? result : 0);
+        }
+    };
+
+    auto hl_down=[&]
+    {
+        if (mouse_y) {
+            const int result = *current_focus_ptr + 7 + 1;
+            *mouse_y = (result >= 0 ? result : 0);
+        }
+    };
+
     while (running)
     {
         if (const ssize_t sz = read(STDIN_FILENO, &ch, 1); sz <= 0) {
-#ifdef _CCDB_CYGWIN_BUILD_
-            std::this_thread::sleep_for(std::chrono::milliseconds(10l));
-#else
             std::this_thread::sleep_for(std::chrono::microseconds(800l));
-#endif
             auto_clear();
             continue;
         }
@@ -1249,11 +1257,13 @@ void ccdb::ccdb::get_conn_input_watcher(
                 }
             }
             else if (std::regex_match(str_buffer, mouse_scroll_down_pattern)) {
-                if (utils::getenv("REVERSE_MOUSE") == "true") up(row_step); else down(row_step);
+                if (utils::getenv("REVERSE_MOUSE") == "true") hl_down(); else hl_up();
+                *refocus = true;
                 ch_list.clear();
             }
             else if (std::regex_match(str_buffer, mouse_scroll_up_pattern)) {
-                if (utils::getenv("REVERSE_MOUSE") == "true") down(row_step); else up(row_step);
+                if (utils::getenv("REVERSE_MOUSE") == "true") hl_up(); else hl_down();
+                *refocus = true;
                 ch_list.clear();
             }
             else if (std::regex_match(str_buffer, mouse_pattern)) {
@@ -1310,24 +1320,17 @@ void ccdb::ccdb::get_conn_input_watcher(
             }
             else if (validation(str_buffer, keyboard_shortcut_map.at("HighlightUP")))
             {
-                if (mouse_y) {
-                    const int result = *current_focus_ptr + 7 - 1;
-                    *mouse_y = (result >= 0 ? result : 0);
-                }
+                hl_up();
             }
             else if (validation(str_buffer, keyboard_shortcut_map.at("HighlightDown")))
             {
-                if (mouse_y) {
-                    const int result = *current_focus_ptr + 7 + 1;
-                    *mouse_y = (result >= 0 ? result : 0);
-                }
+                hl_down();
             }
 #ifdef __DEBUG__
             else {
                 // std::cerr << str_buffer << std::endl;
             }
 #endif //__DEBUG__
-            // #endif //_CCDB_CYGWIN_BUILD_
         }
     }
 

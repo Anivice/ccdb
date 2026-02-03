@@ -161,7 +161,6 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
         kbd_shortcut_helper("HighlightUP", "^[[1;5A");
         kbd_shortcut_helper("HighlightDown", "^[[1;5B");
 
-#ifndef _CCDB_CYGWIN_BUILD_
         if (const auto terminal_name = get_terminal_emulator_name();
             terminal_name == "gnome-terminal"
             || terminal_name == "android-termux"
@@ -177,9 +176,6 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
             || terminal_name == "kitty") {
             setenv("NO_0xFE0F_EXPAND_EMOJI", "false");
             }
-#else
-        ::setenv("NO_0xFE0F_EXPAND_EMOJI", "true", 0); // no override
-#endif
 
         const auto ret = exec_command("/bin/sh", "jq --version >/dev/null 2>/dev/null\n");
         jq_available = (ret.exit_status == 0);

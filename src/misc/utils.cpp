@@ -51,12 +51,7 @@ std::vector<uint8_t> ccdb::utils::decompress(const std::vector<uint8_t>& data)
 
 std::string ccdb::utils::getenv(const std::string& name) noexcept
 {
-    const auto var =
-#ifndef _CCDB_CYGWIN_BUILD_
-        secure_getenv(name.c_str());
-#else
-        ::getenv(name.c_str());
-#endif
+    const auto var = secure_getenv(name.c_str());
     if (var == nullptr) {
         return "";
     }
@@ -308,13 +303,12 @@ int ccdb::utils::UnicodeDisplayWidth::get_width_utf32(const std::u32string &utf3
 
 int ccdb::utils::UnicodeDisplayWidth::get_char_width(const char32_t c)
 {
-#ifndef _CCDB_CYGWIN_BUILD_
     const auto wc = static_cast<wchar_t>(c);
 
     if (const int w = wcwidth(wc); w >= 0) {
         return w;
     }
-#endif
+
     return fallback_char_width(c);
 }
 
