@@ -397,7 +397,6 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             // calculate mouse_y to see which one is focused
             if (mouse_y >= 7 && mouse_y <= upper_bound && offset < connections_filtered.size())
             {
-                atm_focus = focus;
                 focused_connection_id = connections_filtered[offset].metadata.connectionID;
                 mouse_y = -1;
                 // show_info("Highlighted " + connections_filtered[offset].host, "DEBUG");
@@ -437,6 +436,12 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     focused_connection_id.clear();
                     mouse_y = -1;
                 }
+            }
+
+            if (focus_line != -1) {
+                atm_focus = focus_line - 7;
+            } else {
+                atm_focus = 0;
             }
 
             if (kill_connection)
