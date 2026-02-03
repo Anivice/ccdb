@@ -71,6 +71,8 @@ namespace ccdb
         std::unique_ptr<configuration> ccdb_config;
         std::string clash_sublink;
         bool jq_available = false;
+        tsl::hopscotch_map < std::string, std::string > keyboard_shortcut_map;
+        std::mutex keyboard_shortcut_map_mtx;
 
         /// Pull groups and proxies from the backend
         void update_providers();
@@ -200,7 +202,8 @@ namespace ccdb
         /// @param kill_signal_sent Kill one connection, sent by pressing F. Used to kill one connection in `get connections`
         /// @param refocus Refocus, by pressing F
         /// @param show_detail Show full JSON raw output from backend by pressing P
-        /// @param sort_by
+        /// @param sort_by_ptr
+        /// @param current_focus_ptr
         void get_conn_input_watcher(
             std::atomic_bool * running_ptr,
             std::atomic_int * leading_spaces_ptr,
@@ -212,7 +215,8 @@ namespace ccdb
             std::atomic_bool * kill_signal_sent,
             std::atomic_bool * refocus,
             std::atomic_bool * show_detail,
-            std::atomic_int * sort_by);
+            std::atomic_int * sort_by_ptr,
+            const std::atomic_int * current_focus_ptr);
 
     public:
         ccdb(const std::string & backend, int port, const std::string & token, std::string  latency_url_);

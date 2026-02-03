@@ -133,6 +133,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::vector < std::pair < std::string, std::chrono::time_point<std::chrono::high_resolution_clock> > > g_title_lines;
     std::vector < std::thread > child_workers;
     std::vector <std::string> title_this_session;
+    std::atomic_int atm_focus;
 
     auto show_info = [&](const std::string & msg, const std::string & level) {
         g_title_lines.emplace_back("[" + level + "]: " + msg, std::chrono::high_resolution_clock::now());
@@ -180,7 +181,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     if (use_input) {
         input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
             &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
-            &mouse_x, &mouse_y, &kill_connection, &focus_to_highlight, &conn_show_detail, &sort_by_from_watcher);
+            &mouse_x, &mouse_y, &kill_connection, &focus_to_highlight, &conn_show_detail, &sort_by_from_watcher, &atm_focus);
     }
 
     auto valid_check = [&](const general_info_pulling::connection_t & c)->bool
@@ -396,6 +397,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             // calculate mouse_y to see which one is focused
             if (mouse_y >= 7 && mouse_y <= upper_bound && offset < connections_filtered.size())
             {
+                atm_focus = focus;
                 focused_connection_id = connections_filtered[offset].metadata.connectionID;
                 mouse_y = -1;
                 // show_info("Highlighted " + connections_filtered[offset].host, "DEBUG");
@@ -597,7 +599,7 @@ void ccdb::ccdb::get_log()
     backend_instance.change_focus("logs");
     auto input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
         &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
-        &mouse_x, &mouse_y, nullptr, nullptr, nullptr, nullptr);
+        &mouse_x, &mouse_y, nullptr, nullptr, nullptr, nullptr, nullptr);
 
     std::string log_level_filter, log_content_filter;
     if (filter_patterns.contains(12)) log_level_filter = filter_patterns.at(12);

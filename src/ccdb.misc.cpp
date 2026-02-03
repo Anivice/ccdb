@@ -915,12 +915,12 @@ void ccdb::ccdb::reset_terminal_mode()
         fcntl(STDIN_FILENO, F_SETFL, old_flags);
         terminal_mode_changed = false;
 
-#ifndef _CCDB_CYGWIN_BUILD_
+// #ifndef _CCDB_CYGWIN_BUILD_
         // disable mouse tracking
         const auto * off = "\x1b[?1006l\x1b[?1000l";
         std::cout.write(off, static_cast<std::streamsize>(std::char_traits<char>::length(off)));
         std::cout.flush();
-#endif //_CCDB_CYGWIN_BUILD_
+// #endif //_CCDB_CYGWIN_BUILD_
     }
 }
 
@@ -936,12 +936,12 @@ void ccdb::ccdb::set_conio_terminal_mode()
     fcntl(STDIN_FILENO, F_SETFL, old_flags | O_NONBLOCK);
     terminal_mode_changed = true;
 
-#ifndef _CCDB_CYGWIN_BUILD_
+// #ifndef _CCDB_CYGWIN_BUILD_
     // enable mouse tracking + SGR mode
     const auto on = "\x1b[?1000h\x1b[?1006h";
     std::cout.write(on, static_cast<std::streamsize>(std::char_traits<char>::length(on)));
     std::cout.flush();
-#endif //_CCDB_CYGWIN_BUILD_
+// #endif //_CCDB_CYGWIN_BUILD_
 }
 
 void ccdb::ccdb::help()
@@ -951,7 +951,7 @@ void ccdb::ccdb::help()
     constexpr unsigned char alp_no_expand[] = { 0xe2, 0x9c, 0x88, 0x00 };
     constexpr unsigned char alp_expanded[] = { 0xe2, 0x9c, 0x88, 0xef, 0xb8, 0x8f, 0x00 };
     oss
-    << "C++ Clash Dashboard Version " CCDB_VERSION " (commit " GIT_HASH ")" << std::endl
+    << "C++ Clash Dashboard Version " CCDB_VERSION " (commit " GIT_HASH ", built on " BUILD_DATE ")" << std::endl
     << str
     <<  "Environment:\n"
         "   PAGER:    Specify a pager. Pager availability check is ignored when this environmental variable is set\n"
@@ -963,7 +963,14 @@ void ccdb::ccdb::help()
     << reinterpret_cast<const char*>(alp_no_expand) << "\" and \"" << reinterpret_cast<const char*>(alp_expanded) << "\".\n"
     << std::string(27, ' ')
     << "If you cannot notice any differences of the above emojis, or there's wierd Unicode processing bugs in your terminal,\n"
-    << std::string(27, ' ') << "you might want to set this to `true`" << std::endl;
+    << std::string(27, ' ') << "you might want to set this to `true`" << std::endl
+    <<
+        "`get connections`: Get connections has multiple keyboard shortcuts:\n"
+        "     Mouse Click/Ctrl+UP/DOWN: Move highlight\n"
+        "                            K: Kill the highlighted connection\n"
+        "                            P: Print raw JSON from Mihomo core. If `jq` can be found, JSON will be parsed by jq\n"
+        "                       F1-F12: Specify which column (0-11) to sort the table, press on the same column again to reverse the sort\n"
+        "                       Ctrl+C: Abort the watcher\n";
     pager(oss.str());
     std::cout << oss.str() << std::flush;
 }
@@ -1021,7 +1028,8 @@ void ccdb::ccdb::get_conn_input_watcher(
     std::atomic_bool * kill_signal_sent,
     std::atomic_bool * refocus,
     std::atomic_bool * show_detail,
-    std::atomic_int * sort_by)
+    std::atomic_int * sort_by_ptr,
+    const std::atomic_int * current_focus_ptr)
 {
     set_thread_name("get/conn:input");
 
@@ -1047,22 +1055,101 @@ void ccdb::ccdb::get_conn_input_watcher(
             if (const char cc = *reinterpret_cast<const char *>(&c); std::isprint(cc)) {
                 str.push_back(cc);
             } else {
-                str.append("#");
-                str.append(std::to_string(c));
-                str.append("#");
+                if (cc == 27) // ESCAPE
+                {
+                    str += "^[";
+                }
+                else {
+                    str += "^";
+                    str.append(std::to_string(c));
+                }
             }
         });
         return str;
     };
 
     namespace chrono = std::chrono;
-    const std::regex mouse_pattern(R"(^\#27\#\[\<[\d]+\;([\d]+)\;([\d]+)[Mm]$)");
-    const std::regex mouse_scroll_down_pattern(R"(^\#27\#\[\<65\;([\d]+)\;([\d]+)[Mm]$)");
-    const std::regex mouse_scroll_up_pattern(R"(^\#27\#\[\<64\;([\d]+)\;([\d]+)[Mm]$)");
+    const std::regex mouse_pattern(R"(^\^\[\[\<[\d]+\;([\d]+)\;([\d]+)[Mm]$)");
+    const std::regex mouse_scroll_down_pattern(R"(^\^\[\[\<65\;([\d]+)\;([\d]+)[Mm]$)");
+    const std::regex mouse_scroll_up_pattern(R"(^\^\[\[\<64\;([\d]+)\;([\d]+)[Mm]$)");
 
     chrono::time_point<chrono::high_resolution_clock> last_recorded_time = chrono::high_resolution_clock::now();
     std::vector <int> ch_list;
     char ch;
+
+    auto auto_clear = [&]
+    {
+        const auto now = std::chrono::high_resolution_clock::now();
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_recorded_time).count() > 20) {
+            ch_list.clear();
+            last_recorded_time = now;
+        }
+    };
+
+    auto up = [&](const int row_step)
+    {
+        if (current_skip_lines > 0)
+        {
+            if (current_skip_lines > row_step) {
+                current_skip_lines -= row_step;
+            } else {
+                current_skip_lines = 0;
+            }
+        }
+    };
+
+    auto down = [&](const int row_step)
+    {
+        if (current_skip_lines < max_skip_lines)
+        {
+            if ((current_skip_lines + row_step) < max_skip_lines)
+            {
+                current_skip_lines += row_step;
+            } else {
+                current_skip_lines = max_skip_lines.load();
+            }
+        }
+    };
+
+    auto mouse_get_xy = [](const std::string& fmt, const std::regex & reg)->std::pair<int, int>
+    {
+        std::smatch match;
+        std::regex_match(fmt, match, reg);
+        std::vector<std::string> vec { match.begin(), match.end() };
+        if (vec.size() == 3) {
+            const auto x = std::strtol(vec[1].c_str(), nullptr, 10);
+            const auto y = std::strtol(vec[2].c_str(), nullptr, 10);
+            return { x, y };
+        }
+
+        return { -1, -1 };
+    };
+
+    auto set_mouse_xy = [&mouse_x, &mouse_y, &mouse_get_xy](const std::string& fmt, const std::regex & reg)
+    {
+        const auto [x, y] = mouse_get_xy(fmt, reg);
+        if (mouse_x) mouse_x->store(x);
+        if (mouse_y) mouse_y->store(y);
+    };
+
+    auto validation = [&](const std::string & str_buffer, const std::string & validation_string)->bool
+    {
+        if (validation_string.size() == 1) {
+            if (ch_list.size() == 1 && ch_list.front() == validation_string.front()) {
+                ch_list.clear();
+                return true;
+            }
+
+            return false;
+        }
+
+        if (str_buffer == validation_string) {
+            ch_list.clear();
+            return true;
+        }
+
+        return false;
+    };
 
     while (running)
     {
@@ -1072,8 +1159,11 @@ void ccdb::ccdb::get_conn_input_watcher(
 #else
             std::this_thread::sleep_for(std::chrono::microseconds(800l));
 #endif
+            auto_clear();
             continue;
         }
+
+        last_recorded_time = chrono::high_resolution_clock::now();;
 
         const auto [row, col] = get_screen_row_col();
         const auto row_step = std::max(row / 8, 1);
@@ -1085,224 +1175,157 @@ void ccdb::ccdb::get_conn_input_watcher(
             break;
         }
 
-        if ((ch == 'k' || ch == 'K') && ch_list.empty())
-        {
-            if (kill_signal_sent) *kill_signal_sent = true;
-            continue;
-        }
-
-        if ((ch == 'p' || ch == 'P') && ch_list.empty())
-        {
-            if (show_detail) *show_detail = true;
-            continue;
-        }
-
-        if ((ch == 'f' || ch == 'F') && ch_list.empty())
-        {
-            if (refocus) *refocus = true;
-            continue;
-        }
-
-        const auto now = std::chrono::high_resolution_clock::now();
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_recorded_time).count() > 20) {
-            ch_list.clear();
-        }
-
-        last_recorded_time = now;
         ch_list.push_back(ch);
         str_buffer = ch_list_to_string(ch_list);
 
-        auto up = [&]
         {
-            if (current_skip_lines > 0)
+            std::lock_guard<std::mutex> thread_mtx_kbd_shortcut(keyboard_shortcut_map_mtx);
+            if (validation(str_buffer, keyboard_shortcut_map.at("KillConn")))
             {
-                if (current_skip_lines > row_step) {
-                    current_skip_lines -= row_step;
-                } else {
+                if (kill_signal_sent) *kill_signal_sent = true;
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("ShowDetail")))
+            {
+                if (show_detail) *show_detail = true;
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("Focus")))
+            {
+                if (refocus) *refocus = true;
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("MoveLeft"))) // left arrow
+            {
+                if (leading_spaces > 0)
+                {
+                    if (leading_spaces > col_step) {
+                        leading_spaces -= col_step;
+                    } else {
+                        leading_spaces = 0;
+                    }
+                }
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("MoveRight"))) // right arrow
+            {
+                if (leading_spaces < max_leading_spaces)
+                {
+                    if ((leading_spaces + col_step) < max_leading_spaces)
+                    {
+                        leading_spaces += col_step;
+                    } else {
+                        leading_spaces = max_leading_spaces.load();
+                    }
+                }
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("MoveUp")))
+            {
+                up(row_step);
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("MoveDown")))
+            {
+                down(row_step);
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("ToStart")))
+            {
+                leading_spaces = 0;
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("ToEnd")))
+            {
+                leading_spaces = max_leading_spaces.load();
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("PageUp")))
+            {
+                current_skip_lines -= page_size;
+                if (current_skip_lines < 0) {
                     current_skip_lines = 0;
                 }
             }
-        };
-
-        auto down = [&]
-        {
-            if (current_skip_lines < max_skip_lines)
+            else if (validation(str_buffer, keyboard_shortcut_map.at("PageDown")))
             {
-                if ((current_skip_lines + row_step) < max_skip_lines)
-                {
-                    current_skip_lines += row_step;
-                } else {
+                current_skip_lines += page_size;
+                if (current_skip_lines > max_skip_lines) {
                     current_skip_lines = max_skip_lines.load();
                 }
             }
-        };
-
-        auto mouse_get_xy = [](const std::string& fmt, const std::regex & reg)->std::pair<int, int>
-        {
-            std::smatch match;
-            std::regex_match(fmt, match, reg);
-            std::vector<std::string> vec { match.begin(), match.end() };
-            if (vec.size() == 3) {
-                const auto x = std::strtol(vec[1].c_str(), nullptr, 10);
-                const auto y = std::strtol(vec[2].c_str(), nullptr, 10);
-                return { x, y };
+            else if (std::regex_match(str_buffer, mouse_scroll_down_pattern)) {
+                if (utils::getenv("REVERSE_MOUSE") == "true") up(row_step); else down(row_step);
+                ch_list.clear();
             }
-
-            return { -1, -1 };
-        };
-
-        auto set_mouse_xy = [&mouse_x, &mouse_y, &mouse_get_xy](const std::string& fmt, const std::regex & reg)
-        {
-            const auto [x, y] = mouse_get_xy(fmt, reg);
-            if (mouse_x) mouse_x->store(x);
-            if (mouse_y) mouse_y->store(y);
-        };
-
-        if (str_buffer == "#27#[D") // left arrow
-        {
-            if (leading_spaces > 0)
+            else if (std::regex_match(str_buffer, mouse_scroll_up_pattern)) {
+                if (utils::getenv("REVERSE_MOUSE") == "true") down(row_step); else up(row_step);
+                ch_list.clear();
+            }
+            else if (std::regex_match(str_buffer, mouse_pattern)) {
+                set_mouse_xy(str_buffer, mouse_pattern);
+                ch_list.clear();
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy0")))
             {
-                if (leading_spaces > col_step) {
-                    leading_spaces -= col_step;
-                } else {
-                    leading_spaces = 0;
+                if (sort_by_ptr) *sort_by_ptr = 0;
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy1")))
+            {
+                if (sort_by_ptr) *sort_by_ptr = 1;
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy2")))
+            {
+                if (sort_by_ptr) *sort_by_ptr = 2;
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy3")))
+            {
+                if (sort_by_ptr) *sort_by_ptr = 3;
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy4")))
+            {
+                if (sort_by_ptr) *sort_by_ptr = 4;
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy5")))
+            {
+                if (sort_by_ptr) *sort_by_ptr = 5;
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy6")))
+            {
+                if (sort_by_ptr) *sort_by_ptr = 6;
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy7")))
+            {
+                if (sort_by_ptr) *sort_by_ptr = 7;
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy8")))
+            {
+                if (sort_by_ptr) *sort_by_ptr = 8;
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy9")))
+            {
+                if (sort_by_ptr) *sort_by_ptr = 9;
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy10")))
+            {
+                if (sort_by_ptr) *sort_by_ptr = 10;
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy11")))
+            {
+                if (sort_by_ptr) *sort_by_ptr = 11;
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("HighlightUP")))
+            {
+                if (mouse_y) {
+                    const int result = *current_focus_ptr + 7 - 1;
+                    *mouse_y = (result >= 0 ? result : 0);
                 }
             }
-
-            ch_list.clear();
-        }
-        else if (str_buffer == "#27#[C") // right arrow
-        {
-            if (leading_spaces < max_leading_spaces)
+            else if (validation(str_buffer, keyboard_shortcut_map.at("HighlightDown")))
             {
-                if ((leading_spaces + col_step) < max_leading_spaces)
-                {
-                    leading_spaces += col_step;
-                } else {
-                    leading_spaces = max_leading_spaces.load();
+                if (mouse_y) {
+                    const int result = *current_focus_ptr + 7 + 1;
+                    *mouse_y = (result >= 0 ? result : 0);
                 }
             }
-
-            ch_list.clear();
-        }
-        else if (str_buffer == "#27#[A") // up arrow
-        {
-            up();
-            ch_list.clear();
-        }
-        else if (str_buffer == "#27#[B") // down arrow
-        {
-            down();
-            ch_list.clear();
-        }
-        else if (str_buffer == "#27#[H") // Home
-        {
-            leading_spaces = 0;
-            ch_list.clear();
-        }
-        else if (str_buffer == "#27#[F") // End
-        {
-            leading_spaces = max_leading_spaces.load();
-            ch_list.clear();
-        }
-        else if (str_buffer == "#27#[5~") // Page up
-        {
-            current_skip_lines -= page_size;
-            if (current_skip_lines < 0) {
-                current_skip_lines = 0;
-            }
-            ch_list.clear();
-        }
-        else if (str_buffer == "#27#[6~") // Page down
-        {
-            current_skip_lines += page_size;
-            if (current_skip_lines > max_skip_lines) {
-                current_skip_lines = max_skip_lines.load();
-            }
-            ch_list.clear();
-        }
-#ifndef _CCDB_CYGWIN_BUILD_
-        else if (std::regex_match(str_buffer, mouse_scroll_down_pattern)) {
-            if (utils::getenv("REVERSE_MOUSE") == "true") up(); else down();
-            ch_list.clear();
-        }
-        else if (std::regex_match(str_buffer, mouse_scroll_up_pattern)) {
-            if (utils::getenv("REVERSE_MOUSE") == "true") down(); else up();
-            ch_list.clear();
-        }
-        else if (std::regex_match(str_buffer, mouse_pattern)) {
-            set_mouse_xy(str_buffer, mouse_pattern);
 #ifdef __DEBUG__
-            // std::cerr << "PARSED: " << str_buffer << std::endl;
+            else {
+                // std::cerr << str_buffer << std::endl;
+            }
 #endif //__DEBUG__
-            ch_list.clear();
+            // #endif //_CCDB_CYGWIN_BUILD_
         }
-        else if (str_buffer == "#27#OP") // F1
-        {
-            if (sort_by) *sort_by = 0;
-            ch_list.clear();
-        }
-        else if (str_buffer == "#27#OQ") // F2
-        {
-            if (sort_by) *sort_by = 1;
-            ch_list.clear();
-        }
-        else if (str_buffer == "#27#OR") // F3
-        {
-            if (sort_by) *sort_by = 2;
-            ch_list.clear();
-        }
-        else if (str_buffer == "#27#OS") // F4
-        {
-            if (sort_by) *sort_by = 3;
-            ch_list.clear();
-        }
-        else if (str_buffer == "#27#[15~") // F5
-        {
-            if (sort_by) *sort_by = 4;
-            ch_list.clear();
-        }
-        else if (str_buffer == "#27#[17~") // F6
-        {
-            if (sort_by) *sort_by = 5;
-            ch_list.clear();
-        }
-        else if (str_buffer == "#27#[18~") // F7
-        {
-            if (sort_by) *sort_by = 6;
-            ch_list.clear();
-        }
-        else if (str_buffer == "#27#[19~") // F8
-        {
-            if (sort_by) *sort_by = 7;
-            ch_list.clear();
-        }
-        else if (str_buffer == "#27#[20~") // F9
-        {
-            if (sort_by) *sort_by = 8;
-            ch_list.clear();
-        }
-        else if (str_buffer == "#27#[21~") // F10
-        {
-            if (sort_by) *sort_by = 9;
-            ch_list.clear();
-        }
-        else if (str_buffer == "#27#[23~") // F11
-        {
-            if (sort_by) *sort_by = 10;
-            ch_list.clear();
-        }
-        else if (str_buffer == "#27#[24~") // F12
-        {
-            if (sort_by) *sort_by = 11;
-            ch_list.clear();
-        }
-#ifdef __DEBUG__
-        else {
-            // std::cerr << str_buffer << std::endl;
-        }
-#endif //__DEBUG__
-#endif //_CCDB_CYGWIN_BUILD_
     }
 
     running = false;

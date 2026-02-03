@@ -1,0 +1,44 @@
+[Global]
+ReverseFilter = off
+SortReverse = off
+ChainParser = on
+SortBy = 4
+
+[Filter]
+Host = .*
+Process = .*
+Rules = .*
+SourceIP = .*
+DestinationIP = .*
+Type = .*
+Chains = .*
+
+[clash]
+link = http://MY SUBSCRIPTION LINK
+
+[Shortcut]
+KillConn = k
+ShowDetail = p
+Focus = f
+MoveLeft = ^[[D
+MoveRight = ^[[C
+MoveUp = ^[[A
+MoveDown = ^[[B
+ToStart = ^[[H
+ToEnd = ^[[F
+PageUp = ^[[5~
+PageDown = ^[[6~
+SortBy0 = ^[OP
+SortBy1 = ^[OQ
+SortBy2 = ^[OR
+SortBy3 = ^[OS
+SortBy4 = ^[[15~
+SortBy5 = ^[[17~
+SortBy6 = ^[[18~
+SortBy7 = ^[[19~
+SortBy8 = ^[[20~
+SortBy9 = ^[[21~
+SortBy10 = ^[[23~
+SortBy11 = ^[[24~
+HighlightUP = ^[[1;5A
+HighlightDown = ^[[1;5B

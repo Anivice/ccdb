@@ -121,6 +121,46 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
         filter_helper("Filter::Chains", 11);
         string_helper("clash::link", clash_sublink, [](const std::string &){ return true; });
 
+        auto kbd_shortcut_helper = [&](const std::string & kbd_shortcut_name, const std::string & default_value)
+        {
+            std::string shortcut;
+            string_helper("Shortcut::" + kbd_shortcut_name, shortcut, [](const std::string &){ return true; });
+            if (!shortcut.empty()) {
+#ifdef __DEBUG__
+                std::cout << "Remapped keyboard shortcut " << kbd_shortcut_name << " to " << shortcut << std::endl;
+#endif //__DEBUG__
+                keyboard_shortcut_map.emplace(kbd_shortcut_name, shortcut);
+            } else {
+                keyboard_shortcut_map.emplace(kbd_shortcut_name, default_value);
+            }
+        };
+
+        kbd_shortcut_helper("KillConn", "k");
+        kbd_shortcut_helper("ShowDetail", "p");
+        kbd_shortcut_helper("Focus", "f");
+        kbd_shortcut_helper("MoveLeft", "#27#[D");
+        kbd_shortcut_helper("MoveRight", "#27#[C");
+        kbd_shortcut_helper("MoveUp", "#27#[A");
+        kbd_shortcut_helper("MoveDown", "#27#[B");
+        kbd_shortcut_helper("ToStart", "#27#[H");
+        kbd_shortcut_helper("ToEnd", "#27#[F");
+        kbd_shortcut_helper("PageUp", "#27#[5~");
+        kbd_shortcut_helper("PageDown", "#27#[6~");
+        kbd_shortcut_helper("SortBy0", "#27#OP");
+        kbd_shortcut_helper("SortBy1", "#27#OQ");
+        kbd_shortcut_helper("SortBy2", "#27#OR");
+        kbd_shortcut_helper("SortBy3", "#27#OS");
+        kbd_shortcut_helper("SortBy4", "#27#[15~");
+        kbd_shortcut_helper("SortBy5", "#27#[17~");
+        kbd_shortcut_helper("SortBy6", "#27#[18~");
+        kbd_shortcut_helper("SortBy7", "#27#[19~");
+        kbd_shortcut_helper("SortBy8", "#27#[20~");
+        kbd_shortcut_helper("SortBy9", "#27#[21~");
+        kbd_shortcut_helper("SortBy10", "#27#[23~");
+        kbd_shortcut_helper("SortBy11", "#27#[24~");
+        kbd_shortcut_helper("HighlightUP", "#27#[1;5A");
+        kbd_shortcut_helper("HighlightDown", "#27#[1;5B");
+
 #ifndef _CCDB_CYGWIN_BUILD_
         if (const auto terminal_name = get_terminal_emulator_name();
             terminal_name == "gnome-terminal"
