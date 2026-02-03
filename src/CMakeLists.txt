@@ -188,7 +188,6 @@ add_executable(ccdb
         misc/execute.cpp
         ccdb.cpp ccdb.misc.cpp ccdb.get.cpp ccdb.set.cpp include/ccdb.h
         term_name.cpp               include/term_name.h
-        update-self.cpp             include/update-self.h
         config.cpp                  include/config.h
         pull_subinfo.cpp            include/pull_subinfo.h
 )
@@ -246,8 +245,6 @@ else ()
         set_target_properties(ccdb PROPERTIES LINK_SEARCH_START_STATIC 1)
         set_target_properties(ccdb PROPERTIES LINK_SEARCH_END_STATIC 1)
         set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-    else ()
-        message(WARNING "GLIBC IS DYNAMICALLY LINKED!")
     endif ()
     target_compile_options(ccdb PRIVATE -O3 ${CC_ADDITIONAL_OPTIONS})
     target_link_options(ccdb PRIVATE ${LD_STATIC} -O3 ${LD_ADDITIONAL_OPTIONS})
