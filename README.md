@@ -7,8 +7,7 @@ A Clash Dashboard in C++
  - [Introduction](#introduction)
  - [Functionalities Provided](#functionalities-provided)
  - [Usage](#usage)
-   * [Switch Proxy Endpoint](#example-switch-proxy-in-a-proxy-group)
- - [How to Obtain](#how-to-obtain)
+   * [Switch a Proxy Endpoint](#example-switch-proxy-in-a-proxy-group)
  - [How to Build](#how-to-build)
 
 ## Introduction
@@ -25,6 +24,8 @@ CCDB is using multiple open-source libraries:
  - [TSL Hopscotch-Hashing Map v2.4.0](https://github.com/Tessil/hopscotch-map)
  - [UTF8-CPP 4.0.9](https://github.com/nemtrif/utfcpp)
  - [JSON for Modern C++ 3.12.0](https://github.com/nlohmann/json)
+ - [Perl 5.42.0](https://www.perl.org/)
+ - [OpenSSL 3.6.1](https://github.com/openssl/openssl)
 
 ## Functionalities Provided
 
@@ -43,8 +44,9 @@ CCDB is using multiple open-source libraries:
 
 ***DORMANT FUNCTIONS***
 
- - Unicode proxy name parsing (experimental)
+ - Unicode proxy name parsing
  - Switch proxies inside pure a console with vector index
+ - SSL Parsing
 
 > **Additional notes for vector index**:
 > **The console needs to be able to actually show these characters** though,
@@ -144,6 +146,16 @@ Environment:
    NO_0xFE0F_EXPAND_EMOJI: Fix Unicode processing issues for emoji space expand code, e.g., "✈" and "✈️".
                            If you cannot notice any differences of the above emojis, or there's wierd Unicode processing bugs in your terminal,
                            you might want to set this to `true`
+    DISABLE_SERVER_CERTIFICATE_VERIFICATION: When using `get subinfo`, SSL is enforced by default when link is https.
+                                             Use this to skip server SSL certificate check.
+    SSL_CERTIFICATE: When clash subscription link is in https, specify an SSL certificate when pulling subscription usage.
+Keyboard Shortcuts:
+  `get connections`: Get connections has multiple keyboard shortcuts:
+     Mouse Click/Ctrl+UP/DOWN: Move highlight
+                            K: Kill the highlighted connection
+                            P: Print raw JSON from Mihomo core. If `jq` can be found, JSON will be parsed by jq
+                       F1-F12: Specify which column (0-11) to sort the table, press on the same column again to reverse the sort
+                       Ctrl+C: Abort the watcher
 ```
 
 Use double Tab to list possible candidates in a command,
@@ -186,42 +198,6 @@ as is shown in the following image.
 
 ![Image](img/set_vgroup3.png)
 
-## How to Obtain
-
-### Linux
-
-You can download pre-built binaries from
-[the release page](https://github.com/Anivice/ccdb/releases)
-(well bye-bye free 2k minutes per months),
-or use the command
-
-```bash
-    curl -fsSL "https://raw.githubusercontent.com/Anivice/ccdb/refs/heads/main/src/script/update.sh" | bash -s -- [DESTINATION]
-```
-
-to download the latest executable to the location you want to download to from the release page automatically.
-
-You need `wget` and `git` for the script to work properly.
-
-### Windows
-
-CCDB runs on [Cygwin](https://www.cygwin.com/) on Windows.
-You can obtain the cygwin build from [the release page](https://github.com/Anivice/ccdb/releases) published by GitHub Actions.
-Tags for Cygwin build is `ccdb.cygwin.NightlyBuild.[FIST 8 CHARACTERS OF GIT COMMIT HASH]`.
-
-Since GitHub tags are very unorganized, you can use the following script
-to directly pull the latest executable from the release page.
-You have to execute this script under Cygwin environment.
-
-```bash
-    curl -fsSL "https://raw.githubusercontent.com/Anivice/ccdb/refs/heads/main/src/script/update_cygwin.sh" | bash -s -- [DESTINATION]
-```
-
-Again, you need `wget` and `git` for the script to work properly.
-
-Currently, all builds are nightly builds marked as pre-release.
-No "stable" build has been released, yet.
-
 ## How to Build
 
 ### Linux
@@ -233,42 +209,6 @@ Use the command
 ```
 
 to build locally.
-
-If you are on x86, you can actually use the embedded toolchains
-to build fully statically-linked, self-contained executables
-(that are already published per-git-commit on GitHub by GitHub Actions automatically) locally
-with `configure.sh` as `src/configure.sh [ARCH] [BUILD TEMP DIR]`
-(e.g., `src/configure.sh aarch64 /tmp/build_aarch64`)
-to automatically build for toolchain-supported architecture.
-Currently, ccdb has the toolchains embedded for the following architectures:
-
-  - *ARM*
-  - *ARMv5l*
-  - *ARMv7hf*
-  - *ARMv7*
-  - *i586*
-  - *i686*
-  - AARCH64
-  - x86_64
-
-> Architectures in cursive are 32bit architectures that `CPP-HTTPLIB` has already
-> announced as **deprecated**.
-> The executable runs as expected but vulnerabilities and BUGs might present in these executables
-> as they do not receive any test apart from a simple functionality check.
-> ***If you choose to use these executables, you are on your own.***
-> You have been warned.
-
-### Windows
-
-Use the command
-
-```bash
-  git clone https://github.com/Anivice/ccdb && cd ccdb && mkdir build && cd build && cmake ../src/ -DCCDB_CYGWIN_BUILD=True && make
-```
-to build locally.
-
-x86_64 is the only architecture ever tested. The build system must live under cygwin.
-Debug builds for Windows are not supported.
 
 ## WARNING
 

@@ -8,6 +8,60 @@ set(CMAKE_CXX_STANDARD 23)
 find_program(MAKE_EXECUTABLE NAMES make gmake REQUIRED)
 include(ExternalProject)
 
+# Perl
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/NonCMake/perl-5.42.0/p)
+ExternalProject_Add(PERL
+        PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/perl
+        SOURCE_DIR          ${CMAKE_CURRENT_BINARY_DIR}/NonCMake/perl-5.42.0
+        INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/perl/install
+        CONFIGURE_COMMAND   rm -rf <SOURCE_DIR> && cp -r ${CMAKE_SOURCE_DIR}/NonCMake/perl-5.42.0 <SOURCE_DIR> && cd <SOURCE_DIR> && sh -c "env CC= CXX= <SOURCE_DIR>/configure.gnu --prefix=<INSTALL_DIR> ${PERL_CONFIGURE_ADDITIONAL_FLAGS}"
+        BUILD_COMMAND       sh -c "cd <SOURCE_DIR> && ${MAKE_EXECUTABLE} ${PERL_MAKE_ADDITIONAL_FLAGS}"
+        INSTALL_COMMAND     sh -c "cd <SOURCE_DIR> && ${MAKE_EXECUTABLE} install ${PERL_MAKE_INSTALL_ADDITIONAL_FLAGS}"
+        TEST_COMMAND        ""
+        INACTIVITY_TIMEOUT  15
+        CONFIGURE_HANDLED_BY_BUILD ON
+)
+
+# OpenSSL
+set(OPENSSL_MAKE_ENTIRE "${MAKE_EXECUTABLE} ${OPENSSL_MAKE_ADDITIONAL_FLAGS}")
+message(STATUS "OpenSSL: ${OPENSSL_MAKE_ENTIRE}")
+ExternalProject_Add(OPENSSL
+        PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/openssl
+        SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/openssl-3.6.1
+        INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/openssl/install
+        CONFIGURE_COMMAND   /bin/sh -c "env PERL5LIB=\"${CMAKE_CURRENT_BINARY_DIR}/perl/install/lib/5.42.0/\" PATH=\"${CMAKE_CURRENT_BINARY_DIR}/perl/install/bin:$PATH\" <SOURCE_DIR>/Configure linux-x86_64 no-shared no-docs no-tests --prefix=<INSTALL_DIR> --openssldir=\"<INSTALL_DIR>/ssl\" ${OPENSSL_CONFIGURE_ADDITIONAL_FLAGS}"
+        BUILD_COMMAND       /bin/sh -c "${OPENSSL_MAKE_ENTIRE}"
+        INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${OPENSSL_MAKE_INSTALL_ADDITIONAL_FLAGS}
+        INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib64/libcrypto.a  <INSTALL_DIR>/lib64/libssl.a
+        TEST_COMMAND        ""
+        INACTIVITY_TIMEOUT  15
+        CONFIGURE_HANDLED_BY_BUILD ON
+        DEPENDS PERL
+)
+
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/openssl/install/include" "${CMAKE_CURRENT_BINARY_DIR}/openssl/install/lib64/")
+
+# Export to CMake
+add_library(openssl::libcrypto STATIC IMPORTED GLOBAL)
+set_target_properties(openssl::libcrypto PROPERTIES
+        IMPORTED_LOCATION             "${CMAKE_CURRENT_BINARY_DIR}/openssl/install/lib64/libcrypto.a"
+        INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_BINARY_DIR}/openssl/install/include"
+)
+
+add_library(openssl::libssl STATIC IMPORTED GLOBAL)
+set_target_properties(openssl::libssl PROPERTIES
+        IMPORTED_LOCATION             "${CMAKE_CURRENT_BINARY_DIR}/openssl/install/lib64/libssl.a"
+        INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_BINARY_DIR}/openssl/install/include"
+)
+
+add_library(openssl::openssl INTERFACE IMPORTED GLOBAL)
+target_link_libraries(openssl::openssl INTERFACE
+        openssl::libssl
+        openssl::libcrypto
+)
+
+add_dependencies(openssl::openssl OPENSSL)
+
 # Ncurses
 
 set(NCURSES_MAKE_ENTIRE "${MAKE_EXECUTABLE} ${NCURSES_MAKE_ADDITIONAL_FLAGS}")
@@ -23,6 +77,7 @@ ExternalProject_Add(NCURSES
         TEST_COMMAND        ""
         INACTIVITY_TIMEOUT  15
         CONFIGURE_HANDLED_BY_BUILD ON
+        DEPENDS OPENSSL
 )
 
 ExternalProject_Get_Property(NCURSES INSTALL_DIR)
@@ -138,8 +193,9 @@ add_executable(ccdb
         pull_subinfo.cpp            include/pull_subinfo.h
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
-target_compile_definitions(ccdb PRIVATE CCDB_VERSION="0.8.4-rc7")
-target_link_libraries(ccdb PRIVATE resource_command.readline)
+target_compile_definitions(ccdb PRIVATE CCDB_VERSION="0.8.4-rc7" CPPHTTPLIB_OPENSSL_SUPPORT)
+target_link_libraries(ccdb PRIVATE resource_command.readline openssl::openssl)
+add_dependencies(ccdb OPENSSL)
 
 find_program(GIT_EXEC NAMES git REQUIRED)
 find_program(HEAD_EXEC NAMES head REQUIRED)

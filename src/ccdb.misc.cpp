@@ -963,9 +963,12 @@ void ccdb::ccdb::help()
     << reinterpret_cast<const char*>(alp_no_expand) << "\" and \"" << reinterpret_cast<const char*>(alp_expanded) << "\".\n"
     << std::string(27, ' ')
     << "If you cannot notice any differences of the above emojis, or there's wierd Unicode processing bugs in your terminal,\n"
-    << std::string(27, ' ') << "you might want to set this to `true`" << std::endl
-    <<
-        "`get connections`: Get connections has multiple keyboard shortcuts:\n"
+    << std::string(27, ' ') << "you might want to set this to `true`\n"
+    << "    DISABLE_SERVER_CERTIFICATE_VERIFICATION: When using `get subinfo`, SSL is enforced by default when link is https.\n"
+       "                                             Use this to skip server SSL certificate check.\n"
+    << "    SSL_CERTIFICATE: When clash subscription link is in https, specify an SSL certificate when pulling subscription usage.\n"
+    <<  "Keyboard Shortcuts:\n"
+        "  `get connections`: Get connections has multiple keyboard shortcuts:\n"
         "     Mouse Click/Ctrl+UP/DOWN: Move highlight\n"
         "                            K: Kill the highlighted connection\n"
         "                            P: Print raw JSON from Mihomo core. If `jq` can be found, JSON will be parsed by jq\n"

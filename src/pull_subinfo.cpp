@@ -36,7 +36,18 @@ ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url)
         throw std::invalid_argument("Invalid URL");
     }
 
-    httplib::Client cli("http://" + host);
+    httplib::Client cli(scheme + "://" + host);
+    if (scheme == "https" && utils::getenv("DISABLE_SERVER_CERTIFICATE_VERIFICATION") == "true") {
+        cli.enable_server_certificate_verification(false);
+    } else {
+        std::string ca_path = "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem";
+        if (!utils::getenv("SSL_CERTIFICATE").empty()) {
+            ca_path = utils::getenv("SSL_CERTIFICATE");
+        }
+        cli.set_ca_cert_path(ca_path);
+        cli.enable_server_certificate_verification(true);
+    }
+
     if (parse_proxy(utils::getenv(scheme + "_proxy"), proxy_host, proxy_port)) {
         cli.set_proxy(proxy_host, proxy_port);
     }
