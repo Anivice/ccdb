@@ -62,7 +62,7 @@ namespace ccdb
 
         bool reverse_filter_list = false; // reverse white list
         tsl::hopscotch_map < uint64_t, std::string > filter_patterns; // Regex filter patterns for `get connections`
-        std::atomic_int sort_by = 4; // get connections table: sort by which column
+        std::atomic_int sort_by = -1; // get connections table: sort by which column
         std::atomic_bool reverse = false; // get connections table: if sort is reversed?
         tsl::hopscotch_map < uint64_t, std::string > index_to_proxy_name_list; // vector translation list
         tsl::hopscotch_map < std::string, int > latency_backups; // results of latency test

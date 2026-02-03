@@ -232,7 +232,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                           {
                               switch (sort_by_final)
                               {
-                              case 0:
+                                  case 0:
                                       return a.host > b.host;
                                   case 1:
                                       return a.processName > b.processName;
@@ -255,8 +255,10 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                                   case 11:
                                       return a.chainName > b.chainName;
                                   case 4:
-                                  default:
                                       return a.downloadSpeed > b.downloadSpeed;
+
+                                  default:
+                                      return (a.downloadSpeed + a.uploadSpeed) > (b.downloadSpeed + b.uploadSpeed);
                                   }
                               });
         if (reverse) std::ranges::reverse(connections);
