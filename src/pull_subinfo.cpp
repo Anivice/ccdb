@@ -1,7 +1,5 @@
 #include "pull_subinfo.h"
-
 #include <filesystem>
-
 #include "httplib.h"
 #include <regex>
 #include "utils.h"

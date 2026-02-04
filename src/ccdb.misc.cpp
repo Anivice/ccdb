@@ -1256,13 +1256,27 @@ void ccdb::ccdb::get_conn_input_watcher(
                     current_skip_lines = max_skip_lines.load();
                 }
             }
-            else if (std::regex_match(str_buffer, mouse_scroll_down_pattern)) {
-                if (utils::getenv("REVERSE_MOUSE") == "true") hl_down(); else hl_up();
+            else if (std::regex_match(str_buffer, mouse_scroll_down_pattern))
+            {
+                if (utils::getenv("REVERSE_MOUSE") == "true") {
+                    down(get_line_size() / 8);
+                    hl_down();
+                } else {
+                    up(get_line_size() / 8);
+                    hl_up();
+                }
                 *refocus = true;
                 ch_list.clear();
             }
-            else if (std::regex_match(str_buffer, mouse_scroll_up_pattern)) {
-                if (utils::getenv("REVERSE_MOUSE") == "true") hl_up(); else hl_down();
+            else if (std::regex_match(str_buffer, mouse_scroll_up_pattern))
+            {
+                if (utils::getenv("REVERSE_MOUSE") == "true") {
+                    up(get_line_size() / 8);
+                    hl_up();
+                } else {
+                    down(get_line_size() / 8);
+                    hl_down();
+                }
                 *refocus = true;
                 ch_list.clear();
             }
