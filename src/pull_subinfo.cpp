@@ -1,4 +1,7 @@
 #include "pull_subinfo.h"
+
+#include <filesystem>
+
 #include "httplib.h"
 #include <regex>
 #include "utils.h"
@@ -40,12 +43,27 @@ ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url)
     if (scheme == "https" && utils::getenv("DISABLE_SERVER_CERTIFICATE_VERIFICATION") == "true") {
         cli.enable_server_certificate_verification(false);
     } else {
-        std::string ca_path = "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem";
-        if (!utils::getenv("SSL_CERTIFICATE").empty()) {
-            ca_path = utils::getenv("SSL_CERTIFICATE");
-        }
-        cli.set_ca_cert_path(ca_path);
-        cli.enable_server_certificate_verification(true);
+        std::vector < std::string > ca_paths = {
+            utils::getenv("SSL_CERTIFICATE"),
+            // possible system CA certificate locations
+            "/etc/ssl/certs/ca-certificates.crt",
+            "/etc/ssl/certs/ca-bundle.trust.crt",
+            "/etc/ssl/cert.pem",
+            "/etc/pki/ca-trust/extracted/openssl/ca-bundle.trust.crt",
+            "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem",
+        };
+
+        std::ranges::any_of(ca_paths, [&](const std::string& ca_path)->bool
+        {
+            if (!ca_path.empty() && std::filesystem::exists(ca_path))
+            {
+                cli.set_ca_cert_path(ca_path);
+                cli.enable_server_certificate_verification(true);
+                return true;
+            }
+
+            return false;
+        });
     }
 
     if (parse_proxy(utils::getenv(scheme + "_proxy"), proxy_host, proxy_port)) {

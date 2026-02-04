@@ -34,31 +34,39 @@ jobs:
 
       - name: Configure and Build
         run: |
-          bash -c 'for arch in x86_64 i686 i586 aarch64 armv7 armv7hf; do ./src/configure.sh $arch build_$arch; done'
+          bash -c 'for arch in x86_64 i686 i586 aarch64 armv7 armv7hf; do ./src/configure.sh $arch build_$arch; done' 2>log.err.txt >log.txt
+          cat log.err.txt >> log.txt
 
-      - name: Test
-        env:
-          TERM: xterm-256color
-        run: |
-          true
+      - name: Upload log artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: log.txt
 
       - name: Open an Issue on Test Failure
-        # This step runs only if a previous step in the same job has failed
         if: ${{ failure() }}
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: "Test Failure in Automated CMake Test Workflow",
-              body: "# One or more tests have failed!"
-            })
+            const owner = context.repo.owner;
+            const repo  = context.repo.repo;
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            
+            const body =
+                `# One or more steps have failed!\n\n` +
+                `**Log artifact:** \`build-log\` (download it from the workflow run page)\n` +
+                `**Workflow run:** ${runUrl}\n`;
+            
+            await github.rest.issues.create({
+                owner, repo,
+                title: "CCDB Linux Build Failed",
+                body
+            });
 
       - name: Pack
         run: |
-          bash -c 'for arch in x86_64 i686 arm aarch64 armv5l armv7 armv7hf i586; do cp build_$arch/ccdb ccdb.$arch; done'
+          bash -c 'for arch in x86_64 i686 i586 aarch64 armv7 armv7hf; do cp build_$arch/ccdb ccdb.$arch; done'
 
       - name: Get Git commit hash
         id: get_commit
