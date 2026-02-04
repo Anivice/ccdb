@@ -46,11 +46,12 @@ ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url)
         std::vector < std::string > ca_paths = {
             utils::getenv("SSL_CERTIFICATE"),
             // possible system CA certificate locations
-            "/etc/ssl/certs/ca-certificates.crt",
-            "/etc/ssl/certs/ca-bundle.trust.crt",
-            "/etc/ssl/cert.pem",
-            "/etc/pki/ca-trust/extracted/openssl/ca-bundle.trust.crt",
-            "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem",
+            utils::getenv("PREFIX") + "/etc/ssl/certs/ca-certificates.crt",
+            utils::getenv("PREFIX") + "/etc/ssl/certs/ca-bundle.trust.crt",
+            utils::getenv("PREFIX") + "/etc/ssl/cert.pem",
+            utils::getenv("PREFIX") + "/etc/tls/cert.pem",
+            utils::getenv("PREFIX") + "/etc/pki/ca-trust/extracted/openssl/ca-bundle.trust.crt",
+            utils::getenv("PREFIX") + "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem",
         };
 
         std::ranges::any_of(ca_paths, [&](const std::string& ca_path)->bool
