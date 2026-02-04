@@ -202,7 +202,7 @@ add_executable(ccdb
         pull_subinfo.cpp            include/pull_subinfo.h
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
-target_compile_definitions(ccdb PRIVATE CCDB_VERSION="0.8.4-rc7" CPPHTTPLIB_OPENSSL_SUPPORT)
+target_compile_definitions(ccdb PRIVATE CCDB_VERSION="0.8.5" CPPHTTPLIB_OPENSSL_SUPPORT)
 target_link_libraries(ccdb PRIVATE resource_command.readline openssl::openssl)
 add_dependencies(ccdb OPENSSL)
 
@@ -252,7 +252,7 @@ else ()
     if ("${CLANG}" STREQUAL "True")
         target_link_libraries(ccdb PRIVATE readline::readline ncurses::ncurses)
     else ()
-        target_link_libraries(ccdb PRIVATE atomic readline::readline ncurses::ncurses)
+        target_link_libraries(ccdb PRIVATE readline::readline ncurses::ncurses atomic)
     endif ()
     add_dependencies(ccdb READLINE NCURSES)
     target_compile_definitions(ccdb PRIVATE NCURSES_STATIC)

@@ -1,0 +1,1 @@
+../../i586-unknown-linux-musl/sysroot/lib/libstdc++.so.6.0.34-gdb.py
