@@ -1152,7 +1152,7 @@ void ccdb::ccdb::get_conn_input_watcher(
 
     auto hl_up=[&]
     {
-        if (mouse_y) {
+        if (mouse_y && current_focus_ptr) {
             const int result = *current_focus_ptr + 7 - 1;
             *mouse_y = (result >= 0 ? result : 0);
         }
@@ -1160,7 +1160,7 @@ void ccdb::ccdb::get_conn_input_watcher(
 
     auto hl_down=[&]
     {
-        if (mouse_y) {
+        if (mouse_y && current_focus_ptr) {
             const int result = *current_focus_ptr + 7 + 1;
             *mouse_y = (result >= 0 ? result : 0);
         }
@@ -1265,7 +1265,7 @@ void ccdb::ccdb::get_conn_input_watcher(
                     up(get_line_size() / 8);
                     hl_up();
                 }
-                *refocus = true;
+                if (refocus) *refocus = true;
                 ch_list.clear();
             }
             else if (std::regex_match(str_buffer, mouse_scroll_up_pattern))
@@ -1277,7 +1277,7 @@ void ccdb::ccdb::get_conn_input_watcher(
                     down(get_line_size() / 8);
                     hl_down();
                 }
-                *refocus = true;
+                if (refocus) *refocus = true;
                 ch_list.clear();
             }
             else if (std::regex_match(str_buffer, mouse_pattern)) {
