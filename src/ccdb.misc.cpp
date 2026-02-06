@@ -974,7 +974,7 @@ void ccdb::ccdb::help()
     std::cout << oss.str() << std::flush;
 }
 
-static int read_proc_exe(pid_t pid, char *buf, size_t buflen)
+static int read_proc_exe(const pid_t pid, char *buf, size_t buflen)
 {
     char linkpath[64] { };
     snprintf(linkpath, sizeof(linkpath), "/proc/%ld/exe", static_cast<long>(pid));
@@ -987,16 +987,30 @@ static int read_proc_exe(pid_t pid, char *buf, size_t buflen)
 void ccdb::ccdb::reset_terminal_mode_forcefully()
 {
     const pid_t ppid = getppid();
+    const pid_t sid = getsid(0);
     char exe[PATH_MAX] { };
-    std::string exe_path;
+    std::string exe_path, sid_path;
     if (read_proc_exe(ppid, exe, sizeof(exe)) == 0) {
         exe_path = exe;
     } else {
         printf("Read parent exe failed: %s\n", strerror(errno));
     }
 
-    if (std::system((exe_path + " -c 'reset'").c_str()) != 0) {
-        std::system("/bin/sh -c 'reset'"); // system dependent reset terminal mode
+    if (read_proc_exe(sid, exe, sizeof(exe)) == 0) {
+        sid_path = exe;
+    } else {
+        printf("Read session leader exe failed: %s\n", strerror(errno));
+    }
+
+    // system dependent reset terminal mode
+    if (std::system((sid_path + " -c 'reset'").c_str()) != 0)
+    {
+        if (std::system((exe_path + " -c 'reset'").c_str()) != 0)
+        {
+            if (std::system("/bin/sh -c 'reset'") != 0) {
+                std::cerr << "Failed to reset shell mode even after exausting all means." << std::endl;
+            }
+        }
     }
 }
 
