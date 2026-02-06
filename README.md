@@ -137,6 +137,7 @@ set              : Set parameters
 close_connections: Close all connections
 clear_filter     : Clear get connection filtering patterns
 nload            : nload-like connection speed monitoring
+reset            : Reset terminal mode
 Environment:
    PAGER:    Specify a pager. Pager availability check is ignored when this environmental variable is set
    NOPAGER:  Set this to 'y' and force ccdb to ignore pager

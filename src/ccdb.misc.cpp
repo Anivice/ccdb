@@ -974,6 +974,32 @@ void ccdb::ccdb::help()
     std::cout << oss.str() << std::flush;
 }
 
+static int read_proc_exe(pid_t pid, char *buf, size_t buflen)
+{
+    char linkpath[64] { };
+    snprintf(linkpath, sizeof(linkpath), "/proc/%ld/exe", static_cast<long>(pid));
+    const ssize_t n = readlink(linkpath, buf, buflen - 1);
+    if (n < 0) return -1;
+    buf[n] = '\0';
+    return 0;
+}
+
+void ccdb::ccdb::reset_terminal_mode_forcefully()
+{
+    const pid_t ppid = getppid();
+    char exe[PATH_MAX] { };
+    std::string exe_path;
+    if (read_proc_exe(ppid, exe, sizeof(exe)) == 0) {
+        exe_path = exe;
+    } else {
+        printf("Read parent exe failed: %s\n", strerror(errno));
+    }
+
+    if (std::system((exe_path + " -c 'reset'").c_str()) != 0) {
+        std::system("/bin/sh -c 'reset'"); // system dependent reset terminal mode
+    }
+}
+
 ccdb::ccdb::mode_guard_t::mode_guard_t(ccdb *parent): parent_(parent)
 {
     std::cout << "\033[?25l"; // hide cursor

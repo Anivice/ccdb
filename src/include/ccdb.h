@@ -177,6 +177,7 @@ namespace ccdb
         void get_filter();
         void get_subinfo();
         static void help();
+        static void reset_terminal_mode_forcefully();
 
         /// terminal mode guard. Create this instance to change and reset term mode automatically
         class mode_guard_t {

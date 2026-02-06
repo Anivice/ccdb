@@ -85,6 +85,7 @@
     < close_connections (Close all connections): [NONE] >,
     < clear_filter (Clear get connection filtering patterns): [NONE] >,
     < nload (nload-like connection speed monitoring): [NONE] >,
+    < reset (Reset terminal mode): [NONE] >,
 }
 
 # $ ssh me@localhost

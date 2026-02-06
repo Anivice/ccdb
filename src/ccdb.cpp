@@ -200,6 +200,9 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
             if (command_vector.front() == "nload") {
                 nload();
             }
+            else if (command_vector.front() == "reset") {
+                reset_terminal_mode_forcefully();
+            }
             else if (command_vector.front() == "help")  {
                 help();
             }
