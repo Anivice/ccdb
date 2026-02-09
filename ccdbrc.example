@@ -15,6 +15,7 @@ Chains = .*
 
 [clash]
 link = http://MY SUBSCRIPTION LINK
+log = %HOME%/.cache/ccdb/mihomo.log
 
 [Shortcut]
 KillConn = k

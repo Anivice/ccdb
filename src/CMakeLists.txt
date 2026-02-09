@@ -202,7 +202,7 @@ add_executable(ccdb
         pull_subinfo.cpp            include/pull_subinfo.h
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
-target_compile_definitions(ccdb PRIVATE CCDB_VERSION="0.8.5" CPPHTTPLIB_OPENSSL_SUPPORT)
+target_compile_definitions(ccdb PRIVATE CCDB_VERSION="0.8.5-rc1" CPPHTTPLIB_OPENSSL_SUPPORT)
 target_link_libraries(ccdb PRIVATE resource_command.readline openssl::openssl)
 add_dependencies(ccdb OPENSSL)
 

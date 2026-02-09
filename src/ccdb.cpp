@@ -91,13 +91,6 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
             }
         };
 
-        flag_helper("Global::ReverseFilter", reverse_filter_list);
-        flag_helper("Global::SortReverse", reverse);
-        flag_helper("Global::ChainParser", backend_instance.parse_chains);
-        int_helper("Global::SortBy", sort_by, [&](const long int val) {
-            return (0 <= val && val < get_conn_titles.size());
-        });
-
         auto filter_helper = [&](const std::string & definition, const int filter_index)
         {
             std::string filter;
@@ -112,15 +105,6 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
             }
         };
 
-        filter_helper("Filter::Host", 0);
-        filter_helper("Filter::Process", 1);
-        filter_helper("Filter::Rules", 6);
-        filter_helper("Filter::SourceIP", 8);
-        filter_helper("Filter::DestinationIP", 9);
-        filter_helper("Filter::Type", 10);
-        filter_helper("Filter::Chains", 11);
-        string_helper("clash::link", clash_sublink, [](const std::string &){ return true; });
-
         auto kbd_shortcut_helper = [&](const std::string & kbd_shortcut_name, const std::string & default_value)
         {
             std::string shortcut;
@@ -134,6 +118,26 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
                 keyboard_shortcut_map.emplace(kbd_shortcut_name, default_value);
             }
         };
+
+        std::string log_loc;
+
+        flag_helper("Global::ReverseFilter", reverse_filter_list);
+        flag_helper("Global::SortReverse", reverse);
+        flag_helper("Global::ChainParser", backend_instance.parse_chains);
+        int_helper("Global::SortBy", sort_by, [&](const long int val) {
+            return (0 <= val && val < get_conn_titles.size());
+        });
+
+        filter_helper("Filter::Host", 0);
+        filter_helper("Filter::Process", 1);
+        filter_helper("Filter::Rules", 6);
+        filter_helper("Filter::SourceIP", 8);
+        filter_helper("Filter::DestinationIP", 9);
+        filter_helper("Filter::Type", 10);
+        filter_helper("Filter::Chains", 11);
+        string_helper("clash::link", clash_sublink, [](const std::string &){ return true; });
+        string_helper("clash::log", log_loc, [](const std::string &){ return true; });
+        backend_instance.mihomo_output_log_location.set(log_loc);
 
         kbd_shortcut_helper("KillConn", "k");
         kbd_shortcut_helper("ShowDetail", "p");
@@ -172,10 +176,9 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
             std::cout << "Set NO_0xFE0F_EXPAND_EMOJI to true since " << terminal_name << " doesn't support emoji expansion." << std::endl;
             setenv("NO_0xFE0F_EXPAND_EMOJI", "true");
         }
-        else if (terminal_name == "konsole"
-            || terminal_name == "kitty") {
+        else if (terminal_name == "konsole" || terminal_name == "kitty") {
             setenv("NO_0xFE0F_EXPAND_EMOJI", "false");
-            }
+        }
 
         const auto ret = exec_command("/bin/sh", "jq --version >/dev/null 2>/dev/null\n");
         jq_available = (ret.exit_status == 0);

@@ -28,6 +28,7 @@
 #include <cstdio>
 #include <iostream>
 #include <chrono>
+#include <fstream>
 
 void general_info_pulling::update_from_traffic(const std::string& info)
 {
@@ -218,6 +219,26 @@ void general_info_pulling::update_from_logs(const std::string& info)
 
     std::string type = data["type"], payload = data["payload"];
     std::ranges::transform(type, type.begin(), ::toupper);
+    const std::string log_location = mihomo_output_log_location.get();
+
+    if (!log_location.empty() && log_warning_count < 3)
+    {
+        // 1. dirname of the path
+        const std::string dirname = log_location.substr(0, log_location.find_last_of('/'));
+        // 2. check if dir exists, if not we create them
+        if (!std::filesystem::exists(dirname)) {
+            std::filesystem::create_directories(dirname);
+        }
+
+        // 3. open file, append log
+        std::ofstream file(log_location, std::ios::app);
+        if (!file) {
+            std::cerr << "Failed to write to log file!" << std::endl;
+            ++log_warning_count;
+        } else {
+            file << type << ": " << payload << std::endl;
+        }
+    }
 
     std::lock_guard lock(logs_mutex);
     while (logs.size() >= 4096) {
@@ -264,118 +285,92 @@ void general_info_pulling::pull_continuous_updates()
         thread_pool.clear();
     };
 
-    while (keep_pull_continuous_updates.load())
+
+    auto make_traffic = [&]
     {
-        std::string local_copy;
+        // /traffic puller
+        auto traffic_running = std::make_shared<std::atomic_bool>(true);
+        auto run_traffic = [this](const std::atomic_bool * _traffic_running)
         {
-            std::lock_guard lock(current_focus_mutex);
-            local_copy = current_focus;
-        }
-
-        if (last_update != local_copy) // status changed
-        {
-            last_update = local_copy; // update status
-            clear_and_stop_all_threads();
-        }
-        else // status unchanged
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100l));
-            continue; // skip the rest
-        }
-
-        auto make_traffic = [&]
-        {
-            // /traffic puller
-            auto traffic_running = std::make_shared<std::atomic_bool>(true);
-            auto run_traffic = [this](const std::atomic_bool * _traffic_running)
+            ccdb::utils::set_thread_name("/traffic");
+            if (force_quit) return;
+            try
             {
-                ccdb::utils::set_thread_name("/traffic");
-                if (force_quit) return;
+                backend_client.get_stream_info("traffic",
+                    _traffic_running,
+                    this,
+                    &general_info_pulling::update_from_traffic);
+            }
+            catch (std::exception & e)
+            {
+                std::cerr << "Error when pulling traffic: " << e.what() << std::endl;
+                force_quit = true;
+            }
+        };
+        std::atomic_bool * ptr = traffic_running.get();
+        thread_pool.emplace_back(std::move(traffic_running), std::thread(run_traffic, ptr));
+    };
+
+    auto make_connections = [&]
+    {
+        // /connections puller
+        auto connection_running = std::make_shared<std::atomic_bool>(true);
+        auto run_connections = [this](const std::atomic_bool * _connection_running)
+        {
+            ccdb::utils::set_thread_name("/connections");
+            while (*_connection_running && !force_quit)
+            {
                 try
                 {
-                    backend_client.get_stream_info("traffic",
-                        _traffic_running,
+                    backend_client.get_info("connections",
                         this,
-                        &general_info_pulling::update_from_traffic);
+                        &general_info_pulling::update_from_connections);
+                    std::this_thread::sleep_for(std::chrono::seconds(1l));
                 }
                 catch (std::exception & e)
                 {
                     std::cerr << "Error when pulling traffic: " << e.what() << std::endl;
                     force_quit = true;
                 }
-            };
-            std::atomic_bool * ptr = traffic_running.get();
-            thread_pool.emplace_back(std::move(traffic_running), std::thread(run_traffic, ptr));
+            }
         };
+        std::atomic_bool * ptr = connection_running.get();
+        thread_pool.emplace_back(std::move(connection_running), std::thread(run_connections, ptr));
+    };
 
-        auto make_connections = [&]
+    auto make_logs = [&]
+    {
+        // /logs puller
+        // clear_and_stop_all_threads();
+        auto log_running = std::make_shared<std::atomic_bool>(true);
+        auto run_logs = [&](const std::atomic_bool * _log_running)
         {
-            // /connections puller
-            auto connection_running = std::make_shared<std::atomic_bool>(true);
-            auto run_connections = [this](const std::atomic_bool * _connection_running)
+            ccdb::utils::set_thread_name("/logs");
+            if (force_quit) return;
+            try
             {
-                ccdb::utils::set_thread_name("/connections");
-                while (*_connection_running && !force_quit)
-                {
-                    try
-                    {
-                        backend_client.get_info("connections",
-                            this,
-                            &general_info_pulling::update_from_connections);
-                        std::this_thread::sleep_for(std::chrono::seconds(1l));
-                    }
-                    catch (std::exception & e)
-                    {
-                        std::cerr << "Error when pulling traffic: " << e.what() << std::endl;
-                        force_quit = true;
-                    }
-                }
-            };
-            std::atomic_bool * ptr = connection_running.get();
-            thread_pool.emplace_back(std::move(connection_running), std::thread(run_connections, ptr));
+                backend_client.get_stream_info("logs",
+                    _log_running,
+                    this,
+                    &general_info_pulling::update_from_logs,
+                    true);
+            }
+            catch (std::exception & e)
+            {
+                std::cerr << "Error when pulling traffic: " << e.what() << std::endl;
+                force_quit = true;
+            }
         };
+        std::atomic_bool * ptr = log_running.get();
+        thread_pool.emplace_back(std::move(log_running), std::thread(run_logs, ptr));
+    };
 
-        if (local_copy == "overview")
-        {
-            // clear_and_stop_all_threads();
-            make_traffic();
-            make_connections();
-        }
-        else if (local_copy == "connections")
-        {
-            // clear_and_stop_all_threads();
-            make_connections();
-        }
-        else if (local_copy == "logs")
-        {
-            // /logs puller
-            // clear_and_stop_all_threads();
-            auto log_running = std::make_shared<std::atomic_bool>(true);
-            auto run_logs = [&](const std::atomic_bool * _log_running)
-            {
-                ccdb::utils::set_thread_name("/logs");
-                if (force_quit) return;
-                try
-                {
-                    backend_client.get_stream_info("logs",
-                        _log_running,
-                        this,
-                        &general_info_pulling::update_from_logs,
-                        true);
-                }
-                catch (std::exception & e)
-                {
-                    std::cerr << "Error when pulling traffic: " << e.what() << std::endl;
-                    force_quit = true;
-                }
-            };
-            std::atomic_bool * ptr = log_running.get();
-            thread_pool.emplace_back(std::move(log_running), std::thread(run_logs, ptr));
-        }
-        else
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100l));
-        }
+    make_traffic();
+    make_connections();
+    make_logs();
+
+    while (keep_pull_continuous_updates.load() && !force_quit) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100l));
     }
 
     clear_and_stop_all_threads();

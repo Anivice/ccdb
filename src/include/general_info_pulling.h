@@ -33,6 +33,20 @@ using json = nlohmann::json;
 
 class broken_connection_this_force_quit : public std::exception { };
 
+template < class T >
+class ccdb_atomic_t {
+private:
+    T val_;
+    std::mutex mtx_;
+
+public:
+    ccdb_atomic_t() = default;
+    explicit ccdb_atomic_t(const T & val) : val_(val) { }
+    [[nodiscard]] const T & get() { std::lock_guard lock(mtx_); return val_; }
+    void set(const T& val) { std::lock_guard lock(mtx_); val_ = val; }
+    ccdb_atomic_t & operator = (const T& val) { set(val); return *this; }
+};
+
 class general_info_pulling
 {
 private:
@@ -44,6 +58,7 @@ private:
 public:
     std::atomic < bool > parse_chains = true;
     std::atomic < bool > force_quit = false;
+    ccdb_atomic_t <std::string> mihomo_output_log_location;
 
     struct connection_t
     {
@@ -116,7 +131,7 @@ private:
     std::vector < std::pair < std::string, std::string > > logs;
     std::mutex logs_mutex;
     std::thread pull_continuous_updates_worker;
-
+    std::atomic_int log_warning_count = 0;
     std::mutex proxy_list_mtx;
     tsl::hopscotch_map < std::string /* group name */, std::pair < std::vector < std::string > /* proxies */, std::string /* current */ > > proxy_groups;
     std::map < std::string /* proxy name */, std::atomic_int /* latency in ms */ > proxy_latency;
