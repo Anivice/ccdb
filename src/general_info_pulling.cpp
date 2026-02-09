@@ -410,15 +410,8 @@ void general_info_pulling::stop_continuous_updates()
     }
 }
 
-void general_info_pulling::change_focus(const std::string & info)
-{
-    std::lock_guard lock(current_focus_mutex);
-    current_focus = info;
-}
-
 void general_info_pulling::start_continuous_updates()
 {
-    change_focus("overview");
     pull_continuous_updates_worker = std::thread([&]
     {
         try {
@@ -571,4 +564,17 @@ std::string general_info_pulling::get_current_mode()
     });
 
     return result;
+}
+
+bool general_info_pulling::modify_config_int(const std::string &entry, const uint64_t val)
+{
+    const std::string json = "{\"" + entry + "\": " + std::to_string(val) +  "}";
+    return modify_config(json);
+}
+
+std::string general_info_pulling::get_config()
+{
+    std::string ret;
+    backend_client.get_info_no_instance("configs", [&](const std::string & r){ ret = r; });
+    return ret;
 }

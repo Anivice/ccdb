@@ -181,7 +181,23 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
         }
 
         const auto ret = exec_command("/bin/sh", "jq --version >/dev/null 2>/dev/null\n");
-        jq_available = (ret.exit_status == 0);
+        if (!utils::getenv("JQ").empty()) {
+            jq = utils::getenv("JQ");
+        }
+        else if (ret.exit_status == 0) {
+            jq = "jq";
+        }
+
+        const auto pager = utils::getenv("PAGER");
+        if (is_less_available() || !pager.empty())
+        {
+            if (pager.empty()) {
+                less = color::is_no_color() ? "less" : R"(less -SR -S --rscroll='>')";
+            }
+            else {
+                less = pager;
+            }
+        }
 
         set_thread_name("readline");
         backend_instance.start_continuous_updates();
@@ -225,8 +241,10 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
                     get_vecGroupProxy();
                 } else if (command_vector[1] == "filter") {
                     get_filter();
-                }  else if (command_vector[1] == "subinfo") {
+                } else if (command_vector[1] == "subinfo") {
                     get_subinfo();
+                } else if (command_vector[1] == "config") {
+                    get_config();
                 } else {
                     std::cerr << "Unknown command `" << command_vector[1] << "`" << std::endl;
                 }
@@ -246,6 +264,12 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
                 else if (command_vector.size() == 3 && command_vector[1] == "chain_parser") { // set chain_parser on/off
                     set_chain_parser(command_vector);
                 }
+                else if (command_vector.size() == 3 && command_vector[1] == "allowlan") { // set allow-lan on/off
+                    set_allowlan(command_vector);
+                }
+                else if (command_vector.size() == 3 && command_vector[1] == "loglevel") { // set loglevel debug/info/warning/error
+                    set_log_level(command_vector);
+                }
                 else if (command_vector.size() == 3 && command_vector[1] == "sort_by") { // set sort_by [num]
                     set_sort_by(command_vector);
                 }
@@ -257,6 +281,21 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
                 }
                 else if (command_vector.size() == 4 && command_vector[1] == "filter") { // set filter [index] [pattern]
                     set_filter(command_vector);
+                }
+                else if (command_vector.size() == 3 && command_vector[1] == "port")  {
+                    set_port(std::strtol(command_vector[2].c_str(), nullptr, 10));
+                }
+                else if (command_vector.size() == 3 && command_vector[1] == "socksport")  {
+                    set_socksport(std::strtol(command_vector[2].c_str(), nullptr, 10));
+                }
+                else if (command_vector.size() == 3 && command_vector[1] == "redirport")  {
+                    set_redirport(std::strtol(command_vector[2].c_str(), nullptr, 10));
+                }
+                else if (command_vector.size() == 3 && command_vector[1] == "tproxyport")  {
+                    set_tproxyport(std::strtol(command_vector[2].c_str(), nullptr, 10));
+                }
+                else if (command_vector.size() == 3 && command_vector[1] == "mixedport")  {
+                    set_mixedport(std::strtol(command_vector[2].c_str(), nullptr, 10));
                 }
                 else {
                     if (command_vector.size() == 2) {

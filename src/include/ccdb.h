@@ -70,7 +70,8 @@ namespace ccdb
         const std::string latency_url; // latency URL
         std::unique_ptr<configuration> ccdb_config;
         std::string clash_sublink;
-        bool jq_available = false;
+        std::string jq;
+        std::string less;
         tsl::hopscotch_map < std::string, std::string > keyboard_shortcut_map;
         std::mutex keyboard_shortcut_map_mtx;
 
@@ -100,7 +101,7 @@ namespace ccdb
         /// @param use_pager pager availability flag. If override_less_check is true, then use_pager is dictated here
         /// otherwise, pager availability flag is set automatically.
         /// @returns NONE
-        static void pager(const std::string & str, bool override_less_check = false, bool use_pager = true);
+        void pager(const std::string & str, bool override_less_check = false, bool use_pager = true);
 
         /// print table
         /// @param table_keys Table titles
@@ -120,7 +121,7 @@ namespace ccdb
         /// @param color_code_overrides Override color code for a specific line
         /// @param highlight_screen_line Lines to be selected or highlighted
         /// @returns NONE
-        static void print_table(
+        void print_table(
             std::vector<std::string> const & table_keys,
             std::vector < std::vector<std::string> > const & table_values,
             bool muff_non_ascii = true,
@@ -169,6 +170,8 @@ namespace ccdb
         void set_group(const std::vector<std::string> & command_vector);
         void set_vgroup(const std::vector<std::string> & command_vector);
         void set_chain_parser(const std::vector<std::string> & command_vector);
+        void set_allowlan(const std::vector<std::string> & command_vector);
+        void set_log_level(const std::vector<std::string> & command_vector);
         void set_sort_by(const std::vector<std::string> & command_vector);
         void set_sort_reverse(const std::vector<std::string> & command_vector);
         void set_filter_reverse(const std::vector<std::string> & command_vector);
@@ -176,8 +179,14 @@ namespace ccdb
         void clear_filter();
         void get_filter();
         void get_subinfo();
-        static void help();
+        void get_config();
+        void help();
         static void reset_terminal_mode_forcefully();
+        void set_port(int port); // Mihomo http proxy port,
+        void set_socksport(int port); // Mihomo socks5 proxy port,
+        void set_redirport(int port); // Mihomo redirect port,
+        void set_tproxyport(int port); // Mihomo transparent proxy port,
+        void set_mixedport(int port); // Mihomo mixed proxy port,
 
         /// terminal mode guard. Create this instance to change and reset term mode automatically
         class mode_guard_t {

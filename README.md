@@ -91,6 +91,7 @@ get              : Pull information
  ├ vecGroupProxy : Vector proxy groups
  ├ filter        : Currently recorded filter
  ├ subinfo       : Subscription usage info
+ ├ config        : Get current backend config in JSON
 set              : Set parameters
  ├ mode          : Proxy mode
  │ ├ global      : Global mode
@@ -134,6 +135,20 @@ set              : Set parameters
  ├ filter_reverse: Reverse filter
  │ ├ on
  │ ├ off
+ ├ allowlan      : Allow LAN connections
+ │ ├ on
+ │ ├ off
+ ├ loglevel      : Mihomo backend log level
+ │ ├ silent
+ │ ├ debug
+ │ ├ info
+ │ ├ warning
+ │ ├ error
+ ├ port          : Mihomo http proxy port
+ ├ socksport     : Mihomo socks5 proxy port
+ ├ redirport     : Mihomo redirect port
+ ├ tproxyport    : Mihomo transparent proxy port
+ ├ mixedport     : Mihomo mixed proxy port
 close_connections: Close all connections
 clear_filter     : Clear get connection filtering patterns
 nload            : nload-like connection speed monitoring
@@ -142,14 +157,15 @@ Environment:
    PAGER:    Specify a pager. Pager availability check is ignored when this environmental variable is set
    NOPAGER:  Set this to 'y' and force ccdb to ignore pager
    COLOR:    Set it to `never` to disable color codes
+   JQ:       Set JSON parser, default is `jq`, if available
    TABSIZE:  Set tab size when printing tables, default is 4
    REVERSE_MOUSE: Reverse mouse scrolling direction when set to `true`
    NO_0xFE0F_EXPAND_EMOJI: Fix Unicode processing issues for emoji space expand code, e.g., "✈" and "✈️".
                            If you cannot notice any differences of the above emojis, or there's wierd Unicode processing bugs in your terminal,
                            you might want to set this to `true`
-    DISABLE_SERVER_CERTIFICATE_VERIFICATION: When using `get subinfo`, SSL is enforced by default when link is https.
-                                             Use this to skip server SSL certificate check.
-    SSL_CERTIFICATE: When clash subscription link is in https, specify an SSL certificate when pulling subscription usage.
+   DISABLE_SERVER_CERTIFICATE_VERIFICATION: When using `get subinfo`, SSL is enforced by default when link is https.
+                                            Use this to skip server SSL certificate check.
+   SSL_CERTIFICATE: When clash subscription link is in https, specify an SSL certificate when pulling subscription usage.
 Keyboard Shortcuts:
   `get connections`: Get connections has multiple keyboard shortcuts:
      Mouse Click/Ctrl+UP/DOWN: Move highlight

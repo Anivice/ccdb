@@ -115,7 +115,6 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 {
     std::atomic_int leading_spaces = 0;
     std::atomic_int max_leading_spaces = get_col_size() / 4;
-    backend_instance.change_focus("overview");
     std::atomic_int max_skip_lines = 0;
     std::atomic_int current_skip_lines = 0;
     std::thread input_getc_worker;
@@ -475,12 +474,11 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                         return false;
                     });
 
-                    if (jq_available) {
+                    if (!jq.empty()) {
                         exec_command("/bin/sh", matched_connection.metadata.raw_json,
-                            "-c", "jq --color-output | less -SR -S --rscroll='>'");
+                            "-c", jq + (color::is_no_color() ? "" : " --color-output") + " | " + less);
                     } else {
-                        exec_command("/bin/sh", matched_connection.metadata.raw_json,
-                            "-c", "less -SR -S --rscroll='>'");
+                        exec_command("/bin/sh", matched_connection.metadata.raw_json, "-c", less);
                     }
                 }
 
@@ -546,7 +544,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 { },
                 0,
                 nullptr,
-                is_less_available(),
+                !less.empty(),
                 ss.str());
             break;
         }
@@ -587,9 +585,9 @@ void ccdb::ccdb::get_latency()
     update_providers();
     print_table(titles_lat, table_vals, false,
         true, { }, 0, nullptr,
-        is_less_available(),
+        !less.empty(),
         "", 0, nullptr,
-        !is_less_available());
+        less.empty());
 }
 
 void ccdb::ccdb::get_log()
@@ -603,7 +601,6 @@ void ccdb::ccdb::get_log()
     std::atomic_int mouse_x, mouse_y;
     std::vector < bool > do_col_hide;
     do_col_hide.resize(log_titles.size(), false);
-    backend_instance.change_focus("logs");
     auto input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
         &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
         &mouse_x, &mouse_y, nullptr, nullptr, nullptr, nullptr, nullptr);
@@ -691,7 +688,6 @@ void ccdb::ccdb::get_log()
 
     running = false;
     if (input_getc_worker.joinable()) input_getc_worker.join();
-    backend_instance.change_focus("overview");
 }
 
 void ccdb::ccdb::get_proxy()
@@ -766,7 +762,7 @@ void ccdb::ccdb::get_proxy()
         { },
         0,
         nullptr,
-        is_less_available(),
+        !less.empty(),
         "",
         0,
         nullptr,
@@ -827,7 +823,7 @@ void ccdb::ccdb::get_vecGroupProxy(const bool show_vgroups)
             { },
             0,
             nullptr,
-            is_less_available(),
+            !less.empty(),
             "",
             0,
             nullptr,
@@ -932,4 +928,13 @@ void ccdb::ccdb::get_subinfo()
     watcher.watcher_clear_disable = true;
     get_info();
     watcher.watcher_clear_disable = false;
+}
+
+void ccdb::ccdb::get_config()
+{
+    if (!jq.empty()) {
+        exec_command("/bin/sh", backend_instance.get_config(), "-c", jq + (color::is_no_color() ? "" : " --color-output") + " | " + less);
+    } else {
+        std::cout << backend_instance.get_config() << std::endl;
+    }
 }

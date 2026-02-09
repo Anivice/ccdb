@@ -125,8 +125,6 @@ private:
     }
 
     mihomo backend_client;
-    std::string current_focus;
-    std::mutex current_focus_mutex;
     std::atomic_bool keep_pull_continuous_updates;
     std::vector < std::pair < std::string, std::string > > logs;
     std::mutex logs_mutex;
@@ -168,16 +166,18 @@ public:
     [[nodiscard]] proxy_info_summary_t get_proxies_and_latencies_as_pair();
 
     void stop_continuous_updates();
-    void change_focus(const std::string & info);
     void start_continuous_updates();
 
     void update_proxy_list();
     void latency_test(const std::string & url = "https://www.google.com/generate_204");
     bool change_proxy_using_backend(const std::string & group_name, const std::string & proxy_name);
-    void change_proxy_mode(const std::string & mode) { backend_client.change_proxy_mode(mode); }
-    void close_all_connections() { backend_client.close_all_connections(); }
+    bool change_proxy_mode(const std::string & mode) { return backend_client.change_proxy_mode(mode); }
+    bool close_all_connections() { return backend_client.close_all_connections(); }
     void close_connection(const std::string & id) { backend_client.close_connection(id); }
     std::string get_current_mode();
+    bool modify_config(const std::string & json) { return backend_client.change_config(json); }
+    bool modify_config_int(const std::string & entry, uint64_t val);
+    std::string get_config();
 };
 
 #endif //SRC_GENERAL_INFO_PULLING_H

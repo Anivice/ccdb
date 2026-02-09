@@ -81,7 +81,7 @@ void mihomo::get_info_no_instance(const std::string & endpoint_name, const std::
     method(buffer);
 }
 
-bool mihomo::change_proxy_mode(const std::string& mode)
+bool mihomo::change_config(const std::string& json)
 {
     httplib::Client http_cli(backend_address_, port_);
     http_cli.set_decompress(false);
@@ -89,13 +89,12 @@ bool mihomo::change_proxy_mode(const std::string& mode)
     const httplib::Headers headers = {
         {"Authorization", "Bearer " + token_},
     };
-    const std::string body = R"({"mode": ")" + mode +  "\"}";
 
     httplib::Result res;
     if (!token_.empty()) {
-        res = http_cli.Patch("/configs", headers, body, "application/json");
+        res = http_cli.Patch("/configs", headers, json, "application/json");
     } else {
-        res = http_cli.Patch("/configs", body, "application/json");
+        res = http_cli.Patch("/configs", json, "application/json");
     }
 
     if (!res) {

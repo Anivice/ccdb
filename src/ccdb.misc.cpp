@@ -440,18 +440,13 @@ void ccdb::ccdb::nload(
 void ccdb::ccdb::pager(const std::string &str, const bool override_less_check, bool use_pager)
 {
     if (!override_less_check) {
-        use_pager = is_less_available();
+        use_pager = !less.empty();
     }
 
     if (use_pager)
     {
-        auto pager = utils::getenv("PAGER");
-        if (pager.empty()) {
-            pager = R"(less -SR -S --rscroll='>')";
-        }
-
         if (const auto [fd_stdout, fd_stderr, exit_status]
-                    = exec_command("/bin/sh", str, "-c", pager);
+                    = exec_command("/bin/sh", str, "-c", less);
             exit_status != 0)
         {
             std::cerr << fd_stderr << std::endl;
@@ -830,7 +825,6 @@ bool ccdb::ccdb::is_connection_valid
 
 void ccdb::ccdb::nload()
 {
-    backend_instance.change_focus("overview");
     std::atomic<uint64_t> total_up = 0, total_down = 0, up_speed = 0, down_speed = 0;
     std::atomic_bool running = true;
     std::mutex lock;
@@ -953,6 +947,7 @@ void ccdb::ccdb::help()
         "   PAGER:    Specify a pager. Pager availability check is ignored when this environmental variable is set\n"
         "   NOPAGER:  Set this to 'y' and force ccdb to ignore pager\n"
         "   COLOR:    Set it to `never` to disable color codes\n"
+        "   JQ:       Set JSON parser, default is `jq`, if available\n"
         "   TABSIZE:  Set tab size when printing tables, default is 4\n"
         "   REVERSE_MOUSE: Reverse mouse scrolling direction when set to `true`\n"
         "   NO_0xFE0F_EXPAND_EMOJI: Fix Unicode processing issues for emoji space expand code, e.g., \""
@@ -960,9 +955,9 @@ void ccdb::ccdb::help()
     << std::string(27, ' ')
     << "If you cannot notice any differences of the above emojis, or there's wierd Unicode processing bugs in your terminal,\n"
     << std::string(27, ' ') << "you might want to set this to `true`\n"
-    << "    DISABLE_SERVER_CERTIFICATE_VERIFICATION: When using `get subinfo`, SSL is enforced by default when link is https.\n"
-       "                                             Use this to skip server SSL certificate check.\n"
-    << "    SSL_CERTIFICATE: When clash subscription link is in https, specify an SSL certificate when pulling subscription usage.\n"
+    <<  "   DISABLE_SERVER_CERTIFICATE_VERIFICATION: When using `get subinfo`, SSL is enforced by default when link is https.\n"
+        "                                            Use this to skip server SSL certificate check.\n"
+    <<  "   SSL_CERTIFICATE: When clash subscription link is in https, specify an SSL certificate when pulling subscription usage.\n"
     <<  "Keyboard Shortcuts:\n"
         "  `get connections`: Get connections has multiple keyboard shortcuts:\n"
         "     Mouse Click/Ctrl+UP/DOWN: Move highlight\n"

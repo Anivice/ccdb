@@ -76,6 +76,29 @@ void ccdb::ccdb::set_chain_parser(const std::vector<std::string> & command_vecto
     else std::cerr << "Unknown option for parser `" << command_vector[2] << "`" << std::endl;
 }
 
+void ccdb::ccdb::set_allowlan(const std::vector<std::string> &command_vector)
+{
+    bool result = true;
+    if (command_vector[2] == "on") {
+        result = backend_instance.modify_config(R"({ "allow-lan": true })");
+    }
+    else if (command_vector[2] == "off") {
+        result = backend_instance.modify_config(R"({ "allow-lan": false })");
+    }
+    else std::cerr << "Unknown option for parser `" << command_vector[2] << "`" << std::endl;
+
+    if (!result) {
+        std::cerr << "Failed to modify allow-lan" << std::endl;
+    }
+}
+
+void ccdb::ccdb::set_log_level(const std::vector<std::string> &command_vector)
+{
+    if (!backend_instance.modify_config(R"({ "log-level": ")" + command_vector[2] + R"(" })")) {
+        std::cerr << "Failed to modify log level" << std::endl;
+    }
+}
+
 void ccdb::ccdb::set_sort_by(const std::vector<std::string> &command_vector)
 {
     try {
@@ -149,3 +172,17 @@ void ccdb::ccdb::clear_filter()
 {
     filter_patterns.clear();
 }
+
+#define INSTANTIATE_SET_PORT(name, conf)                        \
+void ccdb::ccdb::set_##name(const int port)                     \
+{                                                               \
+    if (!backend_instance.modify_config_int(conf, port)) {      \
+        std::cerr << "Failed to apply config" << std::endl;     \
+    }                                                           \
+}
+
+INSTANTIATE_SET_PORT(port,          "port")
+INSTANTIATE_SET_PORT(socksport,     "socks-port")
+INSTANTIATE_SET_PORT(redirport,     "redir-port")
+INSTANTIATE_SET_PORT(tproxyport,    "tproxy-port")
+INSTANTIATE_SET_PORT(mixedport,     "mixed-port")

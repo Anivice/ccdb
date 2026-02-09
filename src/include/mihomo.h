@@ -48,7 +48,8 @@ public:
     bool change_proxy(const std::string & group_name, const std::string & proxy_name);
     void abort() { info_streaming_pulling_ = false; }
     void get_info_no_instance(const std::string & endpoint_name, const std::function < void(const std::string&) > & method);
-    bool change_proxy_mode(const std::string & mode);
+    bool change_config(const std::string& json);
+    bool change_proxy_mode(const std::string & mode) { return change_config( R"({"mode": ")" + mode +  "\"}"); }
     bool close_all_connections();
     bool close_connection(const std::string & id);
 
