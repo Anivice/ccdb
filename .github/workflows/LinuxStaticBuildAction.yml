@@ -35,7 +35,7 @@ jobs:
 
       - name: Configure and Build
         run: |
-          bash -c 'for arch in x86_64 i686 i586 aarch64 armv7 armv7hf; do ./src/configure.sh $arch build_$arch $PWD/toolchains; done' 2>log.err.txt >log.txt
+          bash -c 'for arch in x86_64 i686 i586 aarch64 armv7 armv7hf; do ./src/configure.sh $arch build_$arch $PWD/toolchains/toolchains; done' 2>log.err.txt >log.txt
           cat log.err.txt >> log.txt
 
       - name: Upload log artifact
