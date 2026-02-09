@@ -5,7 +5,8 @@ script_dir="$(dirname "$(readlink -f "$0")")"
 
 ARCH="$1"
 BUILD_DIR="$2"
-TARGET="$(basename "$script_dir/../toolchains"/"$ARCH"-*/bin/*-addr2line | awk -F'-' '{ for (i=1; i<NF; i++) printf "%s%s", $i, (i<NF-1?OFS:RS) }' | tr ' ' '-')"
+TOOLCHAIN_ROOT="$3"
+TARGET="$(basename "$TOOLCHAIN_ROOT"/"$ARCH"-*/bin/*-addr2line | awk -F'-' '{ for (i=1; i<NF; i++) printf "%s%s", $i, (i<NF-1?OFS:RS) }' | tr ' ' '-')"
 TARGET=$(echo $TARGET)
 if [ -z "$TARGET" ]; then echo "Unknown arch $ARCH" >&2; exit 1; fi
 OPENSSL_TARGET=""
@@ -55,7 +56,7 @@ export CXX="$TARGET"-g++
 export AR="$TARGET"-ar
 export RANLIB="$TARGET"-ranlib
 export STRIP="$TARGET"-strip
-MUSL_SYSROOT="$(echo "$script_dir/../toolchains/$ARCH-"*)"
+MUSL_SYSROOT="$(echo "$TOOLCHAIN_ROOT/$ARCH-"*)"
 export MUSL_SYSROOT="$MUSL_SYSROOT/"
 echo "$MUSL_SYSROOT"
 env PATH="$MUSL_SYSROOT"/bin/:"$PATH" cmake -B "$BUILD_DIR" -S "$script_dir" \

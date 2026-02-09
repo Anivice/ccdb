@@ -28,13 +28,14 @@ jobs:
             build-essential \
             software-properties-common \
             apt-transport-https \
-            cmake make musl qemu-user qemu-user-static binfmt-support xxd
+            cmake make musl qemu-user qemu-user-static binfmt-support xxd git
           sudo update-binfmts --enable qemu-arm
           sudo update-binfmts --enable qemu-aarch64
+          git clone https://github.com/Anivice/ccdb-toolchains toolchains
 
       - name: Configure and Build
         run: |
-          bash -c 'for arch in x86_64 i686 i586 aarch64 armv7 armv7hf; do ./src/configure.sh $arch build_$arch; done' 2>log.err.txt >log.txt
+          bash -c 'for arch in x86_64 i686 i586 aarch64 armv7 armv7hf; do ./src/configure.sh $arch build_$arch $PWD/toolchains; done' 2>log.err.txt >log.txt
           cat log.err.txt >> log.txt
 
       - name: Upload log artifact
