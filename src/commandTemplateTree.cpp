@@ -25,6 +25,7 @@
 #include <cstring>
 #include <algorithm>
 #include "command.readline.h"
+#include "print.h"
 
 namespace cmdTpTree
 {
@@ -226,7 +227,7 @@ namespace cmdTpTree
     std::string commandTemplateTree_t::get_help(const std::vector<std::string> &command_string) const
     {
         const auto * node = cmdTpTree::find(root, command_string);
-        return node->help_text_;
+        return ccdb::utils::sprint(node->help_text_);
     }
 
     static std::string generate_padding(uint32_t depth)
@@ -273,7 +274,7 @@ namespace cmdTpTree
             if (!help.empty())
             {
                 oss << std::string(max_command_length - ccdb::utils::UnicodeDisplayWidth::get_width_utf8(command), ' ');
-                oss << ": " << help;
+                oss << ": " << ccdb::utils::get_text(help);
             }
             oss << std::endl;
         }

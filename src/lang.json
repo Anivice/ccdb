@@ -368,5 +368,250 @@
     "en"    : "Invalid number `",
     "en_US" : "Invalid number `",
     "zh_CN" : "无效数字: `"
+  },
+  {
+    "en"    : "Show this help message",
+    "en_US" : "Show this help message",
+    "zh_CN" : "显示本条帮助信息"
+  },
+  {
+    "en"    : "Quit the program",
+    "en_US" : "Quit the program",
+    "zh_CN" : "退出本程序"
+  },
+  {
+    "en"    : "Pull information",
+    "en_US" : "Pull information",
+    "zh_CN" : "拉取信息"
+  },
+  {
+    "en"    : "Latency of endpoints",
+    "en_US" : "Latency of endpoints",
+    "zh_CN" : "节点延迟"
+  },
+  {
+    "en"    : "Proxy list",
+    "en_US" : "Proxy list",
+    "zh_CN" : "节点列表"
+  },
+  {
+    "en"    : "Active connections",
+    "en_US" : "Active connections",
+    "zh_CN" : "活跃的连接"
+  },
+  {
+    "en"    : "Hide the column",
+    "en_US" : "Hide the column",
+    "zh_CN" : "隐藏列表"
+  },
+  {
+    "en"    : "Use pager and pull the active connections once",
+    "en_US" : "Use pager and pull the active connections once",
+    "zh_CN" : "拉取目前的活跃连接并用分页器查看"
+  },
+  {
+    "en"    : "Proxy mode",
+    "en_US" : "Proxy mode",
+    "zh_CN" : "代理模式"
+  },
+  {
+    "en"    : "Active backend logs",
+    "en_US" : "Active backend logs",
+    "zh_CN" : "后端日志"
+  },
+  {
+    "en"    : "Vector proxy groups",
+    "en_US" : "Vector proxy groups",
+    "zh_CN" : "代理向量表"
+  },
+  {
+    "en"    : "Currently recorded filter",
+    "en_US" : "Currently recorded filter",
+    "zh_CN" : "目前的筛选器"
+  },
+  {
+    "en"    : "Subscription usage info",
+    "en_US" : "Subscription usage info",
+    "zh_CN" : "订阅使用量"
+  },
+  {
+    "en"    : "Get current backend config in JSON",
+    "en_US" : "Get current backend config in JSON",
+    "zh_CN" : "拉取目前的后端配置，以JSON输出"
+  },
+  {
+    "en"    : "Active backend logs",
+    "en_US" : "Active backend logs",
+    "zh_CN" : "后端日志"
+  },
+  {
+    "en"    : "Set parameters",
+    "en_US" : "Set parameters",
+    "zh_CN" : "设置参数"
+  },
+  {
+    "en"    : "Global mode",
+    "en_US" : "Global mode",
+    "zh_CN" : "全局模式"
+  },
+  {
+    "en"    : "Rule mode",
+    "en_US" : "Rule mode",
+    "zh_CN" : "规则模式"
+  },
+  {
+    "en"    : "Direct mode",
+    "en_US" : "Direct mode",
+    "zh_CN" : "直连模式"
+  },
+  {
+    "en"    : "Switch proxy group",
+    "en_US" : "Switch proxy group",
+    "zh_CN" : "切换代理节点"
+  },
+  {
+    "en"    : "Group name",
+    "en_US" : "Group name",
+    "zh_CN" : "代理类"
+  },
+  {
+    "en"    : "Proxy endpoint name",
+    "en_US" : "Proxy endpoint name",
+    "zh_CN" : "代理节点名称"
+  },
+  {
+    "en"    : "Switch proxy group by vector",
+    "en_US" : "Switch proxy group by vector",
+    "zh_CN" : "用向量表切换代理节点"
+  },
+  {
+    "en"    : "Group vector number",
+    "en_US" : "Group vector number",
+    "zh_CN" : "代理类的向量名称"
+  },
+  {
+    "en"    : "Proxy vector number",
+    "en_US" : "Proxy vector number",
+    "zh_CN" : "代理节点的向量名称"
+  },
+  {
+    "en"    : "Chain parser",
+    "en_US" : "Chain parser",
+    "zh_CN" : "代理链处理器"
+  },
+  {
+    "en"    : "Sort by column",
+    "en_US" : "Sort by column",
+    "zh_CN" : "按哪一列排序"
+  },
+  {
+    "en"    : "get connections/logs filter pattern",
+    "en_US" : "get connections/logs filter pattern",
+    "zh_CN" : "拉取活跃连接/日志使用的筛选器"
+  },
+  {
+    "en"    : "Log level",
+    "en_US" : "Log level",
+    "zh_CN" : "日志等级"
+  },
+  {
+    "en"    : "Log content",
+    "en_US" : "Log content",
+    "zh_CN" : "日志内容"
+  },
+  {
+    "en"    : "Reverse sorting",
+    "en_US" : "Reverse sorting",
+    "zh_CN" : "反向排序"
+  },
+  {
+    "en"    : "Reverse filter",
+    "en_US" : "Reverse filter",
+    "zh_CN" : "反向筛选"
+  },
+  {
+    "en"    : "Mihomo http proxy port",
+    "en_US" : "Mihomo http proxy port",
+    "zh_CN" : "Mihomo http 代理端口"
+  },
+  {
+    "en"    : "Mihomo socks5 proxy port",
+    "en_US" : "Mihomo socks5 proxy port",
+    "zh_CN" : "Mihomo socks5 代理端口"
+  },
+  {
+    "en"    : "Mihomo redirect port",
+    "en_US" : "Mihomo redirect port",
+    "zh_CN" : "Mihomo redirect 转发端口"
+  },
+  {
+    "en"    : "Mihomo transparent proxy port",
+    "en_US" : "Mihomo transparent proxy port",
+    "zh_CN" : "Mihomo 透明代理端口"
+  },
+  {
+    "en"    : "Mihomo mixed proxy port",
+    "en_US" : "Mihomo mixed proxy port",
+    "zh_CN" : "Mihomo 混合端口"
+  },
+  {
+    "en"    : "Allow LAN connections",
+    "en_US" : "Allow LAN connections",
+    "zh_CN" : "允许外部设备连接"
+  },
+  {
+    "en"    : "Mihomo backend log level",
+    "en_US" : "Mihomo backend log level",
+    "zh_CN" : "Mihomo 后端日志等级"
+  },
+  {
+    "en"    : "Close all connections",
+    "en_US" : "Close all connections",
+    "zh_CN" : "关闭所有连接"
+  },
+  {
+    "en"    : "Clear get connection/log filtering patterns",
+    "en_US" : "Clear get connection/log filtering patterns",
+    "zh_CN" : "清除 get connection/log 的筛选器"
+  },
+  {
+    "en"    : "nload-like connection speed monitoring",
+    "en_US" : "nload-like connection speed monitoring",
+    "zh_CN" : "类似于nload的流量监控"
+  },
+  {
+    "en"    : "Reset terminal mode",
+    "en_US" : "Reset terminal mode",
+    "zh_CN" : "重置终端模式"
+  },
+  {
+    "en"    : "Mihomo backend log level",
+    "en_US" : "Mihomo backend log level",
+    "zh_CN" : "Mihomo 后端日志等级"
+  },
+  {
+    "en"    : "Environment:\n   PAGER:    Specify a pager. Pager availability check is ignored when this environmental variable is set\n   NOPAGER:  Set this to 'y' and force ccdb to ignore pager\n   COLOR:    Set it to `never` to disable color codes\n   JQ:       Set JSON parser, default is `jq`, if available\n   TABSIZE:  Set tab size when printing tables, default is 4\n   REVERSE_MOUSE: Reverse mouse scrolling direction when set to `true`\n   NO_0xFE0F_EXPAND_EMOJI: Fix Unicode processing issues for emoji space expand code, e.g., \"",
+    "en_US" : "Environment:\n   PAGER:    Specify a pager. Pager availability check is ignored when this environmental variable is set\n   NOPAGER:  Set this to 'y' and force ccdb to ignore pager\n   COLOR:    Set it to `never` to disable color codes\n   JQ:       Set JSON parser, default is `jq`, if available\n   TABSIZE:  Set tab size when printing tables, default is 4\n   REVERSE_MOUSE: Reverse mouse scrolling direction when set to `true`\n   NO_0xFE0F_EXPAND_EMOJI: Fix Unicode processing issues for emoji space expand code, e.g., \"",
+    "zh_CN" : "环境变量:\n   PAGER:    指定分页器. 此环境变量被指定后，ccdb不再做分页器可用性检查\n   NOPAGER:  设置该环境变量为'y'会强制禁用分页器\n   COLOR:    设置为`never`来禁用色彩码\n   JQ:       设置JSON解释器，如果存在`jq`则默认为`jq`\n   TABSIZE:  设置制表符大小，默认为4个空格\n   REVERSE_MOUSE: 设置为`true`时鼠标滚动逆向\n   NO_0xFE0F_EXPAND_EMOJI: 修复Unicode 0xFE0F扩展。例如，\""
+  },
+  {
+    "en"    : "\" and \"",
+    "en_US" : "\" and \"",
+    "zh_CN" : "和"
+  },
+  {
+    "en"    : "If you cannot notice any differences of the above emojis, or there's wierd Unicode processing bugs in your terminal,\n",
+    "en_US" : "If you cannot notice any differences of the above emojis, or there's wierd Unicode processing bugs in your terminal,\n",
+    "zh_CN" : "如果你看不出区别，或者出现Unicode处理BUG,\n"
+  },
+  {
+    "en"    : "you might want to set this to `true`\n",
+    "en_US" : "you might want to set this to `true`\n",
+    "zh_CN" : "设置该环境变量为`true`可能可以修复该问题\n"
+  },
+  {
+    "en"    : "   DISABLE_SERVER_CERTIFICATE_VERIFICATION: When using `get subinfo`, SSL is enforced by default when link is https.\n                                            Use this to skip server SSL certificate check.\n   SSL_CERTIFICATE: When clash subscription link is in https, specify an SSL certificate when pulling subscription usage.\nKeyboard Shortcuts:\n  `get connections`: Get connections has multiple keyboard shortcuts:\n     Mouse Click/Ctrl+UP/DOWN: Move highlight\n                            K: Kill the highlighted connection\n                            P: Print raw JSON from Mihomo core. If `jq` can be found, JSON will be parsed by jq\n                       F1-F12: Specify which column (0-11) to sort the table, press on the same column again to reverse the sort\n                       Ctrl+C: Abort the watcher\n",
+    "en_US" : "   DISABLE_SERVER_CERTIFICATE_VERIFICATION: When using `get subinfo`, SSL is enforced by default when link is https.\n                                            Use this to skip server SSL certificate check.\n   SSL_CERTIFICATE: When clash subscription link is in https, specify an SSL certificate when pulling subscription usage.\nKeyboard Shortcuts:\n  `get connections`: Get connections has multiple keyboard shortcuts:\n     Mouse Click/Ctrl+UP/DOWN: Move highlight\n                            K: Kill the highlighted connection\n                            P: Print raw JSON from Mihomo core. If `jq` can be found, JSON will be parsed by jq\n                       F1-F12: Specify which column (0-11) to sort the table, press on the same column again to reverse the sort\n                       Ctrl+C: Abort the watcher\n",
+    "zh_CN" : "   DISABLE_SERVER_CERTIFICATE_VERIFICATION: 当使用 `get subinfo` 时, 如果订阅链接是https，拉取信息时会默认加载SSL，\n                                            设置该环境变量为`true`可以跳过SSL证书认证\n   SSL_CERTIFICATE: 当使用 `get subinfo` 时, 如果订阅链接是https, 使用该环境变量设置SSL证书位置\n键盘快捷键:\n  `get connections`: 拉取活跃连接有多个键盘快捷键:\n        鼠标单击/Ctrl+UP/DOWN: 移动高亮\n                            K: 关闭高亮的连接\n                            P: 输出Mihomo后端提供的该连接的JSON数据. 如果 `jq` 可用，JSON数据会被 `jq` 处理\n                       F1-F12: 设置排序，F1-F12对应列表0-11。同一列表按两次则会反向排序\n                       Ctrl+C: 关闭活跃连接监视器\n"
   }
 ]
