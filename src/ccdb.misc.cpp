@@ -22,6 +22,7 @@
 #include "ccdb.h"
 #include <chrono>
 #include <thread>
+#include "print.h"
 
 ccdb::sigint_watcher_ ccdb::watcher;
 std::atomic_bool ccdb::window_size_change = false;
@@ -232,11 +233,11 @@ void ccdb::ccdb::nload(
             return str + std::string(max_pre_slash_content_len - str.length(), ' ');
         };
 
-        info_list.push_back(std::string("    Cur (P): ") + utils::value_to_speed(*speed));
-        info_list.push_back(std::string("    Min (P): ") + min_speed_on_page_str);
-        info_list.push_back(std::string("  Max (P/O): ") + generate_padding(max_speed_on_page_str) + " / " + max_speed_overall_str);
-        info_list.push_back(std::string("  Avg (P/O): ") + generate_padding(avg_speed_on_page_str) + " / " + avg_speed_overall_str);
-        info_list.push_back(std::string("    Ttl (O): ") + utils::value_to_size(*total));
+        info_list.push_back(sprint("    Cur (P): ") + utils::value_to_speed(*speed));
+        info_list.push_back(sprint("    Min (P): ") + min_speed_on_page_str);
+        info_list.push_back(sprint("  Max (P/O): ") + generate_padding(max_speed_on_page_str) + " / " + max_speed_overall_str);
+        info_list.push_back(sprint("  Avg (P/O): ") + generate_padding(avg_speed_on_page_str) + " / " + avg_speed_overall_str);
+        info_list.push_back(sprint("    Ttl (O): ") + utils::value_to_size(*total));
 
         std::vector<uint64_t> size_list;
         for (const auto & str : info_list) {
@@ -245,7 +246,7 @@ void ccdb::ccdb::nload(
 
         info_space_size = std::max(static_cast<int>(max_in_vec(size_list)), info_space_size);
         if (col < info_space_size) {
-            std::cout << color::color(0,0,0,5,0,0) << "TOO SMALL" << std::endl;
+            std::cout << color::color(0,0,0,5,0,0) << sprint("TOO SMALL") << std::endl;
             return;
         }
 
@@ -343,11 +344,11 @@ void ccdb::ccdb::nload(
             });
 
             std::cout.write(utils::clear, sizeof(utils::clear)); // clear the screen
-            std::string title = "C++ Clash Dashboard:";
+            std::string title = sprint("C++ Clash Dashboard:");
             if (title.length() > col) title = title.substr(0, col);
             std::cout << title << std::endl;
             std::cout << color::color(5,3,3) << std::string(col, '=') << color::no_color() << std::endl;
-            std::cout << "Incoming:" << std::endl;
+            std::cout << sprint("Incoming:") << std::endl;
             {
                 std::cout << color::color(0,5,1);
                 const auto metric_list = generate_from_metric(down_list, window_space);
@@ -363,7 +364,7 @@ void ccdb::ccdb::nload(
                           window_space);
             }
             std::cout << color::no_color();
-            std::cout << "Outgoing:" << std::endl;
+            std::cout << sprint("Outgoing:") << std::endl;
             {
                 std::cout << color::color(5,1,0);
                 const auto height = window_space - (free_space == 0 ? 1 : 0);
@@ -409,17 +410,18 @@ void ccdb::ccdb::nload(
                 });
             }
 
-            if (const auto msg = "* P: On this page, O: Overall"; col >= static_cast<int>(strlen(msg)))
+            if (const auto msg = sprint("* P: On this page, O: Overall");
+                col >= UnicodeDisplayWidth::get_width_utf8(msg))
             {
                 std::cout << color::color(5,5,5, 0,0,5)
-                        << msg << std::string(col - strlen(msg), ' ')
+                        << msg << std::string(col - UnicodeDisplayWidth::get_width_utf8(msg), ' ')
                         << color::no_color() << std::flush;
             }
         }
         else
         {
             std::cout.write(utils::clear, sizeof(utils::clear));
-            std::cout << color::color(0,0,0,5,0,0) << "TOO SMALL" << color::no_color() << std::endl;
+            std::cout << color::color(0,0,0,5,0,0) << sprint("TOO SMALL") << color::no_color() << std::endl;
         }
 
         for (int i = 0; i < 10; i++)
@@ -449,8 +451,8 @@ void ccdb::ccdb::pager(const std::string &str, const bool override_less_check, b
                     = exec_command("/bin/sh", str, "-c", less);
             exit_status != 0)
         {
-            std::cerr << fd_stderr << std::endl;
-            std::cerr << "(less exited with code " << exit_status << ")" << std::endl;
+            print(fd_stderr, "\n");
+            print(less, " exited with code ", exit_status, "\n");
         }
     }
     else
@@ -468,7 +470,7 @@ void ccdb::ccdb::print_table(
     uint64_t leading_offset,
     std::atomic_int *max_tailing_size_ptr,
     bool using_pager,
-    const std::string &additional_info_before_table,
+    std::string additional_info_before_table,
     int skip_lines,
     std::atomic_int *max_skip_lines_ptr,
     const bool enforce_no_pager,
@@ -478,13 +480,8 @@ void ccdb::ccdb::print_table(
     const auto col = utils::get_col_size();
 
     if (utils::get_line_size() < 9) {
-        std::cout << color::color(0,0,0,5,0,0) << "Terminal Size Too Small" << color::no_color() << std::endl;
+        std::cout << color::color(0,0,0,5,0,0) << sprint("TOO SMALL") << color::no_color() << std::endl;
         return;
-    }
-
-    tsl::hopscotch_map < std::string /* table keys */, uint32_t /* longest value in this column */ > size_map;
-    for (const auto & key : table_keys) {
-        size_map[key] = key.length();
     }
 
     auto get_string_screen_length = [](const std::string & str)->int
@@ -496,6 +493,11 @@ void ccdb::ccdb::print_table(
     auto get_string_screen_length_u32 = [](const std::u32string & str)->int {
         return utils::UnicodeDisplayWidth::get_width_utf32(str);
     };
+
+    tsl::hopscotch_map < std::string /* table keys */, uint32_t /* longest value in this column */ > size_map;
+    for (const auto & key : table_keys) {
+        size_map[key] = get_string_screen_length(key);
+    }
 
     for (const auto & vals : table_values)
     {
@@ -545,16 +547,16 @@ void ccdb::ccdb::print_table(
     const std::string title_line = ss.str();
     const std::string header_line = header.str();
     std::string separation_line;
-    if (title_line.size() > 2)
+    if (get_string_screen_length(title_line) > 2)
     {
         std::stringstream ss_sep;
-        ss_sep << "+" << std::string(title_line.size() - 2, '-') << "+";
+        ss_sep << "+" << std::string(get_string_screen_length(title_line) - 2, '-') << "+";
         separation_line = ss_sep.str();
     }
 
-    auto max_tailing_size = separation_line.size() > col ? (separation_line.size() - col) : 0;
+    auto max_tailing_size = get_string_screen_length(separation_line) > col ? (get_string_screen_length(separation_line) - col) : 0;
     if (max_tailing_size_ptr) *max_tailing_size_ptr = static_cast<int>(max_tailing_size);
-    leading_offset = std::min(static_cast<decltype(separation_line.size())>(leading_offset), max_tailing_size);
+    leading_offset = std::min(static_cast<decltype(max_tailing_size)>(leading_offset), max_tailing_size);
     std::stringstream less_output_redirect;
     int printed_lines = 0;
 
@@ -576,14 +578,19 @@ void ccdb::ccdb::print_table(
         auto line = utils::utf8_to_u32(line_);
         if (max_tailing_size_ptr && !using_pager && !enforce_no_pager)
         {
+            // cut
             if (leading_offset != 0)
             {
                 const auto p_leading_offset = leading_offset + 1;
                 int leads = 0;
+                int len = 0;
                 while (!line.empty())
                 {
-                    leads += utils::UnicodeDisplayWidth::get_width_utf32({line.front()});
+                    len = utils::UnicodeDisplayWidth::get_width_utf32({line.front()});
+                    leads += len;
+
                     if (leads > p_leading_offset) {
+                        leads -= len;
                         break;
                     }
 
@@ -591,11 +598,14 @@ void ccdb::ccdb::print_table(
                 }
 
                 // add padding
-                if (leads < p_leading_offset) {
-                    line = utils::utf8_to_u32(std::string(p_leading_offset - leads, ' ')) + line;
+                if (leads < p_leading_offset) { // not enough leads
+                    line.erase(line.begin());
+                    line = utf8_to_u32(std::string(leads + len - p_leading_offset, ' ')) + line;
+                } else if (leads > p_leading_offset) { // more than enough
+                    line = utf8_to_u32(std::string(leads - p_leading_offset, ' ')) + line;
                 }
 
-                line = utils::utf8_to_u32("<") + line; // add color code here will mess up formation bc color codes occupies no spaces on screen
+                line = utf8_to_u32("<") + line; // add color code here will mess up formation bc color codes occupies no spaces on screen
             }
 
             if (const int total_size = get_string_screen_length_u32(line); total_size > col)
@@ -654,14 +664,14 @@ void ccdb::ccdb::print_table(
         }
     };
 
-    if (!additional_info_before_table.empty())
-    {
-        printed_lines++;
-        if (using_pager) {
-            less_output_redirect << additional_info_before_table << std::endl;
-        } else {
-            std::cout << additional_info_before_table << std::endl;
-        }
+    if (!additional_info_before_table.empty()) {
+        print_line(additional_info_before_table
+            + std::string(col -
+                std::min(UnicodeDisplayWidth::get_width_utf8(additional_info_before_table) - static_cast<int>(leading_offset),
+                0),
+            ' '),
+            color::color(5,5,5,0,0,0)
+        );
     }
 
     print_line(separation_line, color::color(5,5,5,0,0,0));
@@ -752,11 +762,11 @@ void ccdb::ccdb::print_table(
     } else {
         const auto col_sz = get_col_size();
         const auto line_sz = get_line_size();
-        if ((col_sz > 2) && (printed_lines <= (line_sz - 2) && separation_line.size() > 2))
+        if ((col_sz > 2) && (printed_lines <= (line_sz - 2) && get_string_screen_length(separation_line) > 2))
         {
             std::cout   << color::color(5,5,5,0,0,0)
                         << "+" << std::string(std::min(static_cast<long long>(col_sz - 2ul),
-                            static_cast<long long>(separation_line.size() - 2)), '-')
+                            static_cast<long long>(get_string_screen_length(separation_line) - 2)), '-')
                         << "+" << std::endl;
         }
 
@@ -988,13 +998,13 @@ void ccdb::ccdb::reset_terminal_mode_forcefully()
     if (read_proc_exe(ppid, exe, sizeof(exe)) == 0) {
         exe_path = exe;
     } else {
-        printf("Read parent exe failed: %s\n", strerror(errno));
+        print("Read parent exe failed: ", strerror(errno), "\n");
     }
 
     if (read_proc_exe(sid, exe, sizeof(exe)) == 0) {
         sid_path = exe;
     } else {
-        printf("Read session leader exe failed: %s\n", strerror(errno));
+        print("Read session leader exe failed: ", strerror(errno), "\n");
     }
 
     // system dependent reset terminal mode
@@ -1003,7 +1013,7 @@ void ccdb::ccdb::reset_terminal_mode_forcefully()
         if (std::system((exe_path + " -c 'reset'").c_str()) != 0)
         {
             if (std::system("/bin/sh -c 'reset'") != 0) {
-                std::cerr << "Failed to reset shell mode even after exausting all means." << std::endl;
+                print("Failed to reset shell mode even after exausting all means.\n");
             }
         }
     }

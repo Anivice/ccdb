@@ -20,6 +20,7 @@
 //
 
 #include "mihomo.h"
+#include "print.h"
 
 bool mihomo::change_proxy(const std::string & group_name, const std::string & proxy_name)
 {
@@ -40,7 +41,7 @@ bool mihomo::change_proxy(const std::string & group_name, const std::string & pr
     }
 
     if (!res) {
-        std::cerr << "Request failed: " << httplib::to_string(res.error()) << "\n";
+        ccdb::utils::print("Request failed: ", httplib::to_string(res.error()), "\n");
         return false;
     }
 
@@ -98,7 +99,7 @@ bool mihomo::change_config(const std::string& json)
     }
 
     if (!res) {
-        std::cerr << "Request failed: " << httplib::to_string(res.error()) << "\n";
+        ccdb::utils::print("Request failed: ", httplib::to_string(res.error()), "\n");
         return false;
     }
 
@@ -135,7 +136,7 @@ bool mihomo::close_connection(const std::string &id)
     }
 
     if (!res) {
-        std::cerr << "Request failed: " << httplib::to_string(res.error()) << "\n";
+        ccdb::utils::print("Request failed: ", httplib::to_string(res.error()), "\n");
         return false;
     }
 

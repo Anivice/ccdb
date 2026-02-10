@@ -1,0 +1,372 @@
+[
+  {
+    "en"    : " [BACKEND] [PORT] <TOKEN> <LATENCY URL>\n",
+    "en_US" : " [BACKEND] [PORT] <TOKEN> <LATENCY URL>\n",
+    "zh_CN" : " [后端地址] [端口] <密码> <延迟测试URL>\n"
+  },
+  {
+    "en"    : " [...] is required, <...> is optional.\n",
+    "en_US" : " [...] is required, <...> is optional.\n",
+    "zh_CN" : " [...] 内的参数必填, <...> 内的参数可选.\n"
+  },
+  {
+    "en"    : "C++ Clash Dashboard Version ",
+    "en_US" : "C++ Clash Dashboard Version ",
+    "zh_CN" : "C++ Clash监控板，版本 "
+  },
+  {
+    "en"    : "Connecting to",
+    "en_US" : "Connecting to",
+    "zh_CN" : "连接到"
+  },
+  {
+    "en"    : "Request failed: ",
+    "en_US" : "Request failed: ",
+    "zh_CN" : "请求失败："
+  },
+  {
+    "en"    : "Failed to pull: ",
+    "en_US" : "Failed to pull: ",
+    "zh_CN" : "拉取失败："
+  },
+  {
+    "en"    : "Failed to parse info",
+    "en_US" : "Failed to parse info",
+    "zh_CN" : "无法解析信息"
+  },
+  {
+    "en"    : "Set NO_0xFE0F_EXPAND_EMOJI to true since ",
+    "en_US" : "Set NO_0xFE0F_EXPAND_EMOJI to true since ",
+    "zh_CN" : "NO_0xFE0F_EXPAND_EMOJI被设置为true，因为"
+  },
+  {
+    "en"    : " doesn't support Unicode expansion.\n",
+    "en_US" : " doesn't support Unicode expansion.\n",
+    "zh_CN" : "不支持Unicode扩展。\n"
+  },
+  {
+    "en"    : "Connection broken, force quit\n",
+    "en_US" : "Connection broken, force quit\n",
+    "zh_CN" : "连接断开，ccdb强制退出\n"
+  },
+  {
+    "en"    : "Unknown exception\n",
+    "en_US" : "Unknown exception\n",
+    "zh_CN" : "未知错误\n"
+  },
+  {
+    "en"    : "Unknown directive",
+    "en_US" : "Unknown directive",
+    "zh_CN" : "未知转义符"
+  },
+  {
+    "en"    : "Malformed command\n",
+    "en_US" : "Malformed command\n",
+    "zh_CN" : "错误的命令或格式\n"
+  },
+  {
+    "en"    : "Unknown command `",
+    "en_US" : "Unknown command `",
+    "zh_CN" : "未知命令 `"
+  },
+  {
+    "en"    : "` or invalid syntax\n",
+    "en_US" : "` or invalid syntax\n",
+    "zh_CN" : "` 或者错误的命令或格式\n"
+  },
+  {
+    "en"    : "Testing latency with the url ",
+    "en_US" : "Testing latency with the url ",
+    "zh_CN" : "使用此URL进行延迟测试："
+  },
+  {
+    "en"    : "No subscription link defined in the configuration file.\n",
+    "en_US" : "No subscription link defined in the configuration file.\n",
+    "zh_CN" : "配置文件中未定义订阅链接。\n"
+  },
+  {
+    "en"    : "Define the link as follows:\n\n",
+    "en_US" : "Define the link as follows:\n\n",
+    "zh_CN" : "按如下语法在~/.ccdbrc中定义订阅链接:\n\n"
+  },
+  {
+    "en"    : "In the configuration file ~/.ccdbrc\n",
+    "en_US" : "In the configuration file ~/.ccdbrc\n",
+    "zh_CN" : ""
+  },
+  {
+    "en"    : "Entry",
+    "en_US" : "Entry",
+    "zh_CN" : "条目"
+  },
+  {
+    "en"    : "Value",
+    "en_US" : "Value",
+    "zh_CN" : "值"
+  },
+  {
+    "en"    : "Total uploaded:    ",
+    "en_US" : "Total uploaded:    ",
+    "zh_CN" : "总上传量：    "
+  },
+  {
+    "en"    : "Total downloaded:  ",
+    "en_US" : "Total downloaded:  ",
+    "zh_CN" : "总下载量：    "
+  },
+  {
+    "en"    : "Total used data:   ",
+    "en_US" : "Total used data:   ",
+    "zh_CN" : "总使用量：    "
+  },
+  {
+    "en"    : "Quota:             ",
+    "en_US" : "Quota:             ",
+    "zh_CN" : "配额：       "
+  },
+  {
+    "en"    : "Expire on:         ",
+    "en_US" : "Expire on:         ",
+    "zh_CN" : "订阅过期日期："
+  },
+  {
+    "en"    : "Group",
+    "en_US" : "Group",
+    "zh_CN" : "代理类"
+  },
+  {
+    "en"    : "Sel",
+    "en_US" : "Sel",
+    "zh_CN" : "选中"
+  },
+  {
+    "en"    : "Proxy Candidates",
+    "en_US" : "Proxy Candidates",
+    "zh_CN" : "可选代理节点"
+  },
+  {
+    "en"    : "Level",
+    "en_US" : "Level",
+    "zh_CN" : "等级"
+  },
+  {
+    "en"    : "Log",
+    "en_US" : "Log",
+    "zh_CN" : "日志"
+  },
+  {
+    "en"    : "Latency",
+    "en_US" : "Latency",
+    "zh_CN" : "延迟"
+  },
+  {
+    "en"    : "Proxy",
+    "en_US" : "Proxy",
+    "zh_CN" : "节点"
+  },
+  {
+    "en"    : "Closing ",
+    "en_US" : "Closing ",
+    "zh_CN" : "关闭连接"
+  },
+  {
+    "en"    : "Focused connection not present, deleted.",
+    "en_US" : "Focused connection not present, deleted.",
+    "zh_CN" : "当前高亮的连接已经被关闭，取消高亮。"
+  },
+  {
+    "en"    : "Total uploads: ",
+    "en_US" : "Total uploads: ",
+    "zh_CN" : "总上传量："
+  },
+  {
+    "en"    : "Upload speed: ",
+    "en_US" : "Upload speed: ",
+    "zh_CN" : "上传速度："
+  },
+  {
+    "en"    : "Total downloads: ",
+    "en_US" : "Total downloads: ",
+    "zh_CN" : "下载速度："
+  },
+  {
+    "en"    : "Download speed: ",
+    "en_US" : "Download speed: ",
+    "zh_CN" : "下载速度："
+  },
+  {
+    "en"    : "    Cur (P): ",
+    "en_US" : "    Cur (P): ",
+    "zh_CN" : "    当前速度:   "
+  },
+  {
+    "en"    : "    Min (P): ",
+    "en_US" : "    Min (P): ",
+    "zh_CN" : "当前页面最低速度："
+  },
+  {
+    "en"    : "  Max (P/O): ",
+    "en_US" : "  Max (P/O): ",
+    "zh_CN" : "最高速度 (P/O): "
+  },
+  {
+    "en"    : "  Avg (P/O): ",
+    "en_US" : "  Avg (P/O): ",
+    "zh_CN" : "平均速度 (P/O): "
+  },
+  {
+    "en"    : "    Ttl (O): ",
+    "en_US" : "    Ttl (O): ",
+    "zh_CN" : "监测到的流量总量："
+  },
+  {
+    "en"    : "C++ Clash Dashboard:",
+    "en_US" : "C++ Clash Dashboard:",
+    "zh_CN" : "C++ clash监控板:"
+  },
+  {
+    "en"    : "Incoming:",
+    "en_US" : "Incoming:",
+    "zh_CN" : "下载："
+  },
+  {
+    "en"    : "Outgoing:",
+    "en_US" : "Outgoing:",
+    "zh_CN" : "上传："
+  },
+  {
+    "en"    : "* P: On this page, O: Overall",
+    "en_US" : "* P: On this page, O: Overall",
+    "zh_CN" : "* P：当前页面，O：监测到的总量"
+  },
+  {
+    "en"    : " exited with code ",
+    "en_US" : " exited with code ",
+    "zh_CN" : "意外结束，退出码："
+  },
+  {
+    "en"    : "TOO SMALL",
+    "en_US" : "TOO SMALL",
+    "zh_CN" : "终端太小"
+  },
+  {
+    "en"    : "Read parent exe failed: ",
+    "en_US" : "Read parent exe failed: ",
+    "zh_CN" : "无法读取父进程信息"
+  },
+  {
+    "en"    : "Read session leader exe failed: ",
+    "en_US" : "Read session leader exe failed: ",
+    "zh_CN" : "无法读取会话信息"
+  },
+  {
+    "en"    : "Failed to reset shell mode even after exausting all means.\n",
+    "en_US" : "Failed to reset shell mode even after exausting all means.\n",
+    "zh_CN" : "无法通过任何手段重置终端。\n"
+  },
+  {
+    "en"    : "Host",
+    "en_US" : "Host",
+    "zh_CN" : "代理目标"
+  },
+  {
+    "en"    : "Process",
+    "en_US" : "Process",
+    "zh_CN" : "代理进程"
+  },
+  {
+    "en"    : "DL",
+    "en_US" : "DL",
+    "zh_CN" : "下载数据"
+  },
+  {
+    "en"    : "UP",
+    "en_US" : "UP",
+    "zh_CN" : "上传数据"
+  },
+  {
+    "en"    : "DL Speed",
+    "en_US" : "DL Speed",
+    "zh_CN" : "下载速度"
+  },
+  {
+    "en"    : "UP Speed",
+    "en_US" : "UP Speed",
+    "zh_CN" : "上传速度"
+  },
+  {
+    "en"    : "Rules",
+    "en_US" : "Rules",
+    "zh_CN" : "代理规则"
+  },
+  {
+    "en"    : "Time",
+    "en_US" : "Time",
+    "zh_CN" : "连接时间"
+  },
+  {
+    "en"    : "Source IP",
+    "en_US" : "Source IP",
+    "zh_CN" : "源IP地址"
+  },
+  {
+    "en"    : "Destination IP",
+    "en_US" : "Destination IP",
+    "zh_CN" : "目标IP地址"
+  },
+  {
+    "en"    : "Type",
+    "en_US" : "Type",
+    "zh_CN" : "连接类型"
+  },
+  {
+    "en"    : "Chains",
+    "en_US" : "Chains",
+    "zh_CN" : "代理链"
+  },
+  {
+    "en"    : "Unknown mode ",
+    "en_US" : "Unknown mode ",
+    "zh_CN" : "未知模式"
+  },
+  {
+    "en"    : "Changing `",
+    "en_US" : "Changing `",
+    "zh_CN" : "代理类 `"
+  },
+  {
+    "en"    : "` proxy endpoint to `",
+    "en_US" : "` proxy endpoint to `",
+    "zh_CN" : "` 的节点将被改为 `"
+  },
+  {
+    "en"    : "Failed to change proxy endpoint to `",
+    "en_US" : "Failed to change proxy endpoint to `",
+    "zh_CN" : "无法把节点改为 `"
+  },
+  {
+    "en"    : "Run `get vecGroupProxy` first!\n",
+    "en_US" : "Run `get vecGroupProxy` first!\n",
+    "zh_CN" : "请先运行`get vecGroupProxy`!\n"
+  },
+  {
+    "en"    : "Cannot parse vector or vector doesn't exist\n",
+    "en_US" : "Cannot parse vector or vector doesn't exist\n",
+    "zh_CN" : "无法解析向量表或指定的代理不存在\n"
+  },
+  {
+    "en"    : "Invalid option for parser `",
+    "en_US" : "Invalid option for parser `",
+    "zh_CN" : "给出的这个标志无效: `"
+  },
+  {
+    "en"    : "Failed to modify config\n",
+    "en_US" : "Failed to modify config\n",
+    "zh_CN" : "无法修改后端配置\n"
+  },
+  {
+    "en"    : "Invalid number `",
+    "en_US" : "Invalid number `",
+    "zh_CN" : "无效数字: `"
+  }
+]

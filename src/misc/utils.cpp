@@ -31,6 +31,8 @@
 #include <regex>
 #define USE_TSL_HOPSCOTCH_MAP
 #include "lzw6.h"
+#include "json.hpp"
+#include "lang.json.h"
 
 std::vector<uint8_t> ccdb::utils::compress(const std::vector<uint8_t>& data)
 {
@@ -47,6 +49,49 @@ std::vector<uint8_t> ccdb::utils::decompress(const std::vector<uint8_t>& data)
     lzw::lzw<12> LZW(data, out);
     LZW.decompress();
     return out;
+}
+
+static tsl::hopscotch_map < std::string /* en text */, tsl::hopscotch_map < std::string /* lang */, std::string /* correct translation */ > > text_translator;
+static std::mutex text_translator_mtx;
+
+std::string ccdb::utils::get_text(const std::string &text)
+{
+    using json = nlohmann::json;
+
+    std::lock_guard lock(text_translator_mtx);
+    if (text_translator.empty())
+    {
+        std::string text_json_local;
+        const auto data = decompress({lang_json, lang_json + lang_json_len});
+        text_json_local.resize(data.size());
+        std::memcpy(text_json_local.data(), data.data(), text_json_local.size());
+        const auto text_data = json::parse(text_json_local);
+        for (const auto & msg : text_data) {
+            std::string text_en = msg["en"];
+            std::ranges::transform(text_en, text_en.begin(), ::toupper);
+            for (const auto & [type, lang_msg] : msg.items()) {
+                text_translator[text_en].emplace(type, lang_msg);
+            }
+        }
+    }
+
+    auto lang = getenv("LANG");
+    auto cut = [&](const char c) {
+        if (lang.find(c) != lang.npos) {
+            lang = lang.substr(0, lang.find_first_of(c));
+        }
+    };
+
+    cut('.');
+
+    std::string text_en = text;
+    std::ranges::transform(text_en, text_en.begin(), ::toupper);
+
+    if (text_translator.contains(text_en) && text_translator.at(text_en).contains(lang)) {
+        return text_translator.at(text_en).at(lang);
+    }
+
+    return text;
 }
 
 std::string ccdb::utils::getenv(const std::string& name) noexcept

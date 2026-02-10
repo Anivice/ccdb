@@ -227,6 +227,10 @@ Use the command
 
 to build locally.
 
+#### CMake Settings
+  * OPENSSL_TARGET: Supported openssl target, if you are cross-compiling you need to specify a platform.
+  * OPENSSL_LIBP: Depending on the target, openssl can have its lib in `.../lib` or `.../lib64`, you can tell CMake this info by setting it to `lib` or `lib64`.
+
 ## WARNING
 
 **This is free software; 

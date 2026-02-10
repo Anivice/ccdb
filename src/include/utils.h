@@ -139,6 +139,7 @@ namespace ccdb::utils {
 
     std::vector<uint8_t> compress(const std::vector<uint8_t>& data);
     std::vector<uint8_t> decompress(const std::vector<uint8_t>& data);
+    std::string get_text(const std::string & text); // auto translator
 }
 
 #endif //CFS_UTILS_H

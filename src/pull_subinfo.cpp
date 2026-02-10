@@ -2,6 +2,7 @@
 #include <filesystem>
 #include "httplib.h"
 #include <regex>
+#include "print.h"
 #include "utils.h"
 
 static bool parse_url(const std::string& url, std::string& scheme, std::string& host, std::string& path)
@@ -72,11 +73,11 @@ ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url)
     const httplib::Headers hdrs = {{"User-Agent", "clash-verge/2.1.0"}}; // dummy header
     auto res = cli.Head(path, hdrs);
     if (!res) {
-        throw std::runtime_error(httplib::to_string(res.error()));
+        throw std::runtime_error(utils::sprint("Failed to pull: ", httplib::to_string(res.error())));
     }
 
     if (res->status != 200) {
-        throw std::runtime_error("Failed to pull: " + std::to_string(res->status));
+        throw std::runtime_error(utils::sprint("Failed to pull: ", std::to_string(res->status)));
     }
 
     // Get Subscription‑Userinfo
@@ -96,5 +97,5 @@ ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url)
         };
     }
 
-    throw std::runtime_error("Failed to parse info");
+    throw std::runtime_error(utils::sprint("Failed to parse info"));
 }

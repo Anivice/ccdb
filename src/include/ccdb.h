@@ -46,18 +46,18 @@ namespace ccdb
 
         // get connections table: titles
         const std::vector<std::string> get_conn_titles = {
-            "Host",         // 0
-            "Process",      // 1
-            "DL",           // 2
-            "UP",           // 3
-            "DL Speed",     // 4
-            "UP Speed",     // 5
-            "Rules",        // 6
-            "Time",         // 7
-            "Source IP",    // 8
-            "Destination IP",   // 9
-            "Type",         // 10
-            "Chains",       // 11
+            utils::get_text("Host"),         // 0
+            utils::get_text("Process"),      // 1
+            utils::get_text("DL"),           // 2
+            utils::get_text("UP"),           // 3
+            utils::get_text("DL Speed"),     // 4
+            utils::get_text("UP Speed"),     // 5
+            utils::get_text("Rules"),        // 6
+            utils::get_text("Time"),         // 7
+            utils::get_text("Source IP"),    // 8
+            utils::get_text("Destination IP"),   // 9
+            utils::get_text("Type"),         // 10
+            utils::get_text("Chains"),       // 11
         };
 
         bool reverse_filter_list = false; // reverse white list
@@ -130,7 +130,7 @@ namespace ccdb
             uint64_t leading_offset = 0,
             std::atomic_int * max_tailing_size_ptr = nullptr,
             bool using_pager = false,
-            const std::string & additional_info_before_table = "",
+            std::string additional_info_before_table = "",
             int skip_lines = 0,
             std::atomic_int * max_skip_lines_ptr = nullptr,
             bool enforce_no_pager = false, // disable line shrinking, used when NOPAGER=y or pager is not available

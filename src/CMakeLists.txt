@@ -185,6 +185,7 @@ function(generate_from_resource_file RES OUT_CPP OUT_H XXD_NAME)
 endfunction()
 
 generate_from_resource_file(command.readline command.readline.cpp command.readline.h command_readline)
+generate_from_resource_file(lang.json lang.json.cpp lang.json.h lang_json)
 
 # CCDB
 add_executable(ccdb
@@ -196,14 +197,15 @@ add_executable(ccdb
         misc/color.cpp              include/colors.h
         misc/utils.cpp              include/utils.h
         misc/execute.cpp
-        ccdb.cpp ccdb.misc.cpp ccdb.get.cpp ccdb.set.cpp include/ccdb.h
+        ccdb.cpp ccdb.misc.cpp ccdb.get.cpp ccdb.get_connections.cpp ccdb.set.cpp include/ccdb.h
         term_name.cpp               include/term_name.h
         config.cpp                  include/config.h
         pull_subinfo.cpp            include/pull_subinfo.h
+        include/print.h
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
 target_compile_definitions(ccdb PRIVATE CCDB_VERSION="0.8.6" CPPHTTPLIB_OPENSSL_SUPPORT)
-target_link_libraries(ccdb PRIVATE resource_command.readline openssl::openssl)
+target_link_libraries(ccdb PRIVATE resource_lang.json resource_command.readline openssl::openssl)
 add_dependencies(ccdb OPENSSL)
 
 find_program(GIT_EXEC NAMES git REQUIRED)

@@ -27,6 +27,7 @@
 #include <utility>
 #include <fstream>
 #include "config.h"
+#include "print.h"
 #include "term_name.h"
 
 // --------------------------------------------- CCDB --------------------------------------------- //
@@ -41,7 +42,7 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
     : backend_instance(backend, port, token), latency_url(std::move(latency_url_))
 {
     try {
-        std::setlocale(LC_ALL, "en_US.UTF-8");
+        // std::setlocale(LC_ALL, "en_US.UTF-8");
         std::signal(SIGINT, sigint_handler);
         std::signal(SIGPIPE, SIG_IGN);
         std::signal(SIGWINCH, window_size_change_handler);
@@ -173,7 +174,7 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
             || terminal_name == "VTE-based terminal"
             || terminal_name == "wezterm")
         {
-            std::cout << "Set NO_0xFE0F_EXPAND_EMOJI to true since " << terminal_name << " doesn't support emoji expansion." << std::endl;
+            print("Set NO_0xFE0F_EXPAND_EMOJI to true since ", terminal_name, " doesn't support Unicode expansion.\n");
             setenv("NO_0xFE0F_EXPAND_EMOJI", "true");
         }
         else if (terminal_name == "konsole" || terminal_name == "kitty") {
@@ -246,7 +247,7 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
                 } else if (command_vector[1] == "config") {
                     get_config();
                 } else {
-                    std::cerr << "Unknown command `" << command_vector[1] << "`" << std::endl;
+                    print("Unknown command `", command_vector[1], "`\n");
                 }
             }
             else if (command_vector.front() == "set")
@@ -283,25 +284,25 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
                     set_filter(command_vector);
                 }
                 else if (command_vector.size() == 3 && command_vector[1] == "port")  {
-                    set_port(std::strtol(command_vector[2].c_str(), nullptr, 10));
+                    set_port(static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10)));
                 }
                 else if (command_vector.size() == 3 && command_vector[1] == "socksport")  {
-                    set_socksport(std::strtol(command_vector[2].c_str(), nullptr, 10));
+                    set_socksport(static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10)));
                 }
                 else if (command_vector.size() == 3 && command_vector[1] == "redirport")  {
-                    set_redirport(std::strtol(command_vector[2].c_str(), nullptr, 10));
+                    set_redirport(static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10)));
                 }
                 else if (command_vector.size() == 3 && command_vector[1] == "tproxyport")  {
-                    set_tproxyport(std::strtol(command_vector[2].c_str(), nullptr, 10));
+                    set_tproxyport(static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10)));
                 }
                 else if (command_vector.size() == 3 && command_vector[1] == "mixedport")  {
-                    set_mixedport(std::strtol(command_vector[2].c_str(), nullptr, 10));
+                    set_mixedport(static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10)));
                 }
                 else {
                     if (command_vector.size() == 2) {
-                        std::cerr << "Unknown command `" << command_vector[1] << "` or invalid syntax" << std::endl;
+                        print("Unknown command `", command_vector[1], "` or invalid syntax\n");
                     } else {
-                        std::cerr << "Empty command vector" << std::endl;
+                        print("Malformed command\n");
                     }
                 }
             }
@@ -312,7 +313,7 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
                 clear_filter();
             }
             else {
-                std::cerr << "Unknown command `" << command_vector.front() << "` or invalid syntax" << std::endl;
+                print("Unknown command `", command_vector.front(), "` or invalid syntax\n");
             }
 
             if (backend_instance.force_quit) {
@@ -348,14 +349,14 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
                 return { };
             }
 
-            std::cerr << "Unknown directive `" << special_filler << "`" << std::endl;
+            print("Unknown directive", " `", special_filler, "`\n");
             return {};
         }, "ccdb> ");
 
         backend_instance.stop_continuous_updates();
 
         if (backend_instance.force_quit) {
-            std::cout << "Connection broken, force quit" << std::endl;
+            print("Connection broken, force quit\n");
         }
     }
     catch (std::exception & e)
@@ -364,6 +365,6 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
     }
     catch (...)
     {
-        std::cerr << "Unknown exception" << std::endl;
+        print("Unknown exception\n");
     }
 }
