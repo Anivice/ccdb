@@ -51,7 +51,8 @@ std::vector<uint8_t> ccdb::utils::decompress(const std::vector<uint8_t>& data)
     return out;
 }
 
-static tsl::hopscotch_map < std::string /* en text */, tsl::hopscotch_map < std::string /* lang */, std::string /* correct translation */ > > text_translator;
+using translator_t = std::map < std::string /* en text */, std::map < std::string /* lang */, std::string /* correct translation */ > >;
+static std::unique_ptr < translator_t > text_translator;
 static std::mutex text_translator_mtx;
 
 std::string ccdb::utils::get_text(const std::string &text)
@@ -59,7 +60,11 @@ std::string ccdb::utils::get_text(const std::string &text)
     using json = nlohmann::json;
 
     std::lock_guard lock(text_translator_mtx);
-    if (text_translator.empty())
+    if (text_translator == nullptr) {
+        text_translator = std::make_unique < translator_t >();
+    }
+
+    if (text_translator->empty())
     {
         std::string text_json_local;
         const auto data = decompress({lang_json, lang_json + lang_json_len});
@@ -70,7 +75,10 @@ std::string ccdb::utils::get_text(const std::string &text)
             std::string text_en = msg["en"];
             std::ranges::transform(text_en, text_en.begin(), ::toupper);
             for (const auto & [type, lang_msg] : msg.items()) {
-                text_translator[text_en].emplace(type, lang_msg);
+                const std::string type_str = type;
+                const std::string lang_msg_str = lang_msg;
+                if (!text_translator->contains(text_en)) text_translator->emplace(text_en, std::map < std::string , std::string >{});
+                text_translator->at(text_en).emplace(type_str, lang_msg_str);
             }
         }
     }
@@ -86,12 +94,52 @@ std::string ccdb::utils::get_text(const std::string &text)
 
     std::string text_en = text;
     std::ranges::transform(text_en, text_en.begin(), ::toupper);
-
-    if (text_translator.contains(text_en) && text_translator.at(text_en).contains(lang)) {
-        return text_translator.at(text_en).at(lang);
+    if (text_translator->contains(text_en) && text_translator->at(text_en).contains(lang)) {
+        return text_translator->at(text_en).at(lang);
     }
 
     return text;
+}
+
+ccdb::utils::CRC64::CRC64()
+{
+    init_crc64();
+}
+
+void ccdb::utils::CRC64::update(const uint8_t *data, const size_t length)
+{
+    for (size_t i = 0; i < length; ++i) {
+        crc64_value = table[(crc64_value ^ data[i]) & 0xFF] ^ (crc64_value >> 8);
+    }
+}
+
+uint64_t ccdb::utils::CRC64::get_checksum() const
+{
+    // add the final complement that ECMA‑182 requires
+    return (reverse_bytes(crc64_value ^ 0xFFFFFFFFFFFFFFFFULL));
+}
+
+void ccdb::utils::CRC64::init_crc64()
+{
+    crc64_value = 0xFFFFFFFFFFFFFFFF;
+    for (uint64_t i = 0; i < 256; ++i) {
+        uint64_t crc = i;
+        for (uint64_t j = 8; j--; ) {
+            if (crc & 1)
+                crc = (crc >> 1) ^ 0xC96C5795D7870F42;  // Standard CRC-64 polynomial
+            else
+                crc >>= 1;
+        }
+        table[i] = crc;
+    }
+}
+
+uint64_t ccdb::utils::CRC64::reverse_bytes(uint64_t x)
+{
+    x = ((x & 0x00000000FFFFFFFFULL) << 32) | ((x & 0xFFFFFFFF00000000ULL) >> 32);
+    x = ((x & 0x0000FFFF0000FFFFULL) << 16) | ((x & 0xFFFF0000FFFF0000ULL) >> 16);
+    x = ((x & 0x00FF00FF00FF00FFULL) << 8)  | ((x & 0xFF00FF00FF00FF00ULL) >> 8);
+    return x;
 }
 
 std::string ccdb::utils::getenv(const std::string& name) noexcept

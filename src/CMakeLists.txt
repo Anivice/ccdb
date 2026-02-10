@@ -202,6 +202,7 @@ add_executable(ccdb
         config.cpp                  include/config.h
         pull_subinfo.cpp            include/pull_subinfo.h
         include/print.h
+        args.cpp                    include/args.h
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
 target_compile_definitions(ccdb PRIVATE CCDB_VERSION="0.8.6" CPPHTTPLIB_OPENSSL_SUPPORT)

@@ -703,5 +703,40 @@
     "en"    : "Child process exited with the code ",
     "en_US" : "Child process exited with the code ",
     "zh_CN" : "子进程退出，退出码是"
+  },
+  {
+    "en"    : "Show help",
+    "en_US" : "Show help",
+    "zh_CN" : "显示帮助"
+  },
+  {
+    "en"    : "Show version",
+    "en_US" : "Show version",
+    "zh_CN" : "显示版本"
+  },
+  {
+    "en"    : "Backend port",
+    "en_US" : "Backend port",
+    "zh_CN" : "后端端口"
+  },
+  {
+    "en"    : "Backend address",
+    "en_US" : "Backend address",
+    "zh_CN" : "后端地址"
+  },
+  {
+    "en"    : "Execute a CCDB command",
+    "en_US" : "Execute a CCDB command",
+    "zh_CN" : "执行CCDB指令"
+  },
+  {
+    "en"    : "Backend HTTP auth password",
+    "en_US" : "Backend HTTP auth password",
+    "zh_CN" : "后端HTTP认证密码"
+  },
+  {
+    "en"    : "Latency URL",
+    "en_US" : "Latency URL",
+    "zh_CN" : "延迟测试URL"
   }
 ]

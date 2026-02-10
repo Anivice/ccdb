@@ -47,6 +47,7 @@ CCDB is using multiple open-source libraries:
  - Unicode proxy name parsing
  - Switch proxies inside pure a console with vector index
  - SSL Parsing
+ - Shell parsing of ccdb command output
 
 > **Additional notes for vector index**:
 > **The console needs to be able to actually show these characters** though,
@@ -63,6 +64,19 @@ As a result, CCDB is licensed under GPLv3 as per dictated.
 Use `help` command to see usage details.
 
 Currently, CCDB has the following usage:
+
+```bash
+ccdb [Arguments [OPTIONS...]...]
+    -h,--help                Show help
+    -v,--version             Show version
+    -p,--port [ARG]          Backend port
+    -a,--address [ARG]       Backend address
+    -x,--execute [ARG]       Execute a CCDB command
+    -t,--token [ARG]         Backend HTTP auth password
+    -l,--latency_url [ARG]   Latency URL
+```
+
+**COMMANDS**:
 
 ```bash
 help             : Show this help message
@@ -84,7 +98,7 @@ get              : Pull information
  │ │ ├ 10        : Type
  │ │ ├ 11        : Chains
  │ ├ shot        : Use pager and pull the active connections once
- ├ latency       : Latency of an endpoint
+ ├ latency       : Latency of endpoints
  ├ proxy         : Proxy list
  ├ mode          : Proxy mode
  ├ log           : Active backend logs
@@ -100,7 +114,7 @@ set              : Set parameters
  ├ group         : Switch proxy group
  │ ├ [GROUP]     : Group name
  │ ├ [PROXY]     : Proxy endpoint name
- ├ vgroup        : Vector group
+ ├ vgroup        : Switch proxy group by vector
  │ ├ [VGROUP]    : Group vector number
  │ ├ [VPROXY]    : Proxy vector number
  ├ chain_parser  : Chain parser
@@ -119,7 +133,7 @@ set              : Set parameters
  │ ├ 9           : Destination IP
  │ ├ 10          : Type
  │ ├ 11          : Chains
- ├ filter        : get connections filter pattern
+ ├ filter        : get connections/logs filter pattern
  │ ├ 0           : Host
  │ ├ 1           : Process
  │ ├ 6           : Rules
@@ -150,7 +164,7 @@ set              : Set parameters
  ├ tproxyport    : Mihomo transparent proxy port
  ├ mixedport     : Mihomo mixed proxy port
 close_connections: Close all connections
-clear_filter     : Clear get connection filtering patterns
+clear_filter     : Clear get connection/log filtering patterns
 nload            : nload-like connection speed monitoring
 reset            : Reset terminal mode
 Environment:
@@ -179,7 +193,9 @@ Use double Tab to list possible candidates in a command,
 this will list all the available candidates like proxy endpoints or groups,
 with additional information like latency (if tested) and vector index.
 
-### Example: Switch Proxy in a Proxy Group
+You can directly execute shell commands inside `ccdb` with a prefix `"$ "`(`$[WITH A SPACE]`).
+
+### Example 1: Switch Proxy in a Proxy Group
 
 #### Step 1
 
@@ -214,6 +230,23 @@ the latency results will be shown in the parentheses, i.e., `([\d]+)`,
 as is shown in the following image.
 
 ![Image](img/set_vgroup3.png)
+
+### Example 2: Shell Parsing of `get config`
+
+CCDB supports shell parsing of its own command outputs.
+Unlike shells, "|" has to be surrounded by spaces, i.e., ` | ` (`[SPACE]|[SPACE]`).
+This can be useful for commands like `get config` to parse JSON on external utilities like `jq`.
+For example, you can select `dns-hijack` from the JSON reply from backend using 
+`get config | jq -r '.tun["dns-hijack"]'`:
+
+![Image](img/ccdb_get_config_jq.png)
+
+Or, you can even pipe a POSIX script into the pipeline:
+
+![Image](img/script_pipe.png)
+
+As you can see, when executing a piped script, you can invoke `ccdb` with
+environment variable `$CCDB`, which is a duplicate of the parent `ccdb` arguments.
 
 ## How to Build
 

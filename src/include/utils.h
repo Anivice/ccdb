@@ -140,6 +140,20 @@ namespace ccdb::utils {
     std::vector<uint8_t> compress(const std::vector<uint8_t>& data);
     std::vector<uint8_t> decompress(const std::vector<uint8_t>& data);
     std::string get_text(const std::string & text); // auto translator
+
+    class CRC64 {
+    public:
+        CRC64();
+        void update(const uint8_t* data, const size_t length);
+        [[nodiscard]] uint64_t get_checksum() const;
+
+    private:
+        uint64_t crc64_value{};
+        uint64_t table[256] {};
+
+        void init_crc64();
+        static uint64_t reverse_bytes(uint64_t x);
+    };
 }
 
 #endif //CFS_UTILS_H

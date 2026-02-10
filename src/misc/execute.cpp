@@ -24,6 +24,7 @@
 #include <sstream>
 #include <sys/wait.h>
 #include "utils.h"
+#include <fstream>
 
 inline std::string get_errno_message(const std::string &prefix = "") {
     return prefix + std::strerror(errno);
@@ -50,7 +51,8 @@ ccdb::utils::cmd_status ccdb::utils::exec_command_(
         return status;
     }
 
-    if (pid == 0) {
+    if (pid == 0)
+    {
         // Child process.
         if (dup2(stdin_pipe[0], STDIN_FILENO) == -1) {
             perror("dup2(stdin)");

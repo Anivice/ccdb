@@ -230,8 +230,10 @@ namespace ccdb
             std::atomic_int * sort_by_ptr,
             const std::atomic_int * current_focus_ptr);
 
+        void init();
     public:
-        ccdb(const std::string & backend, int port, const std::string & token, std::string  latency_url_);
+        ccdb(const std::string & backend, int port, const std::string & token, std::string latency_url_);
+        ccdb(const std::string & backend, int port, const std::string & token, std::string latency_url_, const std::vector<std::string> & cmd);
         ~ccdb();
 
         friend class mode_guard_t;
