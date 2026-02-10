@@ -241,7 +241,7 @@ void ccdb::ccdb::nload(
 
         std::vector<uint64_t> size_list;
         for (const auto & str : info_list) {
-            size_list.push_back(str.size());
+            size_list.push_back(UnicodeDisplayWidth::get_width_utf8(str));
         }
 
         info_space_size = std::max(static_cast<int>(max_in_vec(size_list)), info_space_size);

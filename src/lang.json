@@ -197,27 +197,27 @@
   {
     "en"    : "    Cur (P): ",
     "en_US" : "    Cur (P): ",
-    "zh_CN" : "    当前速度:   "
+    "zh_CN" : "    当前速度:      "
   },
   {
     "en"    : "    Min (P): ",
     "en_US" : "    Min (P): ",
-    "zh_CN" : "当前页面最低速度："
+    "zh_CN" : " 当前页面最低速度: "
   },
   {
     "en"    : "  Max (P/O): ",
     "en_US" : "  Max (P/O): ",
-    "zh_CN" : "最高速度 (P/O): "
+    "zh_CN" : " 最高速度 (P/O):   "
   },
   {
     "en"    : "  Avg (P/O): ",
     "en_US" : "  Avg (P/O): ",
-    "zh_CN" : "平均速度 (P/O): "
+    "zh_CN" : " 平均速度 (P/O):   "
   },
   {
     "en"    : "    Ttl (O): ",
     "en_US" : "    Ttl (O): ",
-    "zh_CN" : "监测到的流量总量："
+    "zh_CN" : " 监测到的流量总量: "
   },
   {
     "en"    : "C++ Clash Dashboard:",
