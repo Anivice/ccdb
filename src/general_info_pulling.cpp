@@ -29,6 +29,7 @@
 #include <iostream>
 #include <chrono>
 #include <fstream>
+#include "print.h"
 
 void general_info_pulling::update_from_traffic(const std::string& info)
 {
@@ -37,7 +38,7 @@ void general_info_pulling::update_from_traffic(const std::string& info)
         current_upload_speed = static_cast<uint64_t>(data["up"]);
         current_download_speed = static_cast<uint64_t>(data["down"]);
     } catch (std::exception& e) {
-        std::cerr << "Error when pulling traffic data: " << e.what() << std::endl;
+        ccdb::utils::print("Error when pulling traffic data: ", e.what(), "\n");
     }
 }
 
@@ -201,9 +202,9 @@ void general_info_pulling::update_from_connections(const std::string& info)
 
         connection_map = new_connection_map; // update and discard previous
     } catch (std::exception& e) {
-        std::cerr << "Error when pulling traffic data: " << e.what() << std::endl;
+        ccdb::utils::print("Error when pulling traffic data: ", e.what(), "\n");
     } catch (...) {
-        std::cerr << "Error when pulling traffic data" << std::endl;
+        ccdb::utils::print("Error when pulling traffic data: ", "\n");
     }
 }
 
@@ -213,7 +214,7 @@ void general_info_pulling::update_from_logs(const std::string& info)
     try {
         data = json::parse(info);
     } catch (const std::exception & e) {
-        std::cerr << "Error: Cannot parse json: " << e.what() << std::endl;
+        ccdb::utils::print("Error: Cannot parse json: ", e.what(), "\n");
         return;
     }
 
@@ -233,7 +234,7 @@ void general_info_pulling::update_from_logs(const std::string& info)
         // 3. open file, append log
         std::ofstream file(log_location, std::ios::app);
         if (!file) {
-            std::cerr << "Failed to write to log file!" << std::endl;
+            ccdb::utils::print("Failed to write to log file!", "\n");
             ++log_warning_count;
         } else {
             file << type << ": " << payload << std::endl;
@@ -303,7 +304,7 @@ void general_info_pulling::pull_continuous_updates()
             }
             catch (std::exception & e)
             {
-                std::cerr << "Error when pulling traffic: " << e.what() << std::endl;
+                ccdb::utils::print("Error when pulling traffic data: ", e.what(), "\n");
                 force_quit = true;
             }
         };
@@ -329,7 +330,7 @@ void general_info_pulling::pull_continuous_updates()
                 }
                 catch (std::exception & e)
                 {
-                    std::cerr << "Error when pulling traffic: " << e.what() << std::endl;
+                    ccdb::utils::print("Error when pulling traffic data: ", e.what(), "\n");
                     force_quit = true;
                 }
             }
@@ -357,7 +358,7 @@ void general_info_pulling::pull_continuous_updates()
             }
             catch (std::exception & e)
             {
-                std::cerr << "Error when pulling traffic: " << e.what() << std::endl;
+                ccdb::utils::print("Error when pulling traffic data: ", e.what(), "\n");
                 force_quit = true;
             }
         };
@@ -420,7 +421,7 @@ void general_info_pulling::start_continuous_updates()
             force_quit = true;
         }
         catch (const std::exception & e) {
-            std::cerr << "Error when pulling continuous updates: " << e.what() << std::endl;
+            ccdb::utils::print("Error when pulling traffic data: ", e.what(), "\n");
         }
     });
     std::this_thread::sleep_for(std::chrono::milliseconds(100l));
@@ -467,7 +468,7 @@ void general_info_pulling::update_proxy_list()
         }
         catch (const std::exception & e)
         {
-            std::cerr << "Cannot update proxy list: " << e.what() << std::endl;
+            ccdb::utils::print("Cannot update proxy list: ", e.what(), "\n");
         }
     });
 
@@ -518,11 +519,11 @@ void general_info_pulling::latency_test(const std::string & url)
                         {
                             *ptr_ = data.at("delay");
                         } else {
-                            std::cerr << "Cannot get latency on " << proxy_bk << ": " << std::string(data["message"]) << std::endl;
+                            ccdb::utils::print("Cannot get latency on ", proxy_bk, ": ", std::string(data["message"]), "\n");
                         }
                     });
             } catch (std::exception & e) {
-                std::cerr << "Cannot get latency on " << proxy_bk << ": " << e.what() << std::endl;
+                ccdb::utils::print("Cannot get latency on ", proxy_bk, ": ", e.what(), "\n");
                 *ptr_ = -1;
             }
 
@@ -559,7 +560,7 @@ std::string general_info_pulling::get_current_mode()
         }
         catch (const std::exception & e)
         {
-            std::cerr << "Cannot get mode: " << e.what() << std::endl;
+            ccdb::utils::print("Cannot get mode: ", e.what(), "\n");
         }
     });
 

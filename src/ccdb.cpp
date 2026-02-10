@@ -29,9 +29,243 @@
 #include "config.h"
 #include "print.h"
 #include "term_name.h"
+#include <sys/wait.h>
+
+/* Since pipes are unidirectional, we need three pipes:
+   1. Parent writes to child's stdin
+   2. Child writes to parent's stdout
+   3. Child writes to parent's stderr
+*/
+
+#define NUM_PIPES           3
+
+#define PARENT_WRITE_PIPE   0
+#define PARENT_READ_PIPE    1
+#define PARENT_ERR_PIPE     2
+
+int pipes[NUM_PIPES][2];
+
+/* Always in a pipe[], pipe[0] is for read and
+   pipe[1] is for write */
+#define READ_FD  0
+#define WRITE_FD 1
+
+#define PARENT_READ_FD   ( pipes[PARENT_READ_PIPE][READ_FD]   )
+#define PARENT_WRITE_FD  ( pipes[PARENT_WRITE_PIPE][WRITE_FD] )
+#define PARENT_ERR_FD    ( pipes[PARENT_ERR_PIPE][READ_FD]    )
+
+#define CHILD_READ_FD    ( pipes[PARENT_WRITE_PIPE][READ_FD]  )
+#define CHILD_WRITE_FD   ( pipes[PARENT_READ_PIPE][WRITE_FD]  )
+#define CHILD_ERR_FD     ( pipes[PARENT_ERR_PIPE][WRITE_FD]   )
+
+#define MAX_STACK_FRAMES 64
 
 // --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;
+
+void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vector)
+{
+    std::vector < std::string > ccdb_vector, shell_vector;
+    bool switch_to_shell = false;
+    std::ranges::for_each(command_vector, [&](const std::string & c)
+    {
+        if (!switch_to_shell && c == "|") {
+            switch_to_shell = true;
+            return;
+        }
+
+        if (!switch_to_shell) {
+            ccdb_vector.push_back(c);
+        } else {
+            shell_vector.push_back(c);
+        }
+    });
+
+    std::stringstream command_ss;
+    std::ranges::for_each(shell_vector, [&](const std::string &c) {
+        command_ss << c << " ";
+    });
+
+    // Initialize all required pipes
+    for (auto & i : pipes)
+    {
+        if (pipe(i) == -1) {
+            print("pipe() failed: ", std::strerror(errno), "\n");
+            return;
+        }
+    }
+
+    const pid_t pid = fork();
+    if (pid < 0)
+    {
+        // Fork failed
+        print("fork() failed: ", std::strerror(errno), "\n");
+        // Close all pipes before returning
+        for (const auto & pipe : pipes) {
+            close(pipe[READ_FD]);
+            close(pipe[WRITE_FD]);
+        }
+        return;
+    }
+
+    if (pid == 0)
+    {
+        // Child process
+
+        // Redirect stdin
+        if (dup2(CHILD_READ_FD, STDIN_FILENO) == -1) {
+            perror("dup2 stdin");
+            _exit(EXIT_FAILURE);
+        }
+
+        // Redirect stdout
+        if (dup2(CHILD_WRITE_FD, STDOUT_FILENO) == -1) {
+            perror("dup2 stdout");
+            _exit(EXIT_FAILURE);
+        }
+
+        // Redirect stderr
+        if (dup2(CHILD_ERR_FD, STDERR_FILENO) == -1) {
+            perror("dup2 stderr");
+            _exit(EXIT_FAILURE);
+        }
+
+        /* Close all pipe fds in the child */
+        for (auto & pipe : pipes)
+        {
+            close(pipe[READ_FD]);
+            close(pipe[WRITE_FD]);
+        }
+
+        // Build argv for execv
+        watcher.watcher_clear_disable = true;
+        watcher.sigint_caught_ = false;
+        std::atomic_bool finished = false;
+        less.clear();
+        jq.clear();
+
+        std::thread T0([&] {
+            (void)handler(ccdb_vector);
+            finished = true;
+        });
+
+        while (!finished && !watcher.sigint_caught_) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+
+        if (finished && T0.joinable()) T0.join(); // WTF
+        _exit(EXIT_SUCCESS);
+    }
+    else
+    {
+        cmd_status status = {"", "", 1};
+        std::atomic_bool finished = false;
+        std::thread T0([&]
+        {
+            // Parent process
+            // Close unused pipe ends in the parent
+            close(CHILD_READ_FD);
+            close(CHILD_WRITE_FD);
+            close(CHILD_ERR_FD);
+
+            // Function to read all data from a file descriptor
+            auto read_all = [&](int fd, std::string &output) -> bool
+            {
+                char buffer[4096];
+                ssize_t count;
+                while ((count = read(fd, buffer, sizeof(buffer))) > 0) {
+                    output.append(buffer, count);
+                }
+
+                if (count == -1) {
+                    print("read() failed: ", std::strerror(errno), "\n");
+                    return false;
+                }
+                return true;
+            };
+
+            // Read from child's stdout
+            if (!read_all(PARENT_READ_FD, status.fd_stdout))
+            {
+                print("read_all() failed: ", std::strerror(errno), "\n");
+                return;
+            }
+
+            // Read from child's stderr
+            if (!read_all(PARENT_ERR_FD, status.fd_stderr))
+            {
+                print("read_all() failed: ", std::strerror(errno), "\n");
+                return;
+            }
+
+            // Close the read ends
+            if (close(PARENT_READ_FD) == -1)
+            {
+                print("close() PARENT_READ_FD failed: ", std::strerror(errno), "\n");
+                return;
+            }
+
+            if (close(PARENT_ERR_FD) == -1)
+            {
+                print("close() PARENT_ERR_FD failed: ", std::strerror(errno), "\n");
+                return;
+            }
+
+            // Wait for child process to finish
+            int wstatus;
+            if (waitpid(pid, &wstatus, 0) == -1) {
+                print("waitpid() failed: ", std::strerror(errno), "\n");
+            }
+            else
+            {
+                if (WIFEXITED(wstatus)) {
+                    status.exit_status = WEXITSTATUS(wstatus);
+                } else if (WIFSIGNALED(wstatus)) {
+                    print("Child terminated by signal ", WTERMSIG(wstatus), "\n");
+                } else {
+                    print("Child process ended abnormally.\n");
+                }
+            }
+
+            finished = true;
+        });
+
+        class exit_guard_t {
+        public:
+            exit_guard_t() {
+                watcher.watcher_clear_disable = true;
+                watcher.sigint_caught_ = false;
+            }
+
+            ~exit_guard_t() {
+                watcher.watcher_clear_disable = false;
+                watcher.sigint_caught_ = false;
+            }
+        } exit_guard;
+
+        while (!finished && !watcher.sigint_caught_) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+
+        if (watcher.sigint_caught_) {
+            kill(pid, SIGINT);
+            watcher.sigint_caught_ = false;
+        }
+
+        while (!finished)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            if (watcher.sigint_caught_) {
+                print("Killing child ", pid, "\n");
+                kill(pid, SIGKILL);
+            }
+        }
+
+        if (T0.joinable()) T0.join();
+        ::ccdb::utils::exec_command("/bin/sh", status.fd_stdout, "-c", command_ss.str());
+    }
+}
+
 
 ccdb::ccdb::~ccdb()
 {
@@ -203,13 +437,32 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
         set_thread_name("readline");
         backend_instance.start_continuous_updates();
         get_vecGroupProxy(false);
-        cmdTpTree::read_command([&](const std::vector<std::string> &command_vector)-> bool
+
+        handler = [&](const std::vector<std::string> &command_vector)->bool
         {
             if (backend_instance.force_quit) {
                 return false;
             }
 
             if (command_vector.empty()) {
+                return true;
+            }
+
+            if (command_vector.front() == "$" && command_vector.size() >= 2)
+            {
+                std::stringstream command_ss;
+                std::for_each(command_vector.begin() + 1, command_vector.end(), [&](const std::string & c) {
+                    command_ss << c << " ";
+                });
+
+                const auto status = exec_command("/bin/sh", "", "-c", command_ss.str()).exit_status;
+                print("Child process exited with the code ", status, "\n");
+                return true;
+            }
+
+            if (std::ranges::any_of(command_vector, [](const std::string & c) { return c == "|"; }))
+            {
+                fork_and_execute(command_vector);
                 return true;
             }
 
@@ -321,7 +574,9 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
             }
 
             return true;
-        },
+        };
+
+        cmdTpTree::read_command(handler,
         [&](const std::vector<std::string> & args, const std::string & special_filler, const int arg_index)->std::vector<std::string>
         {
             try {

@@ -613,5 +613,95 @@
     "en"    : "   DISABLE_SERVER_CERTIFICATE_VERIFICATION: When using `get subinfo`, SSL is enforced by default when link is https.\n                                            Use this to skip server SSL certificate check.\n   SSL_CERTIFICATE: When clash subscription link is in https, specify an SSL certificate when pulling subscription usage.\nKeyboard Shortcuts:\n  `get connections`: Get connections has multiple keyboard shortcuts:\n     Mouse Click/Ctrl+UP/DOWN: Move highlight\n                            K: Kill the highlighted connection\n                            P: Print raw JSON from Mihomo core. If `jq` can be found, JSON will be parsed by jq\n                       F1-F12: Specify which column (0-11) to sort the table, press on the same column again to reverse the sort\n                       Ctrl+C: Abort the watcher\n",
     "en_US" : "   DISABLE_SERVER_CERTIFICATE_VERIFICATION: When using `get subinfo`, SSL is enforced by default when link is https.\n                                            Use this to skip server SSL certificate check.\n   SSL_CERTIFICATE: When clash subscription link is in https, specify an SSL certificate when pulling subscription usage.\nKeyboard Shortcuts:\n  `get connections`: Get connections has multiple keyboard shortcuts:\n     Mouse Click/Ctrl+UP/DOWN: Move highlight\n                            K: Kill the highlighted connection\n                            P: Print raw JSON from Mihomo core. If `jq` can be found, JSON will be parsed by jq\n                       F1-F12: Specify which column (0-11) to sort the table, press on the same column again to reverse the sort\n                       Ctrl+C: Abort the watcher\n",
     "zh_CN" : "   DISABLE_SERVER_CERTIFICATE_VERIFICATION: 当使用 `get subinfo` 时, 如果订阅链接是https，拉取信息时会默认加载SSL，\n                                            设置该环境变量为`true`可以跳过SSL证书认证\n   SSL_CERTIFICATE: 当使用 `get subinfo` 时, 如果订阅链接是https, 使用该环境变量设置SSL证书位置\n键盘快捷键:\n  `get connections`: 拉取活跃连接有多个键盘快捷键:\n        鼠标单击/Ctrl+UP/DOWN: 移动高亮\n                            K: 关闭高亮的连接\n                            P: 输出Mihomo后端提供的该连接的JSON数据. 如果 `jq` 可用，JSON数据会被 `jq` 处理\n                       F1-F12: 设置排序，F1-F12对应列表0-11。同一列表按两次则会反向排序\n                       Ctrl+C: 关闭活跃连接监视器\n"
+  },
+  {
+    "en"    : "Error when pulling traffic data: ",
+    "en_US" : "Error when pulling traffic data: ",
+    "zh_CN" : "无法拉取流量数据: "
+  },
+  {
+    "en"    : "Error: Cannot parse json: ",
+    "en_US" : "Error: Cannot parse json: ",
+    "zh_CN" : "无法解析JSON数据: "
+  },
+  {
+    "en"    : "Failed to write to log file!",
+    "en_US" : "Failed to write to log file!",
+    "zh_CN" : "无法写入日志文件！"
+  },
+  {
+    "en"    : "Cannot update proxy list: ",
+    "en_US" : "Cannot update proxy list: ",
+    "zh_CN" : "无法刷新代理列表: "
+  },
+  {
+    "en"    : "Cannot get latency on ",
+    "en_US" : "Cannot get latency on ",
+    "zh_CN" : "无法获取延迟信息: "
+  },
+  {
+    "en"    : "Cannot get mode: ",
+    "en_US" : "Cannot get mode: ",
+    "zh_CN" : "无法获取代理模式: "
+  },
+  {
+    "en"    : "pipe() failed: ",
+    "en_US" : "pipe() failed: ",
+    "zh_CN" : "无法运行pipe(): "
+  },
+  {
+    "en"    : "fork() failed: ",
+    "en_US" : "fork() failed: ",
+    "zh_CN" : "无法运行fork(): "
+  },
+  {
+    "en"    : "pipe() failed: ",
+    "en_US" : "pipe() failed: ",
+    "zh_CN" : "无法运行pipe(): "
+  },
+  {
+    "en"    : "pipe() failed: ",
+    "en_US" : "pipe() failed: ",
+    "zh_CN" : "无法运行pipe(): "
+  },
+  {
+    "en"    : "read() failed: ",
+    "en_US" : "read() failed: ",
+    "zh_CN" : "无法运行read(): "
+  },
+  {
+    "en"    : "read_all() failed: ",
+    "en_US" : "read_all() failed: ",
+    "zh_CN" : "无法运行read_all(): "
+  },
+  {
+    "en"    : "close() PARENT_READ_FD failed: ",
+    "en_US" : "close() PARENT_READ_FD failed: ",
+    "zh_CN" : "close() PARENT_READ_FD 失败: "
+  },
+  {
+    "en"    : "close() PARENT_ERR_FD failed: ",
+    "en_US" : "close() PARENT_ERR_FD failed: ",
+    "zh_CN" : "close() PARENT_ERR_FD 失败: "
+  },
+  {
+    "en"    : "Child terminated by signal ",
+    "en_US" : "Child terminated by signal ",
+    "zh_CN" : "子进程被信号终止，信号量："
+  },
+  {
+    "en"    : "Child process ended abnormally.\n",
+    "en_US" : "Child process ended abnormally.\n",
+    "zh_CN" : "子进程意外退出\n"
+  },
+  {
+    "en"    : "Killing child ",
+    "en_US" : "Killing child ",
+    "zh_CN" : "强制终止进程"
+  },
+  {
+    "en"    : "Child process exited with the code ",
+    "en_US" : "Child process exited with the code ",
+    "zh_CN" : "子进程退出，退出码是"
   }
 ]

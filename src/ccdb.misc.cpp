@@ -664,14 +664,13 @@ void ccdb::ccdb::print_table(
         }
     };
 
-    if (!additional_info_before_table.empty()) {
-        print_line(additional_info_before_table
-            + std::string(col -
-                std::min(UnicodeDisplayWidth::get_width_utf8(additional_info_before_table) - static_cast<int>(leading_offset),
-                0),
-            ' '),
-            color::color(5,5,5,0,0,0)
-        );
+    if (!additional_info_before_table.empty())
+    {
+        additional_info_before_table += std::string(
+                std::max(static_cast<int>(col + leading_offset - UnicodeDisplayWidth::get_width_utf8(additional_info_before_table)), 0),
+            ' ');
+
+        print_line(additional_info_before_table, color::color(5,5,5,0,0,0));
     }
 
     print_line(separation_line, color::color(5,5,5,0,0,0));

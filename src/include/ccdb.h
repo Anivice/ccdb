@@ -74,6 +74,7 @@ namespace ccdb
         std::string less;
         tsl::hopscotch_map < std::string, std::string > keyboard_shortcut_map;
         std::mutex keyboard_shortcut_map_mtx;
+        std::function<bool(const std::vector<std::string> &)> handler;
 
         /// Pull groups and proxies from the backend
         void update_providers();
@@ -187,6 +188,7 @@ namespace ccdb
         void set_redirport(int port); // Mihomo redirect port,
         void set_tproxyport(int port); // Mihomo transparent proxy port,
         void set_mixedport(int port); // Mihomo mixed proxy port,
+        void fork_and_execute(const std::vector<std::string> &);
 
         /// terminal mode guard. Create this instance to change and reset term mode automatically
         class mode_guard_t {
@@ -266,6 +268,7 @@ namespace ccdb
         void sigint_watcher();
     public:
 
+        std::atomic_bool & sigint_caught_ = sigint_caught;
         sigint_watcher_();
         ~sigint_watcher_();
     } watcher;
