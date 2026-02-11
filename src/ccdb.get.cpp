@@ -459,8 +459,11 @@ void ccdb::ccdb::get_subinfo()
     #endif
                 });
 
-                print_table(titles, lines, false, true, {}, 0, nullptr, false,
+                const auto less_bak = less;
+                less.clear();
+                print_table(titles, lines, false, true, {}, 0, nullptr, true,
                     "", 0, nullptr, true);
+                less = less_bak;
                 std::cout << std::endl;
 
                 std::stringstream ss;

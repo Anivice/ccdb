@@ -494,17 +494,25 @@ void ccdb::ccdb::print_table(
     int highlight_screen_line)
 {
     std::ostringstream frame;
+    std::ostringstream less_output_redirect;
+
     class auto_print_t {
     public:
         std::ostringstream & frame_;
-        auto_print_t(std::ostringstream & frame) : frame_(frame) { };
+        std::ostringstream & less_output_redirect_;
+        ccdb * parent_;
+        auto_print_t(std::ostringstream & frame, std::ostringstream & less_output_redirect, ccdb * parent)
+            : frame_(frame), less_output_redirect_(less_output_redirect), parent_(parent) { }
         ~auto_print_t() {
             const std::string str = frame_.str();
             if (!str.empty()) {
                 std::cout << str << std::flush;
             }
+
+            const auto output = less_output_redirect_.str();
+            if (!output.empty()) parent_->pager(output);
         }
-    } auto_print(frame);
+    } auto_print(frame, less_output_redirect, this);
 
     const auto col = utils::get_col_size();
 
@@ -586,7 +594,6 @@ void ccdb::ccdb::print_table(
     auto max_tailing_size = get_string_screen_length(separation_line) > col ? (get_string_screen_length(separation_line) - col) : 0;
     if (max_tailing_size_ptr) *max_tailing_size_ptr = static_cast<int>(max_tailing_size);
     leading_offset = std::min(static_cast<decltype(max_tailing_size)>(leading_offset), max_tailing_size);
-    std::stringstream less_output_redirect;
     int printed_lines = 0;
 
     // define Tab size
@@ -811,9 +818,6 @@ void ccdb::ccdb::print_table(
 
         print_progress();
     }
-
-    const auto output = less_output_redirect.str();
-    pager(output, true, using_pager);
 }
 
 bool ccdb::ccdb::is_connection_valid
