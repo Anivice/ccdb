@@ -310,6 +310,7 @@ void ccdb::ccdb::nload(
     const uint64_t upload_total_bytes_when_started = *total_upload, download_total_bytes_when_started = *total_download;
     const auto now = std::chrono::high_resolution_clock::now();
     utils::setup_term term;
+    int info_space_size_before = info_space_size;
     while (*running)
     {
         std::ostringstream frame;
@@ -390,7 +391,8 @@ void ccdb::ccdb::nload(
                 std::ranges::for_each(top_3_connections_using_most_speed, [&](const std::string & line)
                 {
                     auto new_line = line;
-                    if (utils::UnicodeDisplayWidth::get_width_utf8(line) > col)
+                    const auto line_len = UnicodeDisplayWidth::get_width_utf8(line);
+                    if (line_len > col)
                     {
                         auto utf32 = utils::utf8_to_u32(line);
                         decltype(utf32) utf32_cut;
@@ -406,6 +408,9 @@ void ccdb::ccdb::nload(
                         }
 
                         new_line = utf8::utf32to8(utf32_cut) + color::color(0,0,0,3,3,3) + ">";
+                    }
+                    else {
+                        new_line += std::string(col - line_len, ' ');
                     }
                     utils::replace_all(new_line, "UP:", color::color(3,3,2) + "UP:");
                     utils::replace_all(new_line, "DL:", color::color(2,3,3) + "DL:");
@@ -434,7 +439,9 @@ void ccdb::ccdb::nload(
         /// wait:
         for (int i = 0; i < 10; i++)
         {
-            if (window_size_change) {
+            if (window_size_change || info_space_size_before != info_space_size)
+            {
+                info_space_size_before = info_space_size;
                 std::cout << term.clear << std::flush;
                 window_size_change = false;
                 break;
@@ -780,6 +787,11 @@ void ccdb::ccdb::print_table(
     /// tailings
     if (skip_lines == 0) {
         print_line(separation_line, color::color(5,5,5,0,0,0), false);
+        if (printed_lines < get_line_size()) {
+           for (int i = 0; i < get_line_size() - printed_lines; i++) {
+               frame << std::string(get_col_size(), ' ');
+           }
+        }
     } else {
         const auto col_sz = get_col_size();
         const auto line_sz = get_line_size();
