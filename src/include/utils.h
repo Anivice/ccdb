@@ -101,8 +101,6 @@ namespace ccdb::utils {
     std::string second_to_human_readable(unsigned long long value);
     std::u32string utf8_to_u32(const std::string& s);
 
-    constexpr char clear[] = { 0x1b, 0x5b, 0x48, 0x1b, 0x5b, 0x32, 0x4a, 0x1b, 0x5b, 0x33, 0x4a };
-
     class UnicodeDisplayWidth {
     public:
         static int get_width_utf8(const std::string& utf8_str);
@@ -140,6 +138,24 @@ namespace ccdb::utils {
     std::vector<uint8_t> compress(const std::vector<uint8_t>& data);
     std::vector<uint8_t> decompress(const std::vector<uint8_t>& data);
     std::string get_text(const std::string & text); // auto translator
+
+    void put_cap(const char* cap);
+    const char* capstr(const char* name);
+    void move_home();
+
+    class setup_term {
+    public:
+        const char* smcup = capstr("smcup");
+        const char* rmcup = capstr("rmcup");
+        const char* clear = capstr("clear");
+        const char* civis = capstr("civis");
+        const char* cnorm = capstr("cnorm");
+        const char* ed    = capstr("ed");
+
+        setup_term();
+        ~setup_term();
+        void ed_clear();
+    };
 
     class CRC64 {
     public:

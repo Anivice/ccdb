@@ -23,6 +23,7 @@
 #include <chrono>
 #include <thread>
 #include "print.h"
+#include "ncursesw/ncurses.h"
 
 ccdb::sigint_watcher_ ccdb::watcher;
 std::atomic_bool ccdb::window_size_change = false;
@@ -48,8 +49,6 @@ ccdb::sigint_watcher_::auto_SIGINT_status_t::auto_SIGINT_status_t(sigint_watcher
 ccdb::sigint_watcher_::auto_SIGINT_status_t::~auto_SIGINT_status_t()
 {
     watcher_->watcher_clear_disable = false;
-    std::cout.write(utils::clear, sizeof(utils::clear));
-    std::cout.flush();
 }
 
 [[nodiscard]] ccdb::sigint_watcher_::auto_SIGINT_status_t::operator bool() const
@@ -206,7 +205,8 @@ void ccdb::ccdb::nload(
         const decltype(generate_from_metric({}, 0)) & metric_list,
         const std::chrono::time_point<std::chrono::high_resolution_clock> start_time_point,
         const uint64_t total_bytes_since_started,
-        const uint64_t windows_space_local)
+        const uint64_t windows_space_local,
+        std::ostringstream & frame)
     {
         const auto now = std::chrono::high_resolution_clock::now();
         const auto time_escalated = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time_point).count();
@@ -246,7 +246,7 @@ void ccdb::ccdb::nload(
 
         info_space_size = std::max(static_cast<int>(max_in_vec(size_list)), info_space_size);
         if (col < info_space_size) {
-            std::cout << color::color(0,0,0,5,0,0) << sprint("TOO SMALL") << std::endl;
+            frame << color::color(0,0,0,5,0,0) << sprint("TOO SMALL") << std::endl;
             return;
         }
 
@@ -256,11 +256,11 @@ void ccdb::ccdb::nload(
             const auto current_height_on_screen = windows_space_local - i; // starting from 1
 
             if (start < 0) {
-                std::cout << std::endl; // skip
+                frame << std::endl; // skip
                 continue;
             }
 
-            std::cout << std::string(start, ' ');
+            frame << std::string(start, ' ');
             for (auto j = start; j < (col - info_space_size); ++j)
             {
                 const auto index = j - start; // starts from 0
@@ -269,33 +269,33 @@ void ccdb::ccdb::nload(
                 if (actual_content_height == current_height_on_screen) // see partial
                 {
                     if (1 <= partial_block_percentage && partial_block_percentage <= 40) {
-                        std::cout << l_1_to_40;
+                        frame << l_1_to_40;
                     } else if (41 <= partial_block_percentage && partial_block_percentage <= 80) {
-                        std::cout << l_41_to_80;
+                        frame << l_41_to_80;
                     } else if ((81 <= partial_block_percentage && partial_block_percentage <= 100) ||
                         (partial_block_percentage == 0 && full_blocks == windows_space_local))
                     {
-                        std::cout << l_81_to_100;
+                        frame << l_81_to_100;
                     } else {
-                        std::cout << " ";
+                        frame << " ";
                     }
                 }
                 else if (current_height_on_screen < actual_content_height) {
-                    std::cout << "#";
+                    frame << "#";
                 } else {
-                    std::cout << " ";
+                    frame << " ";
                 }
 
-                std::cout << std::flush;
+                frame << std::flush;
             }
 
             if (current_height_on_screen <= info_list.size())
             {
                 const auto index = info_list.size() - current_height_on_screen;
-                std::cout << info_list[index];
+                frame << info_list[index];
             }
 
-            std::cout << std::endl;
+            frame << std::endl;
         }
     };
 
@@ -309,8 +309,10 @@ void ccdb::ccdb::nload(
     }
     const uint64_t upload_total_bytes_when_started = *total_upload, download_total_bytes_when_started = *total_download;
     const auto now = std::chrono::high_resolution_clock::now();
+    utils::setup_term term;
     while (*running)
     {
+        std::ostringstream frame;
         const int free_space = row - window_space * 2 - reserved_lines;
         if (window_space > reserved_lines && col > info_space_size)
         {
@@ -343,14 +345,13 @@ void ccdb::ccdb::nload(
                 }
             });
 
-            std::cout.write(utils::clear, sizeof(utils::clear)); // clear the screen
             std::string title = sprint("C++ Clash Dashboard:");
             if (title.length() > col) title = title.substr(0, col);
-            std::cout << title << std::endl;
-            std::cout << color::color(5,3,3) << std::string(col, '=') << color::no_color() << std::endl;
-            std::cout << sprint("Incoming:") << std::endl;
+            frame << title << std::endl;
+            frame << color::color(5,3,3) << std::string(col, '=') << color::no_color() << std::endl;
+            frame << sprint("Incoming:") << std::endl;
             {
-                std::cout << color::color(0,5,1);
+                frame << color::color(0,5,1);
                 const auto metric_list = generate_from_metric(down_list, window_space);
                 const auto total_download_since_start = *total_download - download_total_bytes_when_started;
                 print_win(download_speed,
@@ -361,12 +362,13 @@ void ccdb::ccdb::nload(
                           metric_list,
                           now,
                           total_download_since_start,
-                          window_space);
+                          window_space,
+                          frame);
             }
-            std::cout << color::no_color();
-            std::cout << sprint("Outgoing:") << std::endl;
+            frame << color::no_color();
+            frame << sprint("Outgoing:") << std::endl;
             {
-                std::cout << color::color(5,1,0);
+                frame << color::color(5,1,0);
                 const auto height = window_space - (free_space == 0 ? 1 : 0);
                 const auto metric_list = generate_from_metric(up_list, height);
                 const auto total_upload_since_start = *total_upload - upload_total_bytes_when_started;
@@ -378,9 +380,10 @@ void ccdb::ccdb::nload(
                           metric_list,
                           now,
                           total_upload_since_start,
-                          height);
+                          height,
+                          frame);
             }
-            std::cout << color::no_color();
+            frame << color::no_color();
 
             {
                 std::lock_guard<std::mutex> lock_gud(*top_3_connections_using_most_speed_mtx);
@@ -406,27 +409,33 @@ void ccdb::ccdb::nload(
                     }
                     utils::replace_all(new_line, "UP:", color::color(3,3,2) + "UP:");
                     utils::replace_all(new_line, "DL:", color::color(2,3,3) + "DL:");
-                    std::cout << color::color(3,3,3) << new_line << color::no_color() << std::endl;
+                    frame << color::color(3,3,3) << new_line << color::no_color() << std::endl;
                 });
             }
 
             if (const auto msg = sprint("* P: On this page, O: Overall");
                 col >= UnicodeDisplayWidth::get_width_utf8(msg))
             {
-                std::cout << color::color(5,5,5, 0,0,5)
+                frame << color::color(5,5,5, 0,0,5)
                         << msg << std::string(col - UnicodeDisplayWidth::get_width_utf8(msg), ' ')
                         << color::no_color() << std::flush;
             }
         }
         else
         {
-            std::cout.write(utils::clear, sizeof(utils::clear));
-            std::cout << color::color(0,0,0,5,0,0) << sprint("TOO SMALL") << color::no_color() << std::endl;
+            frame << color::color(0,0,0,5,0,0) << sprint("TOO SMALL") << color::no_color() << std::endl;
         }
 
+        /// repaint:
+        move_home();
+        std::cout << frame.str() << std::flush;
+        term.ed_clear();
+
+        /// wait:
         for (int i = 0; i < 10; i++)
         {
             if (window_size_change) {
+                std::cout << term.clear << std::flush;
                 window_size_change = false;
                 break;
             }
@@ -477,10 +486,23 @@ void ccdb::ccdb::print_table(
     tsl::hopscotch_map < uint64_t, std::string > color_code_overrides,
     int highlight_screen_line)
 {
+    std::ostringstream frame;
+    class auto_print_t {
+    public:
+        std::ostringstream & frame_;
+        auto_print_t(std::ostringstream & frame) : frame_(frame) { };
+        ~auto_print_t() {
+            const std::string str = frame_.str();
+            if (!str.empty()) {
+                std::cout << str << std::flush;
+            }
+        }
+    } auto_print(frame);
+
     const auto col = utils::get_col_size();
 
     if (utils::get_line_size() < 9) {
-        std::cout << color::color(0,0,0,5,0,0) << sprint("TOO SMALL") << color::no_color() << std::endl;
+        frame << color::color(0,0,0,5,0,0) << sprint("TOO SMALL") << color::no_color() << std::endl;
         return;
     }
 
@@ -657,9 +679,9 @@ void ccdb::ccdb::print_table(
                 utf8_str = (use_line_highlighter ? "" : color) + utf8_str;
             }
 
-            if (use_line_highlighter) std::cout << color::color(0,0,0,5,5,5);
-            std::cout << utf8_str << color::no_color();
-            if (endl) std::cout << std::endl;
+            if (use_line_highlighter) frame << color::color(0,0,0,5,5,5);
+            frame << utf8_str << color::no_color();
+            if (endl) frame << std::endl;
             printed_lines++;
         }
     };
@@ -686,7 +708,7 @@ void ccdb::ccdb::print_table(
 
     auto print_progress = [&]
     {
-        std::cout << color::bg_color(5,5,5) << color::color(5,0,0) << skip_lines
+        frame   << color::bg_color(5,5,5) << color::color(5,0,0) << skip_lines
                 << color::color(3,3,3) << "/" << color::color(0,0,5) << current_line_index
                 << color::color(3,3,3) << "/" << color::color(5,0,5) << table_values.size()
                 << color::color(3,3,3) << "/" << color::color(0,0,0) << std::fixed << std::setprecision(2)
@@ -763,7 +785,7 @@ void ccdb::ccdb::print_table(
         const auto line_sz = get_line_size();
         if ((col_sz > 2) && (printed_lines <= (line_sz - 2) && get_string_screen_length(separation_line) > 2))
         {
-            std::cout   << color::color(5,5,5,0,0,0)
+            frame       << color::color(5,5,5,0,0,0)
                         << "+" << std::string(std::min(static_cast<long long>(col_sz - 2ul),
                             static_cast<long long>(get_string_screen_length(separation_line) - 2)), '-')
                         << "+" << std::endl;
@@ -772,7 +794,7 @@ void ccdb::ccdb::print_table(
         if (line_sz > 2)
         {
             for (int j = printed_lines; j < (line_sz - 2); j++)
-                std::cout << std::endl;
+                frame << std::endl;
         }
 
         print_progress();

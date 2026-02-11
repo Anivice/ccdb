@@ -52,6 +52,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::vector < std::thread > child_workers;
     std::vector <std::string> title_this_session;
     std::atomic_int atm_focus;
+    std::unique_ptr<::ccdb::utils::setup_term> setup_term;
 
     auto show_info = [&](const std::string & msg, const std::string & level) {
         g_title_lines.emplace_back("[" + level + "]: " + msg, std::chrono::high_resolution_clock::now());
@@ -97,6 +98,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     }
 
     if (use_input) {
+        setup_term = std::make_unique<::ccdb::utils::setup_term>();
         input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
             &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
             &mouse_x, &mouse_y, &kill_connection, &focus_to_highlight, &conn_show_detail, &sort_by_from_watcher, &atm_focus);
@@ -203,9 +205,6 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 connections_filtered.emplace_back(connection);
             }
         }
-
-        std::cout.write(clear, sizeof(clear)); // clear the screen
-        std::cout.flush();
 
         std::stringstream ss;
         auto append_msg = [&](const std::string & msg) {
@@ -352,6 +351,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 conn_show_detail = false;
             }
 
+            move_home();
+
             print_table(title_this_session,
                 table_vals,
                 false,
@@ -366,6 +367,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 false,
                 {},
                 focus_line);
+
+            setup_term->ed_clear();
 
             int local_leading_spaces = leading_spaces;
             int local_skip_lines = current_skip_lines;
@@ -386,7 +389,10 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     || local_show_detail != conn_show_detail
                     || local_sort_by_from_watcher != sort_by_from_watcher)
                 {
-                    window_size_change = false;
+                    if (window_size_change) {
+                        std::cout << setup_term->clear << std::flush;
+                        window_size_change = false;
+                    }
                     break;
                 }
 

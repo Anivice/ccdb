@@ -173,6 +173,8 @@ void ccdb::ccdb::get_log()
         return !ret;
     };
 
+    setup_term term;
+
     while (running)
     {
         auto current_vector = backend_instance.get_logs();
@@ -199,8 +201,8 @@ void ccdb::ccdb::get_log()
             line_off++;
         }
 
-        std::cout.write(clear, sizeof(clear));
-        std::cout.flush();
+        move_home();
+
         print_table(log_titles,
             lines,
             false,
@@ -216,6 +218,8 @@ void ccdb::ccdb::get_log()
             line_color_overrides,
             mouse_y);
 
+        term.ed_clear();
+
         const int local_leading_spaces = leading_spaces;
         const int local_skip_lines = current_skip_lines;
         const int local_mouse_y = mouse_y;
@@ -227,7 +231,10 @@ void ccdb::ccdb::get_log()
                 || local_mouse_y != mouse_y
                 || window_size_change)
             {
-                window_size_change = false;
+                if (window_size_change) {
+                    std::cout << term.clear << std::flush;
+                    window_size_change = false;
+                }
                 break;
             }
 

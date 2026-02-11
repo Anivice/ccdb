@@ -33,6 +33,8 @@
 #include "lzw6.h"
 #include "json.hpp"
 #include "lang.json.h"
+#include "ncursesw/ncurses.h"
+#include "ncursesw/term.h"
 
 std::vector<uint8_t> ccdb::utils::compress(const std::vector<uint8_t>& data)
 {
@@ -99,6 +101,51 @@ std::string ccdb::utils::get_text(const std::string &text)
     }
 
     return text;
+}
+
+void ccdb::utils::put_cap(const char* cap)
+{
+    if (!cap || cap == reinterpret_cast<char *>(-1)) return;
+    putp(cap);
+}
+
+const char* ccdb::utils::capstr(const char* name)
+{
+    const char* s = tigetstr(name);
+    if (s == reinterpret_cast<char *>(-1) || s == nullptr) return nullptr;
+    return s;
+}
+
+void ccdb::utils::move_home() {
+    const char* cup = capstr("cup"); // cursor position
+    if (!cup) return;
+    if (const char* seq = tparm(const_cast<char*>(cup), 0, 0)) put_cap(seq);
+}
+
+ccdb::utils::setup_term::setup_term()
+{
+    int err = 0;
+    if (setupterm(nullptr, fileno(stdout), &err) != OK || err <= 0) {
+        std::fprintf(stderr, "setupterm failed: %d\n", err);
+        return;
+    }
+
+    put_cap(smcup);
+    put_cap(civis);
+    put_cap(clear);
+}
+
+ccdb::utils::setup_term::~setup_term()
+{
+    // restore
+    put_cap(cnorm);
+    put_cap(rmcup);
+    std::fflush(stdout);
+}
+
+void ccdb::utils::setup_term::ed_clear()
+{
+    if (ed) put_cap(ed);
 }
 
 ccdb::utils::CRC64::CRC64()
@@ -483,4 +530,23 @@ bool ccdb::utils::is_less_available()
 
     pager_is_less_available = true;
     return true; // skip check if you specify a pager. fuck you for providing a faulty one
+}
+
+void put_cap(const char* cap) {
+    if (!cap || cap == (char*)-1) return;
+    putp(cap);
+}
+
+const char* capstr(const char* name) {
+    char* s = tigetstr(name);
+    if (s == (char*)-1 || s == nullptr) return nullptr;
+    return s;
+}
+
+void move_home()
+{
+    const char* cup = capstr("cup"); // cursor position
+    if (!cup) return;
+    char* seq = tparm(const_cast<char*>(cup), 0, 0);
+    if (seq) put_cap(seq);
 }
