@@ -8,18 +8,32 @@
 
 namespace ccdb::utils
 {
-    inline void _print(const char * text) {
-        std::cout << get_text(text);
+    class is_error {};
+    class is_normal {};
+
+    template < typename MsgType > requires (std::is_same_v<MsgType, is_error> || std::is_same_v<MsgType, is_normal>)
+    void _print(const char * text)
+    {
+        if constexpr (std::is_same_v<MsgType, is_error>) {
+            std::cerr << get_text(text);
+        } else {
+            std::cout << get_text(text);
+        }
     }
 
-    template <typename T>
-    void _print(const T& val) {
-        std::cout << val;
+    template < typename MsgType, typename T > requires (std::is_same_v<MsgType, is_error> || std::is_same_v<MsgType, is_normal>)
+    void _print(const T & val)
+    {
+        if constexpr (std::is_same_v<MsgType, is_error>) {
+            std::cerr << val;
+        } else {
+            std::cout << val;
+        }
     }
 
-    template <typename... Args>
+    template < typename MsgType, typename... Args > requires (std::is_same_v<MsgType, is_error> || std::is_same_v<MsgType, is_normal>)
     void print(const Args &...args) {
-        (_print(args), ...);
+        (_print<MsgType>(args), ...);
     }
 
     inline void _sprint(std::ostringstream & oss, const char * text) {

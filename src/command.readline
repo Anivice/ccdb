@@ -94,6 +94,7 @@
     < clear_filter (Clear get connection/log filtering patterns): [NONE] >,
     < nload (nload-like connection speed monitoring): [NONE] >,
     < reset (Reset terminal mode): [NONE] >,
+    < apply (Apply JSON config to backend): [NONE] >,
 }
 
 # $ ssh me@localhost

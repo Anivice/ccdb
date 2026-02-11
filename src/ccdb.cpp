@@ -90,7 +90,7 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
     for (auto & i : pipes)
     {
         if (pipe(i) == -1) {
-            print("pipe() failed: ", std::strerror(errno), "\n");
+            print<is_error>("pipe() failed: ", std::strerror(errno), "\n");
             return;
         }
     }
@@ -99,7 +99,7 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
     if (pid < 0)
     {
         // Fork failed
-        print("fork() failed: ", std::strerror(errno), "\n");
+        print<is_error>("fork() failed: ", std::strerror(errno), "\n");
         // Close all pipes before returning
         for (const auto & pipe : pipes) {
             close(pipe[READ_FD]);
@@ -178,7 +178,7 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
                 }
 
                 if (count == -1) {
-                    print("read() failed: ", std::strerror(errno), "\n");
+                    print<is_error>("read() failed: ", std::strerror(errno), "\n");
                     return false;
                 }
                 return true;
@@ -187,43 +187,43 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
             // Read from child's stdout
             if (!read_all(PARENT_READ_FD, status.fd_stdout))
             {
-                print("read_all() failed: ", std::strerror(errno), "\n");
+                print<is_error>("read_all() failed: ", std::strerror(errno), "\n");
                 return;
             }
 
             // Read from child's stderr
             if (!read_all(PARENT_ERR_FD, status.fd_stderr))
             {
-                print("read_all() failed: ", std::strerror(errno), "\n");
+                print<is_error>("read_all() failed: ", std::strerror(errno), "\n");
                 return;
             }
 
             // Close the read ends
             if (close(PARENT_READ_FD) == -1)
             {
-                print("close() PARENT_READ_FD failed: ", std::strerror(errno), "\n");
+                print<is_error>("close() PARENT_READ_FD failed: ", std::strerror(errno), "\n");
                 return;
             }
 
             if (close(PARENT_ERR_FD) == -1)
             {
-                print("close() PARENT_ERR_FD failed: ", std::strerror(errno), "\n");
+                print<is_error>("close() PARENT_ERR_FD failed: ", std::strerror(errno), "\n");
                 return;
             }
 
             // Wait for child process to finish
             int wstatus;
             if (waitpid(pid, &wstatus, 0) == -1) {
-                print("waitpid() failed: ", std::strerror(errno), "\n");
+                print<is_error>("waitpid() failed: ", std::strerror(errno), "\n");
             }
             else
             {
                 if (WIFEXITED(wstatus)) {
                     status.exit_status = WEXITSTATUS(wstatus);
                 } else if (WIFSIGNALED(wstatus)) {
-                    print("Child terminated by signal ", WTERMSIG(wstatus), "\n");
+                    print<is_error>("Child terminated by signal ", WTERMSIG(wstatus), "\n");
                 } else {
-                    print("Child process ended abnormally.\n");
+                    print<is_error>("Child process ended abnormally.\n");
                 }
             }
 
@@ -256,7 +256,7 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             if (watcher.sigint_caught_) {
-                print("Killing child ", pid, "\n");
+                print<is_error>("Killing child ", pid, "\n");
                 kill(pid, SIGKILL);
             }
         }
@@ -439,7 +439,7 @@ void ccdb::ccdb::init()
             });
 
             const auto status = exec_command("/bin/sh", "", "-c", command_ss.str()).exit_status;
-            print("Child process exited with the code ", status, "\n");
+            print<is_error>("Child process exited with the code ", status, "\n");
             return true;
         }
 
@@ -483,7 +483,8 @@ void ccdb::ccdb::init()
             } else if (command_vector[1] == "config") {
                 get_config();
             } else {
-                print("Unknown command `", command_vector[1], "`\n");
+                print<is_error>("Unknown command `", command_vector[1], "`\n");
+                if (execute_and_no_interactive) throw std::runtime_error("");
             }
         }
         else if (command_vector.front() == "set")
@@ -536,23 +537,32 @@ void ccdb::ccdb::init()
             }
             else {
                 if (command_vector.size() == 2) {
-                    print("Unknown command `", command_vector[1], "` or invalid syntax\n");
+                    print<is_error>("Unknown command `", command_vector[1], "` or invalid syntax\n");
+                    if (execute_and_no_interactive) throw std::runtime_error("");
                 } else {
-                    print("Malformed command\n");
+                    print<is_error>("Malformed command\n");
+                    if (execute_and_no_interactive) throw std::runtime_error("");
                 }
             }
         }
         else if (command_vector.front() == "close_connections") {
-            backend_instance.close_all_connections();
+            if (!backend_instance.close_all_connections()) {
+                if (execute_and_no_interactive) throw std::runtime_error(sprint("Failed to close all connections"));
+            }
         }
         else if (command_vector.front() == "clear_filter") {
             clear_filter();
         }
+        else if (command_vector.front() == "apply") {
+            apply();
+        }
         else {
-            print("Unknown command `", command_vector.front(), "` or invalid syntax\n");
+            print<is_error>("Unknown command `", command_vector.front(), "` or invalid syntax\n");
+            if (execute_and_no_interactive) throw std::runtime_error("");
         }
 
         if (backend_instance.force_quit) {
+            if (execute_and_no_interactive) throw std::runtime_error("");
             return false;
         }
 
@@ -573,7 +583,7 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
         || terminal_name == "VTE-based terminal"
         || terminal_name == "wezterm")
         {
-            print("Set NO_0xFE0F_EXPAND_EMOJI to true since ", terminal_name, " doesn't support Unicode expansion.\n");
+            print<is_error>("Set NO_0xFE0F_EXPAND_EMOJI to true since ", terminal_name, " doesn't support Unicode expansion.\n");
             setenv("NO_0xFE0F_EXPAND_EMOJI", "true");
         }
         else if (terminal_name == "konsole" || terminal_name == "kitty") {
@@ -610,14 +620,14 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
                 return { };
             }
 
-            print("Unknown directive", " `", special_filler, "`\n");
+            print<is_error>("Unknown directive", " `", special_filler, "`\n");
             return {};
         }, "ccdb> ");
 
         backend_instance.stop_continuous_updates();
 
         if (backend_instance.force_quit) {
-            print("Connection broken, force quit\n");
+            print<is_error>("Connection broken, force quit\n");
         }
     }
     catch (std::exception & e)
@@ -626,24 +636,27 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
     }
     catch (...)
     {
-        print("Unknown exception\n");
+        print<is_error>("Unknown exception\n");
     }
 }
 
-ccdb::ccdb::ccdb(const std::string &backend, int port, const std::string &token, std::string latency_url_,
+ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &token, std::string latency_url_,
     const std::vector<std::string> &cmd)
 : backend_instance(backend, port, token), latency_url(std::move(latency_url_))
 {
     try {
+        execute_and_no_interactive = true;
         init();
         (void)handler(cmd);
     }
     catch (std::exception & e)
     {
-        std::cerr << e.what() << std::endl;
+        // if (strlen(e.what()) > 0) std::cerr << e.what() << std::endl;
+        exit(1);
     }
     catch (...)
     {
-        print("Unknown exception\n");
+        print<is_error>("Unknown exception\n");
+        exit(1);
     }
 }

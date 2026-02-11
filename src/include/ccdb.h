@@ -75,6 +75,7 @@ namespace ccdb
         tsl::hopscotch_map < std::string, std::string > keyboard_shortcut_map;
         std::mutex keyboard_shortcut_map_mtx;
         std::function<bool(const std::vector<std::string> &)> handler;
+        bool execute_and_no_interactive = false;
 
         /// Pull groups and proxies from the backend
         void update_providers();
@@ -157,6 +158,7 @@ namespace ccdb
         void reset_terminal_mode();
         /// reset term mode back to the original
         void set_conio_terminal_mode();
+        void interactive_verification() const;
 
     protected:
         // --- COMMANDS --- //
@@ -188,6 +190,7 @@ namespace ccdb
         void set_redirport(int port); // Mihomo redirect port,
         void set_tproxyport(int port); // Mihomo transparent proxy port,
         void set_mixedport(int port); // Mihomo mixed proxy port,
+        void apply();
         void fork_and_execute(const std::vector<std::string> &);
 
         /// terminal mode guard. Create this instance to change and reset term mode automatically

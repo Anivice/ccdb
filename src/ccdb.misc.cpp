@@ -451,8 +451,8 @@ void ccdb::ccdb::pager(const std::string &str, const bool override_less_check, b
                     = exec_command("/bin/sh", str, "-c", less);
             exit_status != 0)
         {
-            print(fd_stderr, "\n");
-            print(less, " exited with code ", exit_status, "\n");
+            print<is_error>(fd_stderr, "\n");
+            print<is_error>(less, " exited with code ", exit_status, "\n");
         }
     }
     else
@@ -943,6 +943,13 @@ void ccdb::ccdb::set_conio_terminal_mode()
     std::cout.flush();
 }
 
+void ccdb::ccdb::interactive_verification() const
+{
+    if (execute_and_no_interactive) {
+        exit(1);
+    }
+}
+
 void ccdb::ccdb::help()
 {
     const auto str = cmdTpTree::command_template_tree.get_help();
@@ -997,13 +1004,13 @@ void ccdb::ccdb::reset_terminal_mode_forcefully()
     if (read_proc_exe(ppid, exe, sizeof(exe)) == 0) {
         exe_path = exe;
     } else {
-        print("Read parent exe failed: ", strerror(errno), "\n");
+        print<is_error>("Read parent exe failed: ", strerror(errno), "\n");
     }
 
     if (read_proc_exe(sid, exe, sizeof(exe)) == 0) {
         sid_path = exe;
     } else {
-        print("Read session leader exe failed: ", strerror(errno), "\n");
+        print<is_error>("Read session leader exe failed: ", strerror(errno), "\n");
     }
 
     // system dependent reset terminal mode
@@ -1012,7 +1019,7 @@ void ccdb::ccdb::reset_terminal_mode_forcefully()
         if (std::system((exe_path + " -c 'reset'").c_str()) != 0)
         {
             if (std::system("/bin/sh -c 'reset'") != 0) {
-                print("Failed to reset shell mode even after exausting all means.\n");
+                print<is_error>("Failed to reset shell mode even after exausting all means.\n");
             }
         }
     }
@@ -1033,6 +1040,7 @@ ccdb::ccdb::mode_guard_t::~mode_guard_t()
 void ccdb::ccdb::generic_input_watcher(const std::string &name, std::atomic_bool *running)
 {
     set_thread_name(name);
+    interactive_verification();
     const auto sigint_status = watcher.make_status_watcher();
     mode_guard_t input_mode_guard(this);
 
@@ -1075,7 +1083,7 @@ void ccdb::ccdb::get_conn_input_watcher(
     const std::atomic_int * current_focus_ptr)
 {
     set_thread_name("get/conn:input");
-
+    interactive_verification();
     std::atomic_bool & running = *running_ptr;
     std::atomic_int & leading_spaces = *leading_spaces_ptr;
     const std::atomic_int & max_leading_spaces = *max_leading_spaces_ptr;

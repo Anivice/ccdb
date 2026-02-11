@@ -65,13 +65,13 @@ int main(int argc, char ** argv)
         utils::ArgumentParser ArgumentParser(argc, argv, PreDefinedArguments);
         const auto parsed = ArgumentParser.parse();
         if (parsed.contains("help")) {
-            utils::print(argv[0], " [Arguments [OPTIONS...]...]\n");
+            utils::print<utils::is_normal>(argv[0], " [Arguments [OPTIONS...]...]\n");
             std::cout << PreDefinedArguments.print_help();
             return EXIT_SUCCESS;
         }
 
         if (parsed.contains("version")) {
-            utils::print("C++ Clash Dashboard Version ", CCDB_VERSION, " (commit " GIT_HASH ", build on " BUILD_DATE ")\n");
+            utils::print<utils::is_normal>("C++ Clash Dashboard Version ", CCDB_VERSION, " (commit " GIT_HASH ", build on " BUILD_DATE ")\n");
             return EXIT_SUCCESS;
         }
 
@@ -90,14 +90,14 @@ int main(int argc, char ** argv)
         add_arg("latency_url", latency_url);
 
         if (port <= 0 || backend.empty()) {
-            utils::print(argv[0], " [Arguments [OPTIONS...]...]\n");
+            utils::print<utils::is_normal>(argv[0], " [Arguments [OPTIONS...]...]\n");
             std::cout << PreDefinedArguments.print_help();
             return EXIT_FAILURE;
         }
 
         ////////////////////////////////////////////////////////////////////////////////////////
-        if (!parsed.contains("execute")) utils::print("C++ Clash Dashboard Version ", CCDB_VERSION, " (commit " GIT_HASH ", build on " BUILD_DATE ")\n");
-        if (!parsed.contains("execute")) utils::print("Connecting to", " http://", backend, ":", port, "\n");
+        if (!parsed.contains("execute")) utils::print<utils::is_normal>("C++ Clash Dashboard Version ", CCDB_VERSION, " (commit " GIT_HASH ", build on " BUILD_DATE ")\n");
+        if (!parsed.contains("execute")) utils::print<utils::is_normal>("Connecting to", " http://", backend, ":", port, "\n");
         ////////////////////////////////////////////////////////////////////////////////////////
         std::stringstream ss;
         for (int i = 0; i < argc; i++) {

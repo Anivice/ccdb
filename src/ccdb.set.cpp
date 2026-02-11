@@ -31,19 +31,23 @@ using namespace ccdb::utils;
 void ccdb::ccdb::set_mode(const std::vector<std::string> & command_vector)
 {
     if (command_vector[2] != "rule" && command_vector[2] != "global" && command_vector[2] != "direct") {
-        print("Unknown mode ", command_vector[2], "\n");
+        print<is_error>("Unknown mode ", command_vector[2], "\n");
+        if (execute_and_no_interactive) throw std::runtime_error("");
     } else {
-        backend_instance.change_proxy_mode(command_vector[2]);
+        if (!backend_instance.change_proxy_mode(command_vector[2])) {
+            if (execute_and_no_interactive) throw std::runtime_error("");
+        }
     }
 }
 
 void ccdb::ccdb::set_group(const std::vector<std::string> & command_vector)
 {
     const std::string & group = command_vector[2], & proxy = command_vector[3];
-    print("Changing `", group, "` proxy endpoint to `", proxy, "`\n");
+    print<is_normal>("Changing `", group, "` proxy endpoint to `", proxy, "`\n");
     if (!backend_instance.change_proxy_using_backend(group, proxy))
     {
-        print("Failed to change proxy endpoint to `", proxy, "`\n");
+        print<is_error>("Failed to change proxy endpoint to `", proxy, "`\n");
+        if (execute_and_no_interactive) throw std::runtime_error("");
     }
 }
 
@@ -53,20 +57,23 @@ void ccdb::ccdb::set_vgroup(const std::vector<std::string> & command_vector)
     try {
         if (index_to_proxy_name_list.empty())
         {
-            print("Run `get vecGroupProxy` first!\n");
+            print<is_error>("Run `get vecGroupProxy` first!\n");
+            if (execute_and_no_interactive) throw std::runtime_error("");
             return;
         }
         const uint64_t group_vec = std::strtol(group.c_str(), nullptr, 10);
         const uint64_t proxy_vec = std::strtol(proxy.c_str(), nullptr, 10);
         const auto & group_name = index_to_proxy_name_list.at(group_vec);
         const auto & proxy_name = index_to_proxy_name_list.at(proxy_vec);
-        print("Changing `", group_name, "` proxy endpoint to `", proxy_name, "`\n");
+        print<is_normal>("Changing `", group_name, "` proxy endpoint to `", proxy_name, "`\n");
         if (!backend_instance.change_proxy_using_backend(group_name, proxy_name))
         {
-            print("Failed to change proxy endpoint to `", proxy_name, "`\n");
+            print<is_error>("Failed to change proxy endpoint to `", proxy_name, "`\n");
+            if (execute_and_no_interactive) throw std::runtime_error("");
         }
     } catch (...) {
-        print("Cannot parse vector or vector doesn't exist\n");
+        print<is_error>("Cannot parse vector or vector doesn't exist\n");
+        if (execute_and_no_interactive) throw std::runtime_error("");
     }
 }
 
@@ -74,7 +81,7 @@ void ccdb::ccdb::set_chain_parser(const std::vector<std::string> & command_vecto
 {
     if (command_vector[2] == "on") backend_instance.parse_chains = true;
     else if (command_vector[2] == "off") backend_instance.parse_chains = false;
-    else print("Invalid option for parser `", command_vector[2], "`\n");
+    else print<is_error>("Invalid option for parser `", command_vector[2], "`\n");
 }
 
 void ccdb::ccdb::set_allowlan(const std::vector<std::string> &command_vector)
@@ -86,17 +93,22 @@ void ccdb::ccdb::set_allowlan(const std::vector<std::string> &command_vector)
     else if (command_vector[2] == "off") {
         result = backend_instance.modify_config(R"({ "allow-lan": false })");
     }
-    else print("Invalid option for parser `", command_vector[2], "`\n");
+    else {
+        print<is_error>("Invalid option for parser `", command_vector[2], "`\n");
+        if (execute_and_no_interactive) throw std::runtime_error("");
+    }
 
     if (!result) {
-        print("Failed to modify config\n");
+        print<is_error>("Failed to modify config\n");
+        if (execute_and_no_interactive) throw std::runtime_error("");
     }
 }
 
 void ccdb::ccdb::set_log_level(const std::vector<std::string> &command_vector)
 {
     if (!backend_instance.modify_config(R"({ "log-level": ")" + command_vector[2] + R"(" })")) {
-        print("Failed to modify config\n");
+        print<is_error>("Failed to modify config\n");
+        if (execute_and_no_interactive) throw std::runtime_error("");
     }
 }
 
@@ -110,7 +122,7 @@ void ccdb::ccdb::set_sort_by(const std::vector<std::string> &command_vector)
             throw std::invalid_argument("Invalid sort_by value");
         }
     } catch (...) {
-        print("Invalid number `", command_vector[2], "`\n");
+        print<is_error>("Invalid number `", command_vector[2], "`\n");
     }
 }
 
@@ -118,14 +130,14 @@ void ccdb::ccdb::set_sort_reverse(const std::vector<std::string> & command_vecto
 {
     if (command_vector[2] == "on") reverse = true;
     else if (command_vector[2] == "off") reverse = false;
-    else print("Invalid option for parser `", command_vector[2], "`\n");
+    else print<is_error>("Invalid option for parser `", command_vector[2], "`\n");
 }
 
 void ccdb::ccdb::set_filter_reverse(const std::vector<std::string> &command_vector)
 {
     if (command_vector[2] == "on") reverse_filter_list = true;
     else if (command_vector[2] == "off") reverse_filter_list = false;
-    else print("Invalid option for parser `", command_vector[2], "`\n");
+    else print<is_error>("Invalid option for parser `", command_vector[2], "`\n");
 }
 
 void ccdb::ccdb::set_filter(const std::vector<std::string> &command_vector)
@@ -174,12 +186,13 @@ void ccdb::ccdb::clear_filter()
     filter_patterns.clear();
 }
 
-#define INSTANTIATE_SET_PORT(name, conf)                        \
-void ccdb::ccdb::set_##name(const int port)                     \
-{                                                               \
-    if (!backend_instance.modify_config_int(conf, port)) {      \
-        print("Failed to modify config\n");                     \
-    }                                                           \
+#define INSTANTIATE_SET_PORT(name, conf)                                    \
+void ccdb::ccdb::set_##name(const int port)                                 \
+{                                                                           \
+    if (!backend_instance.modify_config_int(conf, port)) {                  \
+        print<is_error>("Failed to modify config\n");                       \
+        if (execute_and_no_interactive) throw std::runtime_error("");       \
+    }                                                                       \
 }
 
 INSTANTIATE_SET_PORT(port,          "port")
@@ -187,3 +200,27 @@ INSTANTIATE_SET_PORT(socksport,     "socks-port")
 INSTANTIATE_SET_PORT(redirport,     "redir-port")
 INSTANTIATE_SET_PORT(tproxyport,    "tproxy-port")
 INSTANTIATE_SET_PORT(mixedport,     "mixed-port")
+
+void ccdb::ccdb::apply()
+{
+    try {
+        std::string json;
+        char buff [512] { };
+        while (!std::cin.eof())
+        {
+            std::cin.read(buff, sizeof(buff) - 1);
+            buff[std::cin.gcount()] = '\0';
+            json += buff;
+        }
+
+        (void)nlohmann::json::parse(json); // verify JSON
+        if (!backend_instance.modify_config(json)) {
+            throw std::runtime_error(sprint("Backend rejected"));
+        }
+    }
+    catch (std::exception & e)
+    {
+        print<is_error>("Failed to modify config: ", e.what(), "\n");
+        if (execute_and_no_interactive) throw;
+    }
+}

@@ -738,5 +738,20 @@
     "en"    : "Latency URL",
     "en_US" : "Latency URL",
     "zh_CN" : "延迟测试URL"
+  },
+  {
+    "en"    : "Failed to modify config: ",
+    "en_US" : "Failed to modify config: ",
+    "zh_CN" : "无法修改后端配置："
+  },
+  {
+    "en"    : "Backend rejected",
+    "en_US" : "Backend rejected",
+    "zh_CN" : "后端拒绝修改"
+  },
+  {
+    "en"    : "Failed to close all connections",
+    "en_US" : "Failed to close all connections",
+    "zh_CN" : "关闭所有连接失败"
   }
 ]

@@ -114,7 +114,7 @@ std::vector<std::string> ccdb::ccdb::get_vendpoints(const std::string & group)
 
 void ccdb::ccdb::get_latency()
 {
-    print("Testing latency with the url ", latency_url,  " ...\n");
+    print<is_error>("Testing latency with the url ", latency_url,  " ...\n");
     backend_instance.update_proxy_list(); // update the proxy first
     backend_instance.latency_test(latency_url);
     auto latency_list = backend_instance.get_proxies_and_latencies_as_pair();
@@ -330,7 +330,7 @@ void ccdb::ccdb::get_vecGroupProxy(const bool show_vgroups)
 {
     backend_instance.update_proxy_list();
     auto [proxy_list, proxy_lat] = backend_instance.get_proxies_and_latencies_as_pair();
-    std::vector<std::string> table_titles = { "Vector", "Group / Endpoint" };
+    const std::vector<std::string> table_titles = { "Vector", "Group / Endpoint" };
     std::vector<std::vector<std::string>> table_vals;
 
     uint64_t vector_index = 0;
@@ -421,11 +421,12 @@ void ccdb::ccdb::get_subinfo()
     auto get_info = [&]
     {
         if (clash_sublink.empty()) {
-            print("No subscription link defined in the configuration file.\n");
-            print("Define the link as follows:\n\n",
+            print<is_error>("No subscription link defined in the configuration file.\n");
+            print<is_error>("Define the link as follows:\n\n",
                 "[clash]\n"
                 "link = YOUR CLASH LINK\n\n",
                 "In the configuration file ~/.ccdbrc\n");
+            if (execute_and_no_interactive) throw std::runtime_error("");
         }
         else
         {
@@ -478,6 +479,7 @@ void ccdb::ccdb::get_subinfo()
                     << color::no_color() << std::endl;
             } catch (std::exception & e) {
                 std::cerr << e.what() << std::endl;
+                if (execute_and_no_interactive) throw std::runtime_error("");
             }
         }
     };

@@ -41,7 +41,7 @@ bool mihomo::change_proxy(const std::string & group_name, const std::string & pr
     }
 
     if (!res) {
-        ccdb::utils::print("Request failed: ", httplib::to_string(res.error()), "\n");
+        ccdb::utils::print<ccdb::utils::is_error>("Request failed: ", httplib::to_string(res.error()), "\n");
         return false;
     }
 
@@ -99,7 +99,7 @@ bool mihomo::change_config(const std::string& json)
     }
 
     if (!res) {
-        ccdb::utils::print("Request failed: ", httplib::to_string(res.error()), "\n");
+        ccdb::utils::print<ccdb::utils::is_error>("Request failed: ", httplib::to_string(res.error()), "\n");
         return false;
     }
 
@@ -136,7 +136,7 @@ bool mihomo::close_connection(const std::string &id)
     }
 
     if (!res) {
-        ccdb::utils::print("Request failed: ", httplib::to_string(res.error()), "\n");
+        ccdb::utils::print<ccdb::utils::is_error>("Request failed: ", httplib::to_string(res.error()), "\n");
         return false;
     }
 
