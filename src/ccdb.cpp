@@ -647,6 +647,9 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
     try {
         execute_and_no_interactive = true;
         init();
+        watcher.watcher_clear_disable = true;
+        less.clear();
+        jq.clear();
         (void)handler(cmd);
     }
     catch (std::exception & e)
