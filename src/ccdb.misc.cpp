@@ -969,11 +969,12 @@ void ccdb::ccdb::help()
         "   NO_0xFE0F_EXPAND_EMOJI: Fix Unicode processing issues for emoji space expand code, e.g., \"")
     << reinterpret_cast<const char*>(alp_no_expand) << sprint("\" and \"") << reinterpret_cast<const char*>(alp_expanded) << "\".\n"
     << std::string(27, ' ')
-    << sprint("If you cannot notice any differences of the above emojis, or there's wierd Unicode processing bugs in your terminal,\n")
+    << sprint("If you cannot notice any differences of the above emojis, or there's weird Unicode processing bugs in your terminal,\n")
     << std::string(27, ' ') << sprint("you might want to set this to `true`\n")
-    <<  sprint("   DISABLE_SERVER_CERTIFICATE_VERIFICATION: When using `get subinfo`, SSL is enforced by default when link is https.\n"
-        "                                            Use this to skip server SSL certificate check.\n"
-        "   SSL_CERTIFICATE: When clash subscription link is in https, specify an SSL certificate when pulling subscription usage.\n"
+    <<  sprint(
+        "   DISABLE_SERVER_CERTIFICATE_VERIFICATION: When using `get subinfo`, TLS is enabled by default when the subscription URL uses HTTPS.\n"
+        "                                            Set this to `true` to skip server SSL certificate check(insecure).\n"
+        "   SSL_CERTIFICATE: When the Clash subscription link is in https, specify an SSL certificate when pulling subscription usage.\n"
         "Keyboard Shortcuts:\n"
         "  `get connections`: Get connections has multiple keyboard shortcuts:\n"
         "     Mouse Click/Ctrl+UP/DOWN: Move highlight\n"
