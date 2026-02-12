@@ -503,14 +503,18 @@ void ccdb::ccdb::print_table(
         ccdb * parent_;
         auto_print_t(std::ostringstream & frame, std::ostringstream & less_output_redirect, ccdb * parent)
             : frame_(frame), less_output_redirect_(less_output_redirect), parent_(parent) { }
-        ~auto_print_t() {
+        ~auto_print_t()
+        {
+            const auto output = less_output_redirect_.str();
+            if (!output.empty()) {
+                parent_->pager(output);
+                return; // skip frame output when less pager is specified
+            }
+
             const std::string str = frame_.str();
             if (!str.empty()) {
                 std::cout << str << std::flush;
             }
-
-            const auto output = less_output_redirect_.str();
-            if (!output.empty()) parent_->pager(output);
         }
     } auto_print(frame, less_output_redirect, this);
 
@@ -615,7 +619,7 @@ void ccdb::ccdb::print_table(
         if (max_tailing_size_ptr && !using_pager && !enforce_no_pager)
         {
             // cut
-            if (leading_offset != 0)
+            if (leading_offset > 0)
             {
                 const auto p_leading_offset = leading_offset + 1;
                 int leads = 0;
