@@ -3,6 +3,7 @@ ReverseFilter = off
 SortReverse = off
 ChainParser = on
 SortBy = 4
+ReverseMouse = off
 
 [Filter]
 Host = .*

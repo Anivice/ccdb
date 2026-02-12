@@ -357,6 +357,9 @@ void ccdb::ccdb::init()
     flag_helper("Global::ReverseFilter", reverse_filter_list);
     flag_helper("Global::SortReverse", reverse);
     flag_helper("Global::ChainParser", backend_instance.parse_chains);
+    flag_helper("Global::ReverseMouse", reverse_mouse);
+    if (utils::getenv("REVERSE_MOUSE") == "true") reverse_mouse = true;
+    else if (utils::getenv("REVERSE_MOUSE") == "false") reverse_mouse = false;
     int_helper("Global::SortBy", sort_by, [&](const long int val) {
         return (0 <= val && val < get_conn_titles.size());
     });

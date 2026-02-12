@@ -53,7 +53,7 @@ std::vector<uint8_t> ccdb::utils::decompress(const std::vector<uint8_t>& data)
     return out;
 }
 
-using translator_t = std::map < std::string /* en text */, std::map < std::string /* lang */, std::string /* correct translation */ > >;
+using translator_t = tsl::hopscotch_map < std::string /* en text */, tsl::hopscotch_map < std::string /* lang */, std::string /* correct translation */ > >;
 static std::unique_ptr < translator_t > text_translator;
 static std::mutex text_translator_mtx;
 
@@ -79,7 +79,7 @@ std::string ccdb::utils::get_text(const std::string &text)
             for (const auto & [type, lang_msg] : msg.items()) {
                 const std::string type_str = type;
                 const std::string lang_msg_str = lang_msg;
-                if (!text_translator->contains(text_en)) text_translator->emplace(text_en, std::map < std::string , std::string >{});
+                if (!text_translator->contains(text_en)) text_translator->emplace(text_en, tsl::hopscotch_map < std::string , std::string >{});
                 text_translator->at(text_en).emplace(type_str, lang_msg_str);
             }
         }

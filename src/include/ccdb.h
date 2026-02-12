@@ -76,6 +76,7 @@ namespace ccdb
         std::mutex keyboard_shortcut_map_mtx;
         std::function<bool(const std::vector<std::string> &)> handler;
         bool execute_and_no_interactive = false;
+        std::atomic_bool reverse_mouse;
 
         /// Pull groups and proxies from the backend
         void update_providers();

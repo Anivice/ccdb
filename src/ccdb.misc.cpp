@@ -1349,7 +1349,7 @@ void ccdb::ccdb::get_conn_input_watcher(
             }
             else if (std::regex_match(str_buffer, mouse_scroll_down_pattern))
             {
-                if (utils::getenv("REVERSE_MOUSE") == "true") {
+                if (reverse_mouse) {
                     down(get_line_size() / 8);
                     hl_down();
                 } else {
@@ -1361,7 +1361,7 @@ void ccdb::ccdb::get_conn_input_watcher(
             }
             else if (std::regex_match(str_buffer, mouse_scroll_up_pattern))
             {
-                if (utils::getenv("REVERSE_MOUSE") == "true") {
+                if (reverse_mouse) {
                     up(get_line_size() / 8);
                     hl_up();
                 } else {
