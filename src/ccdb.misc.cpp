@@ -22,12 +22,32 @@
 #include "ccdb.h"
 #include <chrono>
 #include <thread>
+#include <utility>
 #include "print.h"
 #include "ncursesw/ncurses.h"
 
 ccdb::sigint_watcher_ ccdb::watcher;
 std::atomic_bool ccdb::window_size_change = false;
 std::atomic_bool ccdb::sysint_pressed = false;
+
+static std::string generate_linear_handle(const int length, const int current_range_start, const int current_range_end, const int screen_length)
+{
+    const int screen_block_start = static_cast<int>(static_cast<float>(current_range_start) / static_cast<float>(length) * static_cast<float>(screen_length));
+    const int screen_block_end = static_cast<int>(static_cast<float>(current_range_end) / static_cast<float>(length) * static_cast<float>(screen_length));
+    std::string ret;
+    for (int i = 0; i < screen_length; i++)
+    {
+        if (i < screen_block_start || i > screen_block_end) {
+            constexpr auto * empty_block = "░";
+            ret += empty_block;
+        } else if (i >= screen_block_start && i <= screen_block_end) {
+            constexpr auto * block = "█";
+            ret += block;
+        }
+    }
+
+    return ret;
+}
 
 void ccdb::sigint_handler(int)
 {
@@ -495,14 +515,21 @@ void ccdb::ccdb::print_table(
 {
     std::ostringstream frame;
     std::ostringstream less_output_redirect;
+    int current_line_index = 0;
 
     class auto_print_t {
     public:
         std::ostringstream & frame_;
         std::ostringstream & less_output_redirect_;
         ccdb * parent_;
-        auto_print_t(std::ostringstream & frame, std::ostringstream & less_output_redirect, ccdb * parent)
-            : frame_(frame), less_output_redirect_(less_output_redirect), parent_(parent) { }
+        const int len_;
+        const int & start_;
+        const int & end_;
+
+        auto_print_t(std::ostringstream & frame, std::ostringstream & less_output_redirect, ccdb * parent,
+            const int len, const int & start, const int & end)
+            : frame_(frame), less_output_redirect_(less_output_redirect), parent_(parent),
+                len_(len), start_(start), end_(end) { }
         ~auto_print_t()
         {
             const auto output = less_output_redirect_.str();
@@ -512,15 +539,36 @@ void ccdb::ccdb::print_table(
             }
 
             const std::string str = frame_.str();
-            if (!str.empty()) {
-                std::cout << str << std::flush;
+            if (!str.empty())
+            {
+                std::vector<std::string> vec;
+                std::string buff;
+                std::istringstream ss(str);
+
+                while (std::getline(ss, buff)) {
+                    vec.push_back(buff);
+                }
+
+                std::stringstream ss2;
+                const std::string progress_bar = generate_linear_handle(len_, start_, end_, static_cast<int>(vec.size()));
+                const std::u32string progress_bar32 = utf8_to_u32(progress_bar);
+
+                for (const auto & c : progress_bar32)
+                {
+                    ss2 << utf8::utf32to8({c}) << vec.front() << std::endl;
+                    vec.erase(vec.begin());
+                }
+
+                std::cout << ss2.str() << std::flush;
             }
         }
-    } auto_print(frame, less_output_redirect, this);
+    } auto_print(frame, less_output_redirect, this, static_cast<int>(table_values.size()), skip_lines, current_line_index);
 
-    const auto col = utils::get_col_size();
+    const auto col = get_col_size() - 1;
+    const auto lines = get_line_size();
+    if (get_col_size() < 1) return;
 
-    if (utils::get_line_size() < 9) {
+    if (lines < 9) {
         frame << color::color(0,0,0,5,0,0) << sprint("TOO SMALL") << color::no_color() << std::endl;
         return;
     }
@@ -719,10 +767,9 @@ void ccdb::ccdb::print_table(
     print_line(title_line, color::color(5,5,5,0,0,0));
     print_line(separation_line, color::color(5,5,5,0,0,0));
 
-    const int max_skip_lines = std::max(static_cast<int>(table_values.size()) - (utils::get_line_size() - 2 - printed_lines), 0);
+    const int max_skip_lines = std::max(static_cast<int>(table_values.size()) - (lines - 2 - printed_lines), 0);
     if (max_skip_lines_ptr) *max_skip_lines_ptr = max_skip_lines;
     if (skip_lines > max_skip_lines) skip_lines = max_skip_lines;
-    int current_line_index = 0;
 
     auto print_progress = [&]
     {
@@ -747,7 +794,7 @@ void ccdb::ccdb::print_table(
             }
 
             // last element on screen
-            if (current_line_index > skip_lines && printed_lines >= (utils::get_line_size() - 1))
+            if (current_line_index > skip_lines && printed_lines >= (lines - 1))
             {
                 print_progress();
                 return;
@@ -798,14 +845,14 @@ void ccdb::ccdb::print_table(
     /// tailings
     if (skip_lines == 0) {
         print_line(separation_line, color::color(5,5,5,0,0,0), false);
-        if (printed_lines < get_line_size()) {
-           for (int i = 0; i < get_line_size() - printed_lines; i++) {
-               frame << std::string(get_col_size(), ' ');
+        if (printed_lines < lines) {
+           for (int i = 0; i < lines - printed_lines; i++) {
+               frame << std::string(col, ' ');
            }
         }
     } else {
-        const auto col_sz = get_col_size();
-        const auto line_sz = get_line_size();
+        const auto col_sz = col;
+        const auto line_sz = lines;
         if ((col_sz > 2) && (printed_lines <= (line_sz - 2) && get_string_screen_length(separation_line) > 2))
         {
             frame       << color::color(5,5,5,0,0,0)
