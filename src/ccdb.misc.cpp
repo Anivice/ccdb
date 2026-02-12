@@ -565,8 +565,8 @@ void ccdb::ccdb::print_table(
     } auto_print(frame, less_output_redirect, this, static_cast<int>(table_values.size()), skip_lines, current_line_index);
 
     const auto col = get_col_size() - 1;
-    const auto lines = get_line_size();
-    if (get_col_size() < 1) return;
+    const auto lines = get_line_size() - 1;
+    if (get_col_size() < 1 || get_line_size() < 1) return;
 
     if (lines < 9) {
         frame << color::color(0,0,0,5,0,0) << sprint("TOO SMALL") << color::no_color() << std::endl;
@@ -773,12 +773,13 @@ void ccdb::ccdb::print_table(
 
     auto print_progress = [&]
     {
-        frame   << color::bg_color(5,5,5) << color::color(5,0,0) << skip_lines
-                << color::color(3,3,3) << "/" << color::color(0,0,5) << current_line_index
-                << color::color(3,3,3) << "/" << color::color(5,0,5) << table_values.size()
-                << color::color(3,3,3) << "/" << color::color(0,0,0) << std::fixed << std::setprecision(2)
-                << (static_cast<double>(current_line_index) / static_cast<double>(table_values.size())) * 100 << "%"
-                << color::no_color() << std::flush;
+        std::stringstream ssa;
+        ssa << skip_lines << "/" << current_line_index << "/" << table_values.size() << "/"
+            << std::fixed << std::setprecision(2)
+            << (static_cast<double>(current_line_index) / static_cast<double>(table_values.size())) * 100 << "%";
+        const std::string ssa_str = ssa.str();
+        frame << color::bg_color(5,5,5) << color::color(0,0,5)
+            << ssa_str << color::no_color() << std::string(col - ssa_str.length(), ' ');
     };
 
     /// content
