@@ -87,7 +87,7 @@ std::string ccdb::utils::get_text(const std::string &text)
 
     auto lang = getenv("LANG");
     auto cut = [&](const char c) {
-        if (lang.find(c) != lang.npos) {
+        if (lang.find(c) != std::string::npos) {
             lang = lang.substr(0, lang.find_first_of(c));
         }
     };
@@ -105,25 +105,33 @@ std::string ccdb::utils::get_text(const std::string &text)
 
 void ccdb::utils::put_cap(const char* cap)
 {
+#if defined(__use_tparm__)
     if (!cap || cap == reinterpret_cast<char *>(-1)) return;
     putp(cap);
+#endif
 }
 
 const char* ccdb::utils::capstr(const char* name)
 {
+#if defined(__use_tparm__)
     const char* s = tigetstr(name);
     if (s == reinterpret_cast<char *>(-1) || s == nullptr) return nullptr;
     return s;
+#endif
+    return "";
 }
 
 void ccdb::utils::move_home() {
+#if defined(__use_tparm__)
     const char* cup = capstr("cup"); // cursor position
     if (!cup) return;
     if (const char* seq = tparm(const_cast<char*>(cup), 0, 0)) put_cap(seq);
+#endif
 }
 
 ccdb::utils::setup_term::setup_term()
 {
+#if defined(__use_tparm__)
     int err = 0;
     if (setupterm(nullptr, fileno(stdout), &err) != OK || err <= 0) {
         std::fprintf(stderr, "setupterm failed: %d\n", err);
@@ -133,19 +141,30 @@ ccdb::utils::setup_term::setup_term()
     put_cap(smcup);
     put_cap(civis);
     put_cap(clear);
+#else
+    write(STDOUT_FILENO, clear, strlen(clear));
+    fsync(STDOUT_FILENO);
+#endif
 }
 
 ccdb::utils::setup_term::~setup_term()
 {
+#if defined(__use_tparm__)
     // restore
     put_cap(cnorm);
     put_cap(rmcup);
+#endif
     std::fflush(stdout);
 }
 
-void ccdb::utils::setup_term::ed_clear()
+void ccdb::utils::setup_term::ed_clear() const
 {
+#if defined(__use_tparm__)
     if (ed) put_cap(ed);
+#else
+    write(STDOUT_FILENO, clear, strlen(clear));
+    fsync(STDOUT_FILENO);
+#endif
 }
 
 ccdb::utils::CRC64::CRC64()

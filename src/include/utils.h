@@ -154,13 +154,13 @@ namespace ccdb::utils {
 
         setup_term();
         ~setup_term();
-        void ed_clear();
+        void ed_clear() const;
     };
 
     class CRC64 {
     public:
         CRC64();
-        void update(const uint8_t* data, const size_t length);
+        void update(const uint8_t* data, size_t length);
         [[nodiscard]] uint64_t get_checksum() const;
 
     private:

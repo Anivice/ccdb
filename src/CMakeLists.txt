@@ -227,6 +227,9 @@ if ("X${GIT_HASH}" STREQUAL "X")
 endif ()
 
 add_compile_definitions(GIT_HASH="${GIT_HASH}" BUILD_DATE="${BUILD_DATE}")
+if ("${__use_tparm__}" STREQUAL "true")
+    target_compile_definitions(ccdb PRIVATE __use_tparm__=1)
+endif ()
 
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     if ("${CMAKE_SANITIZER_TYPE}" STREQUAL "address")
