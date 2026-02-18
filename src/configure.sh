@@ -77,6 +77,7 @@ env PATH="$MUSL_SYSROOT"/bin/:"$PATH" cmake -B "$BUILD_DIR" -S "$script_dir" \
             -DPERL_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
             -DOPENSSL_TARGET="$OPENSSL_TARGET" \
             -DOPENSSL_LIBP="$OPENSSL_LIB_EXPORT_PREFIX" \
+            -D__use_tparm__=true \
             -DCMAKE_BUILD_STATIC="True"
 pushd "$PWD"
 cd "$BUILD_DIR"
