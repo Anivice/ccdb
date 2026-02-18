@@ -1047,7 +1047,7 @@ void ccdb::ccdb::set_conio_terminal_mode()
     new_tio.c_cc[VTIME] = 0;
     tcsetattr(STDIN_FILENO, TCSANOW, &new_tio);
     old_flags = fcntl(STDIN_FILENO, F_GETFL, 0);
-    fcntl(STDIN_FILENO, F_SETFL, old_flags | O_NONBLOCK);
+    // fcntl(STDIN_FILENO, F_SETFL, old_flags | O_NONBLOCK);
     terminal_mode_changed = true;
 
     // enable mouse tracking + SGR mode
