@@ -69,11 +69,10 @@ public:
         const std::atomic_bool * keep_running,
         InstanceType* instance,
         void (InstanceType::*method)(const std::string&),
-        const std::atomic_bool is_continuous = false)
+        const bool deprecated_flag_do_not_use_no_effect = false)
     {
         try
         {
-            std::atomic_bool stance(true);
             std::atomic_bool is_running(false);
             httplib::Client http_cli(backend_address_, port_);
             http_cli.set_decompress(false);
@@ -111,8 +110,7 @@ public:
                             thread_pool.clear();
                         }
 
-                        if (is_continuous) return keep_running->load();
-                        return stance.load();
+                        return keep_running->load();
                     }
 
                     return true;
@@ -138,41 +136,24 @@ public:
                 is_running = false;
             };
 
-            if (is_continuous)
+            std::thread T;
+            while (*keep_running)
             {
-                std::thread T;
-                while (*keep_running)
+                if (!is_running)
                 {
-                    if (!is_running)
-                    {
-                        if (T.joinable()) { T.join(); }
-                        T = std::thread([&] {
-                            ccdb::utils::set_thread_name(endpoint_name + " cont");
-                            try { worker(); } catch (...) { }
-                        });
-                    }
-
-                    std::this_thread::sleep_for(std::chrono::milliseconds(100l));
-                }
-
-                http_cli.stop();
-                if (T.joinable()) { T.join(); }
-            }
-            else
-            {
-                while (*keep_running) // pull every 300ms
-                {
-                    stance = true;
-                    std::thread T([&] {
-                        ccdb::utils::set_thread_name(endpoint_name + " rept");
-                        try { worker(); }
-                        catch (std::exception & e) { std::cerr << e.what() << std::endl; exit(1); }
-                    });
-                    std::this_thread::sleep_for(std::chrono::milliseconds(300l));
-                    stance = false;
                     if (T.joinable()) { T.join(); }
+                    T = std::thread([&] {
+                        ccdb::utils::set_thread_name(endpoint_name + " cont");
+                        try { worker(); } catch (...) { }
+                    });
                 }
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(100l));
             }
+
+            http_cli.stop();
+            if (T.joinable()) { T.join(); }
+
         } catch (std::exception & e) {
             throw std::runtime_error(e.what());
         } catch (...) {
