@@ -576,9 +576,15 @@ void ccdb::ccdb::print_table(
                 const std::string progress_bar = generate_linear_handle(len_, start_, end_, static_cast<int>(vec.size()));
                 const std::u32string progress_bar32 = utf8_to_u32(progress_bar);
 
+                auto strip_color = [](std::string str_)->std::string {
+                    regex_replace_all(str_, R"(\x1B\[(?:\d*(?:;\d*)*)?m)", [](const auto &)->std::string { return ""; });
+                    return str_;
+                };
+
                 for (const auto & c : progress_bar32)
                 {
-                    ss2 << utf8::utf32to8({c}) << vec.front() << std::endl;
+                    int padding = get_col_size() - UnicodeDisplayWidth::get_width_utf8(strip_color(vec.front())) - 1;
+                    ss2 << utf8::utf32to8({c}) << vec.front() << color::no_color() << (padding > 0 ? std::string(padding, ' ') : "") << std::endl;
                     vec.erase(vec.begin());
                 }
 

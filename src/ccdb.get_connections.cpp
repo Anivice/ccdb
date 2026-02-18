@@ -53,6 +53,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::vector <std::string> title_this_session;
     std::atomic_int atm_focus;
     std::unique_ptr<::ccdb::utils::setup_term> setup_term;
+    int len_last_time = -1;
 
     auto show_info = [&](const std::string & msg, const std::string & level) {
         g_title_lines.emplace_back("[" + level + "]: " + msg, std::chrono::high_resolution_clock::now());
