@@ -26,6 +26,7 @@
 #include <utility>
 #include <fstream>
 #include "print.h"
+#include "pull_subinfo.h"
 
 // --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;
@@ -53,7 +54,39 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::vector <std::string> title_this_session;
     std::atomic_int atm_focus;
     std::unique_ptr<::ccdb::utils::setup_term> setup_term;
-    int len_last_time = -1;
+    auto [
+        total_uploaded,
+        total_downloaded,
+        quota,
+        expire_unix_timestamp] = pull_clash_subinfo(clash_sublink);
+    auto last_subinfo_pulling_time = std::chrono::high_resolution_clock::now();
+
+    auto update_subinfo = [&]->std::string
+    {
+        auto return_subinfo = [&]->std::string {
+            std::stringstream ret;
+            ret << sprint("Quota usage: ", std::setprecision(2), std::setfill('0'),
+                static_cast<double>(total_uploaded + total_downloaded) / static_cast<double>(quota) * 100, "%");
+            return ret.str();
+        };
+
+        const auto now = std::chrono::high_resolution_clock::now();
+        if (std::chrono::duration_cast<std::chrono::seconds>(now - last_subinfo_pulling_time).count() < 5 * 60) {
+            return return_subinfo();
+        }
+
+        auto [
+            total_uploaded_,
+            total_downloaded_,
+            quota_,
+            expire_unix_timestamp_] = pull_clash_subinfo(clash_sublink);
+        last_subinfo_pulling_time = std::chrono::high_resolution_clock::now();
+        total_uploaded = total_downloaded_;
+        total_downloaded = total_uploaded_;
+        quota = quota_;
+        expire_unix_timestamp = expire_unix_timestamp_;
+        return return_subinfo();
+    };
 
     auto show_info = [&](const std::string & msg, const std::string & level) {
         g_title_lines.emplace_back("[" + level + "]: " + msg, std::chrono::high_resolution_clock::now());
@@ -239,6 +272,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             append_msg(sprint("Total downloads: ") + value_to_size(backend_instance.get_total_downloaded_bytes()));
             append_msg("   ");
             append_msg(sprint("Download speed: ") + value_to_speed(backend_instance.get_current_download_speed()));
+            append_msg("   ");
+            append_msg(update_subinfo());
 
             title_line = ss.str();
             if (title_line.empty()) title_line = " ";

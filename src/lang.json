@@ -753,5 +753,10 @@
     "en"    : "Failed to close all connections",
     "en_US" : "Failed to close all connections",
     "zh_CN" : "关闭所有连接失败"
+  },
+  {
+    "en"    : "Quota usage: ",
+    "en_US" : "Quota usage: ",
+    "zh_CN" : "流量使用百分比: "
   }
 ]
