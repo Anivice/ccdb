@@ -25,14 +25,13 @@
 #include <utility>
 #include "print.h"
 #include "ncursesw/ncurses.h"
+#include <algorithm>
+#include <cmath>
+#include <string>
 
 ccdb::sigint_watcher_ ccdb::watcher;
 std::atomic_bool ccdb::window_size_change = false;
 std::atomic_bool ccdb::sysint_pressed = false;
-
-#include <algorithm>
-#include <cmath>
-#include <string>
 
 static std::string generate_linear_handle(
     const int content_total,

@@ -196,7 +196,7 @@ function(generate_from_resource_dir NAME RES OUT_CPP OUT_H XXD_NAME)
     add_custom_command(
             OUTPUT  "${_in}.tar"
             COMMAND cp -r ${_in} terminfo/ && ${TAR_EXEC} cf "${_in}.tar" "terminfo/"
-            DEPENDS "${_in}"
+            DEPENDS NCURSES
             VERBATIM
     )
 
