@@ -91,10 +91,10 @@ namespace ccdb
         /// @param top_3_connections_using_most_speed // top 3 connections using most bandwidth
         /// @param top_3_connections_using_most_speed_mtx // mutex for top 3 connections using most bandwidth
         /// @returns NONE
-        static void nload(
+        void nload(
             const std::atomic < uint64_t > * total_upload, const std::atomic < uint64_t > * total_download,
             const std::atomic < uint64_t > * upload_speed, const std::atomic < uint64_t > * download_speed,
-            const std::atomic_bool * running,
+            std::atomic_bool * running,
             std::vector < std::string > & top_3_connections_using_most_speed,
             std::mutex * top_3_connections_using_most_speed_mtx);
 

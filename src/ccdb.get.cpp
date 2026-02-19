@@ -158,6 +158,7 @@ void ccdb::ccdb::get_log()
     std::atomic_int mouse_x, mouse_y;
     std::vector < bool > do_col_hide;
     do_col_hide.resize(log_titles.size(), false);
+    setup_term term;
     auto input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
         &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
         &mouse_x, &mouse_y, nullptr, nullptr, nullptr, nullptr, nullptr);
@@ -172,8 +173,6 @@ void ccdb::ccdb::get_log()
         if (reverse_filter_list) return ret;
         return !ret;
     };
-
-    setup_term term;
 
     while (running)
     {

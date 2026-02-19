@@ -163,7 +163,7 @@ void ccdb::ccdb::update_providers()
 void ccdb::ccdb::nload(
     const std::atomic<uint64_t> *total_upload, const std::atomic<uint64_t> *total_download,
     const std::atomic<uint64_t> *upload_speed, const std::atomic<uint64_t> *download_speed,
-    const std::atomic_bool *running,
+    std::atomic_bool *running,
     std::vector<std::string> &top_3_connections_using_most_speed,
     std::mutex *top_3_connections_using_most_speed_mtx)
 {
@@ -353,6 +353,7 @@ void ccdb::ccdb::nload(
     const uint64_t upload_total_bytes_when_started = *total_upload, download_total_bytes_when_started = *total_download;
     const auto now = std::chrono::high_resolution_clock::now();
     utils::setup_term term;
+    std::thread input_watcher(&ccdb::generic_input_watcher, this, "get/nload:input", running);
     int info_space_size_before = info_space_size;
     while (*running)
     {
@@ -496,6 +497,8 @@ void ccdb::ccdb::nload(
 
         update_window_spaces();
     }
+
+    if (input_watcher.joinable()) input_watcher.join();
 }
 
 void ccdb::ccdb::pager(const std::string &str, const bool override_less_check, bool use_pager)
@@ -969,8 +972,6 @@ void ccdb::ccdb::nload()
             &lock);
     });
 
-    std::thread input_watcher(&ccdb::generic_input_watcher, this, "get/nload:input", &running);
-
     while (running)
     {
         total_up = backend_instance.get_total_uploaded_bytes();
@@ -1027,7 +1028,6 @@ void ccdb::ccdb::nload()
 
     running = false;
     if (Worker.joinable()) Worker.join();
-    if (input_watcher.joinable()) input_watcher.join();
 }
 
 void ccdb::ccdb::reset_terminal_mode()
