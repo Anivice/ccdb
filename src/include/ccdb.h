@@ -32,6 +32,8 @@
 #include "commandTemplateTree.h"
 #include "tsl/hopscotch_map.h"
 #include "utils.h"
+#include "print.h"
+#include  "pull_subinfo.h"
 
 namespace ccdb
 {
@@ -219,6 +221,12 @@ namespace ccdb
     public:
         ccdb(const std::string & backend, int port, const std::string & token, std::string latency_url_);
         ccdb(const std::string & backend, int port, const std::string & token, std::string latency_url_, const std::vector<std::string> & cmd);
+
+        std::string update_subinfo(
+            uint64_t & total_uploaded,
+            uint64_t & total_downloaded,
+            uint64_t & quota,
+            std::chrono::high_resolution_clock::time_point & last_subinfo_pulling_time) const;
 
         friend class mode_guard_t;
     };

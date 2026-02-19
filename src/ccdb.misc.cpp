@@ -362,34 +362,6 @@ void ccdb::ccdb::nload(
         expire_unix_timestamp] = pull_clash_subinfo(clash_sublink);
     auto last_subinfo_pulling_time = std::chrono::high_resolution_clock::now();
 
-    auto update_subinfo = [&]->std::string
-    {
-        auto return_subinfo = [&]->std::string {
-            std::stringstream ret;
-            ret << sprint("Quota usage: ", std::setprecision(2), std::setfill('0'),
-                static_cast<double>(total_uploaded + total_downloaded) / static_cast<double>(quota) * 100, "%");
-            return ret.str();
-        };
-
-        if (const auto now_ = std::chrono::high_resolution_clock::now();
-            std::chrono::duration_cast<std::chrono::seconds>(now_ - last_subinfo_pulling_time).count() < 5 * 60)
-        {
-            return return_subinfo();
-        }
-
-        auto [
-            total_uploaded_,
-            total_downloaded_,
-            quota_,
-            expire_unix_timestamp_] = pull_clash_subinfo(clash_sublink);
-        last_subinfo_pulling_time = std::chrono::high_resolution_clock::now();
-        total_uploaded = total_downloaded_;
-        total_downloaded = total_uploaded_;
-        quota = quota_;
-        expire_unix_timestamp = expire_unix_timestamp_;
-        return return_subinfo();
-    };
-
     while (*running)
     {
         std::ostringstream frame;
@@ -497,7 +469,8 @@ void ccdb::ccdb::nload(
                 });
             }
 
-            if (const auto msg = sprint("* P: On this page, O: Overall", ", ", update_subinfo());
+            if (const auto msg = sprint("* P: On this page, O: Overall", ", ",
+                update_subinfo(total_uploaded, total_downloaded, quota, last_subinfo_pulling_time));
                 col >= UnicodeDisplayWidth::get_width_utf8(msg))
             {
                 frame << color::color(5,5,5, 0,0,5)
@@ -1513,4 +1486,33 @@ void ccdb::ccdb::get_conn_input_watcher(
     std::ranges::for_each(threads, [](std::thread & T) {
         if (T.joinable()) T.join();
     });
+}
+
+std::string ccdb::ccdb::update_subinfo(uint64_t &total_uploaded, uint64_t &total_downloaded, uint64_t &quota,
+    std::chrono::high_resolution_clock::time_point &last_subinfo_pulling_time) const
+{
+    auto return_subinfo = [&]->std::string {
+        std::stringstream ret;
+        ret << ::ccdb::utils::sprint("Quota usage: ",
+                                     utils::value_to_size(total_uploaded + total_downloaded), " / ", utils::value_to_size(quota), " ",
+                                     std::setprecision(2), std::setfill('0'),
+                                     static_cast<double>(total_uploaded + total_downloaded) / static_cast<double>(quota) * 100, "%");
+        return ret.str();
+    };
+
+    const auto now = std::chrono::high_resolution_clock::now();
+    if (std::chrono::duration_cast<std::chrono::seconds>(now - last_subinfo_pulling_time).count() < 5 * 60) {
+        return return_subinfo();
+    }
+
+    auto [
+        total_uploaded_,
+        total_downloaded_,
+        quota_,
+        expire_unix_timestamp_] = pull_clash_subinfo(clash_sublink);
+    last_subinfo_pulling_time = std::chrono::high_resolution_clock::now();
+    total_uploaded = total_downloaded_;
+    total_downloaded = total_uploaded_;
+    quota = quota_;
+    return return_subinfo();
 }
