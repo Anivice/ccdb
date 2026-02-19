@@ -141,9 +141,13 @@ namespace ccdb::utils {
 
     void put_cap(const char* cap);
     const char* capstr(const char* name);
-    void move_home();
 
-    class setup_term {
+    class setup_term
+    {
+    private:
+        bool used_tparm_ = false;
+        static constexpr char clear_[] = { 0x1b, 0x5b, 0x48, 0x1b, 0x5b, 0x32, 0x4a, 0x1b, 0x5b, 0x33, 0x4a, 0x00 };
+
     public:
         const char* smcup = capstr("smcup");
         const char* rmcup = capstr("rmcup");
@@ -152,6 +156,7 @@ namespace ccdb::utils {
         const char* cnorm = capstr("cnorm");
         const char* ed    = capstr("ed");
 
+        void move_home() const;
         setup_term();
         ~setup_term();
         void ed_clear() const;

@@ -105,66 +105,64 @@ std::string ccdb::utils::get_text(const std::string &text)
 
 void ccdb::utils::put_cap(const char* cap)
 {
-#if defined(__use_tparm__)
     if (!cap || cap == reinterpret_cast<char *>(-1)) return;
     putp(cap);
-#endif
 }
 
 const char* ccdb::utils::capstr(const char* name)
 {
-#if defined(__use_tparm__)
     const char* s = tigetstr(name);
     if (s == reinterpret_cast<char *>(-1) || s == nullptr) return nullptr;
     return s;
-#endif
-    return "";
 }
 
-void ccdb::utils::move_home() {
-#if defined(__use_tparm__)
-    const char* cup = capstr("cup"); // cursor position
-    if (!cup) return;
-    if (const char* seq = tparm(const_cast<char*>(cup), 0, 0)) put_cap(seq);
-#endif
+void ccdb::utils::setup_term::move_home() const
+{
+    if (used_tparm_) {
+        const char* cup = capstr("cup"); // cursor position
+        if (!cup) return;
+        if (const char* seq = tparm(const_cast<char*>(cup), 0, 0)) put_cap(seq);
+    } else {
+        if (clear) write(STDOUT_FILENO, clear, strlen(clear));
+        else write(STDOUT_FILENO, clear_, strlen(clear_));
+        fsync(STDOUT_FILENO);
+    }
 }
 
 ccdb::utils::setup_term::setup_term()
 {
-#if defined(__use_tparm__)
     int err = 0;
-    if (setupterm(nullptr, fileno(stdout), &err) != OK || err <= 0) {
-        std::fprintf(stderr, "setupterm failed: %d\n", err);
+    if (setupterm(nullptr, fileno(stdout), &err) != OK || err <= 0)
+    {
+        std::fprintf(stderr, "setupterm failed: %d, %s\n", err, std::strerror(errno));
+        used_tparm_ = false;
+        if (clear) write(STDOUT_FILENO, clear, strlen(clear));
+        else write(STDOUT_FILENO, clear_, strlen(clear_));
+        fsync(STDOUT_FILENO);
         return;
     }
 
     put_cap(smcup);
     put_cap(civis);
     put_cap(clear);
-#else
-    write(STDOUT_FILENO, clear, strlen(clear));
-    fsync(STDOUT_FILENO);
-#endif
+    used_tparm_ = true;
 }
 
 ccdb::utils::setup_term::~setup_term()
 {
-#if defined(__use_tparm__)
-    // restore
-    put_cap(cnorm);
-    put_cap(rmcup);
-#endif
+    if (used_tparm_) {
+        // restore
+        put_cap(cnorm);
+        put_cap(rmcup);
+    }
     std::fflush(stdout);
 }
 
 void ccdb::utils::setup_term::ed_clear() const
 {
-#if defined(__use_tparm__)
-    if (ed) put_cap(ed);
-#else
-    write(STDOUT_FILENO, clear, strlen(clear));
-    fsync(STDOUT_FILENO);
-#endif
+    if (used_tparm_ && ed) {
+        put_cap(ed);
+    }
 }
 
 ccdb::utils::CRC64::CRC64()

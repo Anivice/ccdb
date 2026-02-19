@@ -476,7 +476,7 @@ void ccdb::ccdb::nload(
         }
 
         /// repaint:
-        move_home();
+        term.move_home();
         std::cout << frame.str() << std::flush;
         term.ed_clear();
 

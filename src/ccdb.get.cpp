@@ -200,7 +200,7 @@ void ccdb::ccdb::get_log()
             line_off++;
         }
 
-        move_home();
+        term.move_home();
 
         print_table(log_titles,
             lines,

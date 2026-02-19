@@ -352,7 +352,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 conn_show_detail = false;
             }
 
-            move_home();
+            setup_term->move_home();
 
             print_table(title_this_session,
                 table_vals,
