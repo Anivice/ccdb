@@ -29,6 +29,7 @@
 #include "general_info_pulling.h"
 #include "print.h"
 #include "args.h"
+#include "utils.h"
 
 namespace utils = ccdb::utils;
 

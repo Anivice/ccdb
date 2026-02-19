@@ -30,11 +30,17 @@
 #include <iomanip>
 #include <regex>
 #define USE_TSL_HOPSCOTCH_MAP
+#include <thread>
+#include <iostream>
 #include "lzw6.h"
 #include "json.hpp"
 #include "lang.json.h"
 #include "ncursesw/ncurses.h"
 #include "ncursesw/term.h"
+#include <termios.h>
+#include <fcntl.h>
+#include "terminfotar.h"
+#include <fstream>
 
 std::vector<uint8_t> ccdb::utils::compress(const std::vector<uint8_t>& data)
 {
@@ -118,51 +124,115 @@ const char* ccdb::utils::capstr(const char* name)
 
 void ccdb::utils::setup_term::move_home() const
 {
-    if (used_tparm_) {
+    if (terminal_mode_changed) {
         const char* cup = capstr("cup"); // cursor position
         if (!cup) return;
         if (const char* seq = tparm(const_cast<char*>(cup), 0, 0)) put_cap(seq);
     } else {
-        if (clear) write(STDOUT_FILENO, clear, strlen(clear));
-        else write(STDOUT_FILENO, clear_, strlen(clear_));
-        fsync(STDOUT_FILENO);
+        std::cout << clear_ << std::flush;
     }
 }
 
+std::atomic_bool term_inited = false;
+static class init_term_t {
+public:
+    init_term_t()
+    {
+        // setup terminfo
+        const auto cache = ccdb::utils::getenv("HOME") + "/.cache";
+        if (!std::filesystem::exists(cache)) {
+            std::filesystem::create_directory(cache);
+        }
+
+        const auto target = cache + "/terminfo";
+        if (!std::filesystem::exists(target))
+        {
+            std::filesystem::create_directory(target);
+            std::vector<uint8_t> compressed_terminfo(terminfotar_len);
+            std::memcpy(compressed_terminfo.data(), terminfotar, terminfotar_len);
+            const auto decompressed_terminfo = ccdb::utils::decompress(compressed_terminfo);
+            const auto tarball_dest = cache + "/terminfo.tar";
+            std::ofstream terminfo_tar(tarball_dest, std::ios::binary);
+            if (!terminfo_tar.good()) {
+                std::cerr << "Could not write terminfo.tar" << std::endl;
+            } else {
+                terminfo_tar.write(reinterpret_cast<const char *>(decompressed_terminfo.data()), decompressed_terminfo.size());
+                terminfo_tar.close();
+                ccdb::utils::exec_command("/bin/sh", "", "-c", "tar -xf " + tarball_dest + " --directory=" + cache);
+            }
+        }
+
+        setenv("TERMINFO", target.c_str(), 1);
+        int err = 0;
+        if (setupterm(nullptr, fileno(stdout), &err) != OK || err <= 0) {
+            std::fprintf(stderr, "setupterm failed: %d, %s\n", err, std::strerror(errno));
+            return;
+        }
+
+        term_inited = true;
+    }
+} init_term;
+
 ccdb::utils::setup_term::setup_term()
 {
-    int err = 0;
-    if (setupterm(nullptr, fileno(stdout), &err) != OK || err <= 0)
-    {
-        std::fprintf(stderr, "setupterm failed: %d, %s\n", err, std::strerror(errno));
-        used_tparm_ = false;
-        if (clear) write(STDOUT_FILENO, clear, strlen(clear));
-        else write(STDOUT_FILENO, clear_, strlen(clear_));
-        fsync(STDOUT_FILENO);
+    if (!term_inited) {
         return;
     }
 
+    set_conio_terminal_mode();
     put_cap(smcup);
     put_cap(civis);
     put_cap(clear);
-    used_tparm_ = true;
+    terminal_mode_changed = true;
 }
 
 ccdb::utils::setup_term::~setup_term()
 {
-    if (used_tparm_) {
+    if (terminal_mode_changed) {
         // restore
         put_cap(cnorm);
         put_cap(rmcup);
+        reset_terminal_mode();
     }
     std::fflush(stdout);
 }
 
 void ccdb::utils::setup_term::ed_clear() const
 {
-    if (used_tparm_ && ed) {
+    if (terminal_mode_changed && ed) {
         put_cap(ed);
     }
+}
+
+void ccdb::utils::setup_term::reset_terminal_mode()
+{
+    if (terminal_mode_changed) {
+        tcsetattr(STDIN_FILENO, TCSANOW, &old_tio);
+        fcntl(STDIN_FILENO, F_SETFL, old_flags);
+        terminal_mode_changed = false;
+
+        // disable mouse tracking
+        const auto * off = "\x1b[?1006l\x1b[?1000l";
+        std::cout.write(off, static_cast<std::streamsize>(std::char_traits<char>::length(off)));
+        std::cout.flush();
+    }
+}
+
+void ccdb::utils::setup_term::set_conio_terminal_mode()
+{
+    tcgetattr(STDIN_FILENO, &old_tio);
+    new_tio = old_tio;
+    new_tio.c_lflag &= ~(ICANON | ECHO);
+    new_tio.c_cc[VMIN] = 1;
+    new_tio.c_cc[VTIME] = 0;
+    tcsetattr(STDIN_FILENO, TCSANOW, &new_tio);
+    old_flags = fcntl(STDIN_FILENO, F_GETFL, 0);
+    terminal_mode_changed = true;
+
+    // enable mouse tracking + SGR mode
+    const auto on = "\x1b[?1000h\x1b[?1006h";
+    std::cout.write(on, static_cast<std::streamsize>(std::char_traits<char>::length(on)));
+    std::cout.flush();
 }
 
 ccdb::utils::CRC64::CRC64()

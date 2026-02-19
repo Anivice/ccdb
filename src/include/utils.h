@@ -31,6 +31,7 @@
 #include <atomic>
 #include <functional>
 #include <regex>
+#include <termios.h>
 
 /// Utilities
 namespace ccdb::utils {
@@ -145,8 +146,11 @@ namespace ccdb::utils {
     class setup_term
     {
     private:
-        bool used_tparm_ = false;
         static constexpr char clear_[] = { 0x1b, 0x5b, 0x48, 0x1b, 0x5b, 0x32, 0x4a, 0x1b, 0x5b, 0x33, 0x4a, 0x00 };
+        termios old_tio { }; // old TIO backup
+        termios new_tio { }; // new TIO backup
+        int old_flags = 0; // old flag backup
+        bool terminal_mode_changed = false; // is term mode changed by ccdb?
 
     public:
         const char* smcup = capstr("smcup");
@@ -156,10 +160,12 @@ namespace ccdb::utils {
         const char* cnorm = capstr("cnorm");
         const char* ed    = capstr("ed");
 
-        void move_home() const;
         setup_term();
         ~setup_term();
+        void move_home() const;
         void ed_clear() const;
+        void reset_terminal_mode();
+        void set_conio_terminal_mode();
     };
 
     class CRC64 {

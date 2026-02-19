@@ -266,12 +266,6 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
     }
 }
 
-
-ccdb::ccdb::~ccdb()
-{
-    reset_terminal_mode();
-}
-
 void ccdb::ccdb::init()
 {
     // std::setlocale(LC_ALL, "en_US.UTF-8");
@@ -655,9 +649,8 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
         jq.clear();
         (void)handler(cmd);
     }
-    catch (std::exception & e)
+    catch (std::exception &)
     {
-        // if (strlen(e.what()) > 0) std::cerr << e.what() << std::endl;
         exit(1);
     }
     catch (...)

@@ -38,10 +38,6 @@ namespace ccdb
     class ccdb
     {
     private:
-        termios old_tio { }; // old TIO backup
-        termios new_tio { }; // new TIO backup
-        int old_flags = 0; // old flag backup
-        bool terminal_mode_changed = false; // is term mode changed by ccdb?
         general_info_pulling backend_instance; // backend instance
 
         // get connections table: titles
@@ -152,13 +148,6 @@ namespace ccdb
         std::vector<std::string> get_vgroups();
         /// get vector proxy group endpoints
         std::vector<std::string> get_vendpoints(const std::string & group);
-
-        // !! The following functions should be invoked by term mode guard and not the user !!
-        // !! Create a term mode guard instead of invoking directly from here !!
-        /// set no-echo and other term mode when continuous table update like nload is running
-        void reset_terminal_mode();
-        /// reset term mode back to the original
-        void set_conio_terminal_mode();
         void interactive_verification() const;
 
     protected:
@@ -193,14 +182,6 @@ namespace ccdb
         void set_mixedport(int port); // Mihomo mixed proxy port,
         void apply();
         void fork_and_execute(const std::vector<std::string> &);
-
-        /// terminal mode guard. Create this instance to change and reset term mode automatically
-        class mode_guard_t {
-            ccdb * parent_;
-        public:
-            explicit mode_guard_t(ccdb * parent);
-            ~mode_guard_t();
-        };
 
         /// Input watcher that sets running flag when q is pressed
         /// @param name Thread name
@@ -238,7 +219,6 @@ namespace ccdb
     public:
         ccdb(const std::string & backend, int port, const std::string & token, std::string latency_url_);
         ccdb(const std::string & backend, int port, const std::string & token, std::string latency_url_, const std::vector<std::string> & cmd);
-        ~ccdb();
 
         friend class mode_guard_t;
     };

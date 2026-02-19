@@ -168,6 +168,7 @@ find_program(XXD_EXEC   xxd     REQUIRED)
 find_program(SED_EXEC   sed     REQUIRED)
 find_program(GREP_EXEC  grep    REQUIRED)
 find_program(CAT_EXEC   cat     REQUIRED)
+find_program(TAR_EXEC   tar     REQUIRED)
 
 function(generate_from_resource_file RES OUT_CPP OUT_H XXD_NAME)
     set(_in   "${CMAKE_SOURCE_DIR}/${RES}")
@@ -186,6 +187,29 @@ endfunction()
 
 generate_from_resource_file(command.readline command.readline.cpp command.readline.h command_readline)
 generate_from_resource_file(lang.json lang.json.cpp lang.json.h lang_json)
+
+function(generate_from_resource_dir NAME RES OUT_CPP OUT_H XXD_NAME)
+    set(_in   "${RES}")
+    set(_outc "${CMAKE_CURRENT_BINARY_DIR}/${OUT_CPP}")
+    set(_outh "${CMAKE_CURRENT_BINARY_DIR}/${OUT_H}")
+
+    add_custom_command(
+            OUTPUT  "${_in}.tar"
+            COMMAND cp -r ${_in} terminfo/ && ${TAR_EXEC} cf "${_in}.tar" "terminfo/"
+            DEPENDS "${_in}"
+            VERBATIM
+    )
+
+    add_custom_command(
+            OUTPUT "${_outc}" "${_outh}"
+            COMMAND "${CMAKE_SOURCE_DIR}/script/gen_header.sh" "${_outc}" "${_outh}" "${XXD_NAME}" "${_in}.tar" "${CMAKE_CURRENT_BINARY_DIR}/compress"
+            DEPENDS "${_in}.tar" "${CMAKE_SOURCE_DIR}/script/gen_header.sh" compress
+            VERBATIM
+    )
+
+    add_library(${NAME} STATIC "${_outc}" "${_outh}")
+endfunction()
+generate_from_resource_dir(Zterminfotar ${CMAKE_BINARY_DIR}/ncurses/install/share/terminfo terminfotar.cpp terminfotar.h terminfotar)
 
 # CCDB
 add_executable(ccdb
@@ -206,7 +230,7 @@ add_executable(ccdb
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
 target_compile_definitions(ccdb PRIVATE CCDB_VERSION="0.8.6" CPPHTTPLIB_OPENSSL_SUPPORT)
-target_link_libraries(ccdb PRIVATE resource_lang.json resource_command.readline openssl::openssl)
+target_link_libraries(ccdb PRIVATE resource_lang.json resource_command.readline Zterminfotar openssl::openssl)
 add_dependencies(ccdb OPENSSL)
 
 find_program(GIT_EXEC NAMES git REQUIRED)

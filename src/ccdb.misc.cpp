@@ -1030,38 +1030,6 @@ void ccdb::ccdb::nload()
     if (Worker.joinable()) Worker.join();
 }
 
-void ccdb::ccdb::reset_terminal_mode()
-{
-    if (terminal_mode_changed) {
-        tcsetattr(STDIN_FILENO, TCSANOW, &old_tio);
-        fcntl(STDIN_FILENO, F_SETFL, old_flags);
-        terminal_mode_changed = false;
-
-        // disable mouse tracking
-        const auto * off = "\x1b[?1006l\x1b[?1000l";
-        std::cout.write(off, static_cast<std::streamsize>(std::char_traits<char>::length(off)));
-        std::cout.flush();
-    }
-}
-
-void ccdb::ccdb::set_conio_terminal_mode()
-{
-    tcgetattr(STDIN_FILENO, &old_tio);
-    new_tio = old_tio;
-    new_tio.c_lflag &= ~(ICANON | ECHO);
-    new_tio.c_cc[VMIN] = 1;
-    new_tio.c_cc[VTIME] = 0;
-    tcsetattr(STDIN_FILENO, TCSANOW, &new_tio);
-    old_flags = fcntl(STDIN_FILENO, F_GETFL, 0);
-    // fcntl(STDIN_FILENO, F_SETFL, old_flags | O_NONBLOCK);
-    terminal_mode_changed = true;
-
-    // enable mouse tracking + SGR mode
-    const auto on = "\x1b[?1000h\x1b[?1006h";
-    std::cout.write(on, static_cast<std::streamsize>(std::char_traits<char>::length(on)));
-    std::cout.flush();
-}
-
 void ccdb::ccdb::interactive_verification() const
 {
     if (execute_and_no_interactive) {
@@ -1145,24 +1113,11 @@ void ccdb::ccdb::reset_terminal_mode_forcefully()
     }
 }
 
-ccdb::ccdb::mode_guard_t::mode_guard_t(ccdb *parent): parent_(parent)
-{
-    std::cout << "\033[?25l"; // hide cursor
-    parent_->set_conio_terminal_mode();
-}
-
-ccdb::ccdb::mode_guard_t::~mode_guard_t()
-{
-    parent_->reset_terminal_mode();
-    std::cout << "\033[?25h"; // show cursor
-}
-
 void ccdb::ccdb::generic_input_watcher(const std::string &name, std::atomic_bool *running)
 {
     set_thread_name(name);
     interactive_verification();
     const auto sigint_status = watcher.make_status_watcher();
-    mode_guard_t input_mode_guard(this);
 
     // pull SIGINT status every 50ms
     std::thread T([&] { while (*running) {
@@ -1211,7 +1166,6 @@ void ccdb::ccdb::get_conn_input_watcher(
     const std::atomic_int & max_skip_lines = *max_skip_lines_ptr;
     std::vector<std::thread> threads;
     const auto sigint_status = watcher.make_status_watcher();
-    mode_guard_t input_mode_guard(this);
 
     // pull SIGINT every 50ms
     threads.emplace_back([&] { while (running) {
