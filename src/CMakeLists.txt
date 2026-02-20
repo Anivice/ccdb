@@ -265,8 +265,12 @@ if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     else()
         target_link_libraries(ccdb PRIVATE atomic readline::readline ncurses::ncurses)
     endif()
-
+    target_compile_options(ccdb PRIVATE -fconcepts-diagnostics-depth=3)
     target_compile_definitions(ccdb PRIVATE __DEBUG__=1)
+
+    add_executable(data_race data_race_ssl.cpp)
+    target_link_libraries(data_race PRIVATE openssl::openssl)
+
 else ()
     set(LD_STATIC "")
     if ("${CMAKE_BUILD_STATIC}" STREQUAL "True")

@@ -36,13 +36,13 @@ class broken_connection_this_force_quit : public std::exception { };
 template < class T >
 class ccdb_atomic_t {
 private:
-    T val_;
+    T val_ { };
     std::mutex mtx_;
 
 public:
     ccdb_atomic_t() = default;
     explicit ccdb_atomic_t(const T & val) : val_(val) { }
-    [[nodiscard]] const T & get() { std::lock_guard lock(mtx_); return val_; }
+    [[nodiscard]] T get() { std::lock_guard lock(mtx_); return val_; }
     void set(const T& val) { std::lock_guard lock(mtx_); val_ = val; }
     ccdb_atomic_t & operator = (const T& val) { set(val); return *this; }
 };

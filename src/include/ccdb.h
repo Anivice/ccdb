@@ -27,13 +27,11 @@
 #include <atomic>
 #include "config.h"
 #include <iomanip>
-#include <termios.h>
 #include "general_info_pulling.h"
 #include "commandTemplateTree.h"
 #include "tsl/hopscotch_map.h"
 #include "utils.h"
-#include "print.h"
-#include  "pull_subinfo.h"
+#include <thread>
 
 namespace ccdb
 {
@@ -218,15 +216,21 @@ namespace ccdb
             const std::atomic_int * current_focus_ptr);
 
         void init();
+
+        struct subinfo_ball_t {
+            uint64_t total_uploaded { };
+            uint64_t total_downloaded { };
+            uint64_t quota { };
+            std::chrono::high_resolution_clock::time_point last_subinfo_pulling_time { };
+        };
+
+        using atomic_subinfo_ball_t = std::unique_ptr < ccdb_atomic_t < subinfo_ball_t > >;
+        [[nodiscard]] std::string update_subinfo(atomic_subinfo_ball_t &, std::vector < std::thread> & thread_pool) const;
+        static void wait_thread(std::vector<std::thread> & child_workers);
+
     public:
         ccdb(const std::string & backend, int port, const std::string & token, std::string latency_url_);
         ccdb(const std::string & backend, int port, const std::string & token, std::string latency_url_, const std::vector<std::string> & cmd);
-
-        std::string update_subinfo(
-            uint64_t & total_uploaded,
-            uint64_t & total_downloaded,
-            uint64_t & quota,
-            std::chrono::high_resolution_clock::time_point & last_subinfo_pulling_time) const;
 
         friend class mode_guard_t;
     };

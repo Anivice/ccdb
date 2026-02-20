@@ -54,12 +54,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::vector <std::string> title_this_session;
     std::atomic_int atm_focus;
     std::unique_ptr<::ccdb::utils::setup_term> setup_term;
-    auto [
-        total_uploaded,
-        total_downloaded,
-        quota,
-        expire_unix_timestamp] = pull_clash_subinfo(clash_sublink);
-    auto last_subinfo_pulling_time = std::chrono::high_resolution_clock::now();
+    atomic_subinfo_ball_t subinfo_ball = std::make_unique<ccdb_atomic_t<subinfo_ball_t>>();
+    std::vector<std::thread> threads;
 
     auto show_info = [&](const std::string & msg, const std::string & level) {
         g_title_lines.emplace_back("[" + level + "]: " + msg, std::chrono::high_resolution_clock::now());
@@ -246,7 +242,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             append_msg("   ");
             append_msg(sprint("Download speed: ") + value_to_speed(backend_instance.get_current_download_speed()));
             append_msg("   ");
-            append_msg(update_subinfo(total_uploaded, total_downloaded, quota, last_subinfo_pulling_time));
+            append_msg(update_subinfo(subinfo_ball, threads));
 
             title_line = ss.str();
             if (title_line.empty()) title_line = " ";
@@ -434,5 +430,6 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
     running = false;
     if (input_getc_worker.joinable()) input_getc_worker.join();
-    std::ranges::for_each(child_workers, [](std::thread & T) { if (T.joinable()) T.join(); });
+    wait_thread(child_workers);
+    wait_thread(threads);
 }

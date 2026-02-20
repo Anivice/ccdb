@@ -26,9 +26,9 @@
 #include "print.h"
 #include "utils.h"
 
-static bool parse_url(const std::string& url, std::string& scheme, std::string& host, std::string& path)
+bool parse_url(const std::string& url, std::string& scheme, std::string& host, std::string& path)
 {
-    const std::regex re(R"(^(\w+)://([^/]+)(/.*)$)");
+    static const std::regex re(R"(^(\w+)://([^/]+)(/.*)$)");
     std::smatch match;
     if (!std::regex_match(url, match, re)) {
         return false;
@@ -39,9 +39,9 @@ static bool parse_url(const std::string& url, std::string& scheme, std::string& 
     return true;
 }
 
-static bool parse_proxy(const std::string& url, std::string& host, int & port)
+bool parse_proxy(const std::string& url, std::string& host, int & port)
 {
-    const std::regex re(R"(^[\w]+://([^/]+):([\d]+)$)");
+    static const std::regex re(R"(^[\w]+://([^/]+):([\d]+)$)");
     std::smatch match;
     if (!std::regex_match(url, match, re)) {
         return false;
@@ -51,8 +51,11 @@ static bool parse_proxy(const std::string& url, std::string& host, int & port)
     return true;
 }
 
+static std::mutex mutex; // TODO: BUG inside OpenSSL, SSL has concurrancy issues: https://github.com/openssl/openssl/issues/29212
+
 ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url)
 {
+    std::lock_guard<std::mutex> lock(mutex);
     std::string scheme, host, path, proxy_host;
     int proxy_port = 0;
     if (!parse_url(url, scheme, host, path)) {
