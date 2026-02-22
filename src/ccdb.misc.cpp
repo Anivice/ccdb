@@ -84,6 +84,7 @@ void ccdb::window_size_change_handler(int)
 
 std::string ccdb::ccdb::update_subinfo(atomic_subinfo_ball_t & atomic_subinfo_ball, std::vector < std::thread> & thread_pool) const
 {
+    if (clash_sublink.empty()) return "";
     auto [total_uploaded, total_downloaded, quota, last_subinfo_pulling_time] = atomic_subinfo_ball->get();
     auto return_subinfo = [&]->std::string
     {
