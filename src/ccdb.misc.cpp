@@ -739,7 +739,8 @@ void ccdb::ccdb::print_table(
         separation_line = ss_sep.str();
     }
 
-    auto max_tailing_size = get_string_screen_length(separation_line) > col ? (get_string_screen_length(separation_line) - col) : 0;
+    const auto defined_str_len = std::max(get_string_screen_length(separation_line), get_string_screen_length(additional_info_before_table));
+    auto max_tailing_size = defined_str_len > col ? (defined_str_len - col) : 0;
     if (max_tailing_size_ptr) *max_tailing_size_ptr = static_cast<int>(max_tailing_size);
     leading_offset = std::min(static_cast<decltype(max_tailing_size)>(leading_offset), max_tailing_size);
     int printed_lines = 0;
@@ -754,7 +755,7 @@ void ccdb::ccdb::print_table(
         tab_space_size = 4;
     }
 
-    auto print_line = [&](std::string line_, const std::string & color = "", bool endl = true)->void
+    auto print_line = [&](std::string line_, const std::string & color = "", const bool endl = true)->void
     {
         replace_all(line_, "\n", "");
         replace_all(line_, "\r", "");
@@ -763,7 +764,7 @@ void ccdb::ccdb::print_table(
         if (max_tailing_size_ptr && !using_pager && !enforce_no_pager)
         {
             // cut
-            if (leading_offset > 0)
+            if (leading_offset > 0 && UnicodeDisplayWidth::get_width_utf32(line) >= leading_offset)
             {
                 const auto p_leading_offset = leading_offset + 1;
                 int leads = 0;
@@ -790,6 +791,12 @@ void ccdb::ccdb::print_table(
                 }
 
                 line = utf8_to_u32("<") + line; // add color code here will mess up formation bc color codes occupies no spaces on screen
+            }
+            else if (leading_offset > 0) // && UnicodeDisplayWidth::get_width_utf32(line) < leading_offset
+            {
+                if (endl) frame << std::endl;
+                printed_lines++;
+                return;
             }
 
             if (const int total_size = get_string_screen_length_u32(line); total_size > col)

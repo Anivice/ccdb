@@ -42,6 +42,8 @@
 #include "terminfotar.h"
 #include <fstream>
 
+#include "print.h"
+
 std::vector<uint8_t> ccdb::utils::compress(const std::vector<uint8_t>& data)
 {
     std::vector<uint8_t> out;
@@ -156,16 +158,17 @@ public:
             if (!terminfo_tar.good()) {
                 std::cerr << "Could not write terminfo.tar" << std::endl;
             } else {
-                terminfo_tar.write(reinterpret_cast<const char *>(decompressed_terminfo.data()), decompressed_terminfo.size());
+                terminfo_tar.write(reinterpret_cast<const char *>(decompressed_terminfo.data()), static_cast<std::streamsize>(decompressed_terminfo.size()));
                 terminfo_tar.close();
                 ccdb::utils::exec_command("/bin/sh", "", "-c", "tar -xf " + tarball_dest + " --directory=" + cache);
+                std::filesystem::remove(tarball_dest);
             }
         }
 
         setenv("TERMINFO", target.c_str(), 1);
         int err = 0;
         if (setupterm(nullptr, fileno(stdout), &err) != OK || err <= 0) {
-            std::fprintf(stderr, "setupterm failed: %d, %s\n", err, std::strerror(errno));
+            ccdb::utils::print<ccdb::utils::is_error>("setupterm failed: ", err, ", ", std::strerror(errno), "\n");
             return;
         }
 
