@@ -55,7 +55,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::atomic_int atm_focus;
     std::unique_ptr<::ccdb::utils::setup_term> setup_term;
     atomic_subinfo_ball_t subinfo_ball = std::make_unique<ccdb_atomic_t<subinfo_ball_t>>();
-    std::vector<std::thread> threads;
+    std::vector < std::pair < std::unique_ptr<std::atomic_bool>, std::thread > > threads;
 
     auto show_info = [&](const std::string & msg, const std::string & level) {
         g_title_lines.emplace_back("[" + level + "]: " + msg, std::chrono::high_resolution_clock::now());
@@ -432,5 +432,5 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     running = false;
     if (input_getc_worker.joinable()) input_getc_worker.join();
     wait_thread(child_workers);
-    wait_thread(threads);
+    std::ranges::for_each(threads, [](auto & T) { if (T.second.joinable()) T.second.join(); });
 }

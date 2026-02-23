@@ -441,7 +441,13 @@ void ccdb::ccdb::get_subinfo()
                     total_uploaded,
                     total_downloaded,
                     quota,
-                    expire_unix_timestamp] = pull_clash_subinfo(clash_sublink);
+                    expire_unix_timestamp] = pull_clash_subinfo(clash_sublink,
+#ifndef __DEBUG__
+                        5
+#else
+                        1
+#endif //__DEBUG__
+                        );
                 const std::chrono::seconds duration(expire_unix_timestamp);
                 const std::chrono::system_clock::time_point time_point(duration);
                 const std::vector < std::string > titles = { sprint("Entry"), sprint("Value") };

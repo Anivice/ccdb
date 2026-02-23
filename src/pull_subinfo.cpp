@@ -51,7 +51,7 @@ bool parse_proxy(const std::string& url, std::string& host, int & port)
     return true;
 }
 
-static std::mutex mutex; // TODO: BUG inside OpenSSL, SSL has concurrancy issues: https://github.com/openssl/openssl/issues/29212
+static std::mutex mutex; // TODO: BUG inside OpenSSL, SSL has concurrency issues: https://github.com/openssl/openssl/issues/29212
 
 ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url, int timeout)
 {
@@ -64,7 +64,10 @@ ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url, int timeout)
 
     httplib::Client cli(scheme + "://" + host);
     if (timeout > 0) {
-        cli.set_read_timeout(timeout);
+        cli.set_read_timeout(timeout, 0);
+        cli.set_connection_timeout(timeout, 0);
+        cli.set_write_timeout(timeout, 0);
+        cli.set_keep_alive(false);
     }
 
     if (scheme == "https" && utils::getenv("DISABLE_SERVER_CERTIFICATE_VERIFICATION") == "true") {
@@ -99,7 +102,21 @@ ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url, int timeout)
     }
 
     const httplib::Headers hdrs = {{"User-Agent", "clash-verge/2.1.0"}}; // dummy header
-    auto res = cli.Head(path, hdrs);
+    httplib::Result res;
+    std::atomic_bool finished = false;
+    std::thread T([&]{ res = cli.Head(path, hdrs); finished = true; });
+    if (timeout > 0)
+    {
+        for (int i = 0; i < timeout * 100; i++) {
+            if (finished) break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+
+        cli.stop();
+    }
+
+    if (T.joinable()) T.join();
+
     if (!res) {
         throw std::runtime_error(utils::sprint("Failed to pull: ", httplib::to_string(res.error())));
     }

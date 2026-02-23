@@ -83,7 +83,8 @@ void ccdb::window_size_change_handler(int)
     window_size_change = true;
 }
 
-std::string ccdb::ccdb::update_subinfo(atomic_subinfo_ball_t & atomic_subinfo_ball, std::vector < std::thread> & thread_pool) const
+std::string ccdb::ccdb::update_subinfo(atomic_subinfo_ball_t & atomic_subinfo_ball,
+    std::vector < std::pair < std::unique_ptr<std::atomic_bool>, std::thread > > & thread_pool) const
 {
     if (clash_sublink.empty()) return "";
     auto [total_uploaded, total_downloaded, quota, last_subinfo_pulling_time] = atomic_subinfo_ball->get();
@@ -115,31 +116,41 @@ std::string ccdb::ccdb::update_subinfo(atomic_subinfo_ball_t & atomic_subinfo_ba
         return return_subinfo();
     }
 
-    thread_pool.emplace_back([this](const atomic_subinfo_ball_t & atomic_subinfo_ball_)
-    {
-        try {
-            auto [
-                total_uploaded_,
-                total_downloaded_,
-                quota_,
-                expire_unix_timestamp_] = pull_clash_subinfo(clash_sublink, 1);
+    if (!thread_pool.empty() && *thread_pool.front().first) {
+        if (thread_pool.front().second.joinable()) thread_pool.front().second.join();
+        thread_pool.clear();
+    } else if (!thread_pool.empty()) {
+        return return_subinfo(); // a thread is already created to pull the data, but not finished yet
+    }
 
-            const subinfo_ball_t ball = {
-                .total_uploaded = total_uploaded_,
-                .total_downloaded = total_downloaded_,
-                .quota = quota_,
-                .last_subinfo_pulling_time = std::chrono::high_resolution_clock::now()
-            };
+    auto finished = std::make_unique<std::atomic_bool>(false);
+    std::atomic_bool * finished_ptr = finished.get();
+    thread_pool.emplace_back(std::make_pair<std::unique_ptr<std::atomic_bool>, std::thread>
+        (std::move(finished),
+        std::thread([this](const atomic_subinfo_ball_t & atomic_subinfo_ball_, std::atomic_bool * finished_ptr)
+        {
+            try {
+                auto [
+                    total_uploaded_,
+                    total_downloaded_,
+                    quota_,
+                    expire_unix_timestamp_] = pull_clash_subinfo(clash_sublink, 1);
 
-            atomic_subinfo_ball_->set(ball);
-        } catch (...) { } // silent drop
-    }, std::ref(atomic_subinfo_ball));
+                const subinfo_ball_t ball = {
+                    .total_uploaded = total_uploaded_,
+                    .total_downloaded = total_downloaded_,
+                    .quota = quota_,
+                    .last_subinfo_pulling_time = std::chrono::high_resolution_clock::now()
+                };
+
+                atomic_subinfo_ball_->set(ball);
+                *finished_ptr = true;
+            } catch (...) { } // silent drop
+        },
+        std::ref(atomic_subinfo_ball),
+        finished_ptr))
+    );
     return return_subinfo();
-}
-
-void ccdb::ccdb::wait_thread(std::vector<std::thread> &child_workers)
-{
-    std::ranges::for_each(child_workers, [](std::thread & T) { if (T.joinable()) T.join(); });
 }
 
 /// signal SIGINT watcher
@@ -416,7 +427,7 @@ void ccdb::ccdb::nload(
     std::thread input_watcher(&ccdb::generic_input_watcher, this, "get/nload:input", running);
     int info_space_size_before = info_space_size;
     atomic_subinfo_ball_t subinfo_ball = std::make_unique<ccdb_atomic_t<subinfo_ball_t>>();
-    std::vector<std::thread> threads;
+    std::vector < std::pair < std::unique_ptr<std::atomic_bool>, std::thread > > threads;
 
     while (*running)
     {
@@ -563,7 +574,7 @@ void ccdb::ccdb::nload(
     }
 
     if (input_watcher.joinable()) input_watcher.join();
-    wait_thread(threads);
+    std::ranges::for_each(threads, [](auto & T) { if (T.second.joinable()) T.second.join(); });
 }
 
 void ccdb::ccdb::pager(const std::string &str, const bool override_less_check, bool use_pager)

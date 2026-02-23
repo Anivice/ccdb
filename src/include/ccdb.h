@@ -225,8 +225,13 @@ namespace ccdb
         };
 
         using atomic_subinfo_ball_t = std::unique_ptr < ccdb_atomic_t < subinfo_ball_t > >;
-        [[nodiscard]] std::string update_subinfo(atomic_subinfo_ball_t &, std::vector < std::thread> & thread_pool) const;
-        static void wait_thread(std::vector<std::thread> & child_workers);
+        [[nodiscard]] std::string update_subinfo(atomic_subinfo_ball_t &,
+            std::vector < std::pair < std::unique_ptr<std::atomic_bool>, std::thread > > & thread_pool) const;
+
+        template < typename vec >
+        static void wait_thread(vec & child_workers) {
+            std::ranges::for_each(child_workers, [](std::thread & T) { if (T.joinable()) T.join(); });
+        }
 
     public:
         ccdb(const std::string & backend, int port, const std::string & token, std::string latency_url_);
