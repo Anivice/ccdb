@@ -590,31 +590,6 @@
     "zh_CN" : "Mihomo 后端日志等级"
   },
   {
-    "en"    : "Environment:\n   PAGER:    Specify a pager. Pager availability check is ignored when this environmental variable is set\n   NOPAGER:  Set this to 'y' and force ccdb to ignore pager\n   COLOR:    Set it to `never` to disable color codes\n   JQ:       Set JSON parser, default is `jq`, if available\n   TABSIZE:  Set tab size when printing tables, default is 4\n   REVERSE_MOUSE: Reverse mouse scrolling direction when set to `true`\n   NO_0xFE0F_EXPAND_EMOJI: Fix Unicode processing issues for emoji space expand code, e.g., \"",
-    "en_US" : "Environment:\n   PAGER:    Specify a pager. Pager availability check is ignored when this environmental variable is set\n   NOPAGER:  Set this to 'y' and force ccdb to ignore pager\n   COLOR:    Set it to `never` to disable color codes\n   JQ:       Set JSON parser, default is `jq`, if available\n   TABSIZE:  Set tab size when printing tables, default is 4\n   REVERSE_MOUSE: Reverse mouse scrolling direction when set to `true`\n   NO_0xFE0F_EXPAND_EMOJI: Fix Unicode processing issues for emoji space expand code, e.g., \"",
-    "zh_CN" : "环境变量:\n   PAGER:    指定分页器. 此环境变量被指定后，ccdb不再做分页器可用性检查\n   NOPAGER:  设置该环境变量为'y'会强制禁用分页器\n   COLOR:    设置为`never`来禁用色彩码\n   JQ:       设置JSON解释器，如果存在`jq`则默认为`jq`\n   TABSIZE:  设置制表符大小，默认为4个空格\n   REVERSE_MOUSE: 设置为`true`时鼠标滚动逆向\n   NO_0xFE0F_EXPAND_EMOJI: 修复Unicode 0xFE0F扩展。例如，\""
-  },
-  {
-    "en"    : "\" and \"",
-    "en_US" : "\" and \"",
-    "zh_CN" : "和"
-  },
-  {
-    "en"    : "If you cannot notice any differences of the above emojis, or there's weird Unicode processing bugs in your terminal,\n",
-    "en_US" : "If you cannot notice any differences of the above emojis, or there's weird Unicode processing bugs in your terminal,\n",
-    "zh_CN" : "如果你看不出区别，或者出现Unicode处理BUG,\n"
-  },
-  {
-    "en"    : "you might want to set this to `true`\n",
-    "en_US" : "you might want to set this to `true`\n",
-    "zh_CN" : "设置该环境变量为`true`可能可以修复该问题\n"
-  },
-  {
-    "en"    : "   DISABLE_SERVER_CERTIFICATE_VERIFICATION: When using `get subinfo`, TLS is enabled by default when the subscription URL uses HTTPS.\n                                            Set this to `true` to skip server SSL certificate check(insecure).\n   SSL_CERTIFICATE: When the Clash subscription link is in https, specify an SSL certificate when pulling subscription usage.\nKeyboard Shortcuts:\n  `get connections`: Get connections has multiple keyboard shortcuts:\n     Mouse Click/Ctrl+UP/DOWN: Move highlight\n                            K: Kill the highlighted connection\n                            P: Print raw JSON from Mihomo core. If `jq` can be found, JSON will be parsed by jq\n                       F1-F12: Specify which column (0-11) to sort the table, press on the same column again to reverse the sort\n                       Ctrl+C: Abort the watcher\n",
-    "en_US" : "   DISABLE_SERVER_CERTIFICATE_VERIFICATION: When using `get subinfo`, TLS is enabled by default when the subscription URL uses HTTPS.\n                                            Set this to `true` to skip server SSL certificate check(insecure).\n   SSL_CERTIFICATE: When the Clash subscription link is in https, specify an SSL certificate when pulling subscription usage.\nKeyboard Shortcuts:\n  `get connections`: Get connections has multiple keyboard shortcuts:\n     Mouse Click/Ctrl+UP/DOWN: Move highlight\n                            K: Kill the highlighted connection\n                            P: Print raw JSON from Mihomo core. If `jq` can be found, JSON will be parsed by jq\n                       F1-F12: Specify which column (0-11) to sort the table, press on the same column again to reverse the sort\n                       Ctrl+C: Abort the watcher\n",
-    "zh_CN" : "   DISABLE_SERVER_CERTIFICATE_VERIFICATION: 当使用 `get subinfo` 时, 如果订阅链接是https，拉取信息时会默认加载SSL，\n                                            设置该环境变量为`true`可以跳过SSL证书认证\n   SSL_CERTIFICATE: 当使用 `get subinfo` 时, 如果订阅链接是https, 使用该环境变量设置SSL证书位置\n键盘快捷键:\n  `get connections`: 拉取活跃连接有多个键盘快捷键:\n        鼠标单击/Ctrl+UP/DOWN: 移动高亮\n                            K: 关闭高亮的连接\n                            P: 输出Mihomo后端提供的该连接的JSON数据. 如果 `jq` 可用，JSON数据会被 `jq` 处理\n                       F1-F12: 设置排序，F1-F12对应列表0-11。同一列表按两次则会反向排序\n                       Ctrl+C: 关闭活跃连接监视器\n"
-  },
-  {
     "en"    : "Error when pulling traffic data: ",
     "en_US" : "Error when pulling traffic data: ",
     "zh_CN" : "无法拉取流量数据: "
@@ -758,5 +733,10 @@
     "en"    : "Quota usage: ",
     "en_US" : "Quota usage: ",
     "zh_CN" : "流量使用百分比: "
+  },
+  {
+    "en"    : "Apply JSON config to backend",
+    "en_US" : "Apply JSON config to backend",
+    "zh_CN" : "向后端发送JSON格式的设置配置"
   }
 ]

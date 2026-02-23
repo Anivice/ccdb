@@ -29,6 +29,7 @@
 #include <cmath>
 #include <string>
 #include "pull_subinfo.h"
+#include "additional_help.h"
 
 ccdb::sigint_watcher_ ccdb::watcher;
 std::atomic_bool ccdb::window_size_change = false;
@@ -1111,35 +1112,13 @@ void ccdb::ccdb::interactive_verification() const
 void ccdb::ccdb::help()
 {
     const auto str = cmdTpTree::command_template_tree.get_help();
+    std::vector<uint8_t> str_additional_compressed(additional_help_len, 0);
+    std::memcpy(str_additional_compressed.data(), additional_help, additional_help_len);
+    auto decompressed_help = utils::decompress(str_additional_compressed);
+    decompressed_help.push_back(0);
     std::stringstream oss;
-    constexpr unsigned char alp_no_expand[] = { 0xe2, 0x9c, 0x88, 0x00 };
-    constexpr unsigned char alp_expanded[] = { 0xe2, 0x9c, 0x88, 0xef, 0xb8, 0x8f, 0x00 };
-    oss
-    << sprint("C++ Clash Dashboard Version ") << CCDB_VERSION " (commit " GIT_HASH ", built on " BUILD_DATE ")" << std::endl
-    << str
-    <<  sprint("Environment:\n"
-        "   PAGER:    Specify a pager. Pager availability check is ignored when this environmental variable is set\n"
-        "   NOPAGER:  Set this to 'y' and force ccdb to ignore pager\n"
-        "   COLOR:    Set it to `never` to disable color codes\n"
-        "   JQ:       Set JSON parser, default is `jq`, if available\n"
-        "   TABSIZE:  Set tab size when printing tables, default is 4\n"
-        "   REVERSE_MOUSE: Reverse mouse scrolling direction when set to `true`\n"
-        "   NO_0xFE0F_EXPAND_EMOJI: Fix Unicode processing issues for emoji space expand code, e.g., \"")
-    << reinterpret_cast<const char*>(alp_no_expand) << sprint("\" and \"") << reinterpret_cast<const char*>(alp_expanded) << "\".\n"
-    << std::string(27, ' ')
-    << sprint("If you cannot notice any differences of the above emojis, or there's weird Unicode processing bugs in your terminal,\n")
-    << std::string(27, ' ') << sprint("you might want to set this to `true`\n")
-    <<  sprint(
-        "   DISABLE_SERVER_CERTIFICATE_VERIFICATION: When using `get subinfo`, TLS is enabled by default when the subscription URL uses HTTPS.\n"
-        "                                            Set this to `true` to skip server SSL certificate check(insecure).\n"
-        "   SSL_CERTIFICATE: When the Clash subscription link is in https, specify an SSL certificate when pulling subscription usage.\n"
-        "Keyboard Shortcuts:\n"
-        "  `get connections`: Get connections has multiple keyboard shortcuts:\n"
-        "     Mouse Click/Ctrl+UP/DOWN: Move highlight\n"
-        "                            K: Kill the highlighted connection\n"
-        "                            P: Print raw JSON from Mihomo core. If `jq` can be found, JSON will be parsed by jq\n"
-        "                       F1-F12: Specify which column (0-11) to sort the table, press on the same column again to reverse the sort\n"
-        "                       Ctrl+C: Abort the watcher\n");
+    oss << sprint("C++ Clash Dashboard Version ") << CCDB_VERSION " (commit " GIT_HASH ", built on " BUILD_DATE ")" << std::endl
+        << str << sprint(reinterpret_cast<const char *>(decompressed_help.data())) << std::endl;
     pager(oss.str());
     std::cout << oss.str() << std::flush;
 }

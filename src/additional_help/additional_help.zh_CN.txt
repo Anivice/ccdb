@@ -1,0 +1,20 @@
+环境变量:
+   PAGER:    指定分页器. 此环境变量被指定后，ccdb不再做分页器可用性检查
+   NOPAGER:  设置该环境变量为'y'会强制禁用分页器
+   COLOR:    设置为`never`来禁用色彩码
+   JQ:       设置JSON解释器，如果存在`jq`则默认为`jq`
+   TABSIZE:  设置制表符大小，默认为4个空格
+   REVERSE_MOUSE: 设置为`true`时鼠标滚动逆向
+   NO_0xFE0F_EXPAND_EMOJI: 修复Unicode 0xFE0F扩展。例如，"✈和✈️".
+                           如果你看不出区别，或者出现Unicode处理BUG,
+                           设置该环境变量为`true`可能可以修复该问题
+   DISABLE_SERVER_CERTIFICATE_VERIFICATION: 当使用 `get subinfo` 时, 如果订阅链接是https，拉取信息时会默认加载SSL，
+                                            设置该环境变量为`true`可以跳过SSL证书认证
+   SSL_CERTIFICATE: 当使用 `get subinfo` 时, 如果订阅链接是https, 使用该环境变量设置SSL证书位置
+键盘快捷键:
+  `get connections`: 拉取活跃连接有多个键盘快捷键:
+        鼠标单击/Ctrl+UP/DOWN: 移动高亮
+                            K: 关闭高亮的连接
+                            P: 输出Mihomo后端提供的该连接的JSON数据. 如果 `jq` 可用，JSON数据会被 `jq` 处理
+                       F1-F12: 设置排序，F1-F12对应列表0-11。同一列表按两次则会反向排序
+                       Ctrl+C: 关闭活跃连接监视器

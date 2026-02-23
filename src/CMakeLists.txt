@@ -170,8 +170,8 @@ find_program(GREP_EXEC  grep    REQUIRED)
 find_program(CAT_EXEC   cat     REQUIRED)
 find_program(TAR_EXEC   tar     REQUIRED)
 
-function(generate_from_resource_file RES OUT_CPP OUT_H XXD_NAME)
-    set(_in   "${CMAKE_SOURCE_DIR}/${RES}")
+function(generate_from_resource_file NAME RES OUT_CPP OUT_H XXD_NAME)
+    set(_in   "${RES}")
     set(_outc "${CMAKE_CURRENT_BINARY_DIR}/${OUT_CPP}")
     set(_outh "${CMAKE_CURRENT_BINARY_DIR}/${OUT_H}")
 
@@ -182,11 +182,18 @@ function(generate_from_resource_file RES OUT_CPP OUT_H XXD_NAME)
         VERBATIM
     )
 
-    add_library(resource_${RES} STATIC "${_outc}" "${_outh}")
+    add_library(${NAME} STATIC "${_outc}" "${_outh}")
 endfunction()
 
-generate_from_resource_file(command.readline command.readline.cpp command.readline.h command_readline)
-generate_from_resource_file(lang.json lang.json.cpp lang.json.h lang_json)
+generate_from_resource_file(commandReadline "${CMAKE_SOURCE_DIR}/command.readline" command.readline.cpp command.readline.h command_readline)
+generate_from_resource_file(langJSON "${CMAKE_BINARY_DIR}/lang.json" lang.json.cpp lang.json.h lang_json)
+add_custom_command(
+        OUTPUT "${CMAKE_BINARY_DIR}/lang.json"
+        COMMAND "CMAKE_SOURCE_DIR=${CMAKE_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}/script/gen_add_help.sh" "${CMAKE_SOURCE_DIR}/lang.json" "${CMAKE_BINARY_DIR}/lang.json"
+        DEPENDS "${CMAKE_SOURCE_DIR}/lang.json"
+        VERBATIM
+)
+generate_from_resource_file(additionalHelp "${CMAKE_SOURCE_DIR}/additional_help/additional_help.en.txt" additional_help.cpp additional_help.h additional_help)
 
 function(generate_from_resource_dir NAME RES OUT_CPP OUT_H XXD_NAME)
     set(_in   "${RES}")
@@ -230,7 +237,7 @@ add_executable(ccdb
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
 target_compile_definitions(ccdb PRIVATE CCDB_VERSION="0.8.6" CPPHTTPLIB_OPENSSL_SUPPORT)
-target_link_libraries(ccdb PRIVATE resource_lang.json resource_command.readline Zterminfotar openssl::openssl)
+target_link_libraries(ccdb PRIVATE additionalHelp langJSON commandReadline Zterminfotar openssl::openssl)
 add_dependencies(ccdb OPENSSL)
 
 find_program(GIT_EXEC NAMES git REQUIRED)
@@ -293,3 +300,8 @@ else ()
     add_dependencies(ccdb READLINE NCURSES)
     target_compile_definitions(ccdb PRIVATE NCURSES_STATIC)
 endif ()
+
+generate_from_resource_file(elf_file ${CMAKE_BINARY_DIR}/ccdb elf_file.cpp elf_file.h elf_file)
+add_executable(ccdb_packed packed.cpp)
+target_link_libraries(ccdb_packed PRIVATE elf_file)
+target_include_directories(ccdb_packed PRIVATE ${CMAKE_BINARY_DIR})

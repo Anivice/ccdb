@@ -52,7 +52,6 @@ std::vector<uint8_t> ccdb::utils::compress(const std::vector<uint8_t>& data)
     return out;
 }
 
-// Decompress a single LZ4 frame from `data`.
 std::vector<uint8_t> ccdb::utils::decompress(const std::vector<uint8_t>& data)
 {
     std::vector<uint8_t> out;

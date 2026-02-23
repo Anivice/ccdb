@@ -1,0 +1,20 @@
+Environment:
+   PAGER:    Specify a pager. Pager availability check is ignored when this environmental variable is set
+   NOPAGER:  Set this to 'y' and force ccdb to ignore pager
+   COLOR:    Set it to `never` to disable color codes
+   JQ:       Set JSON parser, default is `jq`, if available
+   TABSIZE:  Set tab size when printing tables, default is 4
+   REVERSE_MOUSE: Reverse mouse scrolling direction when set to `true`
+   NO_0xFE0F_EXPAND_EMOJI: Fix Unicode processing issues for emoji space expand code, e.g., "✈" and "✈️".
+                           If you cannot notice any differences of the above emojis, or there's weird Unicode processing bugs in your terminal,
+                           you might want to set this to `true`
+   DISABLE_SERVER_CERTIFICATE_VERIFICATION: When using `get subinfo`, TLS is enabled by default when the subscription URL uses HTTPS.
+                                            Set this to `true` to skip server SSL certificate check(insecure).
+   SSL_CERTIFICATE: When the Clash subscription link is in https, specify an SSL certificate when pulling subscription usage.
+Keyboard Shortcuts:
+  `get connections`: Get connections has multiple keyboard shortcuts:
+     Mouse Click/Ctrl+UP/DOWN: Move highlight
+                            K: Kill the highlighted connection
+                            P: Print raw JSON from Mihomo core. If `jq` can be found, JSON will be parsed by jq
+                       F1-F12: Specify which column (0-11) to sort the table, press on the same column again to reverse the sort
+                       Ctrl+C: Abort the watcher
