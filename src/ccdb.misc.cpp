@@ -152,7 +152,7 @@ std::string ccdb::ccdb::update_subinfo(atomic_subinfo_ball_t & atomic_subinfo_ba
                         total_uploaded_,
                         total_downloaded_,
                         quota_,
-                        expire_unix_timestamp_] = pull_clash_subinfo(clash_sublink, 1);
+                        expire_unix_timestamp_] = pull_clash_subinfo(clash_sublink, 30);
 
                     const subinfo_ball_t ball = {
                         .total_uploaded = total_uploaded_,
@@ -181,7 +181,13 @@ std::string ccdb::ccdb::update_subinfo(atomic_subinfo_ball_t & atomic_subinfo_ba
                     fds.fd = pipefd[0];
                     fds.events = POLLIN;
 
-                    const int ret = poll(&fds, 1, 1000);  // timeout = 1000 ms
+                    const int ret = poll(&fds, 1,
+#ifdef __DEBUG__
+                        1000
+#else
+                        5000
+#endif //__DEBUG__
+                        );  // timeout = 1000 ms
                     subinfo_ball_t ball = { };
 
                     if (ret == -1) {
@@ -491,11 +497,13 @@ void ccdb::ccdb::nload(
     utils::setup_term term;
     std::thread input_watcher(&ccdb::generic_input_watcher, this, "get/nload:input", running);
     int info_space_size_before = info_space_size;
+    int conn_list_size_before = 0;
     atomic_subinfo_ball_t subinfo_ball = std::make_unique<ccdb_atomic_t<subinfo_ball_t>>();
     std::vector < std::pair < std::unique_ptr<std::atomic_bool>, std::thread > > threads;
 
     while (*running)
     {
+        int conn_list_size = 0;
         std::ostringstream frame;
         const int free_space = row - window_space * 2 - reserved_lines;
         if (window_space > reserved_lines && col > info_space_size)
@@ -571,6 +579,7 @@ void ccdb::ccdb::nload(
 
             {
                 std::lock_guard<std::mutex> lock_gud(*top_3_connections_using_most_speed_mtx);
+                conn_list_size = top_3_connections_using_most_speed.size();
                 std::ranges::for_each(top_3_connections_using_most_speed, [&](const std::string & line)
                 {
                     auto new_line = line;
@@ -621,23 +630,25 @@ void ccdb::ccdb::nload(
         term.ed_clear();
 
         /// wait:
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < 50; i++)
         {
-            if (window_size_change || info_space_size_before != info_space_size)
+            if (window_size_change || info_space_size_before != info_space_size || conn_list_size != conn_list_size_before)
             {
                 info_space_size_before = info_space_size;
+                conn_list_size_before = conn_list_size;
                 std::cout << term.clear << std::flush;
                 window_size_change = false;
                 break;
             }
 
             if (!*running) break;
-            std::this_thread::sleep_for(std::chrono::milliseconds(50l));
+            std::this_thread::sleep_for(std::chrono::milliseconds(10l));
         }
 
         update_window_spaces();
     }
 
+    print<is_normal>("\n\n", "Wait...\n");
     if (input_watcher.joinable()) input_watcher.join();
     std::ranges::for_each(threads, [](auto & T) { if (T.second.joinable()) T.second.join(); });
 }
