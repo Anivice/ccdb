@@ -221,7 +221,7 @@ namespace ccdb
             uint64_t total_uploaded { };
             uint64_t total_downloaded { };
             uint64_t quota { };
-            std::chrono::high_resolution_clock::time_point last_subinfo_pulling_time { };
+            uint64_t last_subinfo_pulling_time { };
         };
 
         using atomic_subinfo_ball_t = std::unique_ptr < ccdb_atomic_t < subinfo_ball_t > >;

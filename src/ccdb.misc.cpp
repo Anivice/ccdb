@@ -30,6 +30,7 @@
 #include <string>
 #include "pull_subinfo.h"
 #include "additional_help.h"
+#include <sys/wait.h>
 
 ccdb::sigint_watcher_ ccdb::watcher;
 std::atomic_bool ccdb::window_size_change = false;
@@ -100,13 +101,14 @@ std::string ccdb::ccdb::update_subinfo(atomic_subinfo_ball_t & atomic_subinfo_ba
     };
 
     const auto now = std::chrono::high_resolution_clock::now();
+    const std::chrono::system_clock::time_point tp{std::chrono::milliseconds(last_subinfo_pulling_time)};
     if (std::chrono::duration_cast<
 #ifndef __DEBUG__
     std::chrono::seconds
 #else
     std::chrono::milliseconds
 #endif //__DEBUG__
-        >(now - last_subinfo_pulling_time).count() <
+        >(now - tp).count() <
 #ifndef __DEBUG__
         5 * 60
 #else
@@ -130,20 +132,83 @@ std::string ccdb::ccdb::update_subinfo(atomic_subinfo_ball_t & atomic_subinfo_ba
         std::thread([this](const atomic_subinfo_ball_t & atomic_subinfo_ball_, std::atomic_bool * finished_ptr)
         {
             try {
-                auto [
-                    total_uploaded_,
-                    total_downloaded_,
-                    quota_,
-                    expire_unix_timestamp_] = pull_clash_subinfo(clash_sublink, 1);
+                int pipefd[2];
 
-                const subinfo_ball_t ball = {
-                    .total_uploaded = total_uploaded_,
-                    .total_downloaded = total_downloaded_,
-                    .quota = quota_,
-                    .last_subinfo_pulling_time = std::chrono::high_resolution_clock::now()
-                };
+                // Create a pipe
+                if (pipe(pipefd) == -1) {
+                    return;
+                }
 
-                atomic_subinfo_ball_->set(ball);
+                const pid_t pid = fork();
+                if (pid == -1) {
+                    return;
+                }
+
+                if (pid == 0) {  // Child process
+                    // Close unused read end
+                    close(pipefd[0]);
+
+                    auto [
+                        total_uploaded_,
+                        total_downloaded_,
+                        quota_,
+                        expire_unix_timestamp_] = pull_clash_subinfo(clash_sublink, 1);
+
+                    const subinfo_ball_t ball = {
+                        .total_uploaded = total_uploaded_,
+                        .total_downloaded = total_downloaded_,
+                        .quota = quota_,
+                        .last_subinfo_pulling_time =
+                            static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>
+                                (std::chrono::high_resolution_clock::now().time_since_epoch()).count())
+                    };
+
+                    // Write a message to the pipe
+                    const ssize_t written = write(pipefd[1], &ball, sizeof(ball)); // include null terminator
+                    if (written == -1) {
+                        _exit(1);
+                    }
+
+                    // Close write end and exit
+                    close(pipefd[1]);
+                    _exit(EXIT_SUCCESS);
+                } else {  // Parent process
+                    // Close unused write end
+                    close(pipefd[1]);
+
+                    // Set up poll to wait for data on the read end
+                    pollfd fds { };
+                    fds.fd = pipefd[0];
+                    fds.events = POLLIN;
+
+                    const int ret = poll(&fds, 1, 1000);  // timeout = 1000 ms
+                    subinfo_ball_t ball = { };
+
+                    if (ret == -1) {
+                        // Fall through to clean up
+                    } else if (ret == 0) {
+                        // Timeout: child did not write within 1 second
+                        (void)kill(pid, SIGKILL);
+                    } else {
+                        // Data is available (or EOF if child closed pipe)
+                        std::vector<uint8_t> buffer(sizeof(subinfo_ball_t) + 1);
+                        if (fds.revents & POLLIN) {
+                            const ssize_t n = read(pipefd[0], buffer.data(), buffer.size());
+                            if (n > 0) {
+                                std::memcpy(&ball, buffer.data(), sizeof(ball));
+                            }
+                        }
+                    }
+
+                    // Clean up: close pipe and reap child
+                    close(pipefd[0]);
+
+                    // Wait for child to avoid zombie
+                    int status;
+                    waitpid(pid, &status, 0);
+                    atomic_subinfo_ball_->set(ball);
+                }
+
                 *finished_ptr = true;
             } catch (...) { } // silent drop
         },
