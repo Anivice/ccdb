@@ -392,7 +392,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     || local_focus_status != focus_to_highlight
                     || local_kill_status != kill_connection
                     || local_show_detail != conn_show_detail
-                    || local_sort_by_from_watcher != sort_by_from_watcher)
+                    || local_sort_by_from_watcher != sort_by_from_watcher
+                    || !running)
                 {
                     if (window_size_change) {
                         std::cout << setup_term->clear << std::flush;

@@ -53,7 +53,7 @@ bool parse_proxy(const std::string& url, std::string& host, int & port)
 
 static std::mutex mutex; // TODO: BUG inside OpenSSL, SSL has concurrancy issues: https://github.com/openssl/openssl/issues/29212
 
-ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url)
+ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url, int timeout)
 {
     std::lock_guard<std::mutex> lock(mutex);
     std::string scheme, host, path, proxy_host;
@@ -63,6 +63,10 @@ ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url)
     }
 
     httplib::Client cli(scheme + "://" + host);
+    if (timeout > 0) {
+        cli.set_read_timeout(timeout);
+    }
+
     if (scheme == "https" && utils::getenv("DISABLE_SERVER_CERTIFICATE_VERIFICATION") == "true") {
         cli.enable_server_certificate_verification(false);
     } else {

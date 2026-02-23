@@ -122,7 +122,7 @@ std::string ccdb::ccdb::update_subinfo(atomic_subinfo_ball_t & atomic_subinfo_ba
                 total_uploaded_,
                 total_downloaded_,
                 quota_,
-                expire_unix_timestamp_] = pull_clash_subinfo(clash_sublink);
+                expire_unix_timestamp_] = pull_clash_subinfo(clash_sublink, 1);
 
             const subinfo_ball_t ball = {
                 .total_uploaded = total_uploaded_,
