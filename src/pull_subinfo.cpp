@@ -25,6 +25,13 @@
 #include <regex>
 #include "print.h"
 #include "utils.h"
+#include "ccdb.h"
+#include <chrono>
+#include <thread>
+#include <utility>
+#include "ncursesw/ncurses.h"
+#include <algorithm>
+#include <string>
 
 bool parse_url(const std::string& url, std::string& scheme, std::string& host, std::string& path)
 {
@@ -143,4 +150,104 @@ ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url, int timeout)
     }
 
     throw std::runtime_error(utils::sprint("Failed to parse info"));
+}
+
+// --------------------------------------------- CCDB --------------------------------------------- //
+using namespace ccdb::utils;
+
+std::string ccdb::ccdb::update_subinfo(atomic_subinfo_ball_t & atomic_subinfo_ball,
+    std::vector < std::pair < std::unique_ptr<std::atomic_bool>, std::thread > > & thread_pool) const
+{
+    if (clash_sublink.empty()) return "";
+    auto [total_uploaded, total_downloaded, quota, last_subinfo_pulling_time] = atomic_subinfo_ball->get();
+    auto return_subinfo = [&]->std::string
+    {
+        if (quota == 0) return "";
+        std::stringstream ret;
+        ret << utils::sprint("Quota usage: ",
+                                     utils::value_to_size(total_uploaded + total_downloaded), " / ", utils::value_to_size(quota), " ",
+                                     std::setprecision(2), std::setfill('0'),
+                                     static_cast<double>(total_uploaded + total_downloaded) / static_cast<double>(quota) * 100, "%");
+        return ret.str();
+    };
+
+    const auto now = std::chrono::high_resolution_clock::now();
+    const std::chrono::system_clock::time_point tp{std::chrono::milliseconds(last_subinfo_pulling_time)};
+    if (std::chrono::duration_cast<
+#ifndef __DEBUG__
+    std::chrono::seconds
+#else
+    std::chrono::milliseconds
+#endif //__DEBUG__
+        >(now - tp).count() <
+#ifndef __DEBUG__
+        5 * 60
+#else
+        0
+#endif //__DEBUG__
+        ) {
+        return return_subinfo();
+    }
+
+    if (!thread_pool.empty() && *thread_pool.front().first) {
+        if (thread_pool.front().second.joinable()) thread_pool.front().second.join();
+        thread_pool.clear();
+    } else if (!thread_pool.empty()) {
+        return return_subinfo(); // a thread is already created to pull the data, but not finished yet
+    }
+
+    auto finished = std::make_unique<std::atomic_bool>(false);
+    std::atomic_bool * finished_ptr = finished.get();
+    thread_pool.emplace_back(std::make_pair<std::unique_ptr<std::atomic_bool>, std::thread>
+        (std::move(finished),
+        std::thread([this](const atomic_subinfo_ball_t & atomic_subinfo_ball_, std::atomic_bool * finished_ptr)
+        {
+            try {
+                subinfo_ball_t ball;
+                const auto result = detach_execute([&](const int fd)->bool
+                {
+                    auto [
+                        total_uploaded_,
+                        total_downloaded_,
+                        quota_,
+                        expire_unix_timestamp_] = pull_clash_subinfo(clash_sublink, 30);
+
+                    const subinfo_ball_t ball_ = {
+                        .total_uploaded = total_uploaded_,
+                        .total_downloaded = total_downloaded_,
+                        .quota = quota_,
+                        .last_subinfo_pulling_time =
+                            static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>
+                                (std::chrono::high_resolution_clock::now().time_since_epoch()).count())
+                    };
+
+                    const ssize_t written = write(fd, &ball_, sizeof(ball_));
+                    if (written != sizeof(ball_)) {
+                        _exit(1);
+                    }
+
+                    return true;
+                },
+                [&](const int fd)->bool
+                {
+                    std::vector<uint8_t> buffer(sizeof(subinfo_ball_t) + 1);
+                    const ssize_t n = read(fd, buffer.data(), buffer.size());
+                    if (n == sizeof(ball)) {
+                        std::memcpy(&ball, buffer.data(), sizeof(ball));
+                    } else {
+                        return false;
+                    }
+
+                    return true;
+                },
+                5000);
+
+                if (result) atomic_subinfo_ball_->set(ball);
+                *finished_ptr = true;
+            } catch (...) { } // silent drop
+        },
+        std::ref(atomic_subinfo_ball),
+        finished_ptr))
+    );
+    return return_subinfo();
 }
