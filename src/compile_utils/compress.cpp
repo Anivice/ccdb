@@ -42,13 +42,19 @@ int main(int argc, char **argv)
             return 1;
         }
 
-        std::vector<uint8_t> in(data_, data_ + st.st_size), out { };
+        const std::vector<uint8_t> in(data_, data_ + st.st_size);
+        std::vector<uint8_t> out { };
         lzw::lzw<12> LZW(in, out);
         LZW.compress();
 
-        write(fd_out, out.data(), out.size());
-        close(fd_out);
+        if (write(fd_out, out.data(), out.size()) != out.size()) {
+            perror("write");
+            munmap(data_, st.st_size);
+            close(fd_out);
+            return 1;
+        }
 
+        close(fd_out);
         munmap(data_, st.st_size);
         close(fd);
         return 0;

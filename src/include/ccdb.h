@@ -202,6 +202,7 @@ namespace ccdb
         /// @param show_detail Show full JSON raw output from backend by pressing P
         /// @param sort_by_ptr
         /// @param current_focus_ptr
+        /// @param pause
         void get_conn_input_watcher(
             std::atomic_bool * running_ptr,
             std::atomic_int * leading_spaces_ptr,
@@ -214,7 +215,8 @@ namespace ccdb
             std::atomic_bool * refocus,
             std::atomic_bool * show_detail,
             std::atomic_int * sort_by_ptr,
-            const std::atomic_int * current_focus_ptr);
+            const std::atomic_int * current_focus_ptr,
+            const std::atomic_bool * pause);
 
         void init();
 
@@ -235,8 +237,8 @@ namespace ccdb
         }
 
     public:
-        ccdb(const std::string & backend, int port, const std::string & token, std::string latency_url_);
-        ccdb(const std::string & backend, int port, const std::string & token, std::string latency_url_, const std::vector<std::string> & cmd);
+        ccdb(const std::string & backend, const std::string & token, std::string latency_url_);
+        ccdb(const std::string & backend, const std::string & token, std::string latency_url_, const std::vector<std::string> & cmd);
 
         friend class mode_guard_t;
     };

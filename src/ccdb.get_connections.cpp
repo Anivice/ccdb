@@ -56,6 +56,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::unique_ptr<::ccdb::utils::setup_term> setup_term;
     atomic_subinfo_ball_t subinfo_ball = std::make_unique<ccdb_atomic_t<subinfo_ball_t>>();
     std::vector < std::pair < std::unique_ptr<std::atomic_bool>, std::thread > > threads;
+    std::atomic_bool pause_input_watcher = false;
 
     auto show_info = [&](const std::string & msg, const std::string & level) {
         g_title_lines.emplace_back("[" + level + "]: " + msg, std::chrono::high_resolution_clock::now());
@@ -104,7 +105,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         setup_term = std::make_unique<::ccdb::utils::setup_term>();
         input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
             &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
-            &mouse_x, &mouse_y, &kill_connection, &focus_to_highlight, &conn_show_detail, &sort_by_from_watcher, &atm_focus);
+            &mouse_x, &mouse_y, &kill_connection, &focus_to_highlight, &conn_show_detail, &sort_by_from_watcher, &atm_focus,
+            &pause_input_watcher);
     }
 
     auto valid_check = [&](const general_info_pulling::connection_t & c)->bool
@@ -323,7 +325,9 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     show_info(sprint("Closing ", focused_connection_info, "..."), "INFO");
                     auto worker_finished = std::make_unique<std::atomic_bool>(false);
                     child_workers.emplace_back([&] {
-                        backend_instance.close_connection(focused_connection_id);
+                        if (!backend_instance.close_connection(focused_connection_id)) {
+                            show_info(sprint("Closing ", focused_connection_info, " failed"), "WARNING");
+                        }
                     });
                 }
 
@@ -345,12 +349,14 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                         return false;
                     });
 
+                    pause_input_watcher = true;
                     if (!jq.empty()) {
                         exec_command("/bin/sh", matched_connection.metadata.raw_json,
                             "-c", jq + (color::is_no_color() ? "" : " --color-output") + " | " + less);
                     } else {
                         exec_command("/bin/sh", matched_connection.metadata.raw_json, "-c", less);
                     }
+                    pause_input_watcher = false;
                 }
 
                 conn_show_detail = false;
@@ -434,4 +440,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     if (input_getc_worker.joinable()) input_getc_worker.join();
     wait_thread(child_workers);
     std::ranges::for_each(threads, [](auto & T) { if (T.second.joinable()) T.second.join(); });
+    if (const char* clear = capstr("clear")) {
+        std::cout.write(clear, strlen(clear));
+        std::cout.flush();
+    }
 }

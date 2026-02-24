@@ -37,21 +37,20 @@ class mihomo
 {
     std::string token_;
     std::string backend_address_;
-    int port_ = 0;
     std::atomic_bool info_streaming_pulling_ = true;
 
 public:
-    explicit mihomo(std::string  backend, const int port, std::string token_)
-    : token_(std::move(token_)), backend_address_(std::move(backend)), port_(port) { }
+    explicit mihomo(std::string direct_url, std::string token)
+        : token_(std::move(token)), backend_address_(std::move(direct_url)) { }
     ~mihomo() = default;
 
-    bool change_proxy(const std::string & group_name, const std::string & proxy_name);
+    bool change_proxy(const std::string & group_name, const std::string & proxy_name) const;
     void abort() { info_streaming_pulling_ = false; }
-    void get_info_no_instance(const std::string & endpoint_name, const std::function < void(const std::string&) > & method);
-    bool change_config(const std::string& json);
-    bool change_proxy_mode(const std::string & mode) { return change_config( R"({"mode": ")" + mode +  "\"}"); }
-    bool close_all_connections();
-    bool close_connection(const std::string & id);
+    void get_info_no_instance(const std::string & endpoint_name, const std::function < void(const std::string&) > & method) const;
+    bool change_config(const std::string& json) const;
+    bool change_proxy_mode(const std::string & mode) const { return change_config( R"({"mode": ")" + mode +  "\"}"); }
+    bool close_all_connections() const;
+    bool close_connection(const std::string & id) const;
 
     template < typename InstanceType >
     void get_info(const std::string & endpoint_name, InstanceType* instance, void (InstanceType::*method)(const std::string&))
@@ -68,13 +67,12 @@ public:
         const std::string & endpoint_name,
         const std::atomic_bool * keep_running,
         InstanceType* instance,
-        void (InstanceType::*method)(const std::string&),
-        const bool deprecated_flag_do_not_use_no_effect = false)
+        void (InstanceType::*method)(const std::string&))
     {
         try
         {
             std::atomic_bool is_running(false);
-            httplib::Client http_cli(backend_address_, port_);
+            httplib::Client http_cli(backend_address_);
             http_cli.set_decompress(false);
             http_cli.set_read_timeout(10, 0);
             auto worker = [&]()->void

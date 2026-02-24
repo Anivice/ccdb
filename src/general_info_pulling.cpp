@@ -353,8 +353,7 @@ void general_info_pulling::pull_continuous_updates()
                 backend_client.get_stream_info("logs",
                     _log_running,
                     this,
-                    &general_info_pulling::update_from_logs,
-                    true);
+                    &general_info_pulling::update_from_logs);
             }
             catch (std::exception & e)
             {

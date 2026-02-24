@@ -46,9 +46,14 @@ int main(int argc, char **argv)
         lzw::lzw<12> LZW(in, out);
         LZW.decompress();
 
-        write(fd_out, out.data(), out.size());
-        close(fd_out);
+        if (out.size() != write(fd_out, out.data(), out.size())) {
+            perror("write");
+            munmap(data_, st.st_size);
+            close(fd_out);
+            return 1;
+        }
 
+        close(fd_out);
         munmap(data_, st.st_size);
         close(fd);
         return 0;

@@ -132,7 +132,7 @@ private:
     std::atomic_int log_warning_count = 0;
     std::mutex proxy_list_mtx;
     tsl::hopscotch_map < std::string /* group name */, std::pair < std::vector < std::string > /* proxies */, std::string /* current */ > > proxy_groups;
-    std::map < std::string /* proxy name */, std::atomic_int /* latency in ms */ > proxy_latency;
+    std::unordered_map < std::string /* proxy name */, std::atomic_int /* latency in ms */ > proxy_latency;
     // -- tsl::hopscotch_map doesn't support std::atomic_int -- //
 
     struct proxy_info_t
@@ -146,7 +146,7 @@ private:
     static void replace_all(std::string & original, const std::string & target, const std::string & replacement);
 
 public:
-    general_info_pulling(const std::string & ip, const int port, const std::string& token) : backend_client(ip, port, token) { }
+    general_info_pulling(const std::string & url, const std::string& token) : backend_client(url, token) { }
     ~general_info_pulling() { stop_continuous_updates(); };
 
 protected:
@@ -171,11 +171,11 @@ public:
     void update_proxy_list();
     void latency_test(const std::string & url = "https://www.google.com/generate_204");
     bool change_proxy_using_backend(const std::string & group_name, const std::string & proxy_name);
-    bool change_proxy_mode(const std::string & mode) { return backend_client.change_proxy_mode(mode); }
-    bool close_all_connections() { return backend_client.close_all_connections(); }
-    void close_connection(const std::string & id) { backend_client.close_connection(id); }
+    bool change_proxy_mode(const std::string & mode) const { return backend_client.change_proxy_mode(mode); }
+    bool close_all_connections() const { return backend_client.close_all_connections(); }
+    bool close_connection(const std::string & id) const { return backend_client.close_connection(id); }
     std::string get_current_mode();
-    bool modify_config(const std::string & json) { return backend_client.change_config(json); }
+    bool modify_config(const std::string & json) const { return backend_client.change_config(json); }
     bool modify_config_int(const std::string & entry, uint64_t val);
     std::string get_config();
 };

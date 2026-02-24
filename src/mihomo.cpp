@@ -22,9 +22,9 @@
 #include "mihomo.h"
 #include "print.h"
 
-bool mihomo::change_proxy(const std::string & group_name, const std::string & proxy_name)
+bool mihomo::change_proxy(const std::string & group_name, const std::string & proxy_name) const
 {
-    httplib::Client http_cli(backend_address_, port_);
+    httplib::Client http_cli(backend_address_);
     http_cli.set_decompress(false);
     http_cli.set_read_timeout(3, 0);
     const httplib::Headers headers = {
@@ -52,9 +52,9 @@ bool mihomo::change_proxy(const std::string & group_name, const std::string & pr
     return false;
 }
 
-void mihomo::get_info_no_instance(const std::string & endpoint_name, const std::function < void(const std::string&) > & method)
+void mihomo::get_info_no_instance(const std::string & endpoint_name, const std::function < void(const std::string&) > & method) const
 {
-    httplib::Client http_cli(backend_address_, port_);
+    httplib::Client http_cli(backend_address_);
     http_cli.set_decompress(false);
     http_cli.set_read_timeout(3, 0);
     const httplib::Headers headers = {
@@ -82,9 +82,9 @@ void mihomo::get_info_no_instance(const std::string & endpoint_name, const std::
     method(buffer);
 }
 
-bool mihomo::change_config(const std::string& json)
+bool mihomo::change_config(const std::string& json) const
 {
-    httplib::Client http_cli(backend_address_, port_);
+    httplib::Client http_cli(backend_address_);
     http_cli.set_decompress(false);
     http_cli.set_read_timeout(3, 0);
     const httplib::Headers headers = {
@@ -110,13 +110,13 @@ bool mihomo::change_config(const std::string& json)
     return false;
 }
 
-bool mihomo::close_all_connections() {
+bool mihomo::close_all_connections() const {
     return close_connection("");
 }
 
-bool mihomo::close_connection(const std::string &id)
+bool mihomo::close_connection(const std::string &id) const
 {
-    httplib::Client http_cli(backend_address_, port_);
+    httplib::Client http_cli(backend_address_);
     http_cli.set_decompress(false);
     http_cli.set_read_timeout(3, 0);
     const httplib::Headers headers = {

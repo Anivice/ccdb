@@ -219,7 +219,7 @@ void ccdb::ccdb::get_log()
     setup_term term;
     auto input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
         &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
-        &mouse_x, &mouse_y, nullptr, nullptr, nullptr, nullptr, nullptr);
+        &mouse_x, &mouse_y, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
 
     std::string log_level_filter, log_content_filter;
     if (filter_patterns.contains(12)) log_level_filter = filter_patterns.at(12);

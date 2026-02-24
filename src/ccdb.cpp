@@ -567,8 +567,8 @@ void ccdb::ccdb::init()
     };
 }
 
-ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &token, std::string latency_url_)
-    : backend_instance(backend, port, token), latency_url(std::move(latency_url_))
+ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::string latency_url_)
+    : backend_instance(backend, token), latency_url(std::move(latency_url_))
 {
     try
     {
@@ -637,9 +637,9 @@ ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &
     }
 }
 
-ccdb::ccdb::ccdb(const std::string &backend, const int port, const std::string &token, std::string latency_url_,
+ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::string latency_url_,
     const std::vector<std::string> &cmd)
-: backend_instance(backend, port, token), latency_url(std::move(latency_url_))
+: backend_instance(backend, token), latency_url(std::move(latency_url_))
 {
     try {
         execute_and_no_interactive = true;

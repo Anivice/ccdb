@@ -403,7 +403,8 @@ void ccdb::ccdb::get_conn_input_watcher(
     std::atomic_bool * refocus,
     std::atomic_bool * show_detail,
     std::atomic_int * sort_by_ptr,
-    const std::atomic_int * current_focus_ptr)
+    const std::atomic_int * current_focus_ptr,
+    const std::atomic_bool * pause)
 {
     set_thread_name("get/conn:input");
     interactive_verification();
@@ -542,6 +543,12 @@ void ccdb::ccdb::get_conn_input_watcher(
 
     while (running)
     {
+        if (pause && *pause) {
+            auto_clear();
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            continue;
+        }
+
         if (const ssize_t sz = read_with_timeout(STDIN_FILENO, &ch, 1, 50); sz == -1) {
             auto_clear();
             continue;
