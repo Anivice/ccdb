@@ -32,6 +32,9 @@
 #include <functional>
 #include <regex>
 #include <termios.h>
+#include <sys/wait.h>
+#include <poll.h>
+#include <thread>
 
 /// Utilities
 namespace ccdb::utils {

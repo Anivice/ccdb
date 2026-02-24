@@ -32,6 +32,7 @@
 #include "tsl/hopscotch_map.h"
 #include "utils.h"
 #include <thread>
+#include "print.h"
 
 namespace ccdb
 {
@@ -280,6 +281,94 @@ namespace ccdb
     extern std::atomic_bool sysint_pressed;
     void sigint_handler(int);
     void window_size_change_handler(int);
+
+    template <
+        typename... ArgsForFetcherChild, typename... ArgsForFetcherParent,
+        typename ChildFunc = std::function<bool(const int, ArgsForFetcherChild...)>,
+        typename ParentFunc = std::function<bool(const int[2], ArgsForFetcherParent...)>
+    >
+    bool detach_execute(
+        const ChildFunc & child_func, ArgsForFetcherChild... args_for_fetcher_child,
+        const ParentFunc & parent_func, ArgsForFetcherParent... args_for_fetcher_parent,
+        const int timeout_ms)
+    {
+        int pipefd[2] { };
+
+        // Create a pipe
+        if (pipe(pipefd) == -1) {
+            return false;
+        }
+
+        const pid_t pid = fork();
+        if (pid == -1) {
+            return false;
+        }
+
+        if (pid == 0) {  // Child process
+            close(pipefd[0]);
+            if (!child_func(pipefd[1], args_for_fetcher_child...)) { // child func should fetch info and write to pipe
+                _exit(1);
+            }
+
+            // Close write end and exit
+            close(pipefd[1]);
+            _exit(EXIT_SUCCESS);
+        }
+        // Parent process
+        // Close unused write end
+        close(pipefd[1]);
+
+        // Set up poll to wait for data on the read end
+        pollfd fds { };
+        fds.fd = pipefd[0];
+        fds.events = POLLIN;
+
+        std::atomic_bool running = true;
+        auto sig_status = watcher.make_status_watcher();
+
+        std::thread T([&]
+        {
+            while (running)
+            {
+                if (sig_status) {
+                    (void)kill(pid, SIGKILL);
+                }
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+
+            // // for some reason, SIGINT will cause poll() to end early
+            // std::this_thread::sleep_for(std::chrono::milliseconds(100)); // update interval for SIGINT status is 10ms
+            // // so we sleep enough time and check the status again, if SIGINT is present, kill the process
+            // if (sig_status) {
+            //     (void)kill(pid, SIGKILL);
+            // }
+        });
+
+        const int ret = poll(&fds, 1, timeout_ms);
+        if (ret == -1) {
+            // Fall through to clean up
+        } else if (ret == 0) {
+            // Timeout: child did not write within 1 second
+            (void)kill(pid, SIGKILL);
+        } else {
+            // Data is available (or EOF if child closed pipe)
+            if (fds.revents & POLLIN) {
+                if (!parent_func(pipefd[0], args_for_fetcher_parent...)) {
+                    return false;
+                }
+            }
+        }
+
+        // Clean up: close pipe and reap child
+        close(pipefd[0]);
+        // Wait for child to avoid zombie
+        int status;
+        waitpid(pid, &status, 0);
+        running = false;
+        if (T.joinable()) T.join();
+        return status == 0;
+    }
 }
 
 #endif //CCDB_H

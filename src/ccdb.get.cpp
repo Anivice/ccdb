@@ -27,6 +27,7 @@
 #include <fstream>
 #include "print.h"
 #include "pull_subinfo.h"
+#include <sys/wait.h>
 
 // --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;
@@ -116,11 +117,65 @@ void ccdb::ccdb::get_latency()
 {
     print<is_error>("Testing latency with the url ", latency_url,  " ...\n");
     backend_instance.update_proxy_list(); // update the proxy first
-    backend_instance.latency_test(latency_url);
-    auto latency_list = backend_instance.get_proxies_and_latencies_as_pair();
     std::vector < std::pair<std::string, int >> list_unordered;
-    for (const auto & [proxy, latency] : latency_list.second) {
-        list_unordered.emplace_back(proxy, latency);
+
+    const auto result = detach_execute([&](const int fd)->bool
+    {
+        backend_instance.latency_test(latency_url);
+        auto latency_list = backend_instance.get_proxies_and_latencies_as_pair();
+        auto write_ = [&](const void * data, const uint64_t len)->void
+        {
+            if (write(fd, data, len) != len) {
+                _exit(1);
+            }
+        };
+
+        const uint64_t unordered_len = latency_list.second.size();
+        write_(&unordered_len, sizeof(unordered_len));
+        for (const auto & [proxy, latency] : latency_list.second) {
+            uint64_t str_len = proxy.size();
+            write_(&str_len, sizeof(str_len));
+            write_(proxy.data(), str_len);
+            write_(&latency, sizeof(latency));
+        }
+
+        return true;
+    },
+    [&](const int fd)->bool
+    {
+        auto read_ = [&](void * data, const uint64_t len)->void
+        {
+            if (read(fd, data, len) != len) {
+                throw std::runtime_error(std::strerror(errno));
+            }
+        };
+
+        try {
+            uint64_t list_size = 0;
+            read_(&list_size, sizeof(list_size));
+            for (uint64_t i = 0; i < list_size; i++)
+            {
+                uint64_t str_len = 0;
+                read_(&str_len, sizeof(str_len));
+                std::string proxy;
+                proxy.resize(str_len);
+                read_(proxy.data(), str_len);
+                int latency = -1;
+                read_(&latency, sizeof(latency));
+                list_unordered.emplace_back(proxy, latency);
+            }
+
+            return true;
+        } catch (std::exception & e) {
+            print<is_error>(e.what(), "\n");
+            return false;
+        }
+    },
+    30 * 1000); // 30s
+
+    if (!result) {
+        print<is_error>("Failed to pull all the latency!\n");
+        return;
     }
 
     const std::vector<std::string> titles_lat = { sprint("Latency"), sprint("Proxy") };
@@ -131,14 +186,17 @@ void ccdb::ccdb::get_latency()
         [](const std::pair < std::string, int > & a, const std::pair < std::string, int > & b)->bool
         { return a.second < b.second; });
 
+    latency_backups.clear();
     for (const auto & [proxy, latency] : list_unordered)
     {
         table_line.push_back(std::to_string(latency));
         table_line.push_back(proxy);
         table_vals.emplace_back(table_line);
         table_line.clear();
+
+        latency_backups.emplace(proxy, latency);
     }
-    latency_backups = latency_list.second;
+
     update_providers();
     print_table(titles_lat, table_vals, false,
         true, { }, 0, nullptr,

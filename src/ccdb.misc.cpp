@@ -132,29 +132,16 @@ std::string ccdb::ccdb::update_subinfo(atomic_subinfo_ball_t & atomic_subinfo_ba
         std::thread([this](const atomic_subinfo_ball_t & atomic_subinfo_ball_, std::atomic_bool * finished_ptr)
         {
             try {
-                int pipefd[2];
-
-                // Create a pipe
-                if (pipe(pipefd) == -1) {
-                    return;
-                }
-
-                const pid_t pid = fork();
-                if (pid == -1) {
-                    return;
-                }
-
-                if (pid == 0) {  // Child process
-                    // Close unused read end
-                    close(pipefd[0]);
-
+                subinfo_ball_t ball;
+                const auto result = detach_execute([&](const int fd)->bool
+                {
                     auto [
                         total_uploaded_,
                         total_downloaded_,
                         quota_,
                         expire_unix_timestamp_] = pull_clash_subinfo(clash_sublink, 30);
 
-                    const subinfo_ball_t ball = {
+                    const subinfo_ball_t ball_ = {
                         .total_uploaded = total_uploaded_,
                         .total_downloaded = total_downloaded_,
                         .quota = quota_,
@@ -163,58 +150,28 @@ std::string ccdb::ccdb::update_subinfo(atomic_subinfo_ball_t & atomic_subinfo_ba
                                 (std::chrono::high_resolution_clock::now().time_since_epoch()).count())
                     };
 
-                    // Write a message to the pipe
-                    const ssize_t written = write(pipefd[1], &ball, sizeof(ball)); // include null terminator
-                    if (written == -1) {
+                    const ssize_t written = write(fd, &ball_, sizeof(ball_));
+                    if (written != sizeof(ball_)) {
                         _exit(1);
                     }
 
-                    // Close write end and exit
-                    close(pipefd[1]);
-                    _exit(EXIT_SUCCESS);
-                } else {  // Parent process
-                    // Close unused write end
-                    close(pipefd[1]);
-
-                    // Set up poll to wait for data on the read end
-                    pollfd fds { };
-                    fds.fd = pipefd[0];
-                    fds.events = POLLIN;
-
-                    const int ret = poll(&fds, 1,
-#ifdef __DEBUG__
-                        1000
-#else
-                        5000
-#endif //__DEBUG__
-                        );  // timeout = 1000 ms
-                    subinfo_ball_t ball = { };
-
-                    if (ret == -1) {
-                        // Fall through to clean up
-                    } else if (ret == 0) {
-                        // Timeout: child did not write within 1 second
-                        (void)kill(pid, SIGKILL);
+                    return true;
+                },
+                [&](const int fd)->bool
+                {
+                    std::vector<uint8_t> buffer(sizeof(subinfo_ball_t) + 1);
+                    const ssize_t n = read(fd, buffer.data(), buffer.size());
+                    if (n == sizeof(ball)) {
+                        std::memcpy(&ball, buffer.data(), sizeof(ball));
                     } else {
-                        // Data is available (or EOF if child closed pipe)
-                        std::vector<uint8_t> buffer(sizeof(subinfo_ball_t) + 1);
-                        if (fds.revents & POLLIN) {
-                            const ssize_t n = read(pipefd[0], buffer.data(), buffer.size());
-                            if (n > 0) {
-                                std::memcpy(&ball, buffer.data(), sizeof(ball));
-                            }
-                        }
+                        return false;
                     }
 
-                    // Clean up: close pipe and reap child
-                    close(pipefd[0]);
+                    return true;
+                },
+                5000);
 
-                    // Wait for child to avoid zombie
-                    int status;
-                    waitpid(pid, &status, 0);
-                    atomic_subinfo_ball_->set(ball);
-                }
-
+                if (result) atomic_subinfo_ball_->set(ball);
                 *finished_ptr = true;
             } catch (...) { } // silent drop
         },
@@ -227,12 +184,14 @@ std::string ccdb::ccdb::update_subinfo(atomic_subinfo_ball_t & atomic_subinfo_ba
 /// signal SIGINT watcher
 ccdb::sigint_watcher_::auto_SIGINT_status_t::auto_SIGINT_status_t(sigint_watcher_ * _watcher) : watcher_(_watcher)
 {
+    sysint_pressed = false;
     _watcher->watcher_clear_disable = true;
     _watcher->sigint_caught = false;
 }
 
 ccdb::sigint_watcher_::auto_SIGINT_status_t::~auto_SIGINT_status_t()
 {
+    sysint_pressed = false;
     watcher_->watcher_clear_disable = false;
 }
 
@@ -264,6 +223,10 @@ void ccdb::sigint_watcher_::sigint_watcher()
         if (sysint_pressed)
         {
             sigint_caught = true;
+
+#ifdef __DEBUG__
+            std::cerr << "SIGINT!" << std::endl;
+#endif
 
             if (!watcher_clear_disable) {
                 clear();
