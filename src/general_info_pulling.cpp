@@ -246,8 +246,24 @@ void general_info_pulling::update_from_logs(const std::string& info)
         logs.erase(logs.begin());
     }
 
+#if !((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
+    auto current_time_formatted = []()->std::string
+    {
+        auto now = std::chrono::system_clock::now();
+        std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+        std::tm now_tm = *std::localtime(&now_c); // potential thread-safety issue
+        std::ostringstream oss;
+        oss << std::put_time(&now_tm, "%Y-%m-%d %H:%M:%S");
+        return oss.str();
+    };
+#endif
+
     logs.emplace_back(std::vector<std::string> {
+#if ((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
         std::format("{:%Y-%m-%d %H:%M:%S}", std::chrono::high_resolution_clock::now()),
+#else
+        current_time_formatted(),
+#endif
         type,
         payload
     });
