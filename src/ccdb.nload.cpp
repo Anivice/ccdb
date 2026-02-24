@@ -333,10 +333,13 @@ void ccdb::ccdb::nload(
                     else {
                         new_line += std::string(col - line_len, ' ');
                     }
+
                     replace_all(new_line, "UP:", color::color(3,3,2) + "UP:");
                     replace_all(new_line, "DL:", color::color(2,3,3) + "DL:");
-                    replace_all(new_line, "WARNING", color::color(5,5,0) + "WARNING");
-                    replace_all(new_line, "ERROR", color::color(5,0,0) + "ERROR");
+                    replace_all(new_line, "WARNING", color::color(3,3,0) + "WARNING");
+                    replace_all(new_line, "ERROR", color::color(3,0,0) + "ERROR");
+                    replace_all(new_line, "INFO", color::color(0,3,0) + "INFO");
+                    replace_all(new_line, "\n", " ");
                     frame << color::color(3,3,3) << new_line << color::no_color() << std::endl;
                 });
             }
