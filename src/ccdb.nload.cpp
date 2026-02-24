@@ -309,13 +309,14 @@ void ccdb::ccdb::nload(
             {
                 std::lock_guard<std::mutex> lock_gud(*top_3_connections_using_most_speed_mtx);
                 conn_list_size = top_3_connections_using_most_speed.size();
-                std::ranges::for_each(top_3_connections_using_most_speed, [&](const std::string & line)
+                std::ranges::for_each(top_3_connections_using_most_speed, [&](const std::string & line_)
                 {
-                    auto new_line = line;
-                    const auto line_len = UnicodeDisplayWidth::get_width_utf8(line);
+                    auto new_line = line_;
+                    replace_all(new_line, "\n", " ");
+                    const auto line_len = UnicodeDisplayWidth::get_width_utf8(new_line);
                     if (line_len > col)
                     {
-                        auto utf32 = utils::utf8_to_u32(line);
+                        auto utf32 = utils::utf8_to_u32(new_line);
                         decltype(utf32) utf32_cut;
                         int len = 0;
                         for (const auto & c : utf32)
@@ -339,7 +340,7 @@ void ccdb::ccdb::nload(
                     replace_all(new_line, "WARNING", color::color(3,3,0) + "WARNING");
                     replace_all(new_line, "ERROR", color::color(3,0,0) + "ERROR");
                     replace_all(new_line, "INFO", color::color(0,3,0) + "INFO");
-                    replace_all(new_line, "\n", " ");
+
                     frame << color::color(3,3,3) << new_line << color::no_color() << std::endl;
                 });
             }
