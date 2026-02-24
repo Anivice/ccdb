@@ -59,11 +59,10 @@ Use `help` command to see usage details.
 Syntax:
 
 ```bash
-ccdb [Arguments [OPTIONS...]...]
+./ccdb [Arguments [OPTIONS...]...]
     -h,--help                Show help
     -v,--version             Show version
-    -p,--port [ARG]          Backend port
-    -a,--address [ARG]       Backend address
+    -u,--url [ARG]           Backend url, usually http://localhost:9090
     -x,--execute [ARG]       Execute a CCDB command
     -t,--token [ARG]         Backend HTTP auth password
     -l,--latency_url [ARG]   Latency URL
@@ -73,9 +72,12 @@ ccdb [Arguments [OPTIONS...]...]
 
 ```bash
 ...
-get connections  : Pull Active connections
-close_connections: Close all connections
-nload            : nload-like connection speed monitoring
+get connections                 : Pull Active connections
+close_connections               : Close all connections
+nload                           : nload-like connection speed monitoring
+set mode [global, rule, direct] : Change proxy mode
+set vgroup [VGROUP] [VPROXY]    : Change endpoints in a proxy group using index
+...
 ```
 
 **Environment**:
