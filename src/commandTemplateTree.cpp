@@ -401,16 +401,22 @@ namespace cmdTpTree
         } catch (std::invalid_argument &) {
             auto complete = [&]
             {
-                if (args_completion_list.size() == 1 && args_completion_list.front() == arbitrary_length) {
-                    special_handler(arbitrary_length, arg_index);
-                } else {
-                    if (const auto current_index = arg_index - special_index;
-                        current_index < args_completion_list.size())
-                    {
-                        special_handler(args_completion_list[current_index], arg_index);
-                    } else {
-                        matches = nullptr;
-                    }
+                if (const auto current_index = arg_index - special_index;
+                    current_index < args_completion_list.size())
+                {
+                    const auto arg_cmp = args_completion_list[current_index];
+                    special_handler(arg_cmp, arg_index);
+                }
+                else if (!args_completion_list.empty() &&
+                    (args_completion_list.back() == arbitrary_length
+                        || std::regex_match(args_completion_list.back(), std::regex(R"(\[[\w]+\.\.\.\])"))
+                    )
+                )
+                {
+                    special_handler(args_completion_list.back(), arg_index);
+                }
+                else {
+                    matches = nullptr;
                 }
             };
 
