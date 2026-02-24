@@ -126,7 +126,7 @@ private:
 
     mihomo backend_client;
     std::atomic_bool keep_pull_continuous_updates;
-    std::vector < std::pair < std::string, std::string > > logs;
+    std::vector < std::vector < std::string > > logs;
     std::mutex logs_mutex;
     std::thread pull_continuous_updates_worker;
     std::atomic_int log_warning_count = 0;
@@ -162,7 +162,7 @@ public:
     [[nodiscard]] uint64_t get_total_uploaded_bytes() const { return total_uploaded_bytes.load(); }
     [[nodiscard]] uint64_t get_total_downloaded_bytes() const { return total_downloaded_bytes.load(); }
     [[nodiscard]] std::vector < connection_t > get_active_connections();
-    [[nodiscard]] std::vector < std::pair < std::string, std::string > > get_logs();
+    [[nodiscard]] std::vector < std::vector < std::string > > get_logs();
     [[nodiscard]] proxy_info_summary_t get_proxies_and_latencies_as_pair();
 
     void stop_continuous_updates();

@@ -451,7 +451,7 @@ void ccdb::ccdb::init()
         }
 
         if (command_vector.front() == "nload") {
-            nload();
+            nload(command_vector);
         }
         else if (command_vector.front() == "reset") {
             reset_terminal_mode_forcefully();

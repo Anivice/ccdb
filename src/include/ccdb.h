@@ -154,7 +154,7 @@ namespace ccdb
     protected:
         // --- COMMANDS --- //
 
-        void nload();
+        void nload(const std::vector<std::string> &);
         void get_connections(const std::vector<std::string>& command_vector);
         void get_latency();
         void get_log();

@@ -245,7 +245,12 @@ void general_info_pulling::update_from_logs(const std::string& info)
     while (logs.size() >= 4096) {
         logs.erase(logs.begin());
     }
-    logs.emplace_back(type, payload);
+
+    logs.emplace_back(std::vector<std::string> {
+        std::format("{:%Y-%m-%d %H:%M:%S}", std::chrono::high_resolution_clock::now()),
+        type,
+        payload
+    });
 }
 
 void general_info_pulling::replace_all(
@@ -383,7 +388,7 @@ void general_info_pulling::pull_continuous_updates()
     return { copy.begin(), copy.end() };
 }
 
-[[nodiscard]] std::vector < std::pair < std::string, std::string > > general_info_pulling::get_logs()
+[[nodiscard]] std::vector < std::vector < std::string > > general_info_pulling::get_logs()
 {
     std::lock_guard lock(logs_mutex); return logs;
 }

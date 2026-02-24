@@ -200,12 +200,13 @@ bool ccdb::ccdb::is_connection_valid
     }
 }
 
-void ccdb::ccdb::nload()
+void ccdb::ccdb::nload(const std::vector<std::string> & vec)
 {
     std::atomic<uint64_t> total_up = 0, total_down = 0, up_speed = 0, down_speed = 0;
     std::atomic_bool running = true;
     std::mutex lock;
     std::vector<std::string> top_3_conn;
+    const bool switch_to_log_cater = (vec.size() == 2 && vec.back() == "catlog");
 
     std::thread Worker([&] {
         nload(
@@ -224,50 +225,68 @@ void ccdb::ccdb::nload()
         total_down = backend_instance.get_total_downloaded_bytes();
         up_speed = backend_instance.get_current_upload_speed();
         down_speed = backend_instance.get_current_download_speed();
-        auto conn = backend_instance.get_active_connections();
-        std::ranges::sort(conn, [](const general_info_pulling::connection_t & a,
-            const general_info_pulling::connection_t & b)->bool
+        if (!switch_to_log_cater)
         {
-            return (a.downloadSpeed + a.uploadSpeed) > (b.downloadSpeed + b.uploadSpeed);
-        });
-
-        if (conn.size() > 3) {
-            conn.resize(3);
-        }
-
-        int max_host_len = 0;
-        int max_upload_len = 0;
-        std::ranges::for_each(conn, [&](general_info_pulling::connection_t & c)
-        {
-            c.host = c.host + " " + (c.chainName == "DIRECT" ? "- " : "x ");
-            if (max_host_len < UnicodeDisplayWidth::get_width_utf8(c.host)) {
-                max_host_len = UnicodeDisplayWidth::get_width_utf8(c.host);
-            }
-
-            const auto str = value_to_speed(c.uploadSpeed);
-            if (max_upload_len < str.length())
+            auto conn = backend_instance.get_active_connections();
+            std::ranges::sort(conn, [](const general_info_pulling::connection_t & a,
+                const general_info_pulling::connection_t & b)->bool
             {
-                max_upload_len = static_cast<int>(str.length());
+                return (a.downloadSpeed + a.uploadSpeed) > (b.downloadSpeed + b.uploadSpeed);
+            });
+
+            if (conn.size() > 3) {
+                conn.resize(3);
             }
 
-            c.chainName = str; // temp save
-        });
+            int max_host_len = 0;
+            int max_upload_len = 0;
+            std::ranges::for_each(conn, [&](general_info_pulling::connection_t & c)
+            {
+                c.host = c.host + " " + (c.chainName == "DIRECT" ? "- " : "x ");
+                if (max_host_len < UnicodeDisplayWidth::get_width_utf8(c.host)) {
+                    max_host_len = UnicodeDisplayWidth::get_width_utf8(c.host);
+                }
 
-        std::vector<std::string> conn_str;
-        std::ranges::for_each(conn, [&](const general_info_pulling::connection_t & c)
-        {
-            const std::string padding(max_host_len - UnicodeDisplayWidth::get_width_utf8(c.host), ' ');
-            std::stringstream ss;
-            ss  << c.host << padding
-                << " UP: " << c.chainName // already up speed by temp save
-                << std::string(max_upload_len - c.chainName.length(), ' ')
-                << " DL: " << value_to_speed(c.downloadSpeed);
-            conn_str.push_back(ss.str());
-        });
+                const auto str = value_to_speed(c.uploadSpeed);
+                if (max_upload_len < str.length())
+                {
+                    max_upload_len = static_cast<int>(str.length());
+                }
 
+                c.chainName = str; // temp save
+            });
+
+            std::vector<std::string> conn_str;
+            std::ranges::for_each(conn, [&](const general_info_pulling::connection_t & c)
+            {
+                const std::string padding(max_host_len - UnicodeDisplayWidth::get_width_utf8(c.host), ' ');
+                std::stringstream ss;
+                ss  << c.host << padding
+                    << " UP: " << c.chainName // already up speed by temp save
+                    << std::string(max_upload_len - c.chainName.length(), ' ')
+                    << " DL: " << value_to_speed(c.downloadSpeed);
+                conn_str.push_back(ss.str());
+            });
+
+            {
+                std::lock_guard<std::mutex> lock_gud(lock);
+                top_3_conn = conn_str;
+            }
+        }
+        else
         {
+            auto log_str = backend_instance.get_logs();
+            std::ranges::reverse(log_str);
+            if (log_str.size() > 3) log_str.resize(3);
+            std::vector<std::string> three_logs;
+            std::ranges::for_each(log_str, [&](const auto & pair_log) {
+                std::stringstream ss;
+                std::ranges::for_each(pair_log, [&](const auto & log){ ss << log << " "; });
+                three_logs.push_back(ss.str());
+            });
+
             std::lock_guard<std::mutex> lock_gud(lock);
-            top_3_conn = conn_str;
+            top_3_conn = three_logs;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(500l));
     }

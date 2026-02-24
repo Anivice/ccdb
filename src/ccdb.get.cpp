@@ -207,7 +207,7 @@ void ccdb::ccdb::get_latency()
 
 void ccdb::ccdb::get_log()
 {
-    const std::vector < std::string > log_titles = { sprint("Level"), sprint("Log") };
+    const std::vector < std::string > log_titles = { sprint("Time"), sprint("Level"), sprint("Log") };
     std::atomic_int leading_spaces = 0;
     std::atomic_int max_leading_spaces = get_col_size() / 4;
     std::atomic_int max_skip_lines = 0;
@@ -239,14 +239,18 @@ void ccdb::ccdb::get_log()
         std::vector < std::vector < std::string > > lines;
         tsl::hopscotch_map<uint64_t, std::string> line_color_overrides;
         uint64_t line_off = 0;
-        for (const auto & [level, log] : current_vector)
+        for (const auto & log_ : current_vector)
         {
+            const auto & level = log_[1];
+            const auto & time = log_[0];
+            const auto & log = log_[2];
+
             bool skip = false;
             if (!log_level_filter.empty()) skip |= if_filter_out(level, log_level_filter);
             if (!log_content_filter.empty()) skip |= if_filter_out(log, log_content_filter);
             if (skip) continue;
 
-            lines.emplace_back(std::vector{ level, log });
+            lines.emplace_back(std::vector{ time, level, log });
             auto upper_case_level = level;
             auto toupper = [](const char c) -> char { return static_cast<char>(std::toupper(c)); };
             std::ranges::transform(upper_case_level, upper_case_level.begin(), toupper);
