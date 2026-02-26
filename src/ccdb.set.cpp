@@ -206,10 +206,10 @@ void ccdb::ccdb::apply()
     try {
         std::string json;
         char buff [512] { };
-        while (!std::cin.eof())
+        ssize_t r = 0;
+        while ((r = read(STDIN_FILENO, buff, sizeof(buff) - 1)) > 0)
         {
-            std::cin.read(buff, sizeof(buff) - 1);
-            buff[std::cin.gcount()] = '\0';
+            buff[r] = '\0';
             json += buff;
         }
 
