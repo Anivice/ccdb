@@ -308,7 +308,7 @@ void ccdb::ccdb::nload(
 
             {
                 std::lock_guard<std::mutex> lock_gud(*top_3_connections_using_most_speed_mtx);
-                conn_list_size = top_3_connections_using_most_speed.size();
+                conn_list_size = static_cast<int>(top_3_connections_using_most_speed.size());
                 std::ranges::for_each(top_3_connections_using_most_speed, [&](const std::string & line_)
                 {
                     auto new_line = line_;
@@ -316,20 +316,25 @@ void ccdb::ccdb::nload(
                     const auto line_len = UnicodeDisplayWidth::get_width_utf8(new_line);
                     if (line_len > col)
                     {
-                        auto utf32 = utils::utf8_to_u32(new_line);
+                        auto utf32 = utf8_to_u32(new_line);
+                        const auto new_length = UnicodeDisplayWidth::get_width_utf32(utf32);
+
                         decltype(utf32) utf32_cut;
                         int len = 0;
                         for (const auto & c : utf32)
                         {
-                            len += utils::UnicodeDisplayWidth::get_width_utf32({c});
-                            if (len >= (col - 1)) {
+                            const auto c_len = UnicodeDisplayWidth::get_width_utf32({c});
+                            len += c_len;
+                            if (len >= col) {
+                                len -= c_len;
                                 break;
                             }
 
                             utf32_cut += c;
                         }
 
-                        new_line = utf8::utf32to8(utf32_cut) + color::color(0,0,0,3,3,3) + ">";
+                        new_line = utf8::utf32to8(utf32_cut) + std::string(std::max(0, col - len - 1), ' ')
+                            + (new_length > col ? color::color(0,0,0,3,3,3) + ">" : "");
                     }
                     else {
                         new_line += std::string(col - line_len, ' ');

@@ -254,10 +254,12 @@ void ccdb::ccdb::get_log()
             auto upper_case_level = level;
             auto toupper = [](const char c) -> char { return static_cast<char>(std::toupper(c)); };
             std::ranges::transform(upper_case_level, upper_case_level.begin(), toupper);
-            if (upper_case_level == "WARNING" || upper_case_level == "ERROR") {
+            if (upper_case_level == "ERROR") {
                 line_color_overrides[line_off] = color::color(5,0,0);
             } else if (upper_case_level == "DEBUG") {
                 line_color_overrides[line_off] = color::color(0,5,0);
+            } else if (upper_case_level == "WARNING") {
+                line_color_overrides[line_off] = color::color(5,5,0);
             }
             line_off++;
         }
@@ -463,6 +465,7 @@ void ccdb::ccdb::get_filter()
     });
 }
 
+#if !((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
 static std::tm to_local_tm(std::time_t t)
 {
     std::tm tm{};
@@ -483,6 +486,7 @@ static std::string format_time_local(const std::chrono::system_clock::time_point
     std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm);
     return { buf };
 }
+#endif // (defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L
 
 void ccdb::ccdb::get_subinfo()
 {
