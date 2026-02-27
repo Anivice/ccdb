@@ -447,11 +447,11 @@ void ccdb::ccdb::print_table(
                         << "+" << std::endl;
         }
 
-        if (line_sz > 2)
-        {
-            for (int j = printed_lines; j < (line_sz - 2); j++)
-                frame << std::endl;
-        }
+        // if (line_sz > 2)
+        // {
+        for (int j = printed_lines; j < (line_sz - 2); j++)
+            frame << std::endl;
+        // }
 
         print_progress();
     }

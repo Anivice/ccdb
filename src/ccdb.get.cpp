@@ -570,7 +570,7 @@ void ccdb::ccdb::get_subinfo()
     watcher.watcher_clear_disable = false;
 }
 
-void ccdb::ccdb::get_config()
+void ccdb::ccdb::get_config() const
 {
     if (!jq.empty()) {
         exec_command("/bin/sh", backend_instance.get_config(), "-c", jq + (color::is_no_color() ? "" : " --color-output") + " | " + less);

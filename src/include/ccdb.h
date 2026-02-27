@@ -160,12 +160,12 @@ namespace ccdb
         void get_log();
         void get_proxy();
         void get_vecGroupProxy(bool show_vgroups = true);
-        void set_mode(const std::vector<std::string> & command_vector);
+        void set_mode(const std::vector<std::string> & command_vector) const;
         void set_group(const std::vector<std::string> & command_vector);
         void set_vgroup(const std::vector<std::string> & command_vector);
         void set_chain_parser(const std::vector<std::string> & command_vector);
-        void set_allowlan(const std::vector<std::string> & command_vector);
-        void set_log_level(const std::vector<std::string> & command_vector);
+        void set_allowlan(const std::vector<std::string> & command_vector) const;
+        void set_log_level(const std::vector<std::string> & command_vector) const;
         void set_sort_by(const std::vector<std::string> & command_vector);
         void set_sort_reverse(const std::vector<std::string> & command_vector);
         void set_filter_reverse(const std::vector<std::string> & command_vector);
@@ -173,7 +173,7 @@ namespace ccdb
         void clear_filter();
         void get_filter();
         void get_subinfo();
-        void get_config();
+        void get_config() const;
         void help();
         static void reset_terminal_mode_forcefully();
         void set_port(int port); // Mihomo http proxy port,
@@ -181,13 +181,13 @@ namespace ccdb
         void set_redirport(int port); // Mihomo redirect port,
         void set_tproxyport(int port); // Mihomo transparent proxy port,
         void set_mixedport(int port); // Mihomo mixed proxy port,
-        void apply();
+        void apply() const;
         void fork_and_execute(const std::vector<std::string> &);
 
         /// Input watcher that sets running flag when q is pressed
         /// @param name Thread name
         /// @param running Running flag
-        void generic_input_watcher(const std::string & name, std::atomic_bool * running);
+        void generic_input_watcher(const std::string & name, std::atomic_bool * running) const;
 
         /// Input watcher that sets running flag when q is pressed, and changes
         /// @param running_ptr Running flag

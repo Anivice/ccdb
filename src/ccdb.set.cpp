@@ -21,14 +21,12 @@
 
 #include "ccdb.h"
 #include "utils.h"
-#include <chrono>
-#include <fstream>
 #include "print.h"
 
 // --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;
 
-void ccdb::ccdb::set_mode(const std::vector<std::string> & command_vector)
+void ccdb::ccdb::set_mode(const std::vector<std::string> & command_vector) const
 {
     if (command_vector[2] != "rule" && command_vector[2] != "global" && command_vector[2] != "direct") {
         print<is_error>("Unknown mode ", command_vector[2], "\n");
@@ -84,7 +82,7 @@ void ccdb::ccdb::set_chain_parser(const std::vector<std::string> & command_vecto
     else print<is_error>("Invalid option for parser `", command_vector[2], "`\n");
 }
 
-void ccdb::ccdb::set_allowlan(const std::vector<std::string> &command_vector)
+void ccdb::ccdb::set_allowlan(const std::vector<std::string> &command_vector) const
 {
     bool result = true;
     if (command_vector[2] == "on") {
@@ -104,7 +102,7 @@ void ccdb::ccdb::set_allowlan(const std::vector<std::string> &command_vector)
     }
 }
 
-void ccdb::ccdb::set_log_level(const std::vector<std::string> &command_vector)
+void ccdb::ccdb::set_log_level(const std::vector<std::string> &command_vector) const
 {
     if (!backend_instance.modify_config(R"({ "log-level": ")" + command_vector[2] + R"(" })")) {
         print<is_error>("Failed to modify config\n");
@@ -201,7 +199,7 @@ INSTANTIATE_SET_PORT(redirport,     "redir-port")
 INSTANTIATE_SET_PORT(tproxyport,    "tproxy-port")
 INSTANTIATE_SET_PORT(mixedport,     "mixed-port")
 
-void ccdb::ccdb::apply()
+void ccdb::ccdb::apply() const
 {
     try {
         std::string json;

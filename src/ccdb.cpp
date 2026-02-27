@@ -131,7 +131,7 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
         }
 
         /* Close all pipe fds in the child */
-        for (auto & pipe : pipes)
+        for (const auto & pipe : pipes)
         {
             close(pipe[READ_FD]);
             close(pipe[WRITE_FD]);
@@ -169,7 +169,7 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
             close(CHILD_ERR_FD);
 
             // Function to read all data from a file descriptor
-            auto read_all = [&](int fd, std::string &output) -> bool
+            auto read_all = [&](const int fd, std::string &output) -> bool
             {
                 char buffer[4096];
                 ssize_t count;

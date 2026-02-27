@@ -3,11 +3,8 @@
 #endif //_GNU_SOURCE
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
 #include <unistd.h>
-#include <fcntl.h>
 #include <sys/syscall.h>
-#include <sys/mman.h>
 #include <sys/stat.h>
 #include "elf_file.h"
 #include <vector>

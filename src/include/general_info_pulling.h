@@ -174,10 +174,10 @@ public:
     bool change_proxy_mode(const std::string & mode) const { return backend_client.change_proxy_mode(mode); }
     bool close_all_connections() const { return backend_client.close_all_connections(); }
     bool close_connection(const std::string & id) const { return backend_client.close_connection(id); }
-    std::string get_current_mode();
+    std::string get_current_mode() const;
     bool modify_config(const std::string & json) const { return backend_client.change_config(json); }
-    bool modify_config_int(const std::string & entry, uint64_t val);
-    std::string get_config();
+    bool modify_config_int(const std::string & entry, uint64_t val) const;
+    std::string get_config() const;
 };
 
 #endif //SRC_GENERAL_INFO_PULLING_H

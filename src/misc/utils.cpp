@@ -41,7 +41,6 @@
 #include <fcntl.h>
 #include "terminfotar.h"
 #include <fstream>
-
 #include "print.h"
 
 std::vector<uint8_t> ccdb::utils::compress(const std::vector<uint8_t>& data)

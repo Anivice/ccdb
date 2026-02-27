@@ -381,7 +381,7 @@ static ssize_t read_with_timeout(const int fd, void *buf, const size_t count, co
     return -1;  // should not happen
 }
 
-void ccdb::ccdb::generic_input_watcher(const std::string &name, std::atomic_bool *running)
+void ccdb::ccdb::generic_input_watcher(const std::string &name, std::atomic_bool *running) const
 {
     set_thread_name(name);
     interactive_verification();
