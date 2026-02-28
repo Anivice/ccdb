@@ -73,6 +73,7 @@ namespace ccdb
         std::mutex keyboard_shortcut_map_mtx;
         std::function<bool(const std::vector<std::string> &)> handler;
         std::function<std::vector<std::string>(const std::vector<std::string> &, const std::string &, int)> auto_completion;
+        std::vector<std::string> listed_all_commands_in_path;
 
         bool execute_and_no_interactive = false;
         std::atomic_bool reverse_mouse;

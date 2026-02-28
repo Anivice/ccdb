@@ -581,8 +581,8 @@ void ccdb::ccdb::init()
         return true;
     };
 
-    std::vector<std::string> listed_all_commands_in_path;
-    auto_completion = [&](const std::vector<std::string> & args, const std::string & special_filler, const int arg_index)->std::vector<std::string> {
+    auto_completion = [&](const std::vector<std::string> & args, const std::string & special_filler, const int arg_index)->std::vector<std::string>
+    {
         try {
             if (special_filler == "[GROUP]") {
                 return get_groups();
@@ -628,7 +628,8 @@ void ccdb::ccdb::init()
                                 }
 
                                 if (is_executable(entry.path())) {
-                                    listed_all_commands_in_path.push_back(entry.path().filename().string());
+                                    const auto exec_str = entry.path().filename().string();
+                                    listed_all_commands_in_path.emplace_back(exec_str);
                                 }
                             }
                         }
@@ -685,7 +686,25 @@ void ccdb::ccdb::init()
                     return indexes_in_path;
                 };
 
-                if (path.empty() || (!path.empty() && path.front() != '/'))
+                auto list_all_envs = []
+                {
+                    std::vector<std::pair<std::string, std::string>> envs;
+                    int i = 0;
+                    while (environ[i]) {
+                        const std::string env = environ[i++];
+                        envs.emplace_back(env.substr(0, env.find_first_of('=')),
+                            env.substr(env.find_first_of('=') + 1));
+                    }
+
+                    return envs;
+                };
+
+                if (!path.empty() && path.front() == '$') // list all env
+                {
+                    const auto env_names = list_all_envs() | std::views::keys;
+                    return { env_names.begin(), env_names.end() };
+                }
+                else if (path.empty() || (!path.empty() && path.front() != '/'))
                 {
                     std::vector<std::string> indexes_in_pwd;
                     const auto pwd = "/" + utils::getenv("PWD");
@@ -732,7 +751,6 @@ ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::stri
         }
 
         init();
-        std::vector<std::string> listed_all_commands_in_path;
         cmdTpTree::read_command(handler, auto_completion, "ccdb> ");
         backend_instance.stop_continuous_updates();
 

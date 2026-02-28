@@ -324,14 +324,34 @@ namespace cmdTpTree
 
     static int argument_index(const char *buffer, const int start)
     {
-        int arg = 0;
-        int i = 0;
-        while (i < start) {
-            while (buffer[i] && buffer[i] == ' ') i++; /* skip spaces */
-            if (i >= start || buffer[i] == '\0') break;
-            arg++;
-            while (buffer[i] && buffer[i] != ' ') i++; /* skip over word */
+        auto isspace = [](const int c)->bool {
+            return ::isspace(c) || c == '\t';
+        };
+
+        if (buffer == nullptr) return 1;
+
+        const int len = static_cast<int>(strlen(buffer));
+
+        int s = start;
+        if (s < 0) s = 0;
+        if (s > len) s = len;
+
+        int arg = 1;
+
+        if (len == 0) return arg;
+
+        const int end = (s < len) ? s : (len - 1);
+
+        for (int i = 1; i <= end; ++i)
+        {
+            const unsigned char cur  = static_cast<unsigned char>(buffer[i]);
+            const unsigned char prev = static_cast<unsigned char>(buffer[i - 1]);
+
+            if (isspace(cur) && !isspace(prev)) {
+                arg++;
+            }
         }
+
         return arg;
     }
 
@@ -347,7 +367,7 @@ namespace cmdTpTree
         std::string this_arg = rl_line_buffer;
         while (!this_arg.empty() && this_arg.back() == ' ') this_arg.pop_back(); // remove tailing spaces
         while (!this_arg.empty() && this_arg.front() == ' ') this_arg.erase(this_arg.begin()); // remove leading spaces
-        const int arg_index = argument_index(rl_line_buffer, start);
+        const int arg_index = argument_index(rl_line_buffer, start) - 1;
         std::vector < std::string > args;
         {
             std::string arg;
