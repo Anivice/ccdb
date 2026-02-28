@@ -701,8 +701,16 @@ void ccdb::ccdb::init()
 
                 if (!path.empty() && path.front() == '$') // list all env
                 {
+#if !((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
+                    const auto env_names = list_all_envs();
+                    std::vector<std::string> list_view;
+                    std::for_each(env_names.begin(), env_names.end(), [&list_view](const std::pair < std::string, std::string > & s_)
+                        { list_view.emplace_back(s_.first); });
+                    return list_view;
+#else
                     const auto env_names = list_all_envs() | std::views::keys;
                     return { env_names.begin(), env_names.end() };
+#endif
                 }
                 else if (path.empty() || (!path.empty() && path.front() != '/'))
                 {
