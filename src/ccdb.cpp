@@ -266,6 +266,21 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
     }
 }
 
+namespace fs = std::filesystem;
+static bool is_executable(const fs::path& p)
+{
+    std::error_code ec;
+    auto status = fs::status(p, ec);
+    if (ec || !fs::is_regular_file(status)) {
+        return false;
+    }
+
+    const auto perms = status.permissions();
+    using fs_perms = fs::perms;
+    return (perms & (fs_perms::owner_exec | fs_perms::group_exec | fs_perms::others_exec)) != fs_perms::none;
+}
+
+
 void ccdb::ccdb::init()
 {
     // std::setlocale(LC_ALL, "en_US.UTF-8");
@@ -565,20 +580,135 @@ void ccdb::ccdb::init()
 
         return true;
     };
-}
 
-namespace fs = std::filesystem;
-static bool is_executable(const fs::path& p)
-{
-    std::error_code ec;
-    auto status = fs::status(p, ec);
-    if (ec || !fs::is_regular_file(status)) {
-        return false;
-    }
+    std::vector<std::string> listed_all_commands_in_path;
+    auto_completion = [&](const std::vector<std::string> & args, const std::string & special_filler, const int arg_index)->std::vector<std::string> {
+        try {
+            if (special_filler == "[GROUP]") {
+                return get_groups();
+            }
+            else if (special_filler == "[PROXY]") {
+                std::string group;
+                if (args.size() >= 3) {
+                    group = args[2];
+                }
+                return get_endpoints(group);
+            }
+            else if (special_filler == "[VGROUP]") {
+                return get_vgroups();
+            }
+            else if (special_filler == "[VPROXY]") {
+                std::string group;
+                if (args.size() >= 3) {
+                    group = args[2];
+                }
+                return get_vendpoints(index_to_proxy_name_list.at(std::strtol(group.c_str(), nullptr, 10)));
+            }
+            else if (special_filler == "[SHELLCOMMAND]")
+            {
+                if (listed_all_commands_in_path.empty())
+                {
+                    std::vector<std::string> paths;
+                    const std::string PATH = utils::getenv("PATH");
+                    std::stringstream ss(PATH);
+                    std::string str;
+                    while (std::getline(ss, str, ':'))
+                    {
+                        paths.push_back(str);
+                    }
 
-    const auto perms = status.permissions();
-    using fs_perms = fs::perms;
-    return (perms & (fs_perms::owner_exec | fs_perms::group_exec | fs_perms::others_exec)) != fs_perms::none;
+                    std::ranges::for_each(paths, [&](const std::string & path)
+                    {
+                        if (std::error_code ec; fs::is_directory(path, ec))
+                        {
+                            for (const auto& entry : fs::directory_iterator(path, ec))
+                            {
+                                if (ec) {
+                                    break;
+                                }
+
+                                if (is_executable(entry.path())) {
+                                    listed_all_commands_in_path.push_back(entry.path().filename().string());
+                                }
+                            }
+                        }
+                    });
+
+                    std::ranges::sort(listed_all_commands_in_path);
+                    auto [first, last] = std::ranges::unique(listed_all_commands_in_path);
+                    listed_all_commands_in_path.erase(first, last);
+                }
+
+                return listed_all_commands_in_path;
+            }
+            else if (special_filler == "[PWD...]")
+            {
+                std::string path;
+                if (args.size() > arg_index) {
+                    path = args[arg_index];
+                }
+
+                auto get_list_of_files = [](const std::string & dir) -> std::vector<std::string>
+                {
+                    try {
+                        std::vector<std::string> indexes_in_pwd;
+                        for (std::error_code ec; const auto& entry : fs::directory_iterator(dir, ec))
+                        {
+                            if (ec) {
+                                break;
+                            }
+
+                            try {
+                                if (fs::is_directory(entry.path())) {
+                                    indexes_in_pwd.push_back(entry.path().filename().string() + "/");
+                                } else {
+                                    indexes_in_pwd.push_back(entry.path().filename().string());
+                                }
+                            } catch (...) {
+                                indexes_in_pwd.push_back(entry.path().filename().string());
+                            }
+                        }
+
+                        return indexes_in_pwd;
+                    } catch (...) {
+                        return { };
+                    }
+                };
+
+                auto get_path_arb = [&get_list_of_files](const std::string & path_)->std::vector<std::string>
+                {
+                    std::vector<std::string> indexes_in_path = get_list_of_files(path_);
+                    const bool compliment = path_.back() != '/';
+                    std::ranges::for_each(indexes_in_path, [&](std::string & p) {
+                        p = path_ + (compliment ? "/" : "") + p;
+                    });
+                    return indexes_in_path;
+                };
+
+                if (path.empty() || (!path.empty() && path.front() != '/'))
+                {
+                    std::vector<std::string> indexes_in_pwd;
+                    const auto pwd = "/" + utils::getenv("PWD");
+                    return get_list_of_files(pwd);
+                }
+                else if (std::filesystem::exists(path) && std::filesystem::is_directory(path)) {
+                    return get_path_arb(path);
+                }
+                else if (!std::filesystem::exists(path)) {
+                    path = path.substr(0, path.find_last_of('/'));
+                    if (path.empty()) path = "/";
+                    return get_path_arb(path);
+                } else /* if (std::filesystem::exists(path)) */ {
+                    return { path };
+                }
+            }
+        } catch (std::out_of_range &) {
+            return { };
+        }
+
+        print<is_error>("Unknown directive", " `", special_filler, "`\n");
+        return {};
+    };
 }
 
 ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::string latency_url_)
@@ -603,95 +733,7 @@ ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::stri
 
         init();
         std::vector<std::string> listed_all_commands_in_path;
-
-        cmdTpTree::read_command(handler,
-        [&](const std::vector<std::string> & args, const std::string & special_filler, const int arg_index)->std::vector<std::string>
-        {
-            try {
-                if (special_filler == "[GROUP]") {
-                    return get_groups();
-                }
-                else if (special_filler == "[PROXY]") {
-                    std::string group;
-                    if (args.size() >= 3) {
-                        group = args[2];
-                    }
-                    return get_endpoints(group);
-                }
-                else if (special_filler == "[VGROUP]") {
-                    return get_vgroups();
-                }
-                else if (special_filler == "[VPROXY]") {
-                    std::string group;
-                    if (args.size() >= 3) {
-                        group = args[2];
-                    }
-                    return get_vendpoints(index_to_proxy_name_list.at(std::strtol(group.c_str(), nullptr, 10)));
-                }
-                else if (special_filler == "[SHELLCOMMAND]")
-                {
-                    if (listed_all_commands_in_path.empty())
-                    {
-                        std::vector<std::string> paths;
-                        const std::string PATH = utils::getenv("PATH");
-                        std::stringstream ss(PATH);
-                        std::string str;
-                        while (std::getline(ss, str, ':'))
-                        {
-                            paths.push_back(str);
-                        }
-
-                        std::ranges::for_each(paths, [&](const std::string & path)
-                        {
-                            if (std::error_code ec; fs::is_directory(path, ec))
-                            {
-                                for (const auto& entry : fs::directory_iterator(path, ec))
-                                {
-                                    if (ec) {
-                                        break;
-                                    }
-
-                                    if (is_executable(entry.path())) {
-                                        listed_all_commands_in_path.push_back(entry.path().filename().string());
-                                    }
-                                }
-                            }
-                        });
-
-                        std::ranges::sort(listed_all_commands_in_path);
-                        auto [first, last] = std::ranges::unique(listed_all_commands_in_path);
-                        listed_all_commands_in_path.erase(first, last);
-                    }
-
-                    return listed_all_commands_in_path;
-                }
-                else if (special_filler == "[PWD...]")
-                {
-                    std::vector<std::string> indexes_in_pwd;
-                    const auto pwd = "/" + utils::getenv("PWD");
-                    for (std::error_code ec; const auto& entry : fs::directory_iterator(pwd, ec))
-                    {
-                        if (ec) {
-                            break;
-                        }
-
-                        if (fs::is_directory(entry.path())) {
-                            indexes_in_pwd.push_back(entry.path().filename().string() + "/");
-                        } else {
-                            indexes_in_pwd.push_back(entry.path().filename().string());
-                        }
-                    }
-
-                    return indexes_in_pwd;
-                }
-            } catch (std::out_of_range &) {
-                return { };
-            }
-
-            print<is_error>("Unknown directive", " `", special_filler, "`\n");
-            return {};
-        }, "ccdb> ");
-
+        cmdTpTree::read_command(handler, auto_completion, "ccdb> ");
         backend_instance.stop_continuous_updates();
 
         if (backend_instance.force_quit) {

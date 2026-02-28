@@ -96,6 +96,7 @@
     < reset (Reset terminal mode): [NONE] >,
     < apply (Apply JSON config to backend): [NONE] >,
     < $ (Execute shell commands): [SHELLCOMMAND], [PWD...] >,
+    < | (Execute shell commands): [SHELLCOMMAND], [PWD...] >,
 }
 
 # $ ssh me@localhost

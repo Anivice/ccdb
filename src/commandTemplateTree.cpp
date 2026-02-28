@@ -213,8 +213,17 @@ namespace cmdTpTree
         return cmdTpTree::find(root, command_string);
     }
 
-    std::vector<std::string> commandTemplateTree_t::find_sub_commands(const std::vector<std::string> &command_string) const
+    std::vector<std::string> commandTemplateTree_t::find_sub_commands(std::vector<std::string> command_string) const
     {
+        if (std::ranges::any_of(command_string, [](const std::string & v){ return v == "|"; }))
+        {
+            std::ranges::reverse(command_string);
+            while (!command_string.empty() && command_string.back() != "|") {
+                command_string.pop_back();
+            }
+            std::ranges::reverse(command_string);
+        }
+
         const auto * node = cmdTpTree::find(root, command_string);
         std::vector < std::string > result;
         for (const auto & v : node->children_) {
@@ -352,7 +361,7 @@ namespace cmdTpTree
             });
 
             if (!arg.empty()) args.emplace_back(arg);
-            if (args.size() > arg_index) args.pop_back();
+            // if (args.size() > arg_index) args.pop_back();
         }
 
         auto can_find_special_args = [](const std::vector<std::string> & pargs) {
@@ -382,9 +391,12 @@ namespace cmdTpTree
             }
         };
 
+        auto lookup = args;
+        while (lookup.size() > arg_index) lookup.pop_back();
+
         try
         {
-            if (const auto sub_commands = command_template_tree.find_sub_commands(args);
+            if (const auto sub_commands = command_template_tree.find_sub_commands(lookup);
                 can_find_special_args(sub_commands))
             {
                 args_completion_list.clear();
@@ -404,7 +416,7 @@ namespace cmdTpTree
                 if (const auto current_index = arg_index - special_index;
                     current_index < args_completion_list.size())
                 {
-                    const auto arg_cmp = args_completion_list[current_index];
+                    const auto & arg_cmp = args_completion_list[current_index];
                     special_handler(arg_cmp, arg_index);
                 }
                 else if (!args_completion_list.empty() &&
@@ -424,7 +436,7 @@ namespace cmdTpTree
                 complete();
             }
             else {
-                std::vector<std::string> list = args, commands;
+                std::vector<std::string> list = lookup, commands;
                 while (!list.empty())
                 {
                     try {

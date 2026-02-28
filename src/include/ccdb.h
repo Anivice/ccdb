@@ -72,6 +72,8 @@ namespace ccdb
         tsl::hopscotch_map < std::string, std::string > keyboard_shortcut_map;
         std::mutex keyboard_shortcut_map_mtx;
         std::function<bool(const std::vector<std::string> &)> handler;
+        std::function<std::vector<std::string>(const std::vector<std::string> &, const std::string &, int)> auto_completion;
+
         bool execute_and_no_interactive = false;
         std::atomic_bool reverse_mouse;
 
