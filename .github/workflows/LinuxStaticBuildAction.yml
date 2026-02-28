@@ -1,13 +1,13 @@
 name: Linux Automatic Nightly Build
 
 on:
-  workflow_dispatch:    # Enables manual triggering
+  workflow_dispatch:
+  #schedule:
+  #  - cron: "0 8 * * *"
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: write
@@ -16,10 +16,11 @@ permissions:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Install dependencies
         run: |
@@ -35,17 +36,19 @@ jobs:
 
       - name: Configure and Build
         run: |
-          bash -c 'for arch in x86_64 i686 i586 aarch64 armv7 armv7hf; do ./src/configure.sh $arch build_$arch $PWD/toolchains/toolchains; done' 2>log.err.txt >log.txt
+          bash -c 'for arch in x86_64 i686 i586 aarch64 armv7 armv7hf; do ./src/configure.sh $arch build_$arch $PWD/toolchains/toolchains; done' \
+            2>log.err.txt >log.txt
           cat log.err.txt >> log.txt
 
       - name: Upload log artifact
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: build-log
           path: log.txt
 
       - name: Open an Issue on Test Failure
-        if: ${{ failure() }}
+        if: ${{ always() && failure() && github.event_name != 'pull_request' }}
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -53,54 +56,49 @@ jobs:
             const owner = context.repo.owner;
             const repo  = context.repo.repo;
             const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
-            
             const body =
-                `# One or more steps have failed!\n\n` +
-                `**Log artifact:** \`build-log\` (download it from the workflow run page)\n` +
-                `**Workflow run:** ${runUrl}\n`;
-            
-            await github.rest.issues.create({
-                owner, repo,
-                title: "CCDB Linux Build Failed",
-                body
-            });
+              `# One or more steps have failed!\n\n` +
+              `**Log artifact:** \`build-log\` (download it from the workflow run page)\n` +
+              `**Workflow run:** ${runUrl}\n`;
+            await github.rest.issues.create({ owner, repo, title: "CCDB Linux Build Failed", body });
 
       - name: Pack
         run: |
           bash -c 'for arch in x86_64 i686 i586 aarch64 armv7 armv7hf; do cp build_$arch/ccdb ccdb.$arch; cp build_$arch/ccdb_packed ccdb_packed.$arch; done'
 
-      - name: Get Git commit hash
-        id: get_commit
-        run: echo "GIT_HASH=$(git rev-parse --short=8 HEAD)" >> $GITHUB_ENV
-
-      - name: Set up Git for pushing tag
+      - name: Compute tag
+        if: ${{ github.event_name != 'pull_request' }}
         run: |
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global user.name "github-actions[bot]"
+          TAG=$(git describe --tags --exact-match 2>/dev/null || true)
+          SHORT=$(git rev-parse --short=8 HEAD)
 
-      - name: Create Git tag for release
+          if [ -n "$TAG" ]; then
+            echo "GIT_TAG=$TAG" >> $GITHUB_ENV
+          else
+            echo "GIT_TAG=ccdb.NightlyBuild.$SHORT" >> $GITHUB_ENV
+          fi
+
+      - name: Create and push tag
+        if: ${{ github.event_name != 'pull_request' }}
         run: |
-          git tag "ccdb.NightlyBuild.${{ env.GIT_HASH }}"
-          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} "ccdb.NightlyBuild.${{ env.GIT_HASH }}"
+          if ! git rev-parse -q --verify "refs/tags/${{ env.GIT_TAG }}" >/dev/null; then
+            git tag "${{ env.GIT_TAG }}"
+            git push origin "${{ env.GIT_TAG }}"
+          fi
 
       - name: Create a GitHub release
+        if: ${{ github.event_name != 'pull_request' }}
         uses: softprops/action-gh-release@v2
         with:
           files: |
             ccdb.x86_64
-            ccdb_packed.x86_64
             ccdb.i686
-            ccdb_packed.i686
             ccdb.i586
-            ccdb_packed.i586
             ccdb.aarch64
-            ccdb_packed.aarch64
             ccdb.armv7
-            ccdb_packed.armv7
             ccdb.armv7hf
-            ccdb_packed.armv7hf
-          tag_name: "ccdb.NightlyBuild.${{ env.GIT_HASH }}"
-          prerelease: true  # Marking this as a pre-release
+          tag_name: "${{ env.GIT_TAG }}"
+          prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_NAME: ccdb.NightlyBuild.${{ env.GIT_HASH }}
+          RELEASE_NAME: ${{ env.GIT_TAG }}
