@@ -183,7 +183,7 @@ std::string ccdb::ccdb::update_subinfo(atomic_subinfo_ball_t & atomic_subinfo_ba
 #ifndef __DEBUG__
         5 * 60
 #else
-        0
+        30000
 #endif //__DEBUG__
         ) {
         return return_subinfo();

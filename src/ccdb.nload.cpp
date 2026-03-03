@@ -229,9 +229,16 @@ void ccdb::ccdb::nload(
     int conn_list_size_before = 0;
     atomic_subinfo_ball_t subinfo_ball = std::make_unique<ccdb_atomic_t<subinfo_ball_t>>();
     std::vector < std::pair < std::unique_ptr<std::atomic_bool>, std::thread > > threads;
+    struct line_view_tmp_data_t {
+        uint64_t skipped_len = 0;
+        std::chrono::time_point<std::chrono::high_resolution_clock> last_accessed_time;
+        std::chrono::time_point<std::chrono::high_resolution_clock> last_skipped_len_time;
+    };
+    tsl::hopscotch_map < uint64_t, line_view_tmp_data_t > mapped_line_view_tmp_data;
 
     while (*running)
     {
+        const auto now_in_loop = std::chrono::high_resolution_clock::now();
         int conn_list_size = 0;
         std::ostringstream frame;
         const int free_space = row - window_space * 2 - reserved_lines;
@@ -307,34 +314,82 @@ void ccdb::ccdb::nload(
             frame << color::no_color();
 
             {
+                std::vector<uint64_t> remove_list;
+                std::ranges::for_each(mapped_line_view_tmp_data, [&](const auto & frame_) {
+                    if (std::chrono::duration_cast<std::chrono::seconds>(now_in_loop - frame_.second.last_accessed_time).count() > 5) {
+                        remove_list.push_back(frame_.first);
+                    }
+                });
+
+                std::ranges::for_each(remove_list, [&mapped_line_view_tmp_data](const auto & hash) {
+                    mapped_line_view_tmp_data.erase(hash);
+                });
+
                 std::lock_guard<std::mutex> lock_gud(*top_3_connections_using_most_speed_mtx);
                 conn_list_size = static_cast<int>(top_3_connections_using_most_speed.size());
                 std::ranges::for_each(top_3_connections_using_most_speed, [&](const std::string & line_)
                 {
                     auto new_line = line_;
                     replace_all(new_line, "\n", " ");
-                    const auto line_len = UnicodeDisplayWidth::get_width_utf8(new_line);
-                    if (line_len > col)
-                    {
-                        auto utf32 = utf8_to_u32(new_line);
-                        const auto new_length = UnicodeDisplayWidth::get_width_utf32(utf32);
+                    CRC64 crc64;
+                    crc64.update(reinterpret_cast<const uint8_t *>(new_line.data()), new_line.size());
+                    const auto hash64 = crc64.get_checksum();
+                    auto &[skipped_len, last_accessed_time, last_skipped_len_time] = mapped_line_view_tmp_data[hash64];
+                    last_accessed_time = now_in_loop;
 
+                    auto utf32 = utf8_to_u32(new_line);
+                    int now_skipped_size = 0;
+                    while (now_skipped_size < skipped_len) {
+                        now_skipped_size += UnicodeDisplayWidth::get_width_utf32({utf32.front()});
+                        utf32.erase(utf32.begin());
+                    }
+                    const auto line_len = UnicodeDisplayWidth::get_width_utf32(utf32);
+
+                    auto do_utf32_trim = [&]
+                    {
                         decltype(utf32) utf32_cut;
                         int len = 0;
-                        for (const auto & c : utf32)
+
+                        if (line_len > col)
                         {
-                            const auto c_len = UnicodeDisplayWidth::get_width_utf32({c});
-                            len += c_len;
-                            if (len >= col) {
-                                len -= c_len;
-                                break;
+                            if (std::chrono::duration_cast<std::chrono::milliseconds>(now_in_loop - last_skipped_len_time).count() > 500)
+                            {
+                                skipped_len += 1;
+                                last_skipped_len_time = now_in_loop;
                             }
 
-                            utf32_cut += c;
+                            for (const auto & c : utf32)
+                            {
+                                const auto c_len = UnicodeDisplayWidth::get_width_utf32({c});
+                                len += c_len;
+                                if (len >= col) {
+                                    len -= c_len;
+                                    break;
+                                }
+
+                                utf32_cut += c;
+                            }
+                        }
+                        else {
+                            utf32_cut = utf32;
+                            len = line_len;
                         }
 
                         new_line = utf8::utf32to8(utf32_cut) + std::string(std::max(0, col - len - 1), ' ')
-                            + (new_length > col ? color::color(0,0,0,3,3,3) + ">" : "");
+                            + ((len != line_len) ? color::color(0,0,0,3,3,3) + ">" : "");
+                    };
+
+                    if (line_len > col) {
+                        do_utf32_trim();
+                    }
+                    else if (skipped_len > 0)
+                    {
+                        if (std::chrono::duration_cast<std::chrono::seconds>(now_in_loop - last_skipped_len_time).count() > 1) {
+                            skipped_len = 0;
+                            last_skipped_len_time = now_in_loop + std::chrono::milliseconds(500);
+                        }
+
+                        do_utf32_trim();
                     }
                     else {
                         new_line += std::string(col - line_len, ' ');
