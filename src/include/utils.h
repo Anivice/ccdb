@@ -36,6 +36,8 @@
 #include <poll.h>
 #include <thread>
 
+#include "lzw6.h"
+
 /// Utilities
 namespace ccdb::utils {
     /// Get environment variable (safe)
@@ -184,6 +186,8 @@ namespace ccdb::utils {
         void init_crc64();
         static uint64_t reverse_bytes(uint64_t x);
     };
+
+    std::string unpack_string(const unsigned char str[], unsigned int len);
 }
 
 #endif //CFS_UTILS_H

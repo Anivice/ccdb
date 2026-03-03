@@ -30,6 +30,8 @@
 #include "print.h"
 #include "args.h"
 #include "utils.h"
+#include "BUILD_DATE.h"
+#include "GIT_HASH.h"
 
 namespace utils = ccdb::utils;
 
@@ -70,7 +72,8 @@ int main(int argc, char ** argv)
         }
 
         if (parsed.contains("version")) {
-            utils::print<utils::is_normal>("C++ Clash Dashboard Version ", CCDB_VERSION, " (commit " GIT_HASH ", build on " BUILD_DATE ")\n");
+            utils::print<utils::is_normal>("C++ Clash Dashboard Version ", CCDB_VERSION, " (commit ",
+            utils::unpack_string(GIT_HASH, GIT_HASH_len), ", build on ", utils::unpack_string(BUILD_DATE, BUILD_DATE_len), ")\n");
             return EXIT_SUCCESS;
         }
 
@@ -91,7 +94,8 @@ int main(int argc, char ** argv)
         }
 
         ////////////////////////////////////////////////////////////////////////////////////////
-        if (!parsed.contains("execute")) utils::print<utils::is_normal>("C++ Clash Dashboard Version ", CCDB_VERSION, " (commit " GIT_HASH ", build on " BUILD_DATE ")\n");
+        if (!parsed.contains("execute")) utils::print<utils::is_normal>("C++ Clash Dashboard Version ", CCDB_VERSION, " (commit ",
+            utils::unpack_string(GIT_HASH, GIT_HASH_len), ", build on ", utils::unpack_string(BUILD_DATE, BUILD_DATE_len), ")\n");
         if (!parsed.contains("execute")) utils::print<utils::is_normal>("Connecting to", " ", backend, "\n");
         ////////////////////////////////////////////////////////////////////////////////////////
         std::stringstream ss;

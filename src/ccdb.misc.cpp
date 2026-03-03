@@ -29,6 +29,8 @@
 #include <cmath>
 #include <string>
 #include "additional_help.h"
+#include "BUILD_DATE.h"
+#include "GIT_HASH.h"
 
 ccdb::sigint_watcher_ ccdb::watcher;
 std::atomic_bool ccdb::window_size_change = false;
@@ -310,7 +312,8 @@ void ccdb::ccdb::help()
     auto decompressed_help = utils::decompress(str_additional_compressed);
     decompressed_help.push_back(0);
     std::stringstream oss;
-    oss << sprint("C++ Clash Dashboard Version ") << CCDB_VERSION " (commit " GIT_HASH ", built on " BUILD_DATE ")" << std::endl
+    oss << sprint("C++ Clash Dashboard Version ") << CCDB_VERSION " (commit " << unpack_string(GIT_HASH, GIT_HASH_len)
+        << ", build on " << unpack_string(BUILD_DATE, BUILD_DATE_len) << ")" << std::endl
         << str << sprint(reinterpret_cast<const char *>(decompressed_help.data())) << std::endl;
     pager(oss.str());
     std::cout << oss.str() << std::flush;

@@ -42,6 +42,7 @@
 #include "terminfotar.h"
 #include <fstream>
 #include "print.h"
+#include "tsl/hopscotch_map.h"
 
 std::vector<uint8_t> ccdb::utils::compress(const std::vector<uint8_t>& data)
 {
@@ -275,6 +276,16 @@ uint64_t ccdb::utils::CRC64::reverse_bytes(uint64_t x)
     x = ((x & 0x0000FFFF0000FFFFULL) << 16) | ((x & 0xFFFF0000FFFF0000ULL) >> 16);
     x = ((x & 0x00FF00FF00FF00FFULL) << 8)  | ((x & 0xFF00FF00FF00FF00ULL) >> 8);
     return x;
+}
+
+std::string ccdb::utils::unpack_string(const unsigned char str[], const unsigned int len)
+{
+    std::vector<uint8_t> data(len);
+    std::memcpy(data.data(), str, len);
+    const auto ret = decompress(data);
+    std::vector<char> char_str(ret.size());
+    std::memcpy(char_str.data(), ret.data(), char_str.size());
+    return { char_str.begin(), char_str.end() };
 }
 
 std::string ccdb::utils::getenv(const std::string& name) noexcept
