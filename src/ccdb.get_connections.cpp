@@ -389,7 +389,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             const bool local_show_detail = conn_show_detail;
             const int local_sort_by_from_watcher = sort_by_from_watcher;
 
-            for (int i = 0; i < 10; i++)
+            for (int i = 0; i < screen_refresh_interval_in_ms / 10; i++)
             {
                 if (local_leading_spaces != leading_spaces
                     || local_skip_lines != current_skip_lines
@@ -408,7 +408,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     break;
                 }
 
-                std::this_thread::sleep_for(std::chrono::milliseconds(50l));
+                std::this_thread::sleep_for(std::chrono::milliseconds(10l));
             }
 
             if (leading_spaces > max_leading_spaces) {
@@ -441,7 +441,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     wait_thread(child_workers);
     std::ranges::for_each(threads, [](auto & T) { if (T.second.joinable()) T.second.join(); });
     if (const char* clear = capstr("clear")) {
-        std::cout.write(clear, strlen(clear));
+        std::cout.write(clear, static_cast<std::streamsize>(strlen(clear)));
         std::cout.flush();
     }
 }

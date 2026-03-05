@@ -4,6 +4,7 @@ SortReverse = off
 ChainParser = on
 SortBy = 4
 ReverseMouse = off
+RefreshIntervalMS = 500
 
 [Filter]
 Host = .*

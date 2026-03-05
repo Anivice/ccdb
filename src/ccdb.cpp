@@ -373,6 +373,11 @@ void ccdb::ccdb::init()
         return (0 <= val && val < get_conn_titles.size());
     });
 
+    int_helper("Global::RefreshIntervalMS", screen_refresh_interval_in_ms,
+    [&](const long int val) {
+        return (val > 0);
+    });
+
     filter_helper("Filter::Host", 0);
     filter_helper("Filter::Process", 1);
     filter_helper("Filter::Rules", 6);

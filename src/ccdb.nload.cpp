@@ -40,7 +40,7 @@ void ccdb::ccdb::nload(
 {
     set_thread_name("nload");
     constexpr int reserved_lines = 4 + 3;
-    int row = 0, col = 0;
+    std::atomic_int row = 0, col = 0;
     int window_space = 0;
     auto update_window_spaces = [&row, &col, &window_space]() {
         const auto [ r, c ] = utils::get_screen_row_col();
@@ -214,6 +214,7 @@ void ccdb::ccdb::nload(
     };
 
     update_window_spaces();
+    std::mutex state_lock;
     std::vector < uint64_t > up_speed_list, down_speed_list;
     std::vector<float> up_list, down_list;
     uint64_t max_up_speed = 0, min_up_speed = UINT64_MAX, max_down_speed = 0, min_down_speed = UINT64_MAX;
@@ -229,6 +230,7 @@ void ccdb::ccdb::nload(
     int conn_list_size_before = 0;
     atomic_subinfo_ball_t subinfo_ball = std::make_unique<ccdb_atomic_t<subinfo_ball_t>>();
     std::vector < std::pair < std::unique_ptr<std::atomic_bool>, std::thread > > threads;
+    std::vector<std::thread> local_workers;
     struct line_view_tmp_data_t {
         uint64_t skipped_len = 0;
         std::chrono::time_point<std::chrono::high_resolution_clock> last_accessed_time;
@@ -236,6 +238,46 @@ void ccdb::ccdb::nload(
     };
     tsl::hopscotch_map < uint64_t, line_view_tmp_data_t > mapped_line_view_tmp_data;
 
+    local_workers.emplace_back([&]
+    {
+        while (*running)
+        {
+            {
+                std::lock_guard<std::mutex> lock(state_lock);
+                up_list.clear();
+                down_list.clear();
+
+                up_speed_list.push_back(*upload_speed);
+                down_speed_list.push_back(*download_speed);
+
+                auto_clear(up_speed_list, col - info_space_size);
+                auto_clear(down_speed_list, col - info_space_size);
+
+                std::ranges::for_each(up_speed_list, [&](const uint64_t i) {
+                const auto max_num = static_cast<float>(max_in_vec(up_speed_list));
+                if (max_num != 0) {
+                    const auto val = static_cast<float>(i) / max_num;
+                    up_list.push_back(val);
+                } else {
+                    up_list.push_back(0);
+                }
+                });
+
+                std::ranges::for_each(down_speed_list, [&](const uint64_t i) {
+                const auto max_num = static_cast<float>(max_in_vec(down_speed_list));
+                if (max_num != 0) {
+                    const auto val = static_cast<float>(i) / max_num;
+                    down_list.push_back(val);
+                } else {
+                    down_list.push_back(0);
+                }
+                });
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(screen_refresh_interval_in_ms));
+        }
+    });
+    
     while (*running)
     {
         const auto now_in_loop = std::chrono::high_resolution_clock::now();
@@ -244,35 +286,7 @@ void ccdb::ccdb::nload(
         const int free_space = row - window_space * 2 - reserved_lines;
         if (window_space > reserved_lines && col > info_space_size)
         {
-            up_list.clear();
-            down_list.clear();
-
-            up_speed_list.push_back(*upload_speed);
-            down_speed_list.push_back(*download_speed);
-
-            auto_clear(up_speed_list, col - info_space_size);
-            auto_clear(down_speed_list, col - info_space_size);
-
-            std::ranges::for_each(up_speed_list, [&](const uint64_t i) {
-                const auto max_num = static_cast<float>(max_in_vec(up_speed_list));
-                if (max_num != 0) {
-                    const auto val = static_cast<float>(i) / max_num;
-                    up_list.push_back(val);
-                } else {
-                    up_list.push_back(0);
-                }
-            });
-
-            std::ranges::for_each(down_speed_list, [&](const uint64_t i) {
-                const auto max_num = static_cast<float>(max_in_vec(down_speed_list));
-                if (max_num != 0) {
-                    const auto val = static_cast<float>(i) / max_num;
-                    down_list.push_back(val);
-                } else {
-                    down_list.push_back(0);
-                }
-            });
-
+            std::lock_guard<std::mutex> lock(state_lock);
             std::string title = sprint("C++ Clash Dashboard:");
             if (title.length() > col) title = title.substr(0, col);
             frame << title << std::endl;
@@ -352,7 +366,8 @@ void ccdb::ccdb::nload(
 
                         if (line_len > col)
                         {
-                            if (std::chrono::duration_cast<std::chrono::milliseconds>(now_in_loop - last_skipped_len_time).count() > 500)
+                            if (std::chrono::duration_cast<std::chrono::milliseconds>(now_in_loop - last_skipped_len_time).count() >
+                                screen_refresh_interval_in_ms / 100)
                             {
                                 skipped_len += 1;
                                 last_skipped_len_time = now_in_loop;
@@ -425,7 +440,7 @@ void ccdb::ccdb::nload(
         term.ed_clear();
 
         /// wait:
-        for (int i = 0; i < 50; i++)
+        for (int i = 0; i < screen_refresh_interval_in_ms / 100; i++)
         {
             if (window_size_change || info_space_size_before != info_space_size || conn_list_size != conn_list_size_before)
             {
@@ -446,4 +461,5 @@ void ccdb::ccdb::nload(
     print<is_normal>("\n\n", "Wait...\n");
     if (input_watcher.joinable()) input_watcher.join();
     std::ranges::for_each(threads, [](auto & T) { if (T.second.joinable()) T.second.join(); });
+    std::ranges::for_each(local_workers, [](auto & T) { if (T.joinable()) T.join(); });
 }
