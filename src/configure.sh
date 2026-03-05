@@ -48,7 +48,7 @@ case $ARCH in
     ;;
 esac
 
-CMAKE_CFLAGS="-O3 -fomit-frame-pointer -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2 -fno-stack-protector -s -Wl,-z,phdr"
+CMAKE_CFLAGS="-O3 -fomit-frame-pointer -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2 -fno-stack-protector -Wl,-z,phdr"
 export CXXFLAGS="$CMAKE_CFLAGS"
 export CFLAGS="$CMAKE_CFLAGS"
 export CC="$TARGET"-gcc
@@ -65,7 +65,7 @@ env PATH="$MUSL_SYSROOT"/bin/:"$PATH" cmake -B "$BUILD_DIR" -S "$script_dir" \
             -DCMAKE_C_COMPILER="$CC" \
             -DCMAKE_CXX_COMPILER="$CXX" \
             -DCMAKE_FIND_ROOT_PATH="$MUSL_SYSROOT" \
-            -DCMAKE_EXE_LINKER_FLAGS="-static -s" \
+            -DCMAKE_EXE_LINKER_FLAGS="-static" \
             -DCC_ADDITIONAL_OPTIONS="-static $CMAKE_CFLAGS" \
             -DLD_ADDITIONAL_OPTIONS="-static $CMAKE_CFLAGS" \
             -DREADLINE_CONFIGURE_ADDITIONAL_FLAGS="--host=$ARCH" \
