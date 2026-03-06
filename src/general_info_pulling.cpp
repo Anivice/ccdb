@@ -249,11 +249,12 @@ void general_info_pulling::update_from_logs(const std::string& info)
 #if !((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
     auto current_time_formatted = []()->std::string
     {
-        auto now = std::chrono::system_clock::now();
-        std::time_t now_c = std::chrono::system_clock::to_time_t(now);
-        std::tm now_tm = *std::localtime(&now_c); // potential thread-safety issue
+        const auto now = std::chrono::high_resolution_clock::now();
+        const std::time_t now_c = std::chrono::high_resolution_clock::to_time_t(now);
+        const std::tm now_tm = *std::localtime(&now_c); // potential thread-safety issue
+        const auto ms = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()) % 1000000000ull;
         std::ostringstream oss;
-        oss << std::put_time(&now_tm, "%Y-%m-%d %H:%M:%S");
+        oss << std::put_time(&now_tm, "%Y-%m-%d %H:%M:%S") << '.' << std::setfill('0') << std::setw(9) << ms.count();
         return oss.str();
     };
 #endif
