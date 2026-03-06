@@ -217,7 +217,7 @@ void ccdb::ccdb::nload(
     std::mutex state_lock;
     struct {
         std::vector < uint64_t > up_speed_list, down_speed_list;
-        std::vector<float> up_list, down_list;
+        std::vector < float > up_list, down_list;
         uint64_t max_up_speed = 0, min_up_speed = UINT64_MAX, max_down_speed = 0, min_down_speed = UINT64_MAX;
     } frame;
 
@@ -293,7 +293,7 @@ void ccdb::ccdb::nload(
             std::this_thread::sleep_for(std::chrono::milliseconds(screen_refresh_interval_in_ms));
         }
     });
-    
+
     while (*running)
     {
         const auto now_in_loop = std::chrono::high_resolution_clock::now();
