@@ -110,7 +110,7 @@ void ccdb::ccdb::nload(
         return static_cast<double>(sum) / static_cast<double>(list.size());
     };
 
-    int info_space_size = 20;
+    std::atomic_int info_space_size = 20;
     auto print_win = [&max_in_vec, &min_in_vec, &avg_in_vec, &info_space_size, &col](
         const std::atomic<uint64_t> * speed,
         const std::atomic<uint64_t> * total,
@@ -158,7 +158,7 @@ void ccdb::ccdb::nload(
             size_list.push_back(UnicodeDisplayWidth::get_width_utf8(str));
         }
 
-        info_space_size = std::max(static_cast<int>(max_in_vec(size_list)), info_space_size);
+        info_space_size = std::max(static_cast<int>(max_in_vec(size_list)), info_space_size.load());
         if (col < info_space_size) {
             frame << color::color(0,0,0,5,0,0) << sprint("TOO SMALL") << std::endl;
             return;
@@ -215,9 +215,12 @@ void ccdb::ccdb::nload(
 
     update_window_spaces();
     std::mutex state_lock;
-    std::vector < uint64_t > up_speed_list, down_speed_list;
-    std::vector<float> up_list, down_list;
-    uint64_t max_up_speed = 0, min_up_speed = UINT64_MAX, max_down_speed = 0, min_down_speed = UINT64_MAX;
+    struct {
+        std::vector < uint64_t > up_speed_list, down_speed_list;
+        std::vector<float> up_list, down_list;
+        uint64_t max_up_speed = 0, min_up_speed = UINT64_MAX, max_down_speed = 0, min_down_speed = UINT64_MAX;
+    } frame;
+
     for (int i = 0; i < 25; i++) {
         if (*total_upload && *total_download) break;
         std::this_thread::sleep_for(std::chrono::milliseconds(100l));
@@ -228,7 +231,7 @@ void ccdb::ccdb::nload(
     std::thread input_watcher(&ccdb::generic_input_watcher, this, "get/nload:input", running);
     int info_space_size_before = info_space_size;
     int conn_list_size_before = 0;
-    atomic_subinfo_ball_t subinfo_ball = std::make_unique<ccdb_atomic_t<subinfo_ball_t>>();
+    auto subinfo_ball = std::make_unique<ccdb_atomic_t<subinfo_ball_t>>();
     std::vector < std::pair < std::unique_ptr<std::atomic_bool>, std::thread > > threads;
     std::vector<std::thread> local_workers;
     struct line_view_tmp_data_t {
@@ -240,38 +243,51 @@ void ccdb::ccdb::nload(
 
     local_workers.emplace_back([&]
     {
+        utils::set_thread_name("nload:/update_merit");
+        decltype(frame) frame_self;
+        auto & [up_speed_list,
+            down_speed_list,
+            up_list,
+            down_list,
+            max_up_speed,
+            min_up_speed,
+            max_down_speed,
+            min_down_speed] = frame_self;
+
         while (*running)
         {
-            {
-                std::lock_guard<std::mutex> lock(state_lock);
-                up_list.clear();
-                down_list.clear();
+            up_list.clear();
+            down_list.clear();
 
-                up_speed_list.push_back(*upload_speed);
-                down_speed_list.push_back(*download_speed);
+            up_speed_list.push_back(*upload_speed);
+            down_speed_list.push_back(*download_speed);
 
-                auto_clear(up_speed_list, col - info_space_size);
-                auto_clear(down_speed_list, col - info_space_size);
+            auto_clear(up_speed_list, col - info_space_size);
+            auto_clear(down_speed_list, col - info_space_size);
 
-                std::ranges::for_each(up_speed_list, [&](const uint64_t i) {
-                const auto max_num = static_cast<float>(max_in_vec(up_speed_list));
-                if (max_num != 0) {
-                    const auto val = static_cast<float>(i) / max_num;
+            const auto max_up_num = static_cast<float>(max_in_vec(up_speed_list));
+            std::ranges::for_each(up_speed_list, [&](const uint64_t i) {
+                if (max_up_num != 0) {
+                    const auto val = static_cast<float>(i) / max_up_num;
                     up_list.push_back(val);
                 } else {
                     up_list.push_back(0);
                 }
-                });
+            });
 
-                std::ranges::for_each(down_speed_list, [&](const uint64_t i) {
-                const auto max_num = static_cast<float>(max_in_vec(down_speed_list));
-                if (max_num != 0) {
-                    const auto val = static_cast<float>(i) / max_num;
+            const auto max_down_num = static_cast<float>(max_in_vec(down_speed_list));
+            std::ranges::for_each(down_speed_list, [&](const uint64_t i) {
+                if (max_down_num != 0) {
+                    const auto val = static_cast<float>(i) / max_down_num;
                     down_list.push_back(val);
                 } else {
                     down_list.push_back(0);
                 }
-                });
+            });
+
+            {
+                std::lock_guard<std::mutex> lock(state_lock);
+                frame = frame_self;
             }
 
             std::this_thread::sleep_for(std::chrono::milliseconds(screen_refresh_interval_in_ms));
@@ -282,18 +298,33 @@ void ccdb::ccdb::nload(
     {
         const auto now_in_loop = std::chrono::high_resolution_clock::now();
         int conn_list_size = 0;
-        std::ostringstream frame;
+        std::ostringstream screen_str_frame;
         const int free_space = row - window_space * 2 - reserved_lines;
         if (window_space > reserved_lines && col > info_space_size)
         {
-            std::lock_guard<std::mutex> lock(state_lock);
+            std::vector < uint64_t > up_speed_list, down_speed_list;
+            std::vector<float> up_list, down_list;
+            uint64_t max_up_speed, min_up_speed, max_down_speed, min_down_speed;
+
+            {
+                std::lock_guard<std::mutex> lock(state_lock);
+                up_speed_list = frame.up_speed_list;
+                down_speed_list = frame.down_speed_list;
+                up_list = frame.up_list;
+                down_list = frame.down_list;
+                max_up_speed = frame.max_up_speed;
+                min_up_speed = frame.min_up_speed;
+                max_down_speed = frame.max_down_speed;
+                min_down_speed = frame.min_down_speed;
+            }
+
             std::string title = sprint("C++ Clash Dashboard:");
             if (title.length() > col) title = title.substr(0, col);
-            frame << title << std::endl;
-            frame << color::color(5,3,3) << std::string(col, '=') << color::no_color() << std::endl;
-            frame << sprint("Incoming:") << std::endl;
+            screen_str_frame << title << std::endl;
+            screen_str_frame << color::color(5,3,3) << std::string(col, '=') << color::no_color() << std::endl;
+            screen_str_frame << sprint("Incoming:") << std::endl;
             {
-                frame << color::color(0,5,1);
+                screen_str_frame << color::color(0,5,1);
                 const auto metric_list = generate_from_metric(down_list, window_space);
                 const auto total_download_since_start = *total_download - download_total_bytes_when_started;
                 print_win(download_speed,
@@ -305,12 +336,12 @@ void ccdb::ccdb::nload(
                           now,
                           total_download_since_start,
                           window_space,
-                          frame);
+                          screen_str_frame);
             }
-            frame << color::no_color();
-            frame << sprint("Outgoing:") << std::endl;
+            screen_str_frame << color::no_color();
+            screen_str_frame << sprint("Outgoing:") << std::endl;
             {
-                frame << color::color(5,1,0);
+                screen_str_frame << color::color(5,1,0);
                 const auto height = window_space - (free_space == 0 ? 1 : 0);
                 const auto metric_list = generate_from_metric(up_list, height);
                 const auto total_upload_since_start = *total_upload - upload_total_bytes_when_started;
@@ -323,9 +354,9 @@ void ccdb::ccdb::nload(
                           now,
                           total_upload_since_start,
                           height,
-                          frame);
+                          screen_str_frame);
             }
-            frame << color::no_color();
+            screen_str_frame << color::no_color();
 
             {
                 std::vector<uint64_t> remove_list;
@@ -416,7 +447,7 @@ void ccdb::ccdb::nload(
                     replace_all(new_line, "ERROR", color::color(3,0,0) + "ERROR");
                     replace_all(new_line, "INFO", color::color(0,3,0) + "INFO");
 
-                    frame << color::color(3,3,3) << new_line << color::no_color() << std::endl;
+                    screen_str_frame << color::color(3,3,3) << new_line << color::no_color() << std::endl;
                 });
             }
 
@@ -424,19 +455,19 @@ void ccdb::ccdb::nload(
                 update_subinfo(subinfo_ball, threads));
                 col >= UnicodeDisplayWidth::get_width_utf8(msg))
             {
-                frame << color::color(5,5,5, 0,0,5)
+                screen_str_frame << color::color(5,5,5, 0,0,5)
                         << msg << std::string(col - UnicodeDisplayWidth::get_width_utf8(msg), ' ')
                         << color::no_color() << std::flush;
             }
         }
         else
         {
-            frame << color::color(0,0,0,5,0,0) << sprint("TOO SMALL") << color::no_color() << std::endl;
+            screen_str_frame << color::color(0,0,0,5,0,0) << sprint("TOO SMALL") << color::no_color() << std::endl;
         }
 
         /// repaint:
         term.move_home();
-        std::cout << frame.str() << std::flush;
+        std::cout << screen_str_frame.str() << std::flush;
         term.ed_clear();
 
         /// wait:
