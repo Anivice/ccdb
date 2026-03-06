@@ -221,8 +221,9 @@ std::string ccdb::ccdb::update_subinfo(atomic_subinfo_ball_t & atomic_subinfo_ba
                                 (std::chrono::high_resolution_clock::now().time_since_epoch()).count())
                     };
 
-                    const ssize_t written = write(fd, &ball_, sizeof(ball_));
-                    if (written != sizeof(ball_)) {
+                    if (const ssize_t written = write(fd, &ball_, sizeof(ball_));
+                        written != sizeof(ball_))
+                    {
                         _exit(1);
                     }
 
