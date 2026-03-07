@@ -128,7 +128,7 @@ namespace ccdb
         void print_table(
             std::vector<std::string> const & table_keys,
             std::vector < std::vector<std::string> > const & table_values,
-            bool muff_non_ascii = true,
+            bool muff_non_ascii = false,
             bool seperator = true,
             const std::vector < bool > & table_hide = { },
             uint64_t leading_offset = 0,
@@ -142,8 +142,11 @@ namespace ccdb
             int highlight_screen_line = -1
         );
 
+        void simple_print_table(std::vector<std::string> const & table_titles,
+            std::vector < std::vector<std::string> > const & table_values);
+
         static bool is_connection_valid(const general_info_pulling::connection_t & conn,
-            const tsl::hopscotch_map < uint64_t, std::string > & filter_patterns);
+                                        const tsl::hopscotch_map < uint64_t, std::string > & filter_patterns);
 
         /// get proxy groups
         std::vector<std::string> get_groups();
@@ -187,6 +190,7 @@ namespace ccdb
         void set_mixedport(int port); // Mihomo mixed proxy port,
         void apply() const;
         void fork_and_execute(const std::vector<std::string> &);
+        void map_proxy_chain();
 
         /// Input watcher that sets running flag when q is pressed
         /// @param name Thread name

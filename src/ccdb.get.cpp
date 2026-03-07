@@ -530,12 +530,7 @@ void ccdb::ccdb::get_subinfo()
     #endif
                 });
 
-                const auto less_bak = less;
-                less.clear();
-                print_table(titles, lines, false, true, {}, 0, nullptr, true,
-                    "", 0, nullptr, true);
-                less = less_bak;
-                std::cout << std::endl;
+                simple_print_table(titles, lines);
 
                 std::stringstream ss;
                 const auto percentage = static_cast<double>(total_uploaded + total_downloaded) / static_cast<double>(quota);
@@ -577,4 +572,64 @@ void ccdb::ccdb::get_config() const
     } else {
         std::cout << backend_instance.get_config() << std::endl;
     }
+}
+
+void ccdb::ccdb::map_proxy_chain()
+{
+    backend_instance.update_proxy_list();
+    const auto [ proxy_list, latency ] = backend_instance.get_proxies_and_latencies_as_pair();
+    tsl::hopscotch_map<std::string, int> latency_map;
+    std::ranges::for_each(latency, [&](const std::pair < std::string, int > & element) {
+        latency_map.emplace(element.first, element.second);
+    });
+
+    std::map < std::string, std::vector < std::string > > path_map;
+    std::ranges::for_each(proxy_list, [&](const std::pair < std::string, std::pair < std::vector<std::string>, std::string> > & element)
+    {
+        std::ranges::for_each(element.second.first, [&](const std::string & proxy)
+        {
+            if (proxy == element.second.second) {
+                path_map.emplace(element.first, std::vector { proxy });
+            }
+        });
+    });
+
+    // merge to chains
+    std::set < std::string > remove_set;
+    while (true)
+    {
+        std::set < std::string > remove_list;
+        for (auto it = path_map.begin(); it != path_map.end(); ++it)
+        {
+            if (const auto res = path_map.find(it->second.back()); res != path_map.end())
+            {
+                remove_list.emplace(res->first);
+                it->second.insert(it->second.end(), res->second.begin(), res->second.end());
+            }
+        }
+
+        std::ranges::for_each(remove_list, [&](const std::string & key){ remove_set.emplace(key); });
+
+        if (remove_list.empty()) {
+            break;
+        }
+    }
+
+    std::ranges::for_each(remove_set, [&](const std::string & key){ path_map.erase(key); });
+
+    // print the map
+    std::vector<std::vector<std::string>> table;
+    const std::vector<std::string> title = { "Name", "Chains" };
+    std::ranges::for_each(path_map, [&](const std::pair < std::string, std::vector < std::string > > & pair)
+    {
+        const auto & [name, chains] = pair;
+        std::ostringstream ss;
+        for (auto it = chains.begin(); it != chains.end(); ++it) {
+            ss << *it << ((it == chains.end() - 1) ? "" : " => ");
+        }
+
+        table.emplace_back(std::vector<std::string>{name, ss.str()});
+    });
+
+    simple_print_table(title, table);
 }

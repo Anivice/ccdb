@@ -438,7 +438,7 @@ void ccdb::ccdb::init()
     backend_instance.start_continuous_updates();
     get_vecGroupProxy(false);
 
-    handler = [&](const std::vector<std::string> &command_vector)->bool
+    handler = [this](const std::vector<std::string> &command_vector)->bool
     {
         if (backend_instance.force_quit) {
             return false;
@@ -478,6 +478,9 @@ void ccdb::ccdb::init()
         }
         else if (command_vector.front() == "help")  {
             help();
+        }
+        else if (command_vector.front() == "mapProxyChain")  {
+            map_proxy_chain();
         }
         else if (command_vector.front() == "get" && command_vector.size() >= 2)
         {
@@ -586,7 +589,7 @@ void ccdb::ccdb::init()
         return true;
     };
 
-    auto_completion = [&](const std::vector<std::string> & args, const std::string & special_filler, const int arg_index)->std::vector<std::string>
+    auto_completion = [this](const std::vector<std::string> & args, const std::string & special_filler, const int arg_index)->std::vector<std::string>
     {
         auto escape = [](std::vector<std::string> list)->std::vector<std::string>
         {

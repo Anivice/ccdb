@@ -456,3 +456,15 @@ void ccdb::ccdb::print_table(
         print_progress();
     }
 }
+
+void ccdb::ccdb::simple_print_table(std::vector<std::string> const &table_titles,
+    std::vector<std::vector<std::string>> const &table_values)
+{
+    const auto less_bak = less;
+    less.clear();
+    print_table(table_titles, table_values,
+        false, true, {}, 0, nullptr, true,
+    "", 0, nullptr, true);
+    less = less_bak;
+    std::cout << std::endl;
+}
