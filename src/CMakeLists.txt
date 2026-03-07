@@ -8,13 +8,18 @@ set(CMAKE_CXX_STANDARD 23)
 find_program(MAKE_EXECUTABLE NAMES make gmake REQUIRED)
 include(ExternalProject)
 
+set(PerlEnv "env CC= CXX= ")
+if ("${NO_USE_PERL_AS_NATIVE}" STREQUAL "True")
+    set(PerlEnv "")
+endif ()
+
 # Perl
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/NonCMake/perl-5.42.0/p)
 ExternalProject_Add(PERL
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/perl
         SOURCE_DIR          ${CMAKE_CURRENT_BINARY_DIR}/NonCMake/perl-5.42.0
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/perl/install
-        CONFIGURE_COMMAND   rm -rf <SOURCE_DIR> && cp -r ${CMAKE_SOURCE_DIR}/NonCMake/perl-5.42.0 <SOURCE_DIR> && cd <SOURCE_DIR> && sh -c "env CC= CXX= <SOURCE_DIR>/configure.gnu --prefix=<INSTALL_DIR> ${PERL_CONFIGURE_ADDITIONAL_FLAGS}"
+        CONFIGURE_COMMAND   rm -rf <SOURCE_DIR> && cp -r ${CMAKE_SOURCE_DIR}/NonCMake/perl-5.42.0 <SOURCE_DIR> && cd <SOURCE_DIR> && sh -c "${PerlEnv} <SOURCE_DIR>/configure.gnu --prefix=<INSTALL_DIR> ${PERL_CONFIGURE_ADDITIONAL_FLAGS}"
         BUILD_COMMAND       sh -c "cd <SOURCE_DIR> && ${MAKE_EXECUTABLE} ${PERL_MAKE_ADDITIONAL_FLAGS}"
         INSTALL_COMMAND     sh -c "cd <SOURCE_DIR> && ${MAKE_EXECUTABLE} install ${PERL_MAKE_INSTALL_ADDITIONAL_FLAGS}"
         TEST_COMMAND        ""
