@@ -364,7 +364,7 @@ namespace cmdTpTree
     {
         thread_local const std::regex r(R"(^[\d]+\:\_\*\_.*$)");
         std::vector < std::pair < std::string /* string */, uint64_t /* screen length */ > > candidate_list;
-        for (int i = 1; i < num_matches; i++)
+        for (int i = 1; i <= num_matches; i++)
         {
             const std::string match = matches[i];
             if (std::regex_match(match, r)) {
