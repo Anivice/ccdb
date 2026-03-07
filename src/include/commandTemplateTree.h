@@ -170,7 +170,7 @@ namespace cmdTpTree
     };
 
     char ** cmd_completion(const char *text, int start, int end);
-
+    void colored_display_hook(char **matches, int num_matches, int max_length);
     void clear_read_cache();
 
     template < CommandHandler handler, SpecialArgumentCandidatePointer spc_gen>
@@ -193,6 +193,9 @@ namespace cmdTpTree
         };
 
         rl_attempted_completion_function = cmd_completion;
+        rl_completion_display_matches_hook = colored_display_hook;
+        rl_variable_bind("colored-stats", "on");
+
         using_history();
         std::string last_line;
 

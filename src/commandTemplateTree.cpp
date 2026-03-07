@@ -344,8 +344,8 @@ namespace cmdTpTree
 
         for (int i = 1; i <= end; ++i)
         {
-            const unsigned char cur  = static_cast<unsigned char>(buffer[i]);
-            const unsigned char prev = static_cast<unsigned char>(buffer[i - 1]);
+            const auto cur  = static_cast<unsigned char>(buffer[i]);
+            const auto prev = static_cast<unsigned char>(buffer[i - 1]);
 
             if (isspace(cur) && !isspace(prev)) {
                 arg++;
@@ -359,6 +359,51 @@ namespace cmdTpTree
 
     static std::vector < std::string > args_completion_list;
     static int special_index = 0;
+
+    void colored_display_hook(char **matches, int num_matches, int max_length)
+    {
+        thread_local const std::regex r(R"(^[\d]+\:\_\*\_.*$)");
+        std::vector < std::pair < std::string /* string */, uint64_t /* screen length */ > > candidate_list;
+        for (int i = 1; i < num_matches; i++)
+        {
+            const std::string match = matches[i];
+            if (std::regex_match(match, r)) {
+                std::stringstream ss;
+                ss << ccdb::color::color(0,0,0,5,5,5) << match << ccdb::color::no_color();
+                candidate_list.emplace_back(ss.str(), ccdb::utils::UnicodeDisplayWidth::get_width_utf8(match));
+            } else {
+                candidate_list.emplace_back(match, ccdb::utils::UnicodeDisplayWidth::get_width_utf8(match));
+            }
+        }
+
+        int max_in_candidate_list = 0;
+        std::ranges::for_each(candidate_list | std::views::values, [&](auto len) {
+            len += 1;
+            if (max_in_candidate_list < len) max_in_candidate_list = len;
+        });
+        const int col = ccdb::utils::get_col_size();
+        const int proper_list_size = col / max_in_candidate_list;
+        int index = 0;
+        bool endl = false;
+        std::cout << std::endl;
+        std::ranges::for_each(candidate_list, [&](const auto & pair)
+        {
+            const auto & [str, len_] = pair;
+            const int len = len_ + 1;
+            std::cout << str << " ";
+            index++;
+            if (index >= proper_list_size) {
+                index = 0;
+                std::cout << std::endl;
+                endl = true;
+            } else {
+                std::cout << std::string(max_in_candidate_list - len, ' ');
+                endl = false;
+            }
+        });
+        if (!endl) std::cout << std::endl;
+        rl_forced_update_display();
+    }
 
     char ** cmd_completion(const char *text, const int start, const int end)
     {

@@ -51,7 +51,7 @@ void ccdb::ccdb::set_group(const std::vector<std::string> & command_vector)
 
 void ccdb::ccdb::set_vgroup(const std::vector<std::string> & command_vector)
 {
-    const std::string & group = command_vector[2], & proxy = command_vector[3];
+    std::string group = command_vector[2], proxy = command_vector[3];
     try {
         if (index_to_proxy_name_list.empty())
         {
@@ -59,6 +59,19 @@ void ccdb::ccdb::set_vgroup(const std::vector<std::string> & command_vector)
             if (execute_and_no_interactive) throw std::runtime_error("");
             return;
         }
+
+        auto clean = [](std::string & str)->std::string&
+        {
+            if (str.find_first_of(':') != std::string::npos) {
+                str = str.substr(0, str.find_first_of(':'));
+            }
+
+            return str;
+        };
+
+        clean(group);
+        clean(proxy);
+
         const uint64_t group_vec = std::strtol(group.c_str(), nullptr, 10);
         const uint64_t proxy_vec = std::strtol(proxy.c_str(), nullptr, 10);
         const auto & group_name = index_to_proxy_name_list.at(group_vec);

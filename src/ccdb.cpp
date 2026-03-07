@@ -588,26 +588,46 @@ void ccdb::ccdb::init()
 
     auto_completion = [&](const std::vector<std::string> & args, const std::string & special_filler, const int arg_index)->std::vector<std::string>
     {
+        auto escape = [](std::vector<std::string> list)->std::vector<std::string>
+        {
+            std::ranges::for_each(list, [](std::string & str) {
+                replace_all(str, " ", "_");
+            });
+
+            return list;
+        };
+
         try {
             if (special_filler == "[GROUP]") {
-                return get_groups();
+                return escape(get_groups());
             }
             else if (special_filler == "[PROXY]") {
                 std::string group;
                 if (args.size() >= 3) {
                     group = args[2];
                 }
-                return get_endpoints(group);
+                return escape(get_endpoints(group));
             }
             else if (special_filler == "[VGROUP]") {
-                return get_vgroups();
+                return escape(get_vgroups());
             }
-            else if (special_filler == "[VPROXY]") {
+            else if (special_filler == "[VPROXY]")
+            {
                 std::string group;
-                if (args.size() >= 3) {
-                    group = args[2];
+                if (args.size() >= 3)
+                {
+                    auto clean = [](std::string str)->std::string
+                    {
+                        if (str.find_first_of(':') != std::string::npos) {
+                            str = str.substr(0, str.find_first_of(':'));
+                        }
+
+                        return str;
+                    };
+
+                    group = clean(args[2]);
                 }
-                return get_vendpoints(index_to_proxy_name_list.at(std::strtol(group.c_str(), nullptr, 10)));
+                return escape(get_vendpoints(index_to_proxy_name_list.at(std::strtol(group.c_str(), nullptr, 10))));
             }
             else if (special_filler == "[SHELLCOMMAND]")
             {

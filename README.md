@@ -125,17 +125,18 @@ You should see the vector results similar to this image (groups and endpoints ar
 
 #### Step 2
 
-Say, I want to change group `58`.
+Say, I want to change group `44`.
 Use the following command to list the proxy I can set for this group:
 
 ```bash
-set vgroup 58 [DOUBLE TAB TO LIST WHICH PROXY ENDPOINT YOU WANT TO SWITCH TO]
+set vgroup 44 [DOUBLE TAB TO LIST WHICH PROXY ENDPOINT YOU WANT TO SWITCH TO]
 ```
 
 ![Image](img/set_vgroup2.png)
 
-> As is shown in the above image, currently selected proxy is marked with a prefix " * ".
-> In the above image, the selected endpoint for proxy group `58` is `5`.
+> As is shown in the above image, currently selected proxy is marked with a prefix " * "
+> and is highlighted in the candidate selection prompt.
+> The selected endpoint for the above proxy group `44` is `3`.
 
 #### Additional Note
 
