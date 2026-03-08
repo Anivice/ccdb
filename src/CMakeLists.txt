@@ -225,25 +225,33 @@ generate_from_resource_dir(Zterminfotar ${CMAKE_BINARY_DIR}/ncurses/install/shar
 
 # CCDB
 add_executable(ccdb
-        main.cpp
-        include/httplib.h
-        general_info_pulling.cpp    include/general_info_pulling.h
-        mihomo.cpp                  include/mihomo.h
-        commandTemplateTree.cpp     include/commandTemplateTree.h
-        misc/color.cpp              include/colors.h
-        misc/utils.cpp              include/utils.h
+        misc/commandTemplateTree.cpp    include/commandTemplateTree.h
+        misc/color.cpp                  include/colors.h
+        misc/utils.cpp                  include/utils.h
         misc/execute.cpp
-        ccdb.cpp ccdb.misc.cpp ccdb.get.cpp ccdb.get_connections.cpp ccdb.set.cpp ccdb.nload.cpp ccdb.print_table.cpp include/ccdb.h
-        term_name.cpp               include/term_name.h
-        config.cpp                  include/config.h
-        pull_subinfo.cpp            include/pull_subinfo.h
+        misc/config.cpp                 include/config.h
+        misc/args.cpp                   include/args.h
+
         include/print.h
-        args.cpp                    include/args.h
+
+        ccdb/main.cpp
+        ccdb/ccdb.cpp
+        ccdb/ccdb.misc.cpp
+        ccdb/ccdb.get.cpp
+        ccdb/ccdb.get_connections.cpp
+        ccdb/ccdb.set.cpp
+        ccdb/ccdb.nload.cpp
+        ccdb/ccdb.print_table.cpp       include/ccdb.h
+        ccdb/term_name.cpp              include/term_name.h
+        ccdb/general_info_pulling.cpp   include/general_info_pulling.h
+        ccdb/mihomo.cpp                 include/mihomo.h
+        ccdb/pull_subinfo.cpp           include/pull_subinfo.h
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
 target_compile_definitions(ccdb PRIVATE CCDB_VERSION="${CCDB_VERSION}" CPPHTTPLIB_OPENSSL_SUPPORT)
 target_link_libraries(ccdb PRIVATE additionalHelp langJSON commandReadline Zterminfotar openssl::openssl)
 add_dependencies(ccdb OPENSSL)
+target_compile_options(ccdb PRIVATE -fno-omit-frame-pointer)
 
 find_program(GIT_EXEC NAMES git REQUIRED)
 find_program(HEAD_EXEC NAMES head REQUIRED)
@@ -311,8 +319,3 @@ else ()
     add_dependencies(ccdb READLINE NCURSES)
     target_compile_definitions(ccdb PRIVATE NCURSES_STATIC)
 endif ()
-
-#generate_from_resource_file(elf_file ${CMAKE_BINARY_DIR}/ccdb elf_file.cpp elf_file.h elf_file)
-#add_executable(ccdb_packed packed.cpp)
-#target_link_libraries(ccdb_packed PRIVATE elf_file)
-#target_include_directories(ccdb_packed PRIVATE ${CMAKE_BINARY_DIR})
