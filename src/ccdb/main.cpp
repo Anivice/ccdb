@@ -54,6 +54,34 @@ int main(int argc, char ** argv)
 {
     std::string latency_url = "https://www.google.com/generate_204/";
 
+    {
+        // find coredump
+        if (utils::exec_command("/bin/sh", R"(coredumpctl list 2>/dev/null | grep -E '/ccdb\s+' >/dev/null 2>/dev/null)").exit_status == 0)
+        {
+            utils::exec_command("/bin/sh", R"(mkdir -p ~/.cache/ccdb/; coredumpctl list 2>/dev/null | grep -E '/ccdb\s+' | tail -n 1 | awk '{ print $1, $2, $3, $4, $5 }' > ~/.cache/ccdb/dump)");
+            const auto dest = utils::getenv("HOME") + "/.cache/ccdb/dump";
+            if (std::fstream infile (dest, std::ios::in); infile)
+            {
+                std::string time_dat, time_date, time_hour, time_zone, pid;
+                infile >> time_dat >> time_date >> time_hour >> time_zone >> pid; // systemd coredump
+                std::string time = time_date + "T" + time_hour + ".000000000" + (time_zone.size() == 1 ? "0" + time_zone : time_zone) + ":00";
+                const auto unix_time = utils::get_time(time);
+                const auto now = utils::get_timestamp();
+                if (!std::filesystem::exists(utils::getenv("HOME") + "/.cache/ccdb/" + pid + ".tracer")
+                    && (now - unix_time) < 120)
+                {
+                    utils::print<utils::is_normal>("CCDB crashed! Dumping tracer..."); std::cout.flush();
+                    utils::exec_command("/bin/sh", "thread apply all bt\nthread apply all bt full\n", "-c", "coredumpctl gdb " + pid + " > ~/.cache/ccdb/" + pid + ".tracer");
+                    utils::print<utils::is_normal>("Tracer report is dumped under ~/.cache/ccdb/", pid, ".tracer\n");
+                    utils::print<utils::is_normal>("\n\n\nIf you plan to file a BUG report, please attach the tracer report dumped as ~/.cache/ccdb/", pid, ".tracer\n\n\n");
+                }
+
+                infile.close();
+                std::filesystem::remove(dest);
+            }
+        }
+    }
+
     try
     {
         std::string token;

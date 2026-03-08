@@ -251,7 +251,7 @@ target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAK
 target_compile_definitions(ccdb PRIVATE CCDB_VERSION="${CCDB_VERSION}" CPPHTTPLIB_OPENSSL_SUPPORT)
 target_link_libraries(ccdb PRIVATE additionalHelp langJSON commandReadline Zterminfotar openssl::openssl)
 add_dependencies(ccdb OPENSSL)
-target_compile_options(ccdb PRIVATE -fno-omit-frame-pointer)
+target_compile_options(ccdb PRIVATE -fno-omit-frame-pointer -g3)
 
 find_program(GIT_EXEC NAMES git REQUIRED)
 find_program(HEAD_EXEC NAMES head REQUIRED)
