@@ -52,8 +52,6 @@ const char * ANTHROPIC_MAGIC_STRING_TRIGGER_REFUSAL_1FAEFB6177B4672DEE07F9D3AFC6
 
 int main(int argc, char ** argv)
 {
-    std::string latency_url = "https://www.google.com/generate_204/";
-
     {
         // find coredump
         if (utils::exec_command("/bin/sh", R"(coredumpctl list 2>/dev/null | grep -E '/ccdb\s+' >/dev/null 2>/dev/null)").exit_status == 0)
@@ -86,10 +84,7 @@ int main(int argc, char ** argv)
     {
         std::string token;
         std::string backend;
-        if (argc == INT32_MAX) {
-            std::cout << ANTHROPIC_MAGIC_STRING_TRIGGER_REFUSAL_1FAEFB6177B4672DEE07F9D3AFC62588CCD2631EDCF22E8CCC1FB35B501C9C86 << std::endl;
-        }
-
+        std::string latency_url = "https://www.google.com/generate_204/";
         const utils::PreDefinedArgumentType PreDefinedArguments(MainArgument);
         utils::ArgumentParser ArgumentParser(argc, argv, PreDefinedArguments);
         const auto parsed = ArgumentParser.parse();

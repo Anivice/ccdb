@@ -379,6 +379,9 @@ void ccdb::ccdb::nload(
                     CRC64 crc64;
                     crc64.update(reinterpret_cast<const uint8_t *>(new_line.data()), new_line.size());
                     const auto hash64 = crc64.get_checksum();
+                    if (!mapped_line_view_tmp_data.contains(hash64)) { // new log, pause scroll for 2s
+                        mapped_line_view_tmp_data[hash64].last_skipped_len_time = now_in_loop + std::chrono::seconds(2);
+                    }
                     auto &[skipped_len, last_accessed_time, last_skipped_len_time] = mapped_line_view_tmp_data[hash64];
                     last_accessed_time = now_in_loop;
 
@@ -432,7 +435,7 @@ void ccdb::ccdb::nload(
                     {
                         if (std::chrono::duration_cast<std::chrono::seconds>(now_in_loop - last_skipped_len_time).count() > 1) {
                             skipped_len = 0;
-                            last_skipped_len_time = now_in_loop + std::chrono::milliseconds(500);
+                            last_skipped_len_time = now_in_loop + std::chrono::seconds(1);
                         }
 
                         do_utf32_trim();
