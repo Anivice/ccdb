@@ -82,4 +82,6 @@ env PATH="$MUSL_SYSROOT"/bin/:"$PATH" cmake -B "$BUILD_DIR" -S "$script_dir" \
 pushd "$PWD"
 cd "$BUILD_DIR"
 env PATH="$MUSL_SYSROOT"/bin/:"$PATH" make CFLAGS="$CMAKE_CFLAGS" CXXFLAGS="$CMAKE_CFLAGS" -j"$(nproc)"
+env PATH="$MUSL_SYSROOT"/bin/:"$PATH" cp ccdb ccdb.debug_info
+$STRIP ccdb
 popd
