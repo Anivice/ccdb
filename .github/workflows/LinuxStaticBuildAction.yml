@@ -64,7 +64,7 @@ jobs:
 
       - name: Pack
         run: |
-          bash -c 'for arch in x86_64 i686 i586 aarch64 armv7 armv7hf; do cp build_$arch/ccdb ccdb.$arch; done'
+          bash -c 'for arch in x86_64 i686 i586 aarch64 armv7 armv7hf; do cp build_$arch/ccdb ccdb.$arch.debug_info; cp ccdb.$arch.debug_info ccdb.$arch; strip ccdb.$arch; done'
 
       - name: Compute tag
         if: ${{ github.event_name != 'pull_request' }}
@@ -97,6 +97,12 @@ jobs:
             ccdb.aarch64
             ccdb.armv7
             ccdb.armv7hf
+            ccdb.x86_64.debug_info
+            ccdb.i686.debug_info
+            ccdb.i586.debug_info
+            ccdb.aarch64.debug_info
+            ccdb.armv7.debug_info
+            ccdb.armv7hf.debug_info
           tag_name: "${{ env.GIT_TAG }}"
           prerelease: true
         env:

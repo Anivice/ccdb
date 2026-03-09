@@ -19,7 +19,7 @@ CCDB targets low-resource environments (for example, embedded devices) and users
 CCDB depends on the following open-source libraries:
  - [CPP-HTTPLIB v0.37.0](https://github.com/yhirose/cpp-httplib)
  - [GNU Readline 8.3](https://ftp.gnu.org/gnu/readline/)
- - [GNU Ncurses 6.6](https://ftp.gnu.org/gnu/ncurses/)c
+ - [GNU Ncurses 6.6](https://ftp.gnu.org/gnu/ncurses/)
  - [TSL Hopscotch-Hashing Map v2.4.0](https://github.com/Tessil/hopscotch-map)
  - [UTF8-CPP 4.0.9](https://github.com/nemtrif/utfcpp)
  - [JSON for Modern C++ 3.12.0](https://github.com/nlohmann/json)
