@@ -8,7 +8,7 @@
 #include <sys/stat.h>
 #include "elf_file.h"
 #include <vector>
-#include "include/lzw6.h"
+#include "../include/lzw6.h"
 
 #ifndef __NR_memfd_create
 # if defined(__x86_64__)

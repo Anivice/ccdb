@@ -48,7 +48,7 @@ case $ARCH in
     ;;
 esac
 
-CMAKE_CFLAGS="-O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2"
+CMAKE_CFLAGS="" # "-O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2"
 export CXXFLAGS="$CMAKE_CFLAGS"
 export CFLAGS="$CMAKE_CFLAGS"
 export CC="$TARGET"-gcc
