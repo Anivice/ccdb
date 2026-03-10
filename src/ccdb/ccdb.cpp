@@ -740,11 +740,32 @@ void ccdb::ccdb::init()
                     return { env_names.begin(), env_names.end() };
 #endif
                 }
-                else if (path.empty() || (!path.empty() && path.front() != '/'))
+                else if (path.empty() || (!path.empty() && path.front() != '/' && path.front() != '~'))
                 {
                     std::vector<std::string> indexes_in_pwd;
                     const auto pwd = "/" + utils::getenv("PWD");
                     return get_list_of_files(pwd);
+                }
+                else if (const auto home = utils::getenv("HOME");
+                    path.front() == '~')
+                {
+                    auto ret_format = [&home](std::vector < std::string > paths) -> std::vector < std::string > {
+                        std::ranges::for_each(paths, [&](std::string & p) {
+                            p = "~" + p.substr(home.size());
+                        });
+
+                        return paths;
+                    };
+
+                    path = home + path.substr(1);
+                    if (std::filesystem::exists(path) && std::filesystem::is_directory(path)) {
+                        return ret_format(get_path_arb(path));
+                    } else {
+                        if (!path.empty() && path.back() == '/') path.pop_back();
+                        path = path.substr(0, path.find_last_of('/'));
+                        if (path.empty()) path = "/";
+                        return ret_format(get_path_arb(path));
+                    }
                 }
                 else if (std::filesystem::exists(path) && std::filesystem::is_directory(path)) {
                     return get_path_arb(path);
@@ -754,7 +775,10 @@ void ccdb::ccdb::init()
                     if (path.empty()) path = "/";
                     return get_path_arb(path);
                 } else /* if (std::filesystem::exists(path)) */ {
-                    return { path };
+                    if (!path.empty() && path.back() == '/') path.pop_back();
+                    path = path.substr(0, path.find_last_of('/'));
+                    if (path.empty()) path = "/";
+                    return get_path_arb(path);
                 }
             }
         } catch (std::out_of_range &) {
