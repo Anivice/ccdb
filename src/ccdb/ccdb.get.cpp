@@ -577,12 +577,7 @@ void ccdb::ccdb::get_config() const
 void ccdb::ccdb::map_proxy_chain()
 {
     backend_instance.update_proxy_list();
-    const auto [ proxy_list, latency ] = backend_instance.get_proxies_and_latencies_as_pair();
-    tsl::hopscotch_map<std::string, int> latency_map;
-    std::ranges::for_each(latency, [&](const std::pair < std::string, int > & element) {
-        latency_map.emplace(element.first, element.second);
-    });
-
+    const auto proxy_list = backend_instance.get_proxies_and_latencies_as_pair().first;
     std::map < std::string, std::vector < std::string > > path_map;
     std::ranges::for_each(proxy_list, [&](const std::pair < std::string, std::pair < std::vector<std::string>, std::string> > & element)
     {
@@ -625,7 +620,9 @@ void ccdb::ccdb::map_proxy_chain()
         const auto & [name, chains] = pair;
         std::ostringstream ss;
         for (auto it = chains.begin(); it != chains.end(); ++it) {
-            ss << *it << ((it == chains.end() - 1) ? "" : " => ");
+            const auto ptr = latency_backups.find(*it);
+            ss << *it << (latency_backups.end() != ptr ? "(" + std::to_string(ptr->second) + ")" : "")
+               << ((it == chains.end() - 1) ? "" : " => ");
         }
 
         table.emplace_back(std::vector<std::string>{name, ss.str()});

@@ -565,12 +565,12 @@ void ccdb::ccdb::init()
                 }
             }
         }
-        else if (command_vector.front() == "close_connections") {
+        else if (command_vector.front() == "closeConnections") {
             if (!backend_instance.close_all_connections()) {
                 if (execute_and_no_interactive) throw std::runtime_error(sprint("Failed to close all connections"));
             }
         }
-        else if (command_vector.front() == "clear_filter") {
+        else if (command_vector.front() == "clearFilter") {
             clear_filter();
         }
         else if (command_vector.front() == "apply") {
