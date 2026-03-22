@@ -127,6 +127,39 @@ int main(int argc, char ** argv)
         }
         utils::setenv("CCDB", ss.str());
 
+        // verify connection
+        try {
+            httplib::Client http_cli(backend);
+            http_cli.set_decompress(false);
+            http_cli.set_read_timeout(3, 0);
+            const httplib::Headers headers = {
+                {"Authorization", "Bearer " + token},
+            };
+
+            std::string buffer;
+            httplib::Result res;
+            auto resp = [&](const char *data, const size_t len)
+            {
+                buffer.append(data, len);
+                return true;
+            };
+
+            if (!token.empty()) {
+                res = http_cli.Get("/configs", headers, resp);
+            } else {
+                res = http_cli.Get("/configs", resp);
+            }
+
+            if (!res) {
+                throw std::runtime_error(httplib::to_string(res.error()));
+            }
+
+            (void)json::parse(buffer);
+        } catch (...) {
+            std::cerr << "Failed to communicate with the backend, either this is not a Mihomo control port, or you have the wrong password." << std::endl;
+            return EXIT_FAILURE;
+        }
+
         if (parsed.contains("execute"))
         {
             auto split_history = [](const std::string& line)->std::vector<std::string>

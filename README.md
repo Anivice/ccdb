@@ -73,7 +73,7 @@ Syntax:
 ```bash
 ...
 get connections                 : Pull Active connections
-close_connections               : Close all connections
+closeConnections               : Close all connections
 nload                           : nload-like connection speed monitoring
 set mode [global, rule, direct] : Change proxy mode
 set vgroup [VGROUP] [VPROXY]    : Change endpoints in a proxy group using index
