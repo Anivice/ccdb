@@ -54,7 +54,8 @@ int main(int argc, char ** argv)
 {
     {
         // find coredump
-        if (utils::exec_command("/bin/sh", R"(coredumpctl list 2>/dev/null | grep -E '/ccdb\s+' >/dev/null 2>/dev/null)").exit_status == 0)
+        if (utils::getenv("NOCOREDUMPCHECK") != "true" &&
+            utils::exec_command("/bin/sh", R"(coredumpctl list 2>/dev/null | grep -E '/ccdb\s+' >/dev/null 2>/dev/null)").exit_status == 0)
         {
             utils::exec_command("/bin/sh", R"(mkdir -p ~/.cache/ccdb/; coredumpctl list 2>/dev/null | grep -E '/ccdb\s+' | tail -n 1 | awk '{ print $1, $2, $3, $4, $5 }' > ~/.cache/ccdb/dump)");
             const auto dest = utils::getenv("HOME") + "/.cache/ccdb/dump";
