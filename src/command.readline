@@ -97,6 +97,7 @@
     < apply (Apply JSON config to backend): [NONE] >,
     < $ (Execute shell commands): [SHELLCOMMAND], [PWD...] >,
     < | (Execute shell commands): [SHELLCOMMAND], [PWD...] >,
+    < ? (Print help): [NONE] >,
     < mapProxyChain (Map out current proxy chain): [NONE] >,
 }
 

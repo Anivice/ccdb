@@ -476,7 +476,7 @@ void ccdb::ccdb::init()
         else if (command_vector.front() == "reset") {
             reset_terminal_mode_forcefully();
         }
-        else if (command_vector.front() == "help")  {
+        else if ((command_vector.front() == "help") || (command_vector.front() == "?"))  {
             help();
         }
         else if (command_vector.front() == "mapProxyChain")  {

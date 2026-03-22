@@ -493,6 +493,7 @@ void ccdb::ccdb::nload(
     }
 
     print<is_normal>("\n\n", "Wait...\n");
+    sysint_pressed = true;
     if (input_watcher.joinable()) input_watcher.join();
     std::ranges::for_each(threads, [](auto & T) { if (T.second.joinable()) T.second.join(); });
     std::ranges::for_each(local_workers, [](auto & T) { if (T.joinable()) T.join(); });
