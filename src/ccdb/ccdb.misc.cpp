@@ -469,18 +469,8 @@ void ccdb::ccdb::get_conn_input_watcher(
     const std::regex mouse_scroll_down_pattern(R"(^\^\[\[\<65\;([\d]+)\;([\d]+)[Mm]$)");
     const std::regex mouse_scroll_up_pattern(R"(^\^\[\[\<64\;([\d]+)\;([\d]+)[Mm]$)");
 
-    chrono::time_point<chrono::high_resolution_clock> last_recorded_time = chrono::high_resolution_clock::now();
     std::vector <int> ch_list;
     char ch;
-
-    auto auto_clear = [&]
-    {
-        const auto now = std::chrono::high_resolution_clock::now();
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_recorded_time).count() > 20) {
-            ch_list.clear();
-            last_recorded_time = now;
-        }
-    };
 
     auto up = [&](const int row_step)
     {
@@ -566,17 +556,15 @@ void ccdb::ccdb::get_conn_input_watcher(
     while (running)
     {
         if (pause && *pause) {
-            auto_clear();
+            ch_list.clear();
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             continue;
         }
 
         if (const ssize_t sz = read_with_timeout(STDIN_FILENO, &ch, 1, 50); sz == -1) {
-            auto_clear();
+            ch_list.clear();
             continue;
         }
-
-        last_recorded_time = chrono::high_resolution_clock::now();;
 
         const auto [row, col] = get_screen_row_col();
         const auto row_step = std::max(row / 8, 1);
