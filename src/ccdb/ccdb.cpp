@@ -785,7 +785,7 @@ void ccdb::ccdb::init()
             return { };
         }
 
-        print<is_error>("Unknown directive", " `", special_filler, "`\n");
+        // print<is_error>("Unknown directive", " `", special_filler, "`\n");
         return {};
     };
 }

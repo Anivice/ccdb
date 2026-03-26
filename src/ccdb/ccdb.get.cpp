@@ -615,17 +615,29 @@ void ccdb::ccdb::map_proxy_chain()
     // print the map
     std::vector<std::vector<std::string>> table;
     const std::vector<std::string> title = { "Name", "Chains" };
+    get_vgroups();
+    tsl::hopscotch_map < std::string, uint64_t > reverse_search_map;
+    std::ranges::for_each(index_to_proxy_name_list, [&](const std::pair < uint64_t, std::string> & pair) {
+        reverse_search_map.emplace(pair.second, pair.first);
+    });
+
     std::ranges::for_each(path_map, [&](const std::pair < std::string, std::vector < std::string > > & pair)
     {
         const auto & [name, chains] = pair;
         std::ostringstream ss;
         for (auto it = chains.begin(); it != chains.end(); ++it) {
             const auto ptr = latency_backups.find(*it);
-            ss << *it << (latency_backups.end() != ptr ? "(" + std::to_string(ptr->second) + ")" : "")
+            const auto index = reverse_search_map.find(*it);
+            ss << (index == reverse_search_map.end() ? "" : "<" + std::to_string(index->second) + "> ")
+               << *it << (latency_backups.end() != ptr ? "(" + std::to_string(ptr->second) + ")" : "")
                << ((it == chains.end() - 1) ? "" : " => ");
         }
 
-        table.emplace_back(std::vector<std::string>{name, ss.str()});
+        const auto index = reverse_search_map.find(name);
+        table.emplace_back(std::vector<std::string>{
+            (index == reverse_search_map.end() ? "" : "<" + std::to_string(index->second) + "> ") + name,
+            ss.str()
+        });
     });
 
     simple_print_table(title, table);
