@@ -457,24 +457,16 @@ std::string ccdb::utils::value_to_human(
 std::string ccdb::utils::second_to_human_readable(unsigned long long value)
 {
     if (value < 60) {
-        return std::to_string(value) + " s";
+        return std::to_string(value) + "s";
     }
 
     if (value < 60 * 60)
     {
-        if ((value % 60) >= 30) {
-            return "Less than " + std::to_string(value / 60 + 1) + " Min";
-        }
-
-        return std::to_string(value / 60) + " Min";
+        return std::to_string(value / 60) + "m " + second_to_human_readable(value % 60);
     }
 
     if (value < 60 * 60 * 24) {
-        if ((value % (60 * 60)) >= (30 * 60))
-        {
-            return "Less than " + std::to_string(value / (60 * 60) + 1) + " H";
-        }
-        return std::to_string(value / (60 * 60)) + " H";
+        return std::to_string(value / (60 * 60)) + "h " + second_to_human_readable(value % (60 * 60));
     }
 
     const unsigned long long day = value / (60 * 60 * 24);
@@ -483,7 +475,7 @@ std::string ccdb::utils::second_to_human_readable(unsigned long long value)
     value %= (60 * 60);
     const unsigned long long minute = value / 60;
     const unsigned long long second = value % 60;
-    return std::to_string(day) + "d" + std::to_string(hour) + "h" + std::to_string(minute) + "m" + std::to_string(second) + "s";
+    return std::to_string(day) + "d " + std::to_string(hour) + "h " + std::to_string(minute) + "m " + std::to_string(second) + "s";
 }
 
 std::u32string ccdb::utils::utf8_to_u32(const std::string &s)
