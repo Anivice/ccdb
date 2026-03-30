@@ -45,3 +45,6 @@ SortBy10 = ^[[23~
 SortBy11 = ^[[24~
 HighlightUP = ^[[1;5A
 HighlightDown = ^[[1;5B
+
+[Alias]
+dashboard = get connections

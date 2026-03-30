@@ -11,6 +11,7 @@ Environment:
    DISABLE_SERVER_CERTIFICATE_VERIFICATION: When using `get subinfo`, TLS is enabled by default when the subscription URL uses HTTPS.
                                             Set this to `true` to skip server SSL certificate check(insecure).
    SSL_CERTIFICATE: When the Clash subscription link is in https, specify an SSL certificate when pulling subscription usage.
+   NOCOREDUMPCHECK: Disable CCDB crash info gathering on start up
 Keyboard Shortcuts:
   `get connections`: Get connections has multiple keyboard shortcuts:
      Mouse Click/Ctrl+UP/DOWN: Move highlight

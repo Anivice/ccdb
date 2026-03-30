@@ -155,7 +155,8 @@ int main(int argc, char ** argv)
                 throw std::runtime_error(httplib::to_string(res.error()));
             }
 
-            (void)json::parse(buffer);
+            const auto json = json::parse(buffer);
+            const auto port = json["port"]; // check for correctness
         } catch (...) {
             std::cerr << "Failed to communicate with the backend, either this is not a Mihomo control port, or you have the wrong password." << std::endl;
             return EXIT_FAILURE;
@@ -163,24 +164,7 @@ int main(int argc, char ** argv)
 
         if (parsed.contains("execute"))
         {
-            auto split_history = [](const std::string& line)->std::vector<std::string>
-            {
-                static char delims[] = " \t\n";
-                history_word_delimiters = delims;
-
-                char** toks = history_tokenize(line.c_str());
-                std::vector<std::string> out;
-                if (!toks) return out;
-
-                for (char** p = toks; *p; ++p) {
-                    out.emplace_back(*p);
-                    std::free(*p);
-                }
-                std::free(toks);
-                return out;
-            };
-
-            ccdb::ccdb ccdb(backend, token, latency_url, split_history(parsed.at("execute")));
+            ccdb::ccdb ccdb(backend, token, latency_url, utils::split_via_history(parsed.at("execute")));
         } else {
             ccdb::ccdb ccdb(backend, token, latency_url);
         }

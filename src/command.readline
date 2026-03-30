@@ -99,6 +99,7 @@
     < | (Execute shell commands): [SHELLCOMMAND], [PWD...] >,
     < ? (Print help): [NONE] >,
     < mapProxyChain (Map out current proxy chain): [NONE] >,
+    < [ALIAS]: [NONE] >,
 }
 
 # $ ssh me@localhost

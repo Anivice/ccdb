@@ -198,7 +198,31 @@ add_custom_command(
         DEPENDS "${CMAKE_SOURCE_DIR}/lang.json"
         VERBATIM
 )
-generate_from_resource_file(additionalHelp "${CMAKE_SOURCE_DIR}/additional_help/additional_help.en.txt" additional_help.cpp additional_help.h additional_help)
+set(HelpLangs)
+set(help_bag)
+set(help_dep)
+function(lang_add_help LANG)
+    list(APPEND HelpLangs additionalHelp_${LANG})
+    list(APPEND help_bag "${CMAKE_BINARY_DIR}/additional_help.${LANG}.cpp" "${CMAKE_BINARY_DIR}/additional_help.${LANG}.h")
+    list(APPEND help_dep "${CMAKE_SOURCE_DIR}/additional_help/additional_help.${LANG}.txt")
+    generate_from_resource_file(additionalHelp_${LANG} "${CMAKE_SOURCE_DIR}/additional_help/additional_help.${LANG}.txt" additional_help.${LANG}.cpp additional_help.${LANG}.h additional_help_${LANG})
+    add_dependencies(additionalHelp_${LANG})
+    set(HelpLangs ${HelpLangs} PARENT_SCOPE)
+    set(help_bag ${help_bag} PARENT_SCOPE)
+endfunction()
+
+lang_add_help(en)
+lang_add_help(zh_CN)
+
+add_custom_command(OUTPUT additional_help.h
+        COMMAND cat ${CMAKE_BINARY_DIR}/additional_help.*.h > ${CMAKE_BINARY_DIR}/additional_help.h
+        DEPENDS ${HelpLangs} ${help_dep} ${help_bag}
+)
+
+file(TOUCH ${CMAKE_BINARY_DIR}/additional_help.h)
+add_library(AddiHelp STATIC
+        ${help_bag} additional_help.h
+)
 
 function(generate_from_resource_dir NAME RES OUT_CPP OUT_H XXD_NAME)
     set(_in   "${RES}")
@@ -249,7 +273,7 @@ add_executable(ccdb
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
 target_compile_definitions(ccdb PRIVATE CCDB_VERSION="${CCDB_VERSION}" CPPHTTPLIB_OPENSSL_SUPPORT)
-target_link_libraries(ccdb PRIVATE additionalHelp langJSON commandReadline Zterminfotar openssl::openssl)
+target_link_libraries(ccdb PRIVATE AddiHelp langJSON commandReadline Zterminfotar openssl::openssl)
 add_dependencies(ccdb OPENSSL)
 target_compile_options(ccdb PRIVATE -fno-omit-frame-pointer -g3 -gdwarf-4 -fstack-protector-all)
 

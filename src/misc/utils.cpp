@@ -43,6 +43,7 @@
 #include <fstream>
 #include "print.h"
 #include "tsl/hopscotch_map.h"
+#include "readline/history.h"
 
 std::vector<uint8_t> ccdb::utils::compress(const std::vector<uint8_t>& data)
 {
@@ -362,7 +363,8 @@ static std::string regex_replace_callback(
 std::string ccdb::utils::regex_replace_all(std::string &original, const std::string &pattern,
     const std::function<std::string(const std::smatch& match)> &replacement)
 {
-    original = regex_replace_callback(original, std::regex(pattern),
+    thread_local const std::regex r(pattern);
+    original = regex_replace_callback(original, r,
         [&replacement](const std::smatch& match) -> std::string {
             return replacement(match);
         });
@@ -452,6 +454,27 @@ std::string ccdb::utils::value_to_human(
     }
 
     return ss.str();
+}
+
+std::vector<std::string> ccdb::utils::split_via_history(const std::string &line, const std::string& delims)
+{
+    static std::mutex readline_mutex;
+    std::lock_guard<std::mutex> lock(readline_mutex);
+    char * before = history_word_delimiters;
+    history_word_delimiters = const_cast<char *>(delims.c_str());
+
+    char** toks = history_tokenize(line.c_str());
+    std::vector<std::string> out;
+    if (!toks) return out;
+
+    for (char** p = toks; *p; ++p) {
+        out.emplace_back(*p);
+        std::free(*p);
+    }
+    std::free(toks);
+
+    history_word_delimiters = before;
+    return out;
 }
 
 std::string ccdb::utils::second_to_human_readable(unsigned long long value)

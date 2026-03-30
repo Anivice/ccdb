@@ -361,6 +361,16 @@ void ccdb::ccdb::init()
         }
     };
 
+    auto alias_helper = [&]
+    {
+        if (ccdb_config && ccdb_config->config.contains("Alias"))
+        {
+            for (const auto & [ alias, cmd ] : ccdb_config->config.at("Alias")) {
+                alias_list.emplace(alias, cmd);
+            }
+        }
+    };
+
     std::string log_loc;
 
     flag_helper("Global::ReverseFilter", reverse_filter_list);
@@ -414,6 +424,7 @@ void ccdb::ccdb::init()
     kbd_shortcut_helper("SortBy11", "^[[24~");
     kbd_shortcut_helper("HighlightUP", "^[[1;5A");
     kbd_shortcut_helper("HighlightDown", "^[[1;5B");
+    alias_helper();
 
     const auto ret = exec_command("/bin/sh", "jq --version >/dev/null 2>/dev/null\n");
     if (!utils::getenv("JQ").empty()) {
@@ -438,14 +449,22 @@ void ccdb::ccdb::init()
     backend_instance.start_continuous_updates();
     get_vecGroupProxy(false);
 
-    handler = [this](const std::vector<std::string> &command_vector)->bool
+    handler = [this](const std::vector<std::string> & command_vector_)->bool
     {
         if (backend_instance.force_quit) {
             return false;
         }
 
+        std::vector < std::string > command_vector = command_vector_;
         if (command_vector.empty()) {
             return true;
+        }
+
+        if (!command_vector.empty() && alias_list.contains(command_vector.front())) {
+            auto replacement = split_via_history(alias_list.at(command_vector.front()));
+            command_vector.erase(command_vector.begin());
+            replacement.insert(replacement.end(), command_vector.begin(), command_vector.end());
+            command_vector = replacement;
         }
 
         if (command_vector.front() == "$" && command_vector.size() >= 2)
@@ -781,12 +800,16 @@ void ccdb::ccdb::init()
                     return get_path_arb(path);
                 }
             }
+            else if (special_filler == "[ALIAS]") {
+                const auto aliases= alias_list | std::views::keys;
+                return { aliases.begin(), aliases.end() };
+            }
         } catch (std::out_of_range &) {
             return { };
         }
 
         // print<is_error>("Unknown directive", " `", special_filler, "`\n");
-        return {};
+        return { };
     };
 }
 

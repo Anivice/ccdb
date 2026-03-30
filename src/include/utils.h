@@ -35,7 +35,6 @@
 #include <sys/wait.h>
 #include <poll.h>
 #include <thread>
-
 #include "lzw6.h"
 
 /// Utilities
@@ -104,6 +103,7 @@ namespace ccdb::utils {
         return value_to_human(value, "B", "KB", "MB", "GB");
     }
 
+    std::vector<std::string> split_via_history(const std::string& line, const std::string& delims = " \t\n");
     std::string second_to_human_readable(unsigned long long value);
     std::u32string utf8_to_u32(const std::string& s);
 

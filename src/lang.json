@@ -738,5 +738,25 @@
     "en"    : "Apply JSON config to backend",
     "en_US" : "Apply JSON config to backend",
     "zh_CN" : "向后端发送JSON格式的设置配置"
+  },
+  {
+    "en"    : "Execute shell commands",
+    "en_US" : "Execute shell commands",
+    "zh_CN" : "运行命令"
+  },
+  {
+    "en"    : "Print help",
+    "en_US" : "Print help",
+    "zh_CN" : "输出帮助信息"
+  },
+  {
+    "en"    : "Map out current proxy chain",
+    "en_US" : "Map out current proxy chain",
+    "zh_CN" : "输出目前代理链路径"
+  },
+  {
+    "en"    : "Show last three logs instead of top three speed connections",
+    "en_US" : "Show last three logs instead of top three speed connections",
+    "zh_CN" : "显示最新三条后端日志（替换原本显示的三个占速最多的连接）"
   }
 ]

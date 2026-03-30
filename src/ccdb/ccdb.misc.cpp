@@ -76,7 +76,7 @@ void ccdb::sigint_watcher_::clear()
     const std::string clear = "\033[K";
     std::cout.write(clear.c_str(), static_cast<ssize_t>(clear.size()));
     std::cout.flush();
-    cmdTpTree::clear_read_cache();
+    // cmdTpTree::clear_read_cache();
     tcflush(STDIN_FILENO, TCIFLUSH);
 }
 
@@ -304,17 +304,41 @@ void ccdb::ccdb::interactive_verification() const
     }
 }
 
+std::string g_help_additional;
+
 void ccdb::ccdb::help()
 {
     const auto str = cmdTpTree::command_template_tree.get_help();
-    std::vector<uint8_t> str_additional_compressed(additional_help_len, 0);
-    std::memcpy(str_additional_compressed.data(), additional_help, additional_help_len);
-    auto decompressed_help = utils::decompress(str_additional_compressed);
-    decompressed_help.push_back(0);
+    if (g_help_additional.empty()) {
+        unsigned additional_help_len = 0;
+        unsigned char * additional_help = nullptr;
+        auto lang = utils::getenv("LANG");
+        auto cut = [&](const char c) {
+            if (lang.find(c) != std::string::npos) {
+                lang = lang.substr(0, lang.find_first_of(c));
+            }
+        };
+
+        cut('.');
+
+        if (lang == "zh_CN") {
+            additional_help_len = additional_help_zh_CN_len;
+            additional_help = additional_help_zh_CN;
+        } else {
+            additional_help = additional_help_en;
+            additional_help_len = additional_help_en_len;
+        }
+        std::vector<uint8_t> str_additional_compressed(additional_help_len, 0);
+        std::memcpy(str_additional_compressed.data(), additional_help, additional_help_len);
+        auto decompressed_help = utils::decompress(str_additional_compressed);
+        decompressed_help.push_back(0);
+        g_help_additional = reinterpret_cast<const char *>(decompressed_help.data());
+    }
+
     std::stringstream oss;
     oss << sprint("C++ Clash Dashboard Version ") << CCDB_VERSION " (commit " << unpack_string(GIT_HASH, GIT_HASH_len)
         << ", build on " << unpack_string(BUILD_DATE, BUILD_DATE_len) << ")" << std::endl
-        << str << sprint(reinterpret_cast<const char *>(decompressed_help.data())) << std::endl;
+        << str << g_help_additional << std::endl;
     pager(oss.str());
     std::cout << oss.str() << std::flush;
 }

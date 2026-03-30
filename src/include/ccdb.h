@@ -75,6 +75,7 @@ namespace ccdb
         std::function<std::vector<std::string>(const std::vector<std::string> &, const std::string &, int)> auto_completion;
         std::vector<std::string> listed_all_commands_in_path;
         std::atomic_int screen_refresh_interval_in_ms = 500;
+        tsl::hopscotch_map < std::string, std::string > alias_list;
 
         bool execute_and_no_interactive = false;
         std::atomic_bool reverse_mouse;

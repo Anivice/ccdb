@@ -143,7 +143,6 @@ private:
     tsl::hopscotch_map < std::string, proxy_info_t > proxy_list;
 
     void pull_continuous_updates(); // blocked
-    static void replace_all(std::string & original, const std::string & target, const std::string & replacement);
 
 public:
     general_info_pulling(const std::string & url, const std::string& token) : backend_client(url, token) { }

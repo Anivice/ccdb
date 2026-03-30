@@ -11,6 +11,7 @@
    DISABLE_SERVER_CERTIFICATE_VERIFICATION: 当使用 `get subinfo` 时, 如果订阅链接是https，拉取信息时会默认加载SSL，
                                             设置该环境变量为`true`可以跳过SSL证书认证
    SSL_CERTIFICATE: 当使用 `get subinfo` 时, 如果订阅链接是https, 使用该环境变量设置SSL证书位置
+   NOCOREDUMPCHECK: 禁止CCDB启动时进行崩溃信息收集
 键盘快捷键:
   `get connections`: 拉取活跃连接有多个键盘快捷键:
         鼠标单击/Ctrl+UP/DOWN: 移动高亮

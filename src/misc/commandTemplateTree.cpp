@@ -262,7 +262,7 @@ namespace cmdTpTree
         uint64_t max_command_length = 0;
         for_each([&](const NodeType& node, int depth)
         {
-            if (node.name_ != no_subcommands)
+            if (node.name_.front() != '[')
             {
                 std::ostringstream oss;
                 if (depth & 0x01) depth++; // argument alignment
@@ -461,19 +461,45 @@ namespace cmdTpTree
 
         try
         {
-            if (const auto sub_commands = command_template_tree.find_sub_commands(lookup);
-                can_find_special_args(sub_commands))
-            {
+            if (arg_index == 0) {
                 args_completion_list.clear();
-                special_index = arg_index;
-                args_completion_list = sub_commands;
-                const auto & current_special = args_completion_list.front();
-                special_handler(current_special, arg_index);
+                auto verbs = command_template_tree.find_sub_commands({});
+                // replace alias
+                std::vector<std::string> pending_for_removal;
+                std::ranges::for_each(verbs, [&](const auto & arg) {
+                    if (SpecialArgumentCandidatesGenerator) {
+                        const auto additional = SpecialArgumentCandidatesGenerator({ }, arg, arg_index);
+                        if (!arg.empty() && arg.front() == '[') {
+                            pending_for_removal.push_back(arg);
+                            verbs.insert(verbs.end(), additional.begin(), additional.end());
+                        }
+                    }
+                });
+
+                std::ranges::for_each(pending_for_removal, [&](const auto & rm) {
+                    verbs.erase(std::ranges::find(verbs, rm));
+                });
+                // dedup, if any
+                auto [beg_, end_] = std::ranges::unique(verbs);
+                verbs.erase(beg_, end_);
+                current_verbs = verbs;
+                matches = rl_completion_matches(text, arg_generator);
             }
             else {
-                args_completion_list.clear();
-                current_verbs = sub_commands;
-                matches = rl_completion_matches(text, arg_generator);
+                if (const auto sub_commands = command_template_tree.find_sub_commands(lookup);
+                    can_find_special_args(sub_commands))
+                {
+                    args_completion_list.clear();
+                    special_index = arg_index;
+                    args_completion_list = sub_commands;
+                    const auto & current_special = args_completion_list.front();
+                    special_handler(current_special, arg_index);
+                }
+                else {
+                    args_completion_list.clear();
+                    current_verbs = sub_commands;
+                    matches = rl_completion_matches(text, arg_generator);
+                }
             }
         } catch (std::invalid_argument &) {
             auto complete = [&]

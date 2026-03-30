@@ -199,23 +199,6 @@ namespace cmdTpTree
         using_history();
         std::string last_line;
 
-        auto split_history = [](const std::string& line)->std::vector<std::string>
-        {
-            static char delims[] = " \t\n";
-            history_word_delimiters = delims;
-
-            char** toks = history_tokenize(line.c_str());
-            std::vector<std::string> out;
-            if (!toks) return out;
-
-            for (char** p = toks; *p; ++p) {
-                out.emplace_back(*p);
-                std::free(*p);
-            }
-            std::free(toks);
-            return out;
-        };
-
         char * line = nullptr;
         while ((line = readline(prompt.c_str())) != nullptr)
         {
@@ -232,7 +215,7 @@ namespace cmdTpTree
                     /// compose a command vector
                     std::string cmd = line;
                     cmd = remove_leading_and_tailing_spaces(cmd);
-                    command_vector = split_history(cmd);
+                    command_vector = ccdb::utils::split_via_history(cmd);
                 }
                 free(line);
                 if (!handler_(command_vector)) {

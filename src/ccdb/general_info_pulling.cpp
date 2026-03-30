@@ -36,8 +36,9 @@ void general_info_pulling::update_from_traffic(const std::string& info)
         json data = json::parse(info);
         current_upload_speed = static_cast<uint64_t>(data["up"]);
         current_download_speed = static_cast<uint64_t>(data["down"]);
-    } catch (std::exception& e) {
-        ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
+    } catch (std::exception &) {
+        force_quit = true;
+        // ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
     }
 }
 
@@ -99,10 +100,11 @@ void general_info_pulling::update_from_connections(const std::string& info)
         }
 
         connection_map = new_connection_map; // update and discard previous
-    } catch (std::exception& e) {
-        ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
-    } catch (...) {
-        ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", "\n");
+    } catch (std::exception &) {
+        force_quit = true;
+        // ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
+    // } catch (...) {
+        // ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", "\n");
     }
 }
 
@@ -111,78 +113,59 @@ void general_info_pulling::update_from_logs(const std::string& info)
     json data;
     try {
         data = json::parse(info);
-    } catch (const std::exception & e) {
-        ccdb::utils::print<ccdb::utils::is_error>("Error: Cannot parse json: ", e.what(), "\n");
-        return;
-    }
+        std::string type = data["type"], payload = data["payload"];
+        std::ranges::transform(type, type.begin(), ::toupper);
+        const std::string log_location = mihomo_output_log_location.get();
 
-    std::string type = data["type"], payload = data["payload"];
-    std::ranges::transform(type, type.begin(), ::toupper);
-    const std::string log_location = mihomo_output_log_location.get();
+        if (!log_location.empty() && log_warning_count < 3)
+        {
+            // 1. dirname of the path
+            const std::string dirname = log_location.substr(0, log_location.find_last_of('/'));
+            // 2. check if dir exists, if not we create them
+            if (!std::filesystem::exists(dirname)) {
+                std::filesystem::create_directories(dirname);
+            }
 
-    if (!log_location.empty() && log_warning_count < 3)
-    {
-        // 1. dirname of the path
-        const std::string dirname = log_location.substr(0, log_location.find_last_of('/'));
-        // 2. check if dir exists, if not we create them
-        if (!std::filesystem::exists(dirname)) {
-            std::filesystem::create_directories(dirname);
+            // 3. open file, append log
+            std::ofstream file(log_location, std::ios::app);
+            if (!file) {
+                ccdb::utils::print<ccdb::utils::is_error>("Failed to write to log file!", "\n");
+                ++log_warning_count;
+            } else {
+                file << type << ": " << payload << std::endl;
+            }
         }
 
-        // 3. open file, append log
-        std::ofstream file(log_location, std::ios::app);
-        if (!file) {
-            ccdb::utils::print<ccdb::utils::is_error>("Failed to write to log file!", "\n");
-            ++log_warning_count;
-        } else {
-            file << type << ": " << payload << std::endl;
+        std::lock_guard lock(logs_mutex);
+        while (logs.size() >= 4096) {
+            logs.erase(logs.begin());
         }
-    }
 
-    std::lock_guard lock(logs_mutex);
-    while (logs.size() >= 4096) {
-        logs.erase(logs.begin());
-    }
+    #if !((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
+        auto current_time_formatted = []()->std::string
+        {
+            const auto now = std::chrono::high_resolution_clock::now();
+            const std::time_t now_c = std::chrono::high_resolution_clock::to_time_t(now);
+            const std::tm now_tm = *std::localtime(&now_c); // potential thread-safety issue
+            const auto ms = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()) % 1000000000ull;
+            std::ostringstream oss;
+            oss << std::put_time(&now_tm, "%Y-%m-%d %H:%M:%S") << '.' << std::setfill('0') << std::setw(9) << ms.count();
+            return oss.str();
+        };
+    #endif
 
-#if !((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
-    auto current_time_formatted = []()->std::string
-    {
-        const auto now = std::chrono::high_resolution_clock::now();
-        const std::time_t now_c = std::chrono::high_resolution_clock::to_time_t(now);
-        const std::tm now_tm = *std::localtime(&now_c); // potential thread-safety issue
-        const auto ms = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()) % 1000000000ull;
-        std::ostringstream oss;
-        oss << std::put_time(&now_tm, "%Y-%m-%d %H:%M:%S") << '.' << std::setfill('0') << std::setw(9) << ms.count();
-        return oss.str();
-    };
-#endif
-
-    logs.emplace_back(std::vector<std::string> {
-#if ((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
-        std::format("{:%Y-%m-%d %H:%M:%S}", std::chrono::high_resolution_clock::now()),
-#else
-        current_time_formatted(),
-#endif
-        type,
-        payload
-    });
-}
-
-void general_info_pulling::replace_all(
-    std::string & original,
-    const std::string & target,
-    const std::string & replacement)
-{
-    if (target.empty()) return; // Avoid infinite loop if target is empty
-
-    if (target == " " && replacement.empty()) {
-        std::erase_if(original, [](const char c) { return c == ' '; });
-    }
-
-    size_t pos = 0;
-    while ((pos = original.find(target, pos)) != std::string::npos) {
-        original.replace(pos, target.length(), replacement);
-        pos += replacement.length(); // Move past the replacement to avoid infinite loop
+        logs.emplace_back(std::vector<std::string> {
+    #if ((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
+            std::format("{:%Y-%m-%d %H:%M:%S}", std::chrono::high_resolution_clock::now()),
+    #else
+            current_time_formatted(),
+    #endif
+            type,
+            payload
+        });
+    } catch (const std::exception &) {
+        force_quit = true;
+        // ccdb::utils::print<ccdb::utils::is_error>("Error: Cannot parse json: ", e.what(), "\n");
     }
 }
 
@@ -222,9 +205,9 @@ void general_info_pulling::pull_continuous_updates()
                     this,
                     &general_info_pulling::update_from_traffic);
             }
-            catch (std::exception & e)
+            catch (std::exception &)
             {
-                ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
+                // ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
                 force_quit = true;
             }
         };
@@ -248,9 +231,9 @@ void general_info_pulling::pull_continuous_updates()
                         &general_info_pulling::update_from_connections);
                     std::this_thread::sleep_for(std::chrono::seconds(1l));
                 }
-                catch (std::exception & e)
+                catch (std::exception &)
                 {
-                    ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
+                    // ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
                     force_quit = true;
                 }
             }
@@ -275,9 +258,9 @@ void general_info_pulling::pull_continuous_updates()
                     this,
                     &general_info_pulling::update_from_logs);
             }
-            catch (std::exception & e)
+            catch (std::exception &)
             {
-                ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
+                // ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
                 force_quit = true;
             }
         };
@@ -339,8 +322,8 @@ void general_info_pulling::start_continuous_updates()
         } catch (broken_connection_this_force_quit &) {
             force_quit = true;
         }
-        catch (const std::exception & e) {
-            ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
+        catch (const std::exception &) {
+            // ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
         }
     });
     std::this_thread::sleep_for(std::chrono::milliseconds(100l));
@@ -427,7 +410,7 @@ void general_info_pulling::latency_test(const std::string & url)
             }
             ccdb::utils::set_thread_name("ping " + name);
             if (force_quit) return;
-            replace_all(proxy_, " ", "%20");
+            ccdb::utils::replace_all(proxy_, " ", "%20");
             try
             {
                 backend_client.get_info_no_instance("proxies/" + proxy_ + "/delay?url=" + url_ +"&timeout=5000",
