@@ -76,7 +76,7 @@ void ccdb::sigint_watcher_::clear()
     const std::string clear = "\033[K";
     std::cout.write(clear.c_str(), static_cast<ssize_t>(clear.size()));
     std::cout.flush();
-    // cmdTpTree::clear_read_cache();
+    cmdTpTree::clear_read_cache();
     tcflush(STDIN_FILENO, TCIFLUSH);
 }
 
