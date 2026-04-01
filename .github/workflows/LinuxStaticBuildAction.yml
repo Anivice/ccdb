@@ -2,8 +2,6 @@ name: Linux Automatic Nightly Build
 
 on:
   workflow_dispatch:
-  #schedule:
-  #  - cron: "0 8 * * *"
   push:
     branches: [main]
   pull_request:
@@ -16,9 +14,12 @@ permissions:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 2
 
@@ -42,25 +43,25 @@ jobs:
 
       - name: Upload log artifact
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: build-log
           path: log.txt
 
       - name: Open an Issue on Test Failure
         if: ${{ always() && failure() && github.event_name != 'pull_request' }}
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const owner = context.repo.owner;
-            const repo  = context.repo.repo;
-            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
-            const body =
-              `# One or more steps have failed!\n\n` +
-              `**Log artifact:** \`build-log\` (download it from the workflow run page)\n` +
-              `**Workflow run:** ${runUrl}\n`;
-            await github.rest.issues.create({ owner, repo, title: "CCDB Linux Build Failed", body });
+        run: |
+          gh issue create \
+            --title "CCDB Linux Build Failed" \
+            --body "$(cat <<EOF
+          # One or more steps have failed!
+
+          **Log artifact:** \`build-log\` (download it from the workflow run page)
+          **Workflow run:** ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+          EOF
+          )"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pack
         run: |
@@ -73,24 +74,24 @@ jobs:
           SHORT=$(git rev-parse --short=8 HEAD)
 
           if [ -n "$TAG" ]; then
-            echo "GIT_TAG=$TAG" >> $GITHUB_ENV
+            echo "GIT_TAG=$TAG" >> "$GITHUB_ENV"
           else
-            echo "GIT_TAG=ccdb.NightlyBuild.$SHORT" >> $GITHUB_ENV
+            echo "GIT_TAG=ccdb.NightlyBuild.$SHORT" >> "$GITHUB_ENV"
           fi
 
       - name: Create and push tag
         if: ${{ github.event_name != 'pull_request' }}
         run: |
-          if ! git rev-parse -q --verify "refs/tags/${{ env.GIT_TAG }}" >/dev/null; then
-            git tag "${{ env.GIT_TAG }}"
-            git push origin "${{ env.GIT_TAG }}"
+          if ! git rev-parse -q --verify "refs/tags/${GIT_TAG}" >/dev/null; then
+            git tag "${GIT_TAG}"
+            git push origin "${GIT_TAG}"
           fi
 
       - name: Create a GitHub release
         if: ${{ github.event_name != 'pull_request' }}
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
+        shell: bash
+        run: |
+          files=(
             ccdb.x86_64
             ccdb.i686
             ccdb.i586
@@ -103,8 +104,14 @@ jobs:
             ccdb.aarch64.debug_info
             ccdb.armv7.debug_info
             ccdb.armv7hf.debug_info
-          tag_name: "${{ env.GIT_TAG }}"
-          prerelease: true
+          )
+
+          if gh release view "${GIT_TAG}" >/dev/null 2>&1; then
+            gh release upload "${GIT_TAG}" "${files[@]}" --clobber
+          else
+            gh release create "${GIT_TAG}" "${files[@]}" \
+              --title "${GIT_TAG}" \
+              --prerelease
+          fi
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_NAME: ${{ env.GIT_TAG }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
