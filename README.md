@@ -39,14 +39,14 @@ CCDB depends on the following open-source libraries:
  - Pull Subscription usage info (You have to specify the subscription link in `~/.ccdbrc`)
  - Unicode proxy name handling (experimental)
  - Switch proxies in a pure console using numeric indices
- - SSL Parsing
+ - SSL Parsing for clash subscription links for metric usage info
  - Shell parsing of ccdb command output
 
-> **Additional notes for vector index**:
-> **The console needs to be able to actually show these characters**,
+> **Additional notes for numeric indices**:
+> **The console needs to be able to actually show Unicode characters**,
 > **otherwise** you might see placeholder glyphs, which makes the indices impossible to match to names.
 > There are many ways to achieve this,
-> but the simplest is using a bare-metal X display server like Xorg or XLibre.
+> but the simplest is using a bare-metal X display server like Xorg or XLibre paird with a terminal like Konsole.
 
 CCDB is distributed under the GPLv3.
 See LICENSE for details.
@@ -73,7 +73,7 @@ Syntax:
 ```bash
 ...
 get connections                 : Pull Active connections
-closeConnections               : Close all connections
+closeConnections                : Close all connections
 nload                           : nload-like connection speed monitoring
 set mode [global, rule, direct] : Change proxy mode
 set vgroup [VGROUP] [VPROXY]    : Change endpoints in a proxy group using index
@@ -82,17 +82,18 @@ set vgroup [VGROUP] [VPROXY]    : Change endpoints in a proxy group using index
 
 **Environment**:
 
-| Environment Variable                    | Descriptions                                                                                                                                                                                                                                                                             |
-|-----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| PAGER                                   | Specify a pager. Pager availability check is ignored when this environmental variable is set                                                                                                                                                                                             |
-| NOPAGER                                 | Set this to 'y' and force ccdb to ignore pager                                                                                                                                                                                                                                           |
-| COLOR                                   | Set it to `never` to disable color codes                                                                                                                                                                                                                                                 |
-| JQ                                      | Set JSON parser, default is `jq`, if available                                                                                                                                                                                                                                           |
-| TABSIZE                                 | Set tab size when printing tables, default is 4                                                                                                                                                                                                                                          |
-| REVERSE_MOUSE                           | Reverse mouse scrolling direction when set to `true`                                                                                                                                                                                                                                     |
-| NO_0xFE0F_EXPAND_EMOJI                  | Fix Unicode processing issues for emoji space expand code, e.g., "✈" and "✈️".                         If you cannot notice any differences of the above emojis, or there's wierd Unicode processing bugs in your terminal,                         you might want to set this to `true` |
-| DISABLE_SERVER_CERTIFICATE_VERIFICATION | When using `get subinfo`, TLS is enabled by default when the subscription URL uses HTTPS.                                          Use this to skip server SSL certificate check.                                                                                                        |
-| SSL_CERTIFICATE                         | When the Clash subscription link is in https, specify an SSL certificate when pulling subscription usage.                                                                                                                                                                                |
+| Environment Variable                    | Descriptions                                                                                                                                                                                                                             |
+|-----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| PAGER                                   | Specify a pager. Pager availability check is ignored when this environmental variable is set                                                                                                                                             |
+| NOPAGER                                 | Set this to 'y' and force ccdb to ignore pager                                                                                                                                                                                           |
+| COLOR                                   | Set it to `never` to disable color codes                                                                                                                                                                                                 |
+| JQ                                      | Set JSON parser, default is `jq`, if available                                                                                                                                                                                           |
+| TABSIZE                                 | Set tab size when printing tables, default is 4                                                                                                                                                                                          |
+| REVERSE_MOUSE                           | Reverse mouse scrolling direction when set to `true`                                                                                                                                                                                     |
+| NO_0xFE0F_EXPAND_EMOJI                  | Fix Unicode processing issues for emoji space expand code, e.g., "✈" and "✈️". If you cannot notice any differences of the above emojis, or there's wierd Unicode processing bugs in your terminal, you might want to set this to `true` |
+| DISABLE_SERVER_CERTIFICATE_VERIFICATION | When using `get subinfo`, TLS is enabled by default when the subscription URL uses HTTPS. Use this to skip server SSL certificate check.                                                                                                 |
+| SSL_CERTIFICATE                         | When the Clash subscription link is in https, specify an SSL certificate when pulling subscription usage.                                                                                                                                |
+| NOCOREDUMPCHECK                         | Disable CCDB crash info gathering on start up                                                                                                                                                                                            |
 
 **Keyboard Shortcuts**:
 
@@ -184,6 +185,6 @@ to build locally.
 **This is free software; 
 There is *NO* warranty;
 not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-This project is provided "as is". DO NOT use it in production.**
+This project is provided "as is." DO NOT use it in production.**
 
 **YOU HAVE BEEN WARNED**
