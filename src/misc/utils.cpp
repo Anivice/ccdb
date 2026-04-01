@@ -29,7 +29,7 @@
 #include <chrono>
 #include <iomanip>
 #include <regex>
-#define USE_TSL_HOPSCOTCH_MAP
+// #define USE_TSL_HOPSCOTCH_MAP
 #include <thread>
 #include <iostream>
 #include "lzw6.h"
