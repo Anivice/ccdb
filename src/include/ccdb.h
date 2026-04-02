@@ -76,6 +76,7 @@ namespace ccdb
         std::vector<std::string> listed_all_commands_in_path;
         std::atomic_int screen_refresh_interval_in_ms = 500;
         tsl::hopscotch_map < std::string, std::string > alias_list;
+        std::atomic_int & max_log_size = backend_instance.max_log_size;
 
         bool execute_and_no_interactive = false;
         std::atomic_bool reverse_mouse;
@@ -182,6 +183,7 @@ namespace ccdb
         void get_filter();
         void get_subinfo();
         void get_config() const;
+        void get_log_size();
         void help();
         static void reset_terminal_mode_forcefully();
         void set_port(int port); // Mihomo http proxy port,
@@ -189,6 +191,7 @@ namespace ccdb
         void set_redirport(int port); // Mihomo redirect port,
         void set_tproxyport(int port); // Mihomo transparent proxy port,
         void set_mixedport(int port); // Mihomo mixed proxy port,
+        void set_log_size(const std::vector<std::string> & command_vector);
         void apply() const;
         void fork_and_execute(const std::vector<std::string> &);
         void map_proxy_chain();

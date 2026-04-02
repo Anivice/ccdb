@@ -212,6 +212,15 @@ INSTANTIATE_SET_PORT(redirport,     "redir-port")
 INSTANTIATE_SET_PORT(tproxyport,    "tproxy-port")
 INSTANTIATE_SET_PORT(mixedport,     "mixed-port")
 
+void ccdb::ccdb::set_log_size(const std::vector<std::string> &command_vector)
+{
+    try {
+        max_log_size = std::strtol(command_vector.at(2).c_str(), nullptr, 10);
+    } catch (std::exception & e) {
+        std::cerr << e.what() << std::endl;
+    }
+}
+
 void ccdb::ccdb::apply() const
 {
     try {

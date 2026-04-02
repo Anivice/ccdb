@@ -388,6 +388,11 @@ void ccdb::ccdb::init()
         return (val > 0);
     });
 
+    int_helper("Global::logSize", max_log_size,
+    [&](const long int val) {
+        return (val > 0);
+    });
+
     filter_helper("Filter::Host", 0);
     filter_helper("Filter::Process", 1);
     filter_helper("Filter::Rules", 6);
@@ -451,158 +456,170 @@ void ccdb::ccdb::init()
 
     handler = [this](const std::vector<std::string> & command_vector_)->bool
     {
-        if (backend_instance.force_quit) {
-            return false;
-        }
+        try {
+            if (backend_instance.force_quit) {
+                return false;
+            }
 
-        std::vector < std::string > command_vector = command_vector_;
-        if (command_vector.empty()) {
-            return true;
-        }
+            std::vector < std::string > command_vector = command_vector_;
+            if (command_vector.empty()) {
+                return true;
+            }
 
-        if (!command_vector.empty() && alias_list.contains(command_vector.front())) {
-            auto replacement = split_via_history(alias_list.at(command_vector.front()));
-            command_vector.erase(command_vector.begin());
-            replacement.insert(replacement.end(), command_vector.begin(), command_vector.end());
-            command_vector = replacement;
-        }
+            if (!command_vector.empty() && alias_list.contains(command_vector.front())) {
+                auto replacement = split_via_history(alias_list.at(command_vector.front()));
+                command_vector.erase(command_vector.begin());
+                replacement.insert(replacement.end(), command_vector.begin(), command_vector.end());
+                command_vector = replacement;
+            }
 
-        if (command_vector.front() == "$" && command_vector.size() >= 2)
-        {
-            std::stringstream command_ss;
-            std::for_each(command_vector.begin() + 1, command_vector.end(), [&](const std::string & c) {
-                command_ss << c << " ";
-            });
+            if (command_vector.front() == "$" && command_vector.size() >= 2)
+            {
+                std::stringstream command_ss;
+                std::for_each(command_vector.begin() + 1, command_vector.end(), [&](const std::string & c) {
+                    command_ss << c << " ";
+                });
 
-            const auto status = exec_command("/bin/sh", "", "-c", command_ss.str()).exit_status;
-            print<is_error>("Child process exited with the code ", status, "\n");
-            return true;
-        }
+                const auto status = exec_command("/bin/sh", "", "-c", command_ss.str()).exit_status;
+                print<is_error>("Child process exited with the code ", status, "\n");
+                return true;
+            }
 
-        if (std::ranges::any_of(command_vector, [](const std::string & c) { return c == "|"; }))
-        {
-            fork_and_execute(command_vector);
-            return true;
-        }
+            if (std::ranges::any_of(command_vector, [](const std::string & c) { return c == "|"; }))
+            {
+                fork_and_execute(command_vector);
+                return true;
+            }
 
-        if (command_vector.front() == "quit" || command_vector.front() == "exit") {
-            return false;
-        }
+            if (command_vector.front() == "quit" || command_vector.front() == "exit") {
+                return false;
+            }
 
-        if (command_vector.front() == "nload") {
-            nload(command_vector);
-        }
-        else if (command_vector.front() == "reset") {
-            reset_terminal_mode_forcefully();
-        }
-        else if ((command_vector.front() == "help") || (command_vector.front() == "?"))  {
-            help();
-        }
-        else if (command_vector.front() == "mapProxyChain")  {
-            map_proxy_chain();
-        }
-        else if (command_vector.front() == "get" && command_vector.size() >= 2)
-        {
-            if (command_vector[1] == "connections") {
-                get_connections(command_vector);
-            } else if (command_vector[1] == "latency") {
-                get_latency();
-            } else if (command_vector[1] == "log") {
-                get_log();
-            } else if (command_vector[1] == "mode") {
-                std::cout << backend_instance.get_current_mode() << std::endl;
-            } else if (command_vector[1] == "proxy") {
-                get_proxy();
-            } else if (command_vector[1] == "vecGroupProxy") {
-                get_vecGroupProxy();
-            } else if (command_vector[1] == "filter") {
-                get_filter();
-            } else if (command_vector[1] == "subinfo") {
-                get_subinfo();
-            } else if (command_vector[1] == "config") {
-                get_config();
-            } else {
-                print<is_error>("Unknown command `", command_vector[1], "`\n");
-                if (execute_and_no_interactive) throw std::runtime_error("");
+            if (command_vector.front() == "nload") {
+                nload(command_vector);
             }
-        }
-        else if (command_vector.front() == "set")
-        {
-            // set mode [MODE]
-            if (command_vector.size() == 3 && command_vector[1] == "mode")  {
-                set_mode(command_vector);
+            else if (command_vector.front() == "reset") {
+                reset_terminal_mode_forcefully();
             }
-            else if (command_vector.size() == 4 && command_vector[1] == "group") { // set group [PROXY] [ENDPOINT]
-                set_group(command_vector);
+            else if ((command_vector.front() == "help") || (command_vector.front() == "?"))  {
+                help();
             }
-            else if (command_vector.size() == 4 && command_vector[1] == "vgroup") { // set vgroup [Vec PROXY] [Vec ENDPOINT]
-                set_vgroup(command_vector);
+            else if (command_vector.front() == "mapProxyChain")  {
+                map_proxy_chain();
             }
-            else if (command_vector.size() == 3 && command_vector[1] == "chain_parser") { // set chain_parser on/off
-                set_chain_parser(command_vector);
-            }
-            else if (command_vector.size() == 3 && command_vector[1] == "allowlan") { // set allow-lan on/off
-                set_allowlan(command_vector);
-            }
-            else if (command_vector.size() == 3 && command_vector[1] == "loglevel") { // set loglevel debug/info/warning/error
-                set_log_level(command_vector);
-            }
-            else if (command_vector.size() == 3 && command_vector[1] == "sort_by") { // set sort_by [num]
-                set_sort_by(command_vector);
-            }
-            else if (command_vector.size() == 3 && command_vector[1] == "sort_reverse") { // set sort_reverse on/off
-                set_sort_reverse(command_vector);
-            }
-            else if (command_vector.size() == 3 && command_vector[1] == "filter_reverse") { // set filter_reverse on/off
-                set_filter_reverse(command_vector);
-            }
-            else if (command_vector.size() == 4 && command_vector[1] == "filter") { // set filter [index] [pattern]
-                set_filter(command_vector);
-            }
-            else if (command_vector.size() == 3 && command_vector[1] == "port")  {
-                set_port(static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10)));
-            }
-            else if (command_vector.size() == 3 && command_vector[1] == "socksport")  {
-                set_socksport(static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10)));
-            }
-            else if (command_vector.size() == 3 && command_vector[1] == "redirport")  {
-                set_redirport(static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10)));
-            }
-            else if (command_vector.size() == 3 && command_vector[1] == "tproxyport")  {
-                set_tproxyport(static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10)));
-            }
-            else if (command_vector.size() == 3 && command_vector[1] == "mixedport")  {
-                set_mixedport(static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10)));
-            }
-            else {
-                if (command_vector.size() == 2) {
-                    print<is_error>("Unknown command `", command_vector[1], "` or invalid syntax\n");
-                    if (execute_and_no_interactive) throw std::runtime_error("");
+            else if (command_vector.front() == "get" && command_vector.size() >= 2)
+            {
+                if (command_vector[1] == "connections") {
+                    get_connections(command_vector);
+                } else if (command_vector[1] == "latency") {
+                    get_latency();
+                } else if (command_vector[1] == "log") {
+                    get_log();
+                } else if (command_vector[1] == "mode") {
+                    std::cout << backend_instance.get_current_mode() << std::endl;
+                } else if (command_vector[1] == "proxy") {
+                    get_proxy();
+                } else if (command_vector[1] == "vecGroupProxy") {
+                    get_vecGroupProxy();
+                } else if (command_vector[1] == "filter") {
+                    get_filter();
+                } else if (command_vector[1] == "subinfo") {
+                    get_subinfo();
+                } else if (command_vector[1] == "config") {
+                    get_config();
+                } else if (command_vector[1] == "logSize") {
+                    get_log_size();
                 } else {
-                    print<is_error>("Malformed command\n");
+                    print<is_error>("Unknown command `", command_vector[1], "`\n");
                     if (execute_and_no_interactive) throw std::runtime_error("");
                 }
             }
-        }
-        else if (command_vector.front() == "closeConnections") {
-            if (!backend_instance.close_all_connections()) {
-                if (execute_and_no_interactive) throw std::runtime_error(sprint("Failed to close all connections"));
+            else if (command_vector.front() == "set")
+            {
+                // set mode [MODE]
+                if (command_vector.size() == 3 && command_vector[1] == "mode")  {
+                    set_mode(command_vector);
+                }
+                else if (command_vector.size() == 4 && command_vector[1] == "group") { // set group [PROXY] [ENDPOINT]
+                    set_group(command_vector);
+                }
+                else if (command_vector.size() == 4 && command_vector[1] == "vgroup") { // set vgroup [Vec PROXY] [Vec ENDPOINT]
+                    set_vgroup(command_vector);
+                }
+                else if (command_vector.size() == 3 && command_vector[1] == "chain_parser") { // set chain_parser on/off
+                    set_chain_parser(command_vector);
+                }
+                else if (command_vector.size() == 3 && command_vector[1] == "allowlan") { // set allow-lan on/off
+                    set_allowlan(command_vector);
+                }
+                else if (command_vector.size() == 3 && command_vector[1] == "loglevel") { // set loglevel debug/info/warning/error
+                    set_log_level(command_vector);
+                }
+                else if (command_vector.size() == 3 && command_vector[1] == "sort_by") { // set sort_by [num]
+                    set_sort_by(command_vector);
+                }
+                else if (command_vector.size() == 3 && command_vector[1] == "sort_reverse") { // set sort_reverse on/off
+                    set_sort_reverse(command_vector);
+                }
+                else if (command_vector.size() == 3 && command_vector[1] == "filter_reverse") { // set filter_reverse on/off
+                    set_filter_reverse(command_vector);
+                }
+                else if (command_vector.size() == 4 && command_vector[1] == "filter") { // set filter [index] [pattern]
+                    set_filter(command_vector);
+                }
+                else if (command_vector.size() == 3 && command_vector[1] == "port")  {
+                    set_port(static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10)));
+                }
+                else if (command_vector.size() == 3 && command_vector[1] == "socksport")  {
+                    set_socksport(static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10)));
+                }
+                else if (command_vector.size() == 3 && command_vector[1] == "redirport")  {
+                    set_redirport(static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10)));
+                }
+                else if (command_vector.size() == 3 && command_vector[1] == "tproxyport")  {
+                    set_tproxyport(static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10)));
+                }
+                else if (command_vector.size() == 3 && command_vector[1] == "mixedport")  {
+                    set_mixedport(static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10)));
+                }
+                else if (command_vector.size() == 3 && command_vector[1] == "logSize")  {
+                    set_log_size(command_vector);
+                }
+                else {
+                    if (command_vector.size() == 2) {
+                        print<is_error>("Unknown command `", command_vector[1], "` or invalid syntax\n");
+                        if (execute_and_no_interactive) throw std::runtime_error("");
+                    } else {
+                        print<is_error>("Malformed command\n");
+                        if (execute_and_no_interactive) throw std::runtime_error("");
+                    }
+                }
             }
-        }
-        else if (command_vector.front() == "clearFilter") {
-            clear_filter();
-        }
-        else if (command_vector.front() == "apply") {
-            apply();
-        }
-        else {
-            print<is_error>("Unknown command `", command_vector.front(), "` or invalid syntax\n");
-            if (execute_and_no_interactive) throw std::runtime_error("");
-        }
+            else if (command_vector.front() == "closeConnections") {
+                if (!backend_instance.close_all_connections()) {
+                    if (execute_and_no_interactive) throw std::runtime_error(sprint("Failed to close all connections"));
+                }
+            }
+            else if (command_vector.front() == "clearFilter") {
+                clear_filter();
+            }
+            else if (command_vector.front() == "apply") {
+                apply();
+            }
+            else {
+                print<is_error>("Unknown command `", command_vector.front(), "` or invalid syntax\n");
+                if (execute_and_no_interactive) throw std::runtime_error("");
+            }
 
-        if (backend_instance.force_quit) {
-            if (execute_and_no_interactive) throw std::runtime_error("");
-            return false;
+            if (backend_instance.force_quit) {
+                if (execute_and_no_interactive) throw std::runtime_error("");
+                return false;
+            }
+        } catch (std::exception & e) {
+            std::cerr << e.what() << std::endl;
+        }
+        catch (...) {
+            print<is_error>("Unknown exception\n");
         }
 
         return true;
@@ -806,9 +823,12 @@ void ccdb::ccdb::init()
             }
         } catch (std::out_of_range &) {
             return { };
+        } catch (std::exception &) {
+            return { };
+        } catch (...) {
+            return { };
         }
 
-        // print<is_error>("Unknown directive", " `", special_filler, "`\n");
         return { };
     };
 }

@@ -38,7 +38,6 @@ void general_info_pulling::update_from_traffic(const std::string& info)
         current_download_speed = static_cast<uint64_t>(data["down"]);
     } catch (std::exception &) {
         force_quit = true;
-        // ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
     }
 }
 
@@ -102,9 +101,6 @@ void general_info_pulling::update_from_connections(const std::string& info)
         connection_map = new_connection_map; // update and discard previous
     } catch (std::exception &) {
         force_quit = true;
-        // ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
-    // } catch (...) {
-        // ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", "\n");
     }
 }
 
@@ -137,7 +133,7 @@ void general_info_pulling::update_from_logs(const std::string& info)
         }
 
         std::lock_guard lock(logs_mutex);
-        while (logs.size() >= 4096) {
+        while (logs.size() >= max_log_size) {
             logs.erase(logs.begin());
         }
 
@@ -165,7 +161,6 @@ void general_info_pulling::update_from_logs(const std::string& info)
         });
     } catch (const std::exception &) {
         force_quit = true;
-        // ccdb::utils::print<ccdb::utils::is_error>("Error: Cannot parse json: ", e.what(), "\n");
     }
 }
 

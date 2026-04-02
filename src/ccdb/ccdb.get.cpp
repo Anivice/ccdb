@@ -574,6 +574,10 @@ void ccdb::ccdb::get_config() const
     }
 }
 
+void ccdb::ccdb::get_log_size() {
+    print<is_normal>("Log size:", max_log_size.load(), "\n");
+}
+
 void ccdb::ccdb::map_proxy_chain()
 {
     backend_instance.update_proxy_list();

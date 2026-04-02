@@ -5,6 +5,7 @@ ChainParser = on
 SortBy = 4
 ReverseMouse = off
 RefreshIntervalMS = 500
+logSize = 4096
 
 [Filter]
 Host = .*
