@@ -64,7 +64,6 @@ ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url, int timeout)
 {
     std::lock_guard<std::mutex> lock(mutex);
     std::string scheme, host, path, proxy_host;
-    int proxy_port = 0;
     if (!parse_url(url, scheme, host, path)) {
         throw std::invalid_argument("Invalid URL");
     }
@@ -104,7 +103,9 @@ ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url, int timeout)
         });
     }
 
-    if (parse_proxy(utils::getenv(scheme + "_proxy"), proxy_host, proxy_port)) {
+    if (int proxy_port = 0;
+        parse_proxy(utils::getenv(scheme + "_proxy"), proxy_host, proxy_port))
+    {
         cli.set_proxy(proxy_host, proxy_port);
     }
 

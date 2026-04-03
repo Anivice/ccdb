@@ -507,13 +507,14 @@ void ccdb::ccdb::get_subinfo()
                     total_uploaded,
                     total_downloaded,
                     quota,
-                    expire_unix_timestamp] = pull_clash_subinfo(clash_sublink,
-#ifndef __DEBUG__
-                        5
-#else
-                        1
-#endif //__DEBUG__
-                        );
+                    expire_unix_timestamp] = pull_clash_subinfo(clash_sublink, 15);
+                std::string percentage_lit;
+                const auto percentage = static_cast<double>(total_uploaded + total_downloaded) / static_cast<double>(quota);
+                {
+                    std::stringstream ss;
+                    ss << std::setprecision(2) << std::setfill('0') << percentage * 100.00 << "% ";
+                    percentage_lit = ss.str();
+                }
                 const std::chrono::seconds duration(expire_unix_timestamp);
                 const std::chrono::system_clock::time_point time_point(duration);
                 const std::vector < std::string > titles = { sprint("Entry"), sprint("Value") };
@@ -521,7 +522,9 @@ void ccdb::ccdb::get_subinfo()
                 lines.emplace_back(std::vector <std::string> { sprint("Total uploaded:    "), value_to_size(total_uploaded) });
                 lines.emplace_back(std::vector <std::string> { sprint("Total downloaded:  "), value_to_size(total_downloaded) });
                 lines.emplace_back(std::vector <std::string> { sprint("Total used data:   "), value_to_size(total_uploaded + total_downloaded) });
+                lines.emplace_back(std::vector <std::string> { sprint("Total usable data: "), value_to_size(quota - (total_uploaded + total_downloaded)) });
                 lines.emplace_back(std::vector <std::string> { sprint("Quota:             "), value_to_size(quota) });
+                lines.emplace_back(std::vector <std::string> { sprint("Quota usage perct.:"), percentage_lit });
                 lines.emplace_back(std::vector <std::string> { sprint("Expire on:         "),
     #if (defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L
                     std::format("{:%Y-%m-%d %H:%M:%S}", time_point)
@@ -532,12 +535,9 @@ void ccdb::ccdb::get_subinfo()
 
                 simple_print_table(titles, lines);
 
-                std::stringstream ss;
-                const auto percentage = static_cast<double>(total_uploaded + total_downloaded) / static_cast<double>(quota);
+                percentage_lit = " " + percentage_lit;
                 const int col = get_col_size();
                 const auto col_ptr = static_cast<uint64_t>(percentage * col);
-                ss << " " << std::setprecision(2) << std::setfill('0') << percentage * 100.00 << "% ";
-                const std::string percentage_lit = ss.str();
                 const int left = static_cast<int>(col_ptr - percentage_lit.length()) / 2;
                 const int right = static_cast<int>(col_ptr) - left - static_cast<int>(percentage_lit.length());
 
