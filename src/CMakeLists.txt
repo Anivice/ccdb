@@ -300,10 +300,6 @@ if ("X${GIT_HASH}" STREQUAL "X")
     set(GIT_HASH "Unknown")
 endif ()
 
-if ("${__use_tparm__}" STREQUAL "true")
-    target_compile_definitions(ccdb PRIVATE __use_tparm__=1)
-endif ()
-
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     if ("${CMAKE_SANITIZER_TYPE}" STREQUAL "address")
         target_compile_options(ccdb PRIVATE -fsanitize=address -fsanitize=undefined)

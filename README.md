@@ -168,17 +168,35 @@ environment variable `$CCDB`, which is a duplicate of the parent `ccdb` argument
 
 ### Linux
 
-Use the command
+#### Requirements
+
+You need
+  * a complete C++ toolchain of either GCC or Clang that can process at least C++ 17 (GCC >= 13 would be fine)
+  * `xxd` utility, usually included in `vim` package, or separated, depending on your distro packaging.
+  * `cmake` and your build system of choice (either Unix Makefile [`make`] or Ninja [`ninja`]).
+to build CCDB.
+
+All dependencies are embedded inside the source code. No additional installation required.
+
+#### CMake Settings
+  * `OPENSSL_TARGET`: Supported openssl target, if you are cross-compiling you need to specify a platform.
+  * `OPENSSL_LIBP`: Depending on the target, openssl can have its lib in `.../lib` or `.../lib64`, you can tell CMake this info by setting it to `lib` or `lib64`.
+
+#### Build
+
+On x86_64, you can use the command
 
 ```bash
-  git clone https://github.com/Anivice/ccdb && cd ccdb && mkdir build && cd build && cmake ../src/ && make
+  git clone https://github.com/Anivice/ccdb --depth=1 && \
+  cd ccdb && mkdir build && cd build && \
+  cmake ../src/ -DPERL_MAKE_ADDITIONAL_FLAGS=-j$(nproc) -DOPENSSL_MAKE_ADDITIONAL_FLAGS=-j$(nproc) -DREADLINE_MAKE_ADDITIONAL_FLAGS=-j$(nproc) -DNCURSES_MAKE_ADDITIONAL_FLAGS=-j$(nproc) \
+  -DCC_ADDITIONAL_OPTIONS="-O3 -fomit-frame-pointer -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2 -fno-stack-protector -s" \
+  -DLD_ADDITIONAL_OPTIONS="-O3 -fomit-frame-pointer -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2 -fno-stack-protector -s" \
+  -DOPENSSL_TARGET=linux-x86_64 -DOPENSSL_LIBP=lib64 && \
+  make -j$(nproc)
 ```
 
 to build locally.
-
-#### CMake Settings
-  * OPENSSL_TARGET: Supported openssl target, if you are cross-compiling you need to specify a platform.
-  * OPENSSL_LIBP: Depending on the target, openssl can have its lib in `.../lib` or `.../lib64`, you can tell CMake this info by setting it to `lib` or `lib64`.
 
 ## Disclaimer
 
