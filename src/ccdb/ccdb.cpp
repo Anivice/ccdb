@@ -30,6 +30,7 @@
 #include "print.h"
 #include "term_name.h"
 #include <sys/wait.h>
+#include "commandTemplateTree.h"
 
 /* Since pipes are unidirectional, we need three pipes:
    1. Parent writes to child's stdin

@@ -555,11 +555,84 @@ namespace cmdTpTree
         return matches;
     }
 
+    int sig_pipe[2] = {-1, -1};
+    volatile sig_atomic_t g_running = 1;
+    std::string last_line;
+    std::function<bool(const std::vector < std::string > &)> g_cmd_handler;
+
+    void set_nonblock(const int fd)
+    {
+        if (const int flags = fcntl(fd, F_GETFL, 0); flags >= 0) {
+            (void)fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+        }
+    }
+
     void clear_read_cache()
     {
         rl_clear_pending_input();
         rl_replace_line("", 1);   // empty line + clear undo
         rl_on_new_line();
         rl_redisplay();
+    }
+
+    static std::string remove_leading_and_tailing_spaces(std::string text)
+    {
+        if (text.empty()) return text;
+        ccdb::utils::replace_all(text, "\t", "    ");
+        const auto pos = text.find_first_not_of(' ');
+        if (pos == std::string::npos) return text;
+        std::string middle = text.substr(pos);
+        while (!middle.empty() && middle.back() == ' ') {
+            middle.pop_back();
+        }
+        return middle;
+    }
+
+    void handle_sigint_event()
+    {
+        char buf[64];
+        while (read(sig_pipe[0], buf, sizeof(buf)) > 0) {
+        }
+
+        constexpr auto clear = "^C\n";
+        (void)write(STDOUT_FILENO, clear, std::strlen(clear));
+        clear_read_cache();
+        tcflush(STDOUT_FILENO, TCIFLUSH);
+    }
+
+    void on_line(char * line)
+    {
+        try
+        {
+            if (line == nullptr) {
+                g_running = 0;
+                return;
+            }
+
+            if (*line == '\0') return; // empty line
+
+            std::string cmd(line);
+            free(line);
+
+            std::vector < std::string > command_vector;
+            {
+                /// save history, and simple dedup
+                const auto presented_history = remove_leading_and_tailing_spaces(cmd);
+                if (presented_history != last_line) {
+                    add_history(presented_history.c_str());
+                }
+
+                if (!presented_history.empty()) last_line = presented_history;
+                /// compose a command vector
+                cmd = remove_leading_and_tailing_spaces(cmd);
+                command_vector = ccdb::utils::split_via_history(cmd);
+            }
+
+            if (!g_cmd_handler(command_vector)) {
+                g_running = 0;
+            }
+        } catch (const std::exception & e) {
+            std::cerr << e.what() << std::endl;
+        }
     }
 } // cmdTpTree

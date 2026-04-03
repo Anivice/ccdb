@@ -30,6 +30,13 @@
 #include "readline/history.h"
 #include <iostream>
 #include "tsl/hopscotch_map.h"
+#include <sys/select.h>
+#include <csignal>
+#include <unistd.h>
+#include <fcntl.h>
+#include <cerrno>
+#include <cstdlib>
+#include "ccdb.h"
 
 namespace cmdTpTree
 {
@@ -173,58 +180,79 @@ namespace cmdTpTree
     void colored_display_hook(char **matches, int num_matches, int max_length);
     void clear_read_cache();
 
+    extern int sig_pipe[2];
+    extern volatile sig_atomic_t g_running;
+    void set_nonblock(int fd);
+    static std::string remove_leading_and_tailing_spaces(std::string text);
+    extern std::string last_line;
+    extern std::function<bool(const std::vector < std::string > &)> g_cmd_handler;
+    void on_line(char * line);
+    void handle_sigint_event();
+
     template < CommandHandler handler, SpecialArgumentCandidatePointer spc_gen>
     void read_command(handler handler_, spc_gen spc_gen_, const std::string & prompt)
     {
         ccdb::utils::set_thread_name("readline");
+        if (pipe(sig_pipe) == -1) {
+            perror("pipe");
+            throw std::runtime_error("pipe");
+        }
+
+        set_nonblock(sig_pipe[0]);
+        set_nonblock(sig_pipe[1]);
+
+        g_cmd_handler = handler_;
+        rl_catch_signals = 0;
         SpecialArgumentCandidatesGenerator = spc_gen_;
-
-        auto remove_leading_and_tailing_spaces = [](std::string text)->std::string
-        {
-            if (text.empty()) return text;
-            ccdb::utils::replace_all(text, "\t", "    ");
-            const auto pos = text.find_first_not_of(' ');
-            if (pos == std::string::npos) return text;
-            std::string middle = text.substr(pos);
-            while (!middle.empty() && middle.back() == ' ') {
-                middle.pop_back();
-            }
-            return middle;
-        };
-
         rl_attempted_completion_function = cmd_completion;
         rl_completion_display_matches_hook = colored_display_hook;
         rl_variable_bind("colored-stats", "on");
-
         using_history();
-        std::string last_line;
+        rl_callback_handler_install("ccdb> ", on_line);
 
-        char * line = nullptr;
-        while ((line = readline(prompt.c_str())) != nullptr)
+        pollfd fds[2];
+        fds[0].fd = STDIN_FILENO;
+        fds[0].events = POLLIN;
+        fds[0].revents = 0;
+
+        fds[1].fd = sig_pipe[0];
+        fds[1].events = POLLIN;
+        fds[1].revents = 0;
+
+        while (g_running)
         {
-            try {
-                std::vector < std::string > command_vector;
-                {
-                    /// save history, and simple dedup
-                    const auto presented_history = remove_leading_and_tailing_spaces(line);
-                    if (*line && presented_history != last_line) {
-                        add_history(presented_history.c_str());
-                    }
-
-                    if (!presented_history.empty()) last_line = presented_history;
-                    /// compose a command vector
-                    std::string cmd = line;
-                    cmd = remove_leading_and_tailing_spaces(cmd);
-                    command_vector = ccdb::utils::split_via_history(cmd);
+            if (const int rc = poll(fds, 2, -1); rc == -1) {
+                if (errno == EINTR) {
+                    continue;
                 }
-                free(line);
-                if (!handler_(command_vector)) {
-                    return;
-                }
-            } catch (const std::exception & e) {
-                std::cerr << e.what() << std::endl;
+                perror("poll");
+                break;
             }
+
+            if (fds[1].revents & (POLLIN | POLLERR | POLLHUP)) {
+                handle_sigint_event();
+            }
+
+            if (!g_running) {
+                break;
+            }
+
+            if (fds[0].revents & POLLIN) {
+                rl_callback_read_char();
+            }
+
+            if (fds[0].revents & (POLLHUP | POLLERR | POLLNVAL)) {
+                g_running = 0;
+            }
+
+            fds[0].revents = 0;
+            fds[1].revents = 0;
         }
+
+        rl_callback_handler_remove();
+
+        close(sig_pipe[0]);
+        close(sig_pipe[1]);
     }
 } // cmdTpTree
 

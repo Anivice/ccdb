@@ -28,7 +28,6 @@
 #include "config.h"
 #include <iomanip>
 #include "general_info_pulling.h"
-#include "commandTemplateTree.h"
 #include "tsl/hopscotch_map.h"
 #include "utils.h"
 #include <thread>
@@ -275,9 +274,6 @@ namespace ccdb
         };
 
         auto_SIGINT_status_t make_status_watcher();
-
-        /// readline clear screen.
-        static void clear();
 
     protected:
         std::atomic_bool sigint_watcher_running = true;

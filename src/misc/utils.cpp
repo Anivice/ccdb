@@ -360,10 +360,12 @@ static std::string regex_replace_callback(
     return result;
 }
 
+static std::mutex mtx;
 std::string ccdb::utils::regex_replace_all(std::string &original, const std::string &pattern,
     const std::function<std::string(const std::smatch& match)> &replacement)
 {
-    thread_local const std::regex r(pattern);
+    std::lock_guard<std::mutex> lock(mtx);
+    const std::regex r(pattern);
     original = regex_replace_callback(original, r,
         [&replacement](const std::smatch& match) -> std::string {
             return replacement(match);

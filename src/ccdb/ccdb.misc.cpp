@@ -31,6 +31,7 @@
 #include "additional_help.h"
 #include "BUILD_DATE.h"
 #include "GIT_HASH.h"
+#include "commandTemplateTree.h"
 
 ccdb::sigint_watcher_ ccdb::watcher;
 std::atomic_bool ccdb::window_size_change = false;
@@ -38,6 +39,10 @@ std::atomic_bool ccdb::sysint_pressed = false;
 
 void ccdb::sigint_handler(int)
 {
+    constexpr unsigned char ch = 0x03;
+    if (cmdTpTree::sig_pipe[1] != -1) {
+        (void)write(cmdTpTree::sig_pipe[1], &ch, 1);
+    }
     sysint_pressed = true;
 }
 
@@ -70,16 +75,6 @@ ccdb::sigint_watcher_::auto_SIGINT_status_t ccdb::sigint_watcher_::make_status_w
     return auto_SIGINT_status_t(this);
 }
 
-/// readline clear screen.
-void ccdb::sigint_watcher_::clear()
-{
-    const std::string clear = "\033[K";
-    std::cout.write(clear.c_str(), static_cast<ssize_t>(clear.size()));
-    std::cout.flush();
-    cmdTpTree::clear_read_cache();
-    tcflush(STDIN_FILENO, TCIFLUSH);
-}
-
 void ccdb::sigint_watcher_::sigint_watcher()
 {
     utils::set_thread_name("SIGINT Watcher");
@@ -88,15 +83,6 @@ void ccdb::sigint_watcher_::sigint_watcher()
         if (sysint_pressed)
         {
             sigint_caught = true;
-
-#ifdef __DEBUG__
-            std::cerr << "SIGINT!" << std::endl;
-#endif
-
-            if (!watcher_clear_disable) {
-                clear();
-            }
-
             sysint_pressed = false;
         }
 

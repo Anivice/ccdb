@@ -126,13 +126,17 @@ void ccdb::ccdb::print_table(
                 const std::u32string progress_bar32 = utf8_to_u32(progress_bar);
 
                 auto strip_color = [](std::string str_)->std::string {
-                    regex_replace_all(str_, R"(\x1B\[(?:\d*(?:;\d*)*)?m)", [](const auto &)->std::string { return ""; });
+                    constexpr auto color_pattern = R"(\x1B\[(?:\d*(?:;\d*)*)?m)";
+                    regex_replace_all(str_, color_pattern, [](const auto &)->std::string {
+                        return "";
+                    });
                     return str_;
                 };
 
                 for (const auto & c : progress_bar32)
                 {
-                    int padding = get_col_size() - UnicodeDisplayWidth::get_width_utf8(strip_color(vec.front())) - 1;
+                    const auto no_color_str = strip_color(vec.front());
+                    const int padding = get_col_size() - UnicodeDisplayWidth::get_width_utf8(no_color_str) - 1;
                     ss2 << utf8::utf32to8({c}) << vec.front() << color::no_color() << (padding > 0 ? std::string(padding, ' ') : "") << std::endl;
                     vec.erase(vec.begin());
                 }
