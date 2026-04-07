@@ -773,5 +773,10 @@
     "en"    : "Log size:",
     "en_US" : "Log size:",
     "zh_CN" : "日志缓冲大小: "
+  },
+  {
+    "en"    : "-: Direct, x: Proxied",
+    "en_US" : "-: Direct, x: Proxied",
+    "zh_CN" : "-: 直连, x: 代理"
   }
 ]

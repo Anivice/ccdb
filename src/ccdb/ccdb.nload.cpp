@@ -454,7 +454,7 @@ void ccdb::ccdb::nload(
                 });
             }
 
-            if (const auto msg = sprint("* P: On this page, O: Overall", ", ",
+            if (const auto msg = sprint("* P: On this page, O: Overall", ", ", "-: Direct, x: Proxied", ", ",
                 update_subinfo(subinfo_ball, threads));
                 col >= UnicodeDisplayWidth::get_width_utf8(msg))
             {

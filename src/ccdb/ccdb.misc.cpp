@@ -230,6 +230,8 @@ void ccdb::ccdb::nload(const std::vector<std::string> & vec)
             int max_upload_len = 0;
             std::ranges::for_each(conn, [&](general_info_pulling::connection_t & c)
             {
+                c.host = c.processName.empty() ? c.host : (c.host + " (" + c.processName + ")");
+                c.host = c.networkType.empty() ? c.host : (c.host + " <" + c.networkType + ">");
                 c.host = c.host + " " + (c.chainName == "DIRECT" ? "- " : "x ");
                 if (max_host_len < UnicodeDisplayWidth::get_width_utf8(c.host)) {
                     max_host_len = UnicodeDisplayWidth::get_width_utf8(c.host);
