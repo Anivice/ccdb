@@ -160,7 +160,7 @@ int main(int argc, char ** argv)
 #if (defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L
                 std::format("{:%Y-%m-%d %H:%M:%S}", time_point)
 #else
-                format_time_local(time_point)
+                ccdb::utils::format_time_local(time_point)
 #endif
                 , "\n"
             );
