@@ -59,13 +59,15 @@ Use `help` command to see usage details.
 Syntax:
 
 ```bash
-./ccdb [Arguments [OPTIONS...]...]
+ccdb [Arguments [OPTIONS...]...]
     -h,--help                Show help
     -v,--version             Show version
     -u,--url [ARG]           Backend url, usually http://localhost:9090
     -x,--execute [ARG]       Execute a CCDB command
     -t,--token [ARG]         Backend HTTP auth password
     -l,--latency_url [ARG]   Latency URL
+    --subinfo                Get subinfo
+    --subinfo_url [ARG]      Specify subscription URL (only for --subinfo)
 ```
 
 **Frequently Used Commands**:

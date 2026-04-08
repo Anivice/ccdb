@@ -289,8 +289,7 @@ void ccdb::ccdb::init()
     std::signal(SIGPIPE, SIG_IGN);
     std::signal(SIGWINCH, window_size_change_handler);
     namespace fs = std::filesystem;
-    const auto config = fs::path(utils::getenv("HOME")) / ".ccdbrc";
-    if (fs::exists(config)) {
+    if (const auto config = fs::path(utils::getenv("HOME")) / ".ccdbrc"; fs::exists(config)) {
         ccdb_config = std::make_unique<configuration>(config);
     }
 

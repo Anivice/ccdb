@@ -778,5 +778,15 @@
     "en"    : "-: Direct, x: Proxied",
     "en_US" : "-: Direct, x: Proxied",
     "zh_CN" : "-: 直连, x: 代理"
+  },
+  {
+    "en"    : "Get subinfo",
+    "en_US" : "Get subinfo",
+    "zh_CN" : "查看代理使用信息"
+  },
+  {
+    "en"    : "Specify subscription URL (only for --subinfo)",
+    "en_US" : "Specify subscription URL (only for --subinfo)",
+    "zh_CN" : "指定代理链接（只能用于 --subinfo）"
   }
 ]

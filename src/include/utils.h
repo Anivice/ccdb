@@ -189,6 +189,7 @@ namespace ccdb::utils {
 
     std::string unpack_string(const unsigned char str[], unsigned int len);
     unsigned long long get_time(std::string time);
+    std::string format_time_local(std::chrono::system_clock::time_point tp);
 }
 
 #endif //CFS_UTILS_H

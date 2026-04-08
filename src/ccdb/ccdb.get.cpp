@@ -465,29 +465,6 @@ void ccdb::ccdb::get_filter()
     });
 }
 
-#if !((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
-static std::tm to_local_tm(std::time_t t)
-{
-    std::tm tm{};
-#if defined(_WIN32)
-    localtime_s(&tm, &t);
-#else
-    localtime_r(&t, &tm);
-#endif
-    return tm;
-}
-
-static std::string format_time_local(const std::chrono::system_clock::time_point tp)
-{
-    const std::time_t t = std::chrono::system_clock::to_time_t(tp);
-    const std::tm tm = to_local_tm(t);
-
-    char buf[128] { };
-    std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm);
-    return { buf };
-}
-#endif // (defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L
-
 void ccdb::ccdb::get_subinfo()
 {
     auto get_info = [&]

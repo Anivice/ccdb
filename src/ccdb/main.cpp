@@ -32,6 +32,7 @@
 #include "utils.h"
 #include "BUILD_DATE.h"
 #include "GIT_HASH.h"
+#include "pull_subinfo.h"
 
 namespace utils = ccdb::utils;
 
@@ -42,6 +43,8 @@ utils::PreDefinedArgumentType::PreDefinedArgument MainArgument = {
     { .short_name = 'x', .long_name = "execute",    .argument_required = true,  .description = utils::get_text("Execute a CCDB command") },
     { .short_name = 't', .long_name = "token",      .argument_required = true,  .description = utils::get_text("Backend HTTP auth password") },
     { .short_name = 'l', .long_name = "latency_url",.argument_required = true,  .description = utils::get_text("Latency URL") },
+    { .short_name = -1,  .long_name = "subinfo",    .argument_required = false, .description = utils::get_text("Get subinfo") },
+    { .short_name = -1,  .long_name = "subinfo_url",.argument_required = true,  .description = utils::get_text("Specify subscription URL (only for --subinfo)") },
 };
 
 extern "C" const char *
@@ -86,6 +89,7 @@ int main(int argc, char ** argv)
         std::string token;
         std::string backend;
         std::string latency_url = "https://www.google.com/generate_204/";
+        std::string sub_url;
         const utils::PreDefinedArgumentType PreDefinedArguments(MainArgument);
         utils::ArgumentParser ArgumentParser(argc, argv, PreDefinedArguments);
         const auto parsed = ArgumentParser.parse();
@@ -110,6 +114,59 @@ int main(int argc, char ** argv)
         add_arg("url", backend);
         add_arg("token", token);
         add_arg("latency_url", latency_url);
+        add_arg("subinfo_url", sub_url);
+
+        if (parsed.contains("subinfo"))
+        {
+            namespace fs = std::filesystem;
+            std::unique_ptr<ccdb::configuration> ccdb_config;
+            if (const auto config = fs::path(utils::getenv("HOME")) / ".ccdbrc"; fs::exists(config)) {
+                ccdb_config = std::make_unique<ccdb::configuration>(config);
+            }
+
+            if (((ccdb_config && !ccdb_config->config_signal_hash_map.contains("clash::link")) || !ccdb_config) &&
+                sub_url.empty())
+            {
+                ccdb::utils::print<utils::is_error>("No subscription link provided!", "\n");
+                return EXIT_FAILURE;
+            }
+
+            if (sub_url.empty()) {
+                sub_url = ccdb_config->config_signal_hash_map.at("clash::link");
+            }
+
+            const auto [
+                total_uploaded,
+                total_downloaded,
+                quota,
+                expire_unix_timestamp] = ccdb::pull_clash_subinfo(sub_url, 15);
+            std::string percentage_lit;
+            const auto percentage = static_cast<double>(total_uploaded + total_downloaded) / static_cast<double>(quota);
+            {
+                std::stringstream ss;
+                ss << std::setprecision(2) << std::setfill('0') << percentage * 100.00 << "% ";
+                percentage_lit = ss.str();
+            }
+
+            const std::chrono::seconds duration(expire_unix_timestamp);
+            const std::chrono::system_clock::time_point time_point(duration);
+            ccdb::utils::print<utils::is_normal>("Total uploaded:    ", ccdb::utils::value_to_size(total_uploaded), "\n");
+            ccdb::utils::print<utils::is_normal>("Total downloaded:  ", ccdb::utils::value_to_size(total_downloaded), "\n");
+            ccdb::utils::print<utils::is_normal>("Total used data:   ", ccdb::utils::value_to_size(total_uploaded + total_downloaded), "\n");
+            ccdb::utils::print<utils::is_normal>("Total usable data: ", ccdb::utils::value_to_size(quota - (total_uploaded + total_downloaded)), "\n");
+            ccdb::utils::print<utils::is_normal>("Quota:             ", ccdb::utils::value_to_size(quota), "\n");
+            ccdb::utils::print<utils::is_normal>("Quota usage perct.:", percentage_lit, "\n");
+            ccdb::utils::print<utils::is_normal>("Expire on:         ",
+#if (defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L
+                std::format("{:%Y-%m-%d %H:%M:%S}", time_point)
+#else
+                format_time_local(time_point)
+#endif
+                , "\n"
+            );
+
+            return EXIT_SUCCESS;
+        }
 
         if (backend.empty()) {
             utils::print<utils::is_normal>(argv[0], " [Arguments [OPTIONS...]...]\n");
