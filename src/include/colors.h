@@ -60,8 +60,8 @@ namespace ccdb::color
     /// @return ANSI color string that sets foreground and background color
     std::string color(int r, int g, int b, int br, int bg, int bb) noexcept;
 
-    /// set by logger to disable color codes when output is not terminal
-    extern bool g_color_disabled_since_output_is_not_terminal;
+    /// Override color code status check results
+    extern int g_color_status_override;
 }
 
 #endif //CFS_COLORS_H

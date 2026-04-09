@@ -28,18 +28,18 @@
 #include "colors.h"
 #include "utils.h"
 
-bool ccdb::color::g_color_disabled_since_output_is_not_terminal = false;
+int ccdb::color::g_color_status_override = -1;
 
 bool ccdb::color::is_no_color() noexcept
 {
     static std::atomic_int is_no_color_cache = -1;
-    if (is_no_color_cache != -1) {
-        return is_no_color_cache;
+
+    if (g_color_status_override != -1) {
+        return g_color_status_override;
     }
 
-    if (g_color_disabled_since_output_is_not_terminal) {
-        is_no_color_cache = true;
-        return true;
+    if (is_no_color_cache != -1) {
+        return is_no_color_cache;
     }
 
     auto color_env = ccdb::utils::getenv("COLOR");

@@ -334,8 +334,24 @@ void ccdb::ccdb::print_table(
                 utf8_str = (use_line_highlighter ? "" : color) + utf8_str;
             }
 
-            if (use_line_highlighter) frame << color::color(0,0,0,5,5,5);
+            if (use_line_highlighter)
+            {
+                color::g_color_status_override = 0;
+                std::string color_line_hl = color::color(0,0,0,5,5,5);
+                color::g_color_status_override = -1;
+                if (utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") == "true") {
+                    color_line_hl = "";
+                }
+
+                frame << color_line_hl;
+            }
+
+            if (utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true") {
+                color::g_color_status_override = 0;
+            }
+
             frame << utf8_str << color::no_color();
+            color::g_color_status_override = -1;
             if (endl) frame << std::endl;
             printed_lines++;
         }
