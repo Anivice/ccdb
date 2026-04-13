@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD 23)
 find_program(MAKE_EXECUTABLE NAMES make gmake REQUIRED)
 include(ExternalProject)
 
-set(PerlEnv "env CC= CXX= ")
+set(PerlEnv "env CC= CXX= LD= ")
 if ("${NO_USE_PERL_AS_NATIVE}" STREQUAL "True")
     set(PerlEnv "")
 endif ()
@@ -246,6 +246,36 @@ function(generate_from_resource_dir NAME RES OUT_CPP OUT_H XXD_NAME)
 endfunction()
 generate_from_resource_dir(Zterminfotar ${CMAKE_BINARY_DIR}/ncurses/install/share/terminfo terminfotar.cpp terminfotar.h terminfotar)
 
+# Embedded tar
+set(TAR_LD_FLAGS "")
+set(TAR_C_FLAGS "")
+if ("${CMAKE_BUILD_STATIC}" STREQUAL "True")
+    if (NOT "${CLANG}" STREQUAL "True")
+        set(TAR_LD_FLAGS "-static-libgcc -static-libstdc++ ")
+    endif ()
+    set(TAR_LD_FLAGS "${TAR_LD_FLAGS} -static")
+    set(TAR_C_FLAGS "-O2 -static")
+endif ()
+
+set(TAR_MAKE_ENTIRE "${MAKE_EXECUTABLE} ${TAR_MAKE_ADDITIONAL_FLAGS}")
+message(STATUS "TAR: ${TAR_MAKE_ENTIRE}")
+ExternalProject_Add(TAR
+        PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/tar
+        SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/tar-1.35
+        INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/tar/install
+        CONFIGURE_COMMAND   /bin/sh -c "CC=${CMAKE_C_COMPILER} LD=${CMAKE_LINKER} CFLAGS=\"${TAR_C_FLAGS}\" LDFLAGS=\"${TAR_LD_FLAGS}\" <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --without-gzip --without-bzip2 --without-xz --without-zstd --without-lzip --without-lzma --without-lzop --without-compress ${TAR_CONFIGURE_ADDITIONAL_FLAGS}"
+        BUILD_COMMAND       /bin/sh -c "${TAR_MAKE_ENTIRE} CFLAGS=\"${TAR_C_FLAGS}\" LDFLAGS=\"${TAR_LD_FLAGS}\""
+        INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${TAR_MAKE_INSTALL_ADDITIONAL_FLAGS} && STRIP=${CMAKE_STRIP} ${CMAKE_SOURCE_DIR}/script/strip.sh "<INSTALL_DIR>/bin/tar"
+        TEST_COMMAND        ""
+        INACTIVITY_TIMEOUT  15
+        CONFIGURE_HANDLED_BY_BUILD ON
+        INSTALL_BYPRODUCTS  <INSTALL_DIR>/bin/tar
+        DEPENDS Zterminfotar READLINE
+)
+
+generate_from_resource_file(tar.exe "${CMAKE_BINARY_DIR}/tar/install/bin/tar" tar.cpp tar.h tar_exe)
+add_dependencies(tar.exe TAR)
+
 # CCDB
 add_executable(ccdb
         misc/commandTemplateTree.cpp    include/commandTemplateTree.h
@@ -264,6 +294,7 @@ add_executable(ccdb
         ccdb/ccdb.get_connections.cpp
         ccdb/ccdb.set.cpp
         ccdb/ccdb.nload.cpp
+
         ccdb/ccdb.print_table.cpp       include/ccdb.h
         ccdb/term_name.cpp              include/term_name.h
         ccdb/general_info_pulling.cpp   include/general_info_pulling.h
@@ -272,7 +303,7 @@ add_executable(ccdb
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
 target_compile_definitions(ccdb PRIVATE CCDB_VERSION="${CCDB_VERSION}" CPPHTTPLIB_OPENSSL_SUPPORT)
-target_link_libraries(ccdb PRIVATE AddiHelp langJSON commandReadline Zterminfotar openssl::openssl)
+target_link_libraries(ccdb PRIVATE AddiHelp langJSON commandReadline Zterminfotar tar.exe openssl::openssl)
 add_dependencies(ccdb OPENSSL compress)
 target_compile_options(ccdb PRIVATE -fno-omit-frame-pointer -g3 -gdwarf-4 -fstack-protector-all)
 

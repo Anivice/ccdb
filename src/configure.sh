@@ -48,12 +48,13 @@ case $ARCH in
     ;;
 esac
 
-CMAKE_CFLAGS="" # "-O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2"
+CMAKE_CFLAGS="-O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2"
 export CXXFLAGS="$CMAKE_CFLAGS"
 export CFLAGS="$CMAKE_CFLAGS"
 export CC="$TARGET"-gcc
 export CXX="$TARGET"-g++
 export AR="$TARGET"-ar
+export LD="$TARGET"-ld
 export RANLIB="$TARGET"-ranlib
 export STRIP="$TARGET"-strip
 MUSL_SYSROOT="$(echo "$TOOLCHAIN_ROOT/$ARCH-"*)"
@@ -64,17 +65,20 @@ env PATH="$MUSL_SYSROOT"/bin/:"$PATH" cmake -B "$BUILD_DIR" -S "$script_dir" \
             -DCMAKE_SYSTEM_NAME=Linux \
             -DCMAKE_C_COMPILER="$CC" \
             -DCMAKE_CXX_COMPILER="$CXX" \
+            -DCMAKE_LINKER="$LD" \
             -DCMAKE_FIND_ROOT_PATH="$MUSL_SYSROOT" \
             -DCMAKE_EXE_LINKER_FLAGS="-static" \
             -DCC_ADDITIONAL_OPTIONS="-static $CMAKE_CFLAGS" \
             -DLD_ADDITIONAL_OPTIONS="-static $CMAKE_CFLAGS" \
             -DREADLINE_CONFIGURE_ADDITIONAL_FLAGS="--host=$ARCH" \
+            -DTAR_CONFIGURE_ADDITIONAL_FLAGS="--host=$ARCH" \
             -DNCURSES_CONFIGURE_ADDITIONAL_FLAGS="--disable-stripping;--host=$ARCH" \
-            -DCMAKE_STRIP="$STRIP" \
+            -DCMAKE_STRIP="$MUSL_SYSROOT/bin/$STRIP" \
             -DNCURSES_MAKE_ADDITIONAL_FLAGS="CFLAGS=\"$CMAKE_CFLAGS\" CXXFLAGS=\"$CMAKE_CFLAGS\" -j$(nproc)" \
             -DREADLINE_MAKE_ADDITIONAL_FLAGS="CFLAGS=\"$CMAKE_CFLAGS\" CXXFLAGS=\"$CMAKE_CFLAGS\" -j$(nproc)" \
             -DOPENSSL_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
             -DPERL_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
+            -DTAR_MAKE_ENTIRE="-j$(nproc)" \
             -DOPENSSL_TARGET="$OPENSSL_TARGET" \
             -DOPENSSL_LIBP="$OPENSSL_LIB_EXPORT_PREFIX" \
             -DCMAKE_BUILD_STATIC="True"
@@ -82,5 +86,5 @@ pushd "$PWD"
 cd "$BUILD_DIR"
 env PATH="$MUSL_SYSROOT"/bin/:"$PATH" make CFLAGS="$CMAKE_CFLAGS" CXXFLAGS="$CMAKE_CFLAGS" -j"$(nproc)"
 cp ccdb ccdb.debug_info
-env PATH="$MUSL_SYSROOT"/bin/:"$PATH" $STRIP ccdb
+env PATH="$MUSL_SYSROOT"/bin/:"$PATH" "$STRIP" ccdb
 popd

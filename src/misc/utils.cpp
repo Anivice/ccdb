@@ -23,6 +23,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include "utils.h"
+#include <utility>
 #include <vector>
 #include <string>
 #include <sstream>
@@ -44,6 +45,37 @@
 #include "print.h"
 #include "tsl/hopscotch_map.h"
 #include "readline/history.h"
+#include "tar.h"
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif //_GNU_SOURCE
+#include <cstdio>
+#include <cstdlib>
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <sys/stat.h>
+
+#ifndef __NR_memfd_create
+# if defined(__x86_64__)
+#  define __NR_memfd_create 319
+# elif defined(__i386__)
+#  define __NR_memfd_create 356
+# elif defined(__aarch64__)
+#  define __NR_memfd_create 279
+# else
+#  error "Unknown architecture"
+# endif
+#endif
+
+#include <stdexcept>
+
+#define STRX(x) #x
+#define STR(x) JSON_STRX(x)
+#define CASSERT(x)  \
+if (!(x)) {         \
+    std::cout << __FILE__ ":" STR(__LINE__) ": Assertion " #x " Failed!\n"; \
+    _exit(EXIT_FAILURE); \
+}
 
 std::vector<uint8_t> ccdb::utils::compress(const std::vector<uint8_t>& data)
 {
@@ -135,6 +167,124 @@ void ccdb::utils::setup_term::move_home() const
     }
 }
 
+#include <stdexcept>
+
+#define JSON_STRX(x) #x
+#define JSON_STR(x) JSON_STRX(x)
+#define JSON_ASSERT(x)  \
+if (!(x)) {         \
+throw std::runtime_error(__FILE__ ":" JSON_STR(__LINE__) ": Assertion " #x " Failed!"); \
+}
+#include "nlohmann/json.hpp"
+
+int execute_within_page(char** argv, const std::string & to_write, const std::string & dest, const unsigned int len, unsigned char data[])
+{
+    int stdin_pipe[2];
+    if (pipe(stdin_pipe) == -1) {
+        throw std::runtime_error("Cannot execute: " + std::string(std::strerror(errno)));
+    }
+
+    const pid_t pid = fork();
+    if (pid < 0) {
+        throw std::runtime_error("Cannot execute: " + std::string(std::strerror(errno)));
+    }
+
+    if (pid == 0) { // child
+        if (dup2(stdin_pipe[0], STDIN_FILENO) == -1) {
+            perror("dup2(stdin)");
+            _exit(EXIT_FAILURE);
+        }
+        close(stdin_pipe[0]);
+        close(stdin_pipe[1]);
+
+        const int fd = static_cast<int>(syscall(__NR_memfd_create, "mem_elf", 0));
+        if (fd == -1) {
+            perror("syscall");
+            _exit(EXIT_FAILURE);
+        }
+
+        std::vector<uint8_t> out;
+        const std::vector<uint8_t> in{data, data + len};
+        out = ccdb::utils::decompress(in);
+
+        if (const ssize_t written = write(fd, out.data(), out.size());
+            written != static_cast<ssize_t>(out.size()))
+        {
+            perror("write");
+            close(fd);
+            _exit(EXIT_FAILURE);
+        }
+
+        CASSERT(fchmod(fd, 0700) == 0);
+        fexecve(fd, argv, environ);
+        perror("fexecve");
+        close(fd);
+
+        errno = 0;
+        char path [64] { };
+        snprintf(path, sizeof(path), "/proc/self/fd/%d", fd);
+        execve(path, argv, environ);
+        perror("execve");
+
+        errno = 0;
+        const int wffd = open(dest.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0700);
+        if (wffd == -1) {
+            perror("open");
+            _exit(EXIT_FAILURE);
+        }
+
+        if (write(wffd, out.data(), out.size()) != static_cast<ssize_t>(out.size())) {
+            perror("write");
+            close(wffd);
+            _exit(EXIT_FAILURE);
+        }
+
+        close(wffd);
+
+        execv(dest.c_str(), argv);
+        perror("execv");
+
+        close(fd);
+        _exit(EXIT_FAILURE);
+    }
+
+    // parent
+    close(stdin_pipe[0]);
+    const char *buf = to_write.c_str();
+    const auto bytes_to_write = static_cast<ssize_t>(to_write.size());
+    ssize_t total_written = 0;
+    while (total_written < bytes_to_write)
+    {
+        const ssize_t written = write(stdin_pipe[1], buf + total_written,
+                                bytes_to_write - total_written);
+        if (written == -1) {
+            if (errno == EINTR) {
+                continue;
+            }
+
+            throw std::runtime_error("Cannot execute: " + std::string(std::strerror(errno)));
+        }
+
+        total_written += written;
+    }
+    close(stdin_pipe[1]);
+
+    int wstatus;
+    if (waitpid(pid, &wstatus, 0) == -1) {
+        return EXIT_FAILURE;
+    }
+
+    if (WIFEXITED(wstatus)) {
+        return WEXITSTATUS(wstatus);
+    }
+
+    if (WIFSIGNALED(wstatus)) {
+        return WTERMSIG(wstatus);
+    }
+
+    return EXIT_FAILURE;
+}
+
 std::atomic_bool term_inited = false;
 static class init_term_t {
 public:
@@ -146,30 +296,52 @@ public:
             std::filesystem::create_directory(cache);
         }
 
-        const auto target = cache + "/terminfo";
-        if (!std::filesystem::exists(target))
+        if (ccdb::utils::getenv("TERMINFO").empty())
         {
-            std::filesystem::create_directory(target);
-            std::vector<uint8_t> compressed_terminfo(terminfotar_len);
-            std::memcpy(compressed_terminfo.data(), terminfotar, terminfotar_len);
-            const auto decompressed_terminfo = ccdb::utils::decompress(compressed_terminfo);
-            const auto tarball_dest = cache + "/terminfo.tar";
-            std::ofstream terminfo_tar(tarball_dest, std::ios::binary);
-            if (!terminfo_tar.good()) {
-                std::cerr << "Could not write terminfo.tar" << std::endl;
-            } else {
-                terminfo_tar.write(reinterpret_cast<const char *>(decompressed_terminfo.data()), static_cast<std::streamsize>(decompressed_terminfo.size()));
-                terminfo_tar.close();
-                ccdb::utils::exec_command("/bin/sh", "", "-c", "tar -xf " + tarball_dest + " --directory=" + cache);
-                std::filesystem::remove(tarball_dest);
-            }
-        }
+            const auto target = cache + "/terminfo";
+            if (!std::filesystem::exists(target))
+            {
+                std::filesystem::create_directory(target);
+                std::vector<uint8_t> compressed_terminfo(terminfotar_len);
+                std::memcpy(compressed_terminfo.data(), terminfotar, terminfotar_len);
+                const auto decompressed_terminfo = ccdb::utils::decompress(compressed_terminfo);
+                std::string decompressed_terminfo_string;
+                decompressed_terminfo_string.resize(decompressed_terminfo.size());
+                std::memcpy(decompressed_terminfo_string.data(), decompressed_terminfo.data(), decompressed_terminfo.size());
+                const char * argv[] = { "/proc/self/exe", "-x", "", nullptr };
+                const std::string argv_string = "--directory=" + cache;
+                argv[2] = argv_string.c_str();
+                const std::string tar_exec = ccdb::utils::getenv("HOME") + "/.cache/tar";
+                class auto_remove {
+                public:
+                    std::string name_;
+                    explicit auto_remove(std::string  name) : name_(std::move(name)) {
+                        if (std::filesystem::exists(name_)) {
+                            std::filesystem::remove_all(name_);
+                        }
+                    }
 
-        setenv("TERMINFO", target.c_str(), 1);
-        int err = 0;
-        if (setupterm(nullptr, fileno(stdout), &err) != OK || err <= 0) {
-            ccdb::utils::print<ccdb::utils::is_error>("setupterm failed: ", err, ", ", std::strerror(errno), "\n");
-            return;
+                    ~auto_remove() {
+                        if (std::filesystem::exists(name_)) {
+                            std::filesystem::remove_all(name_);
+                        }
+                    }
+                } auto_remove_(tar_exec);
+
+                if (const int result = execute_within_page(const_cast<char **>(argv), decompressed_terminfo_string,
+                    tar_exec, tar_exe_len, tar_exe);
+                    result != 0)
+                {
+                    throw std::runtime_error("Failed to uncompress terminfo");
+                }
+            }
+
+            setenv("TERMINFO", target.c_str(), 1);
+            int err = 0;
+            if (setupterm(nullptr, fileno(stdout), &err) != OK || err <= 0) {
+                ccdb::utils::print<ccdb::utils::is_error>("setupterm failed: ", err, ", ", std::strerror(errno), "\n");
+                return;
+            }
         }
 
         term_inited = true;

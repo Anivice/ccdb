@@ -17,7 +17,7 @@ A lightweight terminal dashboard for Clash/Mihomo, written in C++.
 CCDB targets low-resource environments (for example, embedded devices) and users who want a low-overhead dashboard.
 
 CCDB depends on the following open-source libraries:
- - [CPP-HTTPLIB v0.40.0](https://github.com/yhirose/cpp-httplib)
+ - [CPP-HTTPLIB v0.41.0](https://github.com/yhirose/cpp-httplib)
  - [GNU Readline 8.3](https://ftp.gnu.org/gnu/readline/)
  - [GNU Ncurses 6.6](https://ftp.gnu.org/gnu/ncurses/)
  - [TSL Hopscotch-Hashing Map v2.4.0](https://github.com/Tessil/hopscotch-map)

@@ -38,7 +38,7 @@ static std::string generate_linear_handle(
     const int track_len)
 {
     if (track_len <= 0) return {};
-    if (content_total <= 0) return std::string(track_len, ' ');
+    if (content_total <= 0) return { static_cast<std::string::size_type>(track_len), ' ', std::allocator<char>() };
 
     int viewport = std::max(0, view_end - view_start);
     viewport = std::min(viewport, content_total);
@@ -104,14 +104,12 @@ void ccdb::ccdb::print_table(
                 len_(len), start_(start), end_(end) { }
         ~auto_print_t()
         {
-            const auto output = less_output_redirect_.str();
-            if (!output.empty()) {
+            if (const auto output = less_output_redirect_.str(); !output.empty()) {
                 parent_->pager(output);
                 return; // skip frame output when less pager is specified
             }
 
-            const std::string str = frame_.str();
-            if (!str.empty())
+            if (const std::string str = frame_.str(); !str.empty())
             {
                 std::vector<std::string> vec;
                 std::string buff;

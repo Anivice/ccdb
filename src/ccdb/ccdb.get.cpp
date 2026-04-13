@@ -24,10 +24,8 @@
 #include <algorithm>
 #include <chrono>
 #include <utility>
-#include <fstream>
 #include "print.h"
 #include "pull_subinfo.h"
-#include <sys/wait.h>
 
 // --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;
