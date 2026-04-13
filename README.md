@@ -25,6 +25,7 @@ CCDB depends on the following open-source libraries:
  - [JSON for Modern C++ 3.12.0](https://github.com/nlohmann/json)
  - [Perl 5.42.0](https://www.perl.org/)
  - [OpenSSL 3.6.1](https://github.com/openssl/openssl)
+ - [GNU Tar 1.35](https://www.gnu.org/software/tar)
 
 ## Features
 
