@@ -19,8 +19,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 
-#include "ccdb.h"
-#include "utils.h"
+#include <sys/wait.h>
 #include <algorithm>
 #include <chrono>
 #include <csignal>
@@ -29,8 +28,9 @@
 #include "config.h"
 #include "print.h"
 #include "term_name.h"
-#include <sys/wait.h>
 #include "commandTemplateTree.h"
+#include "ccdb.h"
+#include "utils.h"
 
 /* Since pipes are unidirectional, we need three pipes:
    1. Parent writes to child's stdin

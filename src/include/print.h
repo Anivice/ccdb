@@ -23,9 +23,9 @@
 #define CCDB_PRINT_H
 
 #include <string>
-#include "utils.h"
 #include <iostream>
 #include <sstream>
+#include "utils.h"
 
 namespace ccdb::utils
 {

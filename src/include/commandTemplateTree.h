@@ -25,18 +25,14 @@
 #include <vector>
 #include <memory>
 #include <functional>
-#include "utils.h"
-#include "readline/readline.h"
-#include "readline/history.h"
-#include <iostream>
-#include "tsl/hopscotch_map.h"
-#include <sys/select.h>
-#include <csignal>
 #include <unistd.h>
 #include <fcntl.h>
 #include <cerrno>
-#include <cstdlib>
 #include "ccdb.h"
+#include "utils.h"
+#include "readline/readline.h"
+#include "readline/history.h"
+#include "tsl/hopscotch_map.h"
 
 namespace cmdTpTree
 {

@@ -19,11 +19,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 
-#include "config.h"
 #include <filesystem>
 #include <fstream>
 #include <regex>
 #include "utils.h"
+#include "config.h"
 
 namespace ccdb {
     std::string clean_line(const std::string& line)

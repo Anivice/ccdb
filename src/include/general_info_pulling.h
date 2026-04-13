@@ -22,11 +22,11 @@
 #ifndef SRC_GENERAL_INFO_PULLING_H
 #define SRC_GENERAL_INFO_PULLING_H
 
+#include <algorithm>
+#include <thread>
 #include "httplib.h"
 #include "mihomo.h"
 #include "json.hpp"
-#include <algorithm>
-#include <thread>
 #include "tsl/hopscotch_map.h"
 
 using json = nlohmann::json;

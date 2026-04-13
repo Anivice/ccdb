@@ -19,14 +19,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 
-#include "term_name.h"
 #include <algorithm>
 #include <ranges>
 #include <unistd.h>
 #include <fcntl.h>
-#include "utils.h"
 #include <cstdio>
 #include <cstring>
+#include "term_name.h"
+#include "utils.h"
 
 static int read_file_line(const char *path, char *buf, const size_t n)
 {

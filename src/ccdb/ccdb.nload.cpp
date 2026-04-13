@@ -19,14 +19,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 
-#include "ccdb.h"
 #include <chrono>
 #include <thread>
-#include "print.h"
-#include "ncursesw/ncurses.h"
 #include <algorithm>
 #include <cmath>
 #include <string>
+#include "ccdb.h"
+#include "print.h"
+#include "ncursesw/ncurses.h"
 
 // --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;

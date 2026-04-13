@@ -19,9 +19,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 
+#include <sstream>
 #include "args.h"
 #include "utils.h"
-#include <sstream>
 
 std::string ccdb::utils::PreDefinedArgumentType::print_help() const
 {

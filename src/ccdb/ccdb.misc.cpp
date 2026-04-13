@@ -19,12 +19,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 
-#include "ccdb.h"
 #include <chrono>
 #include <thread>
 #include <utility>
-#include "print.h"
-#include "ncursesw/ncurses.h"
 #include <algorithm>
 #include <cmath>
 #include <string>
@@ -32,6 +29,9 @@
 #include "BUILD_DATE.h"
 #include "GIT_HASH.h"
 #include "commandTemplateTree.h"
+#include "print.h"
+#include "ncursesw/ncurses.h"
+#include "ccdb.h"
 
 ccdb::sigint_watcher_ ccdb::watcher;
 std::atomic_bool ccdb::window_size_change = false;

@@ -19,6 +19,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif //_GNU_SOURCE
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
@@ -30,30 +33,25 @@
 #include <chrono>
 #include <iomanip>
 #include <regex>
-// #define USE_TSL_HOPSCOTCH_MAP
 #include <thread>
 #include <iostream>
+#include <termios.h>
+#include <fcntl.h>
+#include <fstream>
+#include <cstdio>
+#include <cstdlib>
+#include <sys/syscall.h>
+#include <stdexcept>
 #include "lzw6.h"
 #include "json.hpp"
 #include "lang.json.h"
 #include "ncursesw/ncurses.h"
 #include "ncursesw/term.h"
-#include <termios.h>
-#include <fcntl.h>
 #include "terminfotar.h"
-#include <fstream>
 #include "print.h"
 #include "tsl/hopscotch_map.h"
 #include "readline/history.h"
 #include "tar.h"
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif //_GNU_SOURCE
-#include <cstdio>
-#include <cstdlib>
-#include <unistd.h>
-#include <sys/syscall.h>
-#include <sys/stat.h>
 
 #ifndef __NR_memfd_create
 # if defined(__x86_64__)
@@ -66,8 +64,6 @@
 #  error "Unknown architecture"
 # endif
 #endif
-
-#include <stdexcept>
 
 #define STRX(x) #x
 #define STR(x) JSON_STRX(x)
@@ -112,8 +108,9 @@ std::string ccdb::utils::get_text(const std::string &text)
         const auto data = decompress({lang_json, lang_json + lang_json_len});
         text_json_local.resize(data.size());
         std::memcpy(text_json_local.data(), data.data(), text_json_local.size());
-        const auto text_data = json::parse(text_json_local);
-        for (const auto & msg : text_data) {
+        for (const auto text_data = json::parse(text_json_local);
+            const auto & msg : text_data)
+        {
             std::string text_en = msg["en"];
             std::ranges::transform(text_en, text_en.begin(), ::toupper);
             for (const auto & [type, lang_msg] : msg.items()) {
@@ -166,16 +163,6 @@ void ccdb::utils::setup_term::move_home() const
         std::cout << clear_ << std::flush;
     }
 }
-
-#include <stdexcept>
-
-#define JSON_STRX(x) #x
-#define JSON_STR(x) JSON_STRX(x)
-#define JSON_ASSERT(x)  \
-if (!(x)) {         \
-throw std::runtime_error(__FILE__ ":" JSON_STR(__LINE__) ": Assertion " #x " Failed!"); \
-}
-#include "nlohmann/json.hpp"
 
 int execute_within_page(char** argv, const std::string & to_write, const std::string & dest, const unsigned int len, unsigned char data[])
 {

@@ -25,12 +25,11 @@
 #include <vector>
 #include <string>
 #include <atomic>
+#include <thread>
 #include "config.h"
-#include <iomanip>
 #include "general_info_pulling.h"
 #include "tsl/hopscotch_map.h"
 #include "utils.h"
-#include <thread>
 #include "print.h"
 
 namespace ccdb

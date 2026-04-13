@@ -19,19 +19,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 
-#include "pull_subinfo.h"
-#include <filesystem>
-#include "httplib.h"
-#include <regex>
-#include "print.h"
-#include "utils.h"
-#include "ccdb.h"
+#include <algorithm>
+#include <string>
 #include <chrono>
 #include <thread>
 #include <utility>
+#include <filesystem>
+#include <regex>
+#include "pull_subinfo.h"
+#include "httplib.h"
+#include "print.h"
+#include "utils.h"
+#include "ccdb.h"
 #include "ncursesw/ncurses.h"
-#include <algorithm>
-#include <string>
 
 bool parse_url(const std::string& url, std::string& scheme, std::string& host, std::string& path)
 {

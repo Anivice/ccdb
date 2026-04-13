@@ -19,7 +19,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 
-#include "general_info_pulling.h"
 #include <ctime>
 #include <iomanip>
 #include <sstream>
@@ -29,6 +28,7 @@
 #include <chrono>
 #include <fstream>
 #include "print.h"
+#include "general_info_pulling.h"
 
 void general_info_pulling::update_from_traffic(const std::string& info)
 {

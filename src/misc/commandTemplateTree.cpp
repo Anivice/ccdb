@@ -19,11 +19,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 
-#include "commandTemplateTree.h"
-#include "readline.h"
 #include <sstream>
 #include <cstring>
 #include <algorithm>
+#include "commandTemplateTree.h"
+#include "readline.h"
 #include "command.readline.h"
 #include "print.h"
 

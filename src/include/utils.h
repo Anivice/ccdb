@@ -26,8 +26,6 @@
 #include <cstdlib>
 #include <cstdint>
 #include <vector>
-#include "utf8.h"
-#include "colors.h"
 #include <atomic>
 #include <functional>
 #include <regex>
@@ -36,6 +34,8 @@
 #include <poll.h>
 #include <thread>
 #include "lzw6.h"
+#include "utf8.h"
+#include "colors.h"
 
 /// Utilities
 namespace ccdb::utils {
