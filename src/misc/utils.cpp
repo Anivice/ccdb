@@ -415,6 +415,15 @@ uint64_t ccdb::utils::CRC64::get_checksum() const
     return (reverse_bytes(crc64_value ^ 0xFFFFFFFFFFFFFFFFULL));
 }
 
+std::string ccdb::utils::CRC64::get_checksum_str() const
+{
+    std::string result;
+    const uint64_t numeric_result = get_checksum();
+    result.resize(sizeof(numeric_result));
+    std::memcpy(result.data(), &numeric_result, sizeof(numeric_result));
+    return bin2hex(result);
+}
+
 void ccdb::utils::CRC64::init_crc64()
 {
     crc64_value = 0xFFFFFFFFFFFFFFFF;
@@ -948,4 +957,61 @@ std::string ccdb::utils::format_time_local(const std::chrono::system_clock::time
     char buf[128] { };
     std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm);
     return { buf };
+}
+
+static constexpr char hex_table [] =
+{
+    '0', 0x00,
+    '1', 0x01,
+    '2', 0x02,
+    '3', 0x03,
+    '4', 0x04,
+    '5', 0x05,
+    '6', 0x06,
+    '7', 0x07,
+    '8', 0x08,
+    '9', 0x09,
+    'a', 0x0A,
+    'b', 0x0B,
+    'c', 0x0C,
+    'd', 0x0D,
+    'e', 0x0E,
+    'f', 0x0F,
+};
+
+void ccdb::utils::CRC64::c_bin2hex(const char bin, char hex[2])
+{
+    auto find_in_table = [](const char p_hex) -> char {
+        for (size_t i = 0; i < sizeof(hex_table); i += 2) {
+            if (hex_table[i + 1] == p_hex) {
+                return hex_table[i];
+            }
+        }
+
+        throw std::invalid_argument("Invalid binary code");
+    };
+
+    const char bin_a = static_cast<char>(bin >> 4) & 0x0F;
+    const char bin_b = bin & 0x0F;
+
+    hex[0] = find_in_table(bin_a);
+    hex[1] = find_in_table(bin_b);
+}
+
+std::string ccdb::utils::CRC64::bin2hex(const std::vector < char > & vec)
+{
+    std::string result;
+    char buffer [3] { };
+    for (const auto & bin : vec) {
+        c_bin2hex(bin, buffer);
+        result += buffer;
+    }
+
+    return result;
+}
+
+std::string ccdb::utils::CRC64::bin2hex(const std::string &str)
+{
+    const std::vector < char > vec(str.begin(), str.end());
+    return bin2hex(vec);
 }

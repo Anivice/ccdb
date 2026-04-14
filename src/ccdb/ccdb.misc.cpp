@@ -251,10 +251,14 @@ void ccdb::ccdb::nload(const std::vector<std::string> & vec)
             {
                 const std::string padding(max_host_len - UnicodeDisplayWidth::get_width_utf8(c.host), ' ');
                 std::stringstream ss;
+                CRC64 crc64;
+                crc64.update(reinterpret_cast<const uint8_t *>(c.metadata.connectionID.data()),
+                    c.metadata.connectionID.size());
                 ss  << c.host << padding
                     << " UP: " << c.chainName // already up speed by temp save
                     << std::string(max_upload_len - c.chainName.length(), ' ')
-                    << " DL: " << value_to_speed(c.downloadSpeed);
+                    << " DL: " << value_to_speed(c.downloadSpeed)
+                    << " ID: " << crc64.get_checksum_str();
                 conn_str.push_back(ss.str());
             });
 

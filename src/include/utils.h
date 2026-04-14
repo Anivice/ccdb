@@ -178,11 +178,15 @@ namespace ccdb::utils {
         CRC64();
         void update(const uint8_t* data, size_t length);
         [[nodiscard]] uint64_t get_checksum() const;
+        std::string get_checksum_str() const;
 
     private:
         uint64_t crc64_value{};
         uint64_t table[256] {};
 
+        static void c_bin2hex(char bin, char hex[2]);
+        static std::string bin2hex(const std::vector < char > &);
+        static std::string bin2hex(const std::string & str);
         void init_crc64();
         static uint64_t reverse_bytes(uint64_t x);
     };
