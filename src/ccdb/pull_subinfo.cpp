@@ -167,7 +167,7 @@ std::string ccdb::ccdb::update_subinfo(atomic_subinfo_ball_t & atomic_subinfo_ba
         std::stringstream ret;
         ret << utils::sprint("Quota usage: ",
                                      utils::value_to_size(total_uploaded + total_downloaded), " / ", utils::value_to_size(quota), " ",
-                                     std::setprecision(2), std::setfill('0'),
+                                     std::setprecision(4), std::setfill('0'),
                                      static_cast<double>(total_uploaded + total_downloaded) / static_cast<double>(quota) * 100, "%");
         return ret.str();
     };

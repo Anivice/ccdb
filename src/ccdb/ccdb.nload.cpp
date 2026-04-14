@@ -240,6 +240,9 @@ void ccdb::ccdb::nload(
         std::chrono::time_point<std::chrono::high_resolution_clock> last_skipped_len_time;
     };
     tsl::hopscotch_map < uint64_t, line_view_tmp_data_t > mapped_line_view_tmp_data;
+    int last_skp_line_scrolling = 0;
+    auto last_skp_line_scrolling_timepoint = std::chrono::high_resolution_clock::now();
+    enum scroll_hit { Unset, UpdateTimepoint, UpdateState } scroll_hit_;
 
     local_workers.emplace_back([&]
     {
@@ -460,6 +463,59 @@ void ccdb::ccdb::nload(
             {
                 screen_str_frame << color::color(5,5,5, 0,0,5)
                         << msg << std::string(col - UnicodeDisplayWidth::get_width_utf8(msg), ' ')
+                        << color::no_color() << std::flush;
+            }
+            else
+            {
+                std::u32string msg_ = utf8_to_u32(msg + "   ");
+                auto ori = msg_;
+                msg_ = msg_.substr(std::min(static_cast<decltype(msg_.length())>(last_skp_line_scrolling), msg_.length()));
+                if (col < UnicodeDisplayWidth::get_width_utf32(msg_)) {
+                    last_skp_line_scrolling += 1;
+                    while (col < UnicodeDisplayWidth::get_width_utf32(msg_)) {
+                        msg_.pop_back();
+                    }
+                }
+                else if (last_skp_line_scrolling != 0 && !msg_.empty())
+                {
+                    last_skp_line_scrolling += 1;
+                    while (col > UnicodeDisplayWidth::get_width_utf32(msg_)) {
+                        msg_ += ori.front();
+                        ori.erase(ori.begin()); // pop front
+                    }
+
+                    if (col < UnicodeDisplayWidth::get_width_utf32(msg_)) {
+                        msg_.pop_back();
+                    }
+                }
+                else {
+                    if (scroll_hit_ == Unset) {
+                        scroll_hit_ = UpdateTimepoint;
+                    }
+
+                    switch (scroll_hit_) {
+                        case UpdateTimepoint:
+                            last_skp_line_scrolling_timepoint = std::chrono::high_resolution_clock::now();
+                            scroll_hit_ = UpdateState;
+                            break;
+                        default: ;
+                    }
+
+                    if (std::chrono::duration_cast<std::chrono::seconds>(
+                        std::chrono::high_resolution_clock::now() - last_skp_line_scrolling_timepoint).count() > 3)
+                    {
+                        last_skp_line_scrolling = 0;
+                        scroll_hit_ = Unset;
+                    }
+
+                    msg_ = ori;
+                    while (col < UnicodeDisplayWidth::get_width_utf32(msg_)) {
+                        msg_.pop_back();
+                    }
+                }
+
+                screen_str_frame << color::color(5,5,5, 0,0,5)
+                        << utf8::utf32to8(msg_) << std::string(std::max(col - UnicodeDisplayWidth::get_width_utf32(msg_), 0), ' ')
                         << color::no_color() << std::flush;
             }
         }
