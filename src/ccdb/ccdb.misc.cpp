@@ -228,6 +228,7 @@ void ccdb::ccdb::nload(const std::vector<std::string> & vec)
 
             int max_host_len = 0;
             int max_upload_len = 0;
+            int max_download_len = 0;
             std::ranges::for_each(conn, [&](general_info_pulling::connection_t & c)
             {
                 c.host = c.processName.empty() ? c.host : (c.host + " (" + c.processName + ")");
@@ -237,28 +238,37 @@ void ccdb::ccdb::nload(const std::vector<std::string> & vec)
                     max_host_len = UnicodeDisplayWidth::get_width_utf8(c.host);
                 }
 
-                const auto str = value_to_speed(c.uploadSpeed);
-                if (max_upload_len < str.length())
                 {
-                    max_upload_len = static_cast<int>(str.length());
+                    const auto str = value_to_speed(c.uploadSpeed);
+                    if (max_upload_len < str.length()) {
+                        max_upload_len = static_cast<int>(str.length());
+                    }
+                    c.chainName = str; // temp save
                 }
 
-                c.chainName = str; // temp save
+                {
+                    const auto str = value_to_speed(c.downloadSpeed);
+                    if (max_download_len < UnicodeDisplayWidth::get_width_utf8(str)) {
+                        max_download_len = UnicodeDisplayWidth::get_width_utf8(str);
+                    }
+                    c.destination = str; // temp save
+                }
             });
 
             std::vector<std::string> conn_str;
             std::ranges::for_each(conn, [&](const general_info_pulling::connection_t & c)
             {
                 const std::string padding(max_host_len - UnicodeDisplayWidth::get_width_utf8(c.host), ' ');
+                const std::string padding2(max_download_len -UnicodeDisplayWidth::get_width_utf8(c.destination), ' ');
                 std::stringstream ss;
                 CRC64 crc64;
                 crc64.update(reinterpret_cast<const uint8_t *>(c.metadata.connectionID.data()),
                     c.metadata.connectionID.size());
                 ss  << c.host << padding
-                    << " UP: " << c.chainName // already up speed by temp save
+                    << " UP: " << c.chainName // already is up speed from temp save
                     << std::string(max_upload_len - c.chainName.length(), ' ')
-                    << " DL: " << value_to_speed(c.downloadSpeed)
-                    << " ID: " << crc64.get_checksum_str();
+                    << " DL: " << c.destination // already is down speed from temp save
+                    << padding2 << " ID: " << crc64.get_checksum_str();
                 conn_str.push_back(ss.str());
             });
 
