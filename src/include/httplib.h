@@ -8,8 +8,8 @@
 #ifndef CPPHTTPLIB_HTTPLIB_H
 #define CPPHTTPLIB_HTTPLIB_H
 
-#define CPPHTTPLIB_VERSION "0.41.0"
-#define CPPHTTPLIB_VERSION_NUM "0x002900"
+#define CPPHTTPLIB_VERSION "0.42.0"
+#define CPPHTTPLIB_VERSION_NUM "0x002a00"
 
 #ifdef _WIN32
 #if defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0A00
@@ -336,7 +336,7 @@ using socket_t = int;
 
 // On macOS with a TLS backend, enable Keychain root certificates by default
 // unless the user explicitly opts out.
-#if defined(__APPLE__) &&                                                      \
+#if defined(__APPLE__) && defined(__clang__) &&                                \
     !defined(CPPHTTPLIB_DISABLE_MACOSX_AUTOMATIC_ROOT_CERTIFICATES) &&         \
     (defined(CPPHTTPLIB_OPENSSL_SUPPORT) ||                                    \
      defined(CPPHTTPLIB_MBEDTLS_SUPPORT) ||                                    \
@@ -355,7 +355,7 @@ using socket_t = int;
 
 #if defined(CPPHTTPLIB_USE_NON_BLOCKING_GETADDRINFO) ||                        \
     defined(CPPHTTPLIB_USE_CERTS_FROM_MACOSX_KEYCHAIN)
-#if TARGET_OS_MAC
+#if TARGET_OS_MAC && defined(__clang__)
 #include <CFNetwork/CFHost.h>
 #include <CoreFoundation/CoreFoundation.h>
 #endif
@@ -787,7 +787,7 @@ inline bool parse_url(const std::string &url, UrlComponents &uc) {
 
 } // namespace detail
 
-enum SSLVerifierResponse {
+enum class SSLVerifierResponse {
   // no decision has been made, use the built-in certificate verifier
   NoDecisionMade,
   // connection certificate is verified and accepted
@@ -1293,6 +1293,7 @@ struct Request {
 
   bool has_param(const std::string &key) const;
   std::string get_param_value(const std::string &key, size_t id = 0) const;
+  std::vector<std::string> get_param_values(const std::string &key) const;
   size_t get_param_value_count(const std::string &key) const;
 
   bool is_multipart_form_data() const;
@@ -1696,6 +1697,9 @@ public:
 
   Server &set_keep_alive_max_count(size_t count);
   Server &set_keep_alive_timeout(time_t sec);
+  template <class Rep, class Period>
+  Server &
+  set_keep_alive_timeout(const std::chrono::duration<Rep, Period> &duration);
 
   Server &set_read_timeout(time_t sec, time_t usec = 0);
   template <class Rep, class Period>
@@ -2822,10 +2826,26 @@ public:
                "This function will be removed by v1.0.0.")]]
   SSL_CTX *ssl_context() const;
 
+  // Override of a deprecated virtual in ClientImpl. Suppress C4996 /
+  // -Wdeprecated-declarations on the override declaration itself so that
+  // MSVC /sdl builds compile cleanly. Will be removed together with the
+  // base virtual by v1.0.0.
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#elif defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
   [[deprecated("Use set_session_verifier(session_t) instead. "
                "This function will be removed by v1.0.0.")]]
   void set_server_certificate_verifier(
       std::function<SSLVerifierResponse(SSL *ssl)> verifier) override;
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#elif defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 private:
   bool verify_host(X509 *server_cert) const;
@@ -5785,7 +5805,7 @@ inline int getaddrinfo_with_timeout(const char *node, const char *service,
   }
 
   return ret;
-#elif TARGET_OS_MAC
+#elif TARGET_OS_MAC && defined(__clang__)
   if (!node) { return EAI_NONAME; }
   // macOS implementation using CFHost API for asynchronous DNS resolution
   CFStringRef hostname_ref = CFStringCreateWithCString(
@@ -9744,6 +9764,17 @@ inline std::string Request::get_param_value(const std::string &key,
   return std::string();
 }
 
+inline std::vector<std::string>
+Request::get_param_values(const std::string &key) const {
+  auto rng = params.equal_range(key);
+  std::vector<std::string> values;
+  values.reserve(static_cast<size_t>(std::distance(rng.first, rng.second)));
+  for (auto it = rng.first; it != rng.second; ++it) {
+    values.push_back(it->second);
+  }
+  return values;
+}
+
 inline size_t Request::get_param_value_count(const std::string &key) const {
   auto r = params.equal_range(key);
   return static_cast<size_t>(std::distance(r.first, r.second));
@@ -10918,6 +10949,15 @@ inline Server &Server::set_keep_alive_max_count(size_t count) {
 
 inline Server &Server::set_keep_alive_timeout(time_t sec) {
   keep_alive_timeout_sec_ = sec;
+  return *this;
+}
+
+template <class Rep, class Period>
+inline Server &Server::set_keep_alive_timeout(
+    const std::chrono::duration<Rep, Period> &duration) {
+  detail::duration_to_sec_and_usec(duration, [&](time_t sec, time_t /*usec*/) {
+    set_keep_alive_timeout(sec);
+  });
   return *this;
 }
 
@@ -16370,6 +16410,18 @@ inline std::string Request::sni() const {
  */
 
 #ifdef CPPHTTPLIB_OPENSSL_SUPPORT
+// These wrappers forward to deprecated APIs that will be removed by v1.0.0.
+// Suppress C4996 / -Wdeprecated-declarations so that MSVC /sdl builds (which
+// promote C4996 to an error) compile cleanly even though the wrappers
+// themselves are also marked [[deprecated]].
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#elif defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
 inline SSL_CTX *Client::ssl_context() const {
   if (is_ssl_) { return static_cast<SSLClient &>(*cli_).ssl_context(); }
   return nullptr;
@@ -16384,6 +16436,12 @@ inline long Client::get_verify_result() const {
   if (is_ssl_) { return static_cast<SSLClient &>(*cli_).get_verify_result(); }
   return -1; // NOTE: -1 doesn't match any of X509_V_ERR_???
 }
+
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#elif defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 #endif // CPPHTTPLIB_OPENSSL_SUPPORT
 
 /*

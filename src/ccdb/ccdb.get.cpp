@@ -487,7 +487,7 @@ void ccdb::ccdb::get_subinfo()
                 const auto percentage = static_cast<double>(total_uploaded + total_downloaded) / static_cast<double>(quota);
                 {
                     std::stringstream ss;
-                    ss << std::setprecision(2) << std::setfill('0') << percentage * 100.00 << "% ";
+                    ss << std::setprecision(4) << std::setfill('0') << percentage * 100.00 << "% ";
                     percentage_lit = ss.str();
                 }
                 const std::chrono::seconds duration(expire_unix_timestamp);

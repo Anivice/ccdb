@@ -42,7 +42,7 @@ set(OPENSSL_MAKE_ENTIRE "${MAKE_EXECUTABLE} ${OPENSSL_MAKE_ADDITIONAL_FLAGS}")
 message(STATUS "OpenSSL: ${OPENSSL_MAKE_ENTIRE}")
 ExternalProject_Add(OPENSSL
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/openssl
-        SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/openssl-3.6.1
+        SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/openssl-3.6.2
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/openssl/install
         CONFIGURE_COMMAND   /bin/sh -c "env PERL5LIB=\"${CMAKE_CURRENT_BINARY_DIR}/perl/install/lib/5.42.0/\" PATH=\"${CMAKE_CURRENT_BINARY_DIR}/perl/install/bin:$PATH\" <SOURCE_DIR>/Configure ${OPENSSL_TARGET} no-shared no-docs no-tests --prefix=<INSTALL_DIR> --openssldir=\"<INSTALL_DIR>/ssl\" ${OPENSSL_CONFIGURE_ADDITIONAL_FLAGS}"
         BUILD_COMMAND       /bin/sh -c "${OPENSSL_MAKE_ENTIRE}"
@@ -263,7 +263,7 @@ ExternalProject_Add(TAR
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/tar
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/tar-1.35
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/tar/install
-        CONFIGURE_COMMAND   /bin/sh -c "CC=${CMAKE_C_COMPILER} LD=${CMAKE_LINKER} CFLAGS=\"${TAR_C_FLAGS}\" LDFLAGS=\"${TAR_LD_FLAGS}\" <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --without-gzip --without-bzip2 --without-xz --without-zstd --without-lzip --without-lzma --without-lzop --without-compress ${TAR_CONFIGURE_ADDITIONAL_FLAGS}"
+        CONFIGURE_COMMAND   /bin/sh -c "CC=${CMAKE_C_COMPILER} LD=${CMAKE_LINKER} CFLAGS=\"${TAR_C_FLAGS}\" LDFLAGS=\"${TAR_LD_FLAGS}\" <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --without-gzip --without-bzip2 --without-xz --without-zstd --without-lzip --without-lzma --without-lzop --without-compress --disable-nls ${TAR_CONFIGURE_ADDITIONAL_FLAGS}"
         BUILD_COMMAND       /bin/sh -c "${TAR_MAKE_ENTIRE} CFLAGS=\"${TAR_C_FLAGS}\" LDFLAGS=\"${TAR_LD_FLAGS}\""
         INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${TAR_MAKE_INSTALL_ADDITIONAL_FLAGS} && STRIP=${CMAKE_STRIP} ${CMAKE_SOURCE_DIR}/script/strip.sh "<INSTALL_DIR>/bin/tar"
         TEST_COMMAND        ""

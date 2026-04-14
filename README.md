@@ -17,14 +17,14 @@ A lightweight terminal dashboard for Clash/Mihomo, written in C++.
 CCDB targets low-resource environments (for example, embedded devices) and users who want a low-overhead dashboard.
 
 CCDB depends on the following open-source libraries:
- - [CPP-HTTPLIB v0.41.0](https://github.com/yhirose/cpp-httplib)
+ - [CPP-HTTPLIB v0.42.0](https://github.com/yhirose/cpp-httplib)
  - [GNU Readline 8.3](https://ftp.gnu.org/gnu/readline/)
  - [GNU Ncurses 6.6](https://ftp.gnu.org/gnu/ncurses/)
  - [TSL Hopscotch-Hashing Map v2.4.0](https://github.com/Tessil/hopscotch-map)
  - [UTF8-CPP 4.0.9](https://github.com/nemtrif/utfcpp)
  - [JSON for Modern C++ 3.12.0](https://github.com/nlohmann/json)
  - [Perl 5.42.0](https://www.perl.org/)
- - [OpenSSL 3.6.1](https://github.com/openssl/openssl)
+ - [OpenSSL 3.6.2](https://github.com/openssl/openssl)
  - [GNU Tar 1.35](https://www.gnu.org/software/tar)
 
 ## Features
@@ -178,6 +178,7 @@ You need
   * a complete C++ toolchain of either GCC or Clang that can process at least C++ 17 (GCC >= 13 would be fine)
   * `xxd` utility, usually included in `vim` package, or separated, depending on your distro packaging.
   * `cmake` and your build system of choice (either Unix Makefile [`make`] or Ninja [`ninja`]).
+  * `tar`, `sed`, and `grep`, the standard POSIX tools that should exist on all Linux systems by default.
 to build CCDB.
 
 All dependencies are embedded inside the source code. No additional installation required.

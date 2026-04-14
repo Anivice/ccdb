@@ -140,11 +140,10 @@ int main(int argc, char ** argv)
                 total_downloaded,
                 quota,
                 expire_unix_timestamp] = ccdb::pull_clash_subinfo(sub_url, 15);
-            std::string percentage_lit;
-            const auto percentage = static_cast<double>(total_uploaded + total_downloaded) / static_cast<double>(quota);
-            {
+            std::string percentage_lit; {
+                const auto percentage = static_cast<double>(total_uploaded + total_downloaded) / static_cast<double>(quota);
                 std::stringstream ss;
-                ss << std::setprecision(2) << std::setfill('0') << percentage * 100.00 << "% ";
+                ss << std::setprecision(4) << std::setfill('0') << percentage * 100.00 << "% ";
                 percentage_lit = ss.str();
             }
 
