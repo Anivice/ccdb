@@ -175,10 +175,12 @@ environment variable `$CCDB`, which is a duplicate of the parent `ccdb` argument
 #### Requirements
 
 You need
+
   * a complete C++ toolchain of either GCC or Clang that can process at least C++ 17 (GCC >= 13 would be fine)
   * `xxd` utility, usually included in `vim` package, or separated, depending on your distro packaging.
   * `cmake` and your build system of choice (either Unix Makefile [`make`] or Ninja [`ninja`]).
   * `tar`, `sed`, and `grep`, the standard POSIX tools that should exist on all Linux systems by default.
+
 to build CCDB.
 
 All dependencies are embedded inside the source code. No additional installation required.
