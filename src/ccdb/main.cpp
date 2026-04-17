@@ -95,7 +95,7 @@ int main(int argc, char ** argv)
         utils::ArgumentParser ArgumentParser(argc, argv, PreDefinedArguments);
         const auto parsed = ArgumentParser.parse();
         if (parsed.contains("help")) {
-            utils::print<utils::is_normal>(argv[0], " [Arguments [OPTIONS...]...]\n");
+            utils::print(argv[0], " [OPTIONS [Arguments...]...]\n");
             std::cout << PreDefinedArguments.print_help();
             return EXIT_SUCCESS;
         }
@@ -107,6 +107,7 @@ int main(int argc, char ** argv)
         }
 
         if (parsed.contains("report-issue")) {
+            utils::print("Report issue here: ", "https://github.com/Anivice/ccdb/issues/new", "\n");
             utils::exec_command("/bin/sh", "xdg-open https://github.com/Anivice/ccdb/issues/new");
             return EXIT_SUCCESS;
         }

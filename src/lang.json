@@ -1,15 +1,5 @@
 [
   {
-    "en"    : " [BACKEND] [PORT] <TOKEN> <LATENCY URL>\n",
-    "en_US" : " [BACKEND] [PORT] <TOKEN> <LATENCY URL>\n",
-    "zh_CN" : " [后端地址] [端口] <密码> <延迟测试URL>\n"
-  },
-  {
-    "en"    : " [...] is required, <...> is optional.\n",
-    "en_US" : " [...] is required, <...> is optional.\n",
-    "zh_CN" : " [...] 内的参数必填, <...> 内的参数可选.\n"
-  },
-  {
     "en"    : "C++ Clash Dashboard Version ",
     "en_US" : "C++ Clash Dashboard Version ",
     "zh_CN" : "C++ Clash监控板，版本 "
@@ -808,5 +798,20 @@
     "en"    : "Revert to monocolor scheme because the console appears to be in light mode.\n",
     "en_US" : "Revert to monocolor scheme because the console appears to be in light mode.\n",
     "zh_CN" : "色彩码被设置为单色黑白模式，因为终端似乎使用亮色背景。\n"
+  },
+  {
+    "en"    : "Report issue here: ",
+    "en_US" : "Report issue here: ",
+    "zh_CN" : "在此提交错误报告: "
+  },
+  {
+    "en"    : "File a BUG report",
+    "en_US" : "File a BUG report",
+    "zh_CN" : "提交错误报告"
+  },
+  {
+    "en"    : "Backend url, usually http://localhost:9090",
+    "en_US" : "Backend url, usually http://localhost:9090",
+    "zh_CN" : "后端地址，一般为http://localhost:9090"
   }
 ]
