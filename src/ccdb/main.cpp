@@ -45,6 +45,7 @@ utils::PreDefinedArgumentType::PreDefinedArgument MainArgument = {
     { .short_name = 'l', .long_name = "latency_url",.argument_required = true,  .description = utils::get_text("Latency URL") },
     { .short_name = -1,  .long_name = "subinfo",    .argument_required = false, .description = utils::get_text("Get subinfo") },
     { .short_name = -1,  .long_name = "subinfo_url",.argument_required = true,  .description = utils::get_text("Specify subscription URL (only for --subinfo)") },
+    { .short_name = -1,  .long_name = "report-issue",.argument_required = false,.description = utils::get_text("File a BUG report") },
 };
 
 extern "C" const char *
@@ -102,6 +103,11 @@ int main(int argc, char ** argv)
         if (parsed.contains("version")) {
             utils::print<utils::is_normal>("C++ Clash Dashboard Version ", CCDB_VERSION, " (commit ",
             utils::unpack_string(GIT_HASH, GIT_HASH_len), ", build on ", utils::unpack_string(BUILD_DATE, BUILD_DATE_len), ")\n");
+            return EXIT_SUCCESS;
+        }
+
+        if (parsed.contains("report-issue")) {
+            utils::exec_command("/bin/sh", "xdg-open https://github.com/Anivice/ccdb/issues/new");
             return EXIT_SUCCESS;
         }
 
