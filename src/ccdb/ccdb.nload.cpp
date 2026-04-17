@@ -447,13 +447,15 @@ void ccdb::ccdb::nload(
                         new_line += std::string(col - line_len, ' ');
                     }
 
-                    replace_all(new_line, "UP:", color::color(3,3,2) + "UP:");
-                    replace_all(new_line, "DL:", color::color(2,3,3) + "DL:");
+                    replace_all(new_line, sprint(" UP: "), color::color(5,3,0) + sprint(" UP: "));
+                    replace_all(new_line, sprint(" DL: "), color::color(0,3,5) + sprint(" DL: "));
+                    replace_all(new_line, sprint(" ID: "), color::color(1,1,1) + sprint(" ID: "));
                     replace_all(new_line, "WARNING", color::color(3,3,0) + "WARNING");
                     replace_all(new_line, "ERROR", color::color(3,0,0) + "ERROR");
                     replace_all(new_line, "INFO", color::color(0,3,0) + "INFO");
 
-                    screen_str_frame << color::color(3,3,3) << new_line << color::no_color() << std::endl;
+                    screen_str_frame << color::no_color() << (color::is_no_color() ? "" : "\033[01;m")
+                                     << new_line << color::no_color() << std::endl;
                 });
             }
 
@@ -461,9 +463,25 @@ void ccdb::ccdb::nload(
                 update_subinfo(subinfo_ball, threads));
                 col >= UnicodeDisplayWidth::get_width_utf8(msg))
             {
-                screen_str_frame << color::color(5,5,5, 0,0,5)
-                        << msg << std::string(col - UnicodeDisplayWidth::get_width_utf8(msg), ' ')
-                        << color::no_color() << std::flush;
+                screen_str_frame << color::color(5,5,5);
+                if (utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true") {
+                    if (color::is_no_color()) {
+                        color::g_color_status_override = 0;
+                        screen_str_frame << color::color(5,5,5,0,0,0);
+                        color::g_color_status_override = -1;
+                    } else {
+                        screen_str_frame << color::bg_color(0,0,5);
+                    }
+                }
+
+                screen_str_frame << msg << std::string(col - UnicodeDisplayWidth::get_width_utf8(msg), ' ');
+
+                if (utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true")
+                {
+                    color::g_color_status_override = 0;
+                    screen_str_frame << color::no_color();
+                    color::g_color_status_override = -1;
+                }
             }
             else
             {

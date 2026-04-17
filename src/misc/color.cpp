@@ -28,7 +28,7 @@
 #include "colors.h"
 #include "utils.h"
 
-int ccdb::color::g_color_status_override = -1;
+std::atomic_int ccdb::color::g_color_status_override = -1;
 
 bool ccdb::color::is_no_color() noexcept
 {

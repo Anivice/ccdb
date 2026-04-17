@@ -788,5 +788,25 @@
     "en"    : "Specify subscription URL (only for --subinfo)",
     "en_US" : "Specify subscription URL (only for --subinfo)",
     "zh_CN" : "指定代理链接（只能用于 --subinfo）"
+  },
+  {
+    "en"    : " UP: ",
+    "en_US" : " UP: ",
+    "zh_CN" : " 上传: "
+  },
+  {
+    "en"    : " DL: ",
+    "en_US" : " DL: ",
+    "zh_CN" : " 下载: "
+  },
+  {
+    "en"    : " ID: ",
+    "en_US" : " ID: ",
+    "zh_CN" : " 连接哈希码: "
+  },
+  {
+    "en"    : "Revert to monocolor scheme because the console appears to be in light mode.\n",
+    "en_US" : "Revert to monocolor scheme because the console appears to be in light mode.\n",
+    "zh_CN" : "色彩码被设置为单色黑白模式，因为终端似乎使用亮色背景。\n"
   }
 ]

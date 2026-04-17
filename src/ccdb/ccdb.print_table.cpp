@@ -336,6 +336,10 @@ void ccdb::ccdb::print_table(
             {
                 color::g_color_status_override = 0;
                 std::string color_line_hl = color::color(0,0,0,5,5,5);
+                if (utils::getenv("REVERSE_HIGHLIGHTER") == "true") {
+                    color_line_hl = color::color(5,5,5,0,0,0);
+                }
+
                 color::g_color_status_override = -1;
                 if (utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") == "true") {
                     color_line_hl = "";
@@ -381,8 +385,23 @@ void ccdb::ccdb::print_table(
             << std::fixed << std::setprecision(2)
             << (static_cast<double>(current_line_index) / static_cast<double>(table_values.size())) * 100 << "%";
         const std::string ssa_str = ssa.str();
+
+        if (color::is_no_color() && utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true") {
+            color::g_color_status_override = 0;
+            frame << color::color(5,5,5,0,0,0);
+            color::g_color_status_override = -1;
+        }
+
         frame << color::bg_color(5,5,5) << color::color(0,0,5)
-            << ssa_str << color::no_color() << std::string(col - ssa_str.length(), ' ');
+            << ssa_str;
+
+        if (color::is_no_color() && utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true") {
+            color::g_color_status_override = 0;
+            frame << color::no_color();
+            color::g_color_status_override = -1;
+        }
+
+        frame << color::no_color() << std::string(col - ssa_str.length(), ' ');
     };
 
     /// content

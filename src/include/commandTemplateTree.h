@@ -204,7 +204,7 @@ namespace cmdTpTree
         rl_completion_display_matches_hook = colored_display_hook;
         rl_variable_bind("colored-stats", "on");
         using_history();
-        rl_callback_handler_install("ccdb> ", on_line);
+        rl_callback_handler_install(prompt.c_str(), on_line);
 
         pollfd fds[2];
         fds[0].fd = STDIN_FILENO;

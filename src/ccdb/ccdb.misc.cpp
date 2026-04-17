@@ -265,10 +265,10 @@ void ccdb::ccdb::nload(const std::vector<std::string> & vec)
                 crc64.update(reinterpret_cast<const uint8_t *>(c.metadata.connectionID.data()),
                     c.metadata.connectionID.size());
                 ss  << c.host << padding
-                    << " UP: " << c.chainName // already is up speed from temp save
+                    << sprint(" UP: ") << c.chainName // already is up speed from temp save
                     << std::string(max_upload_len - c.chainName.length(), ' ')
-                    << " DL: " << c.destination // already is down speed from temp save
-                    << padding2 << " ID: " << crc64.get_checksum_str();
+                    << sprint(" DL: ") << c.destination // already is down speed from temp save
+                    << padding2 << sprint(" ID: ") << crc64.get_checksum_str();
                 conn_str.push_back(ss.str());
             });
 
@@ -423,9 +423,14 @@ void ccdb::ccdb::generic_input_watcher(const std::string &name, std::atomic_bool
     } });
 
     char ch;
+    bool esc_caught = false;
     while (*running)
     {
         if (read_with_timeout(STDIN_FILENO, &ch, 1, 50) == -1) {
+            if (esc_caught) {
+                break;
+            }
+
             continue;
         }
 
@@ -433,6 +438,8 @@ void ccdb::ccdb::generic_input_watcher(const std::string &name, std::atomic_bool
         {
             break;
         }
+
+        esc_caught = (ch == 27);
     }
 
     *running = false;
@@ -497,6 +504,7 @@ void ccdb::ccdb::get_conn_input_watcher(
 
     std::vector <int> ch_list;
     char ch;
+    bool esc_caught = false;
 
     auto up = [&](const int row_step)
     {
@@ -588,6 +596,9 @@ void ccdb::ccdb::get_conn_input_watcher(
         }
 
         if (const ssize_t sz = read_with_timeout(STDIN_FILENO, &ch, 1, 50); sz == -1) {
+            if (esc_caught == true) {
+                break;
+            }
             ch_list.clear();
             continue;
         }
@@ -602,6 +613,7 @@ void ccdb::ccdb::get_conn_input_watcher(
             break;
         }
 
+        esc_caught = (ch == 27);
         ch_list.push_back(ch);
         str_buffer = ch_list_to_string(ch_list);
 
@@ -676,24 +688,32 @@ void ccdb::ccdb::get_conn_input_watcher(
             {
                 if (reverse_mouse) {
                     down(get_line_size() / 8);
-                    hl_down();
+                    if (utils::getenv("FOCUS_FOLLOW_MOUSE_SCROLLING") == "true") {
+                        hl_down();
+                    }
                 } else {
                     up(get_line_size() / 8);
-                    hl_up();
+                    if (utils::getenv("FOCUS_FOLLOW_MOUSE_SCROLLING") == "true") {
+                        hl_up();
+                    }
                 }
-                if (refocus) *refocus = true;
+                if (refocus && utils::getenv("FOCUS_FOLLOW_MOUSE_SCROLLING") == "true") *refocus = true;
                 ch_list.clear();
             }
             else if (std::regex_match(str_buffer, mouse_scroll_up_pattern))
             {
                 if (reverse_mouse) {
                     up(get_line_size() / 8);
-                    hl_up();
+                    if (utils::getenv("FOCUS_FOLLOW_MOUSE_SCROLLING") == "true") {
+                        hl_up();
+                    }
                 } else {
                     down(get_line_size() / 8);
-                    hl_down();
+                    if (utils::getenv("FOCUS_FOLLOW_MOUSE_SCROLLING") == "true") {
+                        hl_down();
+                    }
                 }
-                if (refocus) *refocus = true;
+                if (refocus && utils::getenv("FOCUS_FOLLOW_MOUSE_SCROLLING") == "true") *refocus = true;
                 ch_list.clear();
             }
             else if (std::regex_match(str_buffer, mouse_pattern)) {

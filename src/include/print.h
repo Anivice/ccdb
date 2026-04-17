@@ -32,6 +32,20 @@ namespace ccdb::utils
     class is_error {};
     class is_normal {};
 
+    template < typename Args >
+    concept MsgValueType = requires(Args arg) {
+        {
+            std::invoke([]<typename T0>(T0 val)->auto &
+            {
+                if constexpr (std::is_same_v<T0, is_error> || std::is_same_v<T0, is_normal>) {
+                    return std::cout;
+                } else {
+                    return (std::cout << val);
+                }
+            },
+        arg) } -> std::same_as<decltype(std::cout) &>;
+    };
+
     template < typename MsgType > requires (std::is_same_v<MsgType, is_error> || std::is_same_v<MsgType, is_normal>)
     void _print(const char * text)
     {
@@ -42,7 +56,8 @@ namespace ccdb::utils
         }
     }
 
-    template < typename MsgType, typename T > requires (std::is_same_v<MsgType, is_error> || std::is_same_v<MsgType, is_normal>)
+    template < typename MsgType, MsgValueType T >
+    requires (std::is_same_v<MsgType, is_error> || std::is_same_v<MsgType, is_normal>)
     void _print(const T & val)
     {
         if constexpr (std::is_same_v<MsgType, is_error>) {
@@ -52,7 +67,8 @@ namespace ccdb::utils
         }
     }
 
-    template < typename MsgType, typename... Args > requires (std::is_same_v<MsgType, is_error> || std::is_same_v<MsgType, is_normal>)
+    template < typename MsgType = is_normal, MsgValueType... Args >
+    requires (std::is_same_v<MsgType, is_error> || std::is_same_v<MsgType, is_normal>)
     void print(const Args &...args) {
         (_print<MsgType>(args), ...);
     }
@@ -61,12 +77,12 @@ namespace ccdb::utils
         oss << get_text(text);
     }
 
-    template <typename T>
+    template < MsgValueType T >
     void _sprint(std::ostringstream & oss, const T& val) {
         oss << val;
     }
 
-    template <typename... Args>
+    template < MsgValueType... Args >
     std::string sprint(const Args &...args)
     {
         std::ostringstream oss;

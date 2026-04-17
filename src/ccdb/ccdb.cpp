@@ -853,6 +853,24 @@ ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::stri
             setenv("NO_0xFE0F_EXPAND_EMOJI", "false");
         }
 
+        if (const auto color_fgbg = utils::getenv("COLORFGBG"); !color_fgbg.empty())
+        {
+            if (std::smatch matches;
+                std::regex_search(color_fgbg, matches, std::regex(R"(([\d]+)\;([\d]+))")))
+            {
+                const auto fg = std::strtol(matches[1].str().c_str(), nullptr, 10);
+                const auto bg = std::strtol(matches[2].str().c_str(), nullptr, 10);
+
+                if (fg < bg) { // terminal is in light mode
+                    if (utils::getenv("COLOR").empty()) {
+                        print("Revert to monocolor scheme because the console appears to be in light mode.\n");
+                        setenv("COLOR", "n", 1);
+                        setenv("REVERSE_HIGHLIGHTER", "true", 1);
+                    }
+                }
+            }
+        }
+
         init();
         cmdTpTree::read_command(handler, auto_completion, "ccdb> ");
         backend_instance.stop_continuous_updates();

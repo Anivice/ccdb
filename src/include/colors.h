@@ -61,7 +61,7 @@ namespace ccdb::color
     std::string color(int r, int g, int b, int br, int bg, int bb) noexcept;
 
     /// Override color code status check results
-    extern int g_color_status_override;
+    extern std::atomic_int g_color_status_override;
 }
 
 #endif //CFS_COLORS_H
