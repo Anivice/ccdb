@@ -346,7 +346,8 @@ if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     target_compile_options(ccdb PRIVATE -fconcepts-diagnostics-depth=3)
     target_compile_definitions(ccdb PRIVATE __DEBUG__=1)
 
-#    add_executable(data_race tests/data_race_ssl.cpp)
+    add_executable(numeric tests/numeric.cpp)
+    target_include_directories(numeric PRIVATE include)
 #    target_link_libraries(data_race PRIVATE openssl::openssl)
 
 else ()

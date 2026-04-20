@@ -214,7 +214,8 @@ void ccdb::ccdb::get_log()
     std::atomic_int mouse_x, mouse_y;
     std::vector < bool > do_col_hide;
     do_col_hide.resize(log_titles.size(), false);
-    __uint128_t focused_log = -1; // crc64 of focused log entry
+    uint64_t focused_log = 0; // crc64 of focused log entry
+    bool focused = false;
     constexpr int start_line = 5;
     setup_term term;
     auto input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
@@ -303,11 +304,12 @@ void ccdb::ccdb::get_log()
                 }
 
                 focused_log = get_checksum(line);
+                focused = true;
                 focus_line = mouse_y;
                 return true;
             });
         }
-        else if (focused_log != -1)
+        else if (focused)
         {
             // find the focused line on page
             if (int index = 0;
