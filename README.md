@@ -17,7 +17,7 @@ A lightweight terminal dashboard for Clash/Mihomo, written in C++.
 CCDB targets low-resource environments (for example, embedded devices) and users who want a low-overhead dashboard.
 
 CCDB depends on the following open-source libraries:
- - [CPP-HTTPLIB v0.42.0](https://github.com/yhirose/cpp-httplib)
+ - [CPP-HTTPLIB v0.43.0](https://github.com/yhirose/cpp-httplib)
  - [GNU Readline 8.3](https://ftp.gnu.org/gnu/readline/)
  - [GNU Ncurses 6.6](https://ftp.gnu.org/gnu/ncurses/)
  - [TSL Hopscotch-Hashing Map v2.4.0](https://github.com/Tessil/hopscotch-map)
@@ -41,17 +41,13 @@ CCDB depends on the following open-source libraries:
  - Unicode proxy name handling (experimental)
  - Switch proxies in a pure console using numeric indices
  - SSL Parsing for clash subscription links for metric usage info
- - Shell parsing of ccdb command output
+ - Shell parsing of `ccdb` command output
 
 > **Additional notes for numeric indices**:
 > **The console needs to be able to actually show Unicode characters**,
 > **otherwise** you might see placeholder glyphs, which makes the indices impossible to match to names.
 > There are many ways to achieve this,
 > but the simplest is using a bare-metal X display server like Xorg or XLibre paird with a terminal like Konsole.
-
-CCDB is distributed under the GPLv3.
-See LICENSE for details.
-Some dependencies are licensed under the GPL.
 
 ## Usage
 
@@ -63,12 +59,14 @@ Syntax:
 ccdb [Arguments [OPTIONS...]...]
     -h,--help                Show help
     -v,--version             Show version
+    -V,--version-license     Show version along with LICENSE
     -u,--url [ARG]           Backend url, usually http://localhost:9090
     -x,--execute [ARG]       Execute a CCDB command
     -t,--token [ARG]         Backend HTTP auth password
     -l,--latency_url [ARG]   Latency URL
     --subinfo                Get subinfo
     --subinfo_url [ARG]      Specify subscription URL (only for --subinfo)
+    --report-issue           File a BUG report
 ```
 
 **Frequently Used Commands**:
@@ -197,9 +195,9 @@ On x86_64, you can use the command
   git clone https://github.com/Anivice/ccdb --depth=1 && \
   cd ccdb && mkdir build && cd build && \
   cmake ../src/ -DPERL_MAKE_ADDITIONAL_FLAGS=-j$(nproc) -DOPENSSL_MAKE_ADDITIONAL_FLAGS=-j$(nproc) -DREADLINE_MAKE_ADDITIONAL_FLAGS=-j$(nproc) -DNCURSES_MAKE_ADDITIONAL_FLAGS=-j$(nproc) \
-  -DCC_ADDITIONAL_OPTIONS="-O3 -fomit-frame-pointer -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2 -fno-stack-protector -s" \
-  -DLD_ADDITIONAL_OPTIONS="-O3 -fomit-frame-pointer -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2 -fno-stack-protector -s" \
-  -DOPENSSL_TARGET=linux-x86_64 -DOPENSSL_LIBP=lib64 && \
+      -DCC_ADDITIONAL_OPTIONS="-O3 -fomit-frame-pointer -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2 -fno-stack-protector -s" \
+      -DLD_ADDITIONAL_OPTIONS="-O3 -fomit-frame-pointer -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2 -fno-stack-protector -s" \
+      -DOPENSSL_TARGET=linux-x86_64 -DOPENSSL_LIBP=lib64 && \
   make -j$(nproc)
 ```
 
@@ -213,3 +211,7 @@ not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 This project is provided "as is." DO NOT use it in production.**
 
 **YOU HAVE BEEN WARNED**
+
+**CCDB is GPLv3-licensed to comply with its statically linked GPL dependencies.**
+
+See `LICENSE` for details.

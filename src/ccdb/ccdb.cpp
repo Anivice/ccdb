@@ -44,8 +44,6 @@
 #define PARENT_READ_PIPE    1
 #define PARENT_ERR_PIPE     2
 
-int pipes[NUM_PIPES][2];
-
 /* Always in a pipe[], pipe[0] is for read and
    pipe[1] is for write */
 #define READ_FD  0
@@ -66,6 +64,7 @@ using namespace ccdb::utils;
 
 void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vector)
 {
+    int pipes[NUM_PIPES][2];
     std::vector < std::string > ccdb_vector, shell_vector;
     bool switch_to_shell = false;
     std::ranges::for_each(command_vector, [&](const std::string & c)

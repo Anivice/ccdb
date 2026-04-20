@@ -196,4 +196,6 @@ namespace ccdb::utils {
     std::string format_time_local(std::chrono::system_clock::time_point tp);
 }
 
+#define ccdb_utils_unpack_string(name) ::ccdb::utils::unpack_string(name, name##_len)
+
 #endif //CFS_UTILS_H

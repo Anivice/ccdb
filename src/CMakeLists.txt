@@ -192,6 +192,8 @@ endfunction()
 
 generate_from_resource_file(commandReadline "${CMAKE_SOURCE_DIR}/command.readline" command.readline.cpp command.readline.h command_readline)
 generate_from_resource_file(langJSON "${CMAKE_BINARY_DIR}/lang.json" lang.json.cpp lang.json.h lang_json)
+generate_from_resource_file(LICENSE "${CMAKE_SOURCE_DIR}/../LICENSE" LICENSE.cpp LICENSE.h LICENSE)
+
 add_custom_command(
         OUTPUT "${CMAKE_BINARY_DIR}/lang.json"
         COMMAND "CMAKE_SOURCE_DIR=${CMAKE_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}/script/gen_add_help.sh" "${CMAKE_SOURCE_DIR}/lang.json" "${CMAKE_BINARY_DIR}/lang.json"
@@ -303,7 +305,7 @@ add_executable(ccdb
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
 target_compile_definitions(ccdb PRIVATE CCDB_VERSION="${CCDB_VERSION}" CPPHTTPLIB_OPENSSL_SUPPORT)
-target_link_libraries(ccdb PRIVATE AddiHelp langJSON commandReadline Zterminfotar tar.exe openssl::openssl)
+target_link_libraries(ccdb PRIVATE AddiHelp langJSON commandReadline LICENSE Zterminfotar tar.exe openssl::openssl)
 add_dependencies(ccdb OPENSSL compress)
 target_compile_options(ccdb PRIVATE -fno-omit-frame-pointer -g3 -gdwarf-4 -fstack-protector-all)
 

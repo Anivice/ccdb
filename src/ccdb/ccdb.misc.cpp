@@ -338,8 +338,8 @@ void ccdb::ccdb::help()
     }
 
     std::stringstream oss;
-    oss << sprint("C++ Clash Dashboard Version ") << CCDB_VERSION " (commit " << unpack_string(GIT_HASH, GIT_HASH_len)
-        << ", build on " << unpack_string(BUILD_DATE, BUILD_DATE_len) << ")" << std::endl
+    oss << sprint("C++ Clash Dashboard Version ") << CCDB_VERSION " (commit " << ccdb_utils_unpack_string(GIT_HASH)
+        << ", build on " << ccdb_utils_unpack_string(BUILD_DATE) << ")" << std::endl
         << str << g_help_additional << std::endl;
     pager(oss.str());
     std::cout << oss.str() << std::flush;

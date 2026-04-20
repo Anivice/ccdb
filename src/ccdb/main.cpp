@@ -33,12 +33,14 @@
 #include "BUILD_DATE.h"
 #include "GIT_HASH.h"
 #include "pull_subinfo.h"
+#include "LICENSE.h"
 
 namespace utils = ccdb::utils;
 
 utils::PreDefinedArgumentType::PreDefinedArgument MainArgument = {
     { .short_name = 'h', .long_name = "help",       .argument_required = false, .description = utils::get_text("Show help") },
     { .short_name = 'v', .long_name = "version",    .argument_required = false, .description = utils::get_text("Show version") },
+    { .short_name = 'V', .long_name = "version-license", .argument_required = false, .description = utils::get_text("Show version along with LICENSE") },
     { .short_name = 'u', .long_name = "url",        .argument_required = true,  .description = utils::get_text("Backend url, usually http://localhost:9090") },
     { .short_name = 'x', .long_name = "execute",    .argument_required = true,  .description = utils::get_text("Execute a CCDB command") },
     { .short_name = 't', .long_name = "token",      .argument_required = true,  .description = utils::get_text("Backend HTTP auth password") },
@@ -101,9 +103,25 @@ int main(int argc, char ** argv)
             return EXIT_SUCCESS;
         }
 
-        if (parsed.contains("version")) {
-            utils::print("C++ Clash Dashboard Version ", CCDB_VERSION, " (commit ",
-            utils::unpack_string(GIT_HASH, GIT_HASH_len), ", build on ", utils::unpack_string(BUILD_DATE, BUILD_DATE_len), ")\n");
+        if (parsed.contains("version") || parsed.contains("version-license"))
+        {
+            const std::string version = utils::sprint("C++ Clash Dashboard Version ", CCDB_VERSION, " (commit ",
+                ccdb_utils_unpack_string(GIT_HASH), ", built on ",
+                ccdb_utils_unpack_string(BUILD_DATE), ")\n");
+
+            if (!parsed.contains("version-license")) {
+                utils::print(version);
+            }
+            else {
+                const std::string content = version + ccdb_utils_unpack_string(LICENSE);
+                const auto result = utils::exec_command("/bin/sh", content, "-c",
+                    (utils::getenv("PAGER").empty() ? "sh -c less 2>/dev/null"
+                        : "sh -c \"" + utils::getenv("PAGER") + "\" 2>/dev/null"));
+                if (result.exit_status != 0) {
+                    utils::print(content, "\n");
+                }
+            }
+
             return EXIT_SUCCESS;
         }
 

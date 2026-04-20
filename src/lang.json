@@ -833,5 +833,10 @@
     "en"    : "\n\n\nIf you plan to file a BUG report, please attach the tracer report dumped as ~/.cache/ccdb/",
     "en_US" : "\n\n\nIf you plan to file a BUG report, please attach the tracer report dumped as ~/.cache/ccdb/",
     "zh_CN" : "\n\n\n如果你准备汇报BUG, 请本日志一并上传: ~/.cache/ccdb/"
+  },
+  {
+    "en"    : "Show version along with LICENSE",
+    "en_US" : "Show version along with LICENSE",
+    "zh_CN" : "显示版本和版权许可证"
   }
 ]
