@@ -41,7 +41,7 @@ void ccdb::ccdb::set_mode(const std::vector<std::string> & command_vector) const
 void ccdb::ccdb::set_group(const std::vector<std::string> & command_vector)
 {
     const std::string & group = command_vector[2], & proxy = command_vector[3];
-    print<is_normal>("Changing `", group, "` proxy endpoint to `", proxy, "`\n");
+    print("Changing `", group, "` proxy endpoint to `", proxy, "`\n");
     if (!backend_instance.change_proxy_using_backend(group, proxy))
     {
         print<is_error>("Failed to change proxy endpoint to `", proxy, "`\n");
@@ -76,7 +76,7 @@ void ccdb::ccdb::set_vgroup(const std::vector<std::string> & command_vector)
         const uint64_t proxy_vec = std::strtol(proxy.c_str(), nullptr, 10);
         const auto & group_name = index_to_proxy_name_list.at(group_vec);
         const auto & proxy_name = index_to_proxy_name_list.at(proxy_vec);
-        print<is_normal>("Changing `", group_name, "` proxy endpoint to `", proxy_name, "`\n");
+        print("Changing `", group_name, "` proxy endpoint to `", proxy_name, "`\n");
         if (!backend_instance.change_proxy_using_backend(group_name, proxy_name))
         {
             print<is_error>("Failed to change proxy endpoint to `", proxy_name, "`\n");

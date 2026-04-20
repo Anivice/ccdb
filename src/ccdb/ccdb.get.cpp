@@ -214,6 +214,8 @@ void ccdb::ccdb::get_log()
     std::atomic_int mouse_x, mouse_y;
     std::vector < bool > do_col_hide;
     do_col_hide.resize(log_titles.size(), false);
+    __uint128_t focused_log = -1; // crc64 of focused log entry
+    constexpr int start_line = 5;
     setup_term term;
     auto input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
         &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
@@ -228,6 +230,15 @@ void ccdb::ccdb::get_log()
         const auto ret = std::regex_match(line, std::regex(pattern));
         if (reverse_filter_list) return ret;
         return !ret;
+    };
+
+    auto get_checksum = [](const std::vector < std::string > & line)->uint64_t
+    {
+        std::stringstream ss;
+        std::ranges::for_each(line, [&ss](const auto & l){ ss << l; });
+        const std::string str = ss.str();
+        CRC64 crc64; crc64.update(reinterpret_cast<const uint8_t *>(str.data()), str.size());
+        return crc64.get_checksum();
     };
 
     while (running)
@@ -262,6 +273,58 @@ void ccdb::ccdb::get_log()
             line_off++;
         }
 
+        int focus_line = -1;
+
+        std::vector < std::vector < std::string > > log_on_current_page
+        {
+            current_vector.begin() + current_skip_lines,
+            current_vector.begin() + current_skip_lines +
+                std::min(
+                    static_cast<std::vector<int>::difference_type>(get_line_size() - start_line),
+                    static_cast<std::vector<int>::difference_type>(current_vector.size()) - current_skip_lines)
+        };
+
+        const int fr = get_line_size() - start_line - 1 /* print_table do not use the last line */; // space without heads
+        const int window_frame_size = std::min(
+            static_cast<int>(current_vector.size()), // list size
+            fr - (current_vector.size() > fr ? 1 : 0) - (current_skip_lines == max_skip_lines ? 1 : 0)
+        );
+        log_on_current_page.resize(window_frame_size);
+
+        if (mouse_y > start_line && (mouse_y - start_line) <= window_frame_size)
+        {
+            // refocus
+            int offset = 0;
+            std::ranges::any_of(log_on_current_page, [&](const std::vector<std::string> & line)->bool
+            {
+                if (offset != mouse_y - start_line - 1) {
+                    offset++;
+                    return false;
+                }
+
+                focused_log = get_checksum(line);
+                focus_line = mouse_y;
+                return true;
+            });
+        }
+        else if (focused_log != -1)
+        {
+            // find the focused line on page
+            if (int index = 0;
+                std::ranges::any_of(log_on_current_page, [&](const std::vector<std::string> & line)->bool
+                {
+                    index++;
+                    const uint64_t line_hash = get_checksum(line);
+                    return (line_hash == focused_log);
+                })
+            )
+            {
+                focus_line = index + start_line;
+            }
+        }
+
+        mouse_y = -1;
+
         term.move_home();
 
         print_table(log_titles,
@@ -277,7 +340,7 @@ void ccdb::ccdb::get_log()
             &max_skip_lines,
             false,
             line_color_overrides,
-            mouse_y);
+            focus_line);
 
         term.ed_clear();
 
@@ -550,7 +613,7 @@ void ccdb::ccdb::get_config() const
 }
 
 void ccdb::ccdb::get_log_size() {
-    print<is_normal>("Log size:", max_log_size.load(), "\n");
+    print("Log size:", max_log_size.load(), "\n");
 }
 
 void ccdb::ccdb::map_proxy_chain()

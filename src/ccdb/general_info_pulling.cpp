@@ -313,6 +313,7 @@ void general_info_pulling::start_continuous_updates()
     pull_continuous_updates_worker = std::thread([&]
     {
         try {
+            ccdb::utils::set_thread_name("Puller");
             pull_continuous_updates();
         } catch (broken_connection_this_force_quit &) {
             force_quit = true;

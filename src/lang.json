@@ -813,5 +813,25 @@
     "en"    : "Backend url, usually http://localhost:9090",
     "en_US" : "Backend url, usually http://localhost:9090",
     "zh_CN" : "后端地址，一般为http://localhost:9090"
+  },
+  {
+    "en"    : "You can disable this by setting NOCOREDUMPCHECK to true.\n",
+    "en_US" : "You can disable this by setting NOCOREDUMPCHECK to true.\n",
+    "zh_CN" : "你可以设置NOCOREDUMPCHECK为true来禁用此功能。\n"
+  },
+  {
+    "en"    : "CCDB crashed! Dumping tracer...",
+    "en_US" : "CCDB crashed! Dumping tracer...",
+    "zh_CN" : "CCDB运行崩溃! 正在调取崩溃日志..."
+  },
+  {
+    "en"    : "Tracer report is dumped under ~/.cache/ccdb/",
+    "en_US" : "Tracer report is dumped under ~/.cache/ccdb/",
+    "zh_CN" : "崩溃日志保存在 ~/.cache/ccdb/"
+  },
+  {
+    "en"    : "\n\n\nIf you plan to file a BUG report, please attach the tracer report dumped as ~/.cache/ccdb/",
+    "en_US" : "\n\n\nIf you plan to file a BUG report, please attach the tracer report dumped as ~/.cache/ccdb/",
+    "zh_CN" : "\n\n\n如果你准备汇报BUG, 请本日志一并上传: ~/.cache/ccdb/"
   }
 ]

@@ -436,7 +436,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     }
 
     running = false;
-    print<is_normal>("\n\n", "Wait...\n");
+    print("\n\n", "Wait...\n");
     sysint_pressed = true;
     if (input_getc_worker.joinable()) input_getc_worker.join();
     wait_thread(child_workers);

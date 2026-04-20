@@ -566,7 +566,7 @@ void ccdb::ccdb::nload(
         update_window_spaces();
     }
 
-    print<is_normal>("\n\n", "Wait...\n");
+    print("\n\n", "Wait...\n");
     sysint_pressed = true;
     if (input_watcher.joinable()) input_watcher.join();
     std::ranges::for_each(threads, [](auto & T) { if (T.second.joinable()) T.second.join(); });

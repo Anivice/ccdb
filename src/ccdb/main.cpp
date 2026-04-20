@@ -73,10 +73,11 @@ int main(int argc, char ** argv)
                 if (!std::filesystem::exists(utils::getenv("HOME") + "/.cache/ccdb/" + pid + ".tracer")
                     && (now - unix_time) < 120)
                 {
-                    utils::print<utils::is_normal>("CCDB crashed! Dumping tracer..."); std::cout.flush();
+                    utils::print("CCDB crashed! Dumping tracer..."); std::cout.flush();
                     utils::exec_command("/bin/sh", "thread apply all bt\nthread apply all bt full\n", "-c", "coredumpctl gdb " + pid + " > ~/.cache/ccdb/" + pid + ".tracer");
-                    utils::print<utils::is_normal>("Tracer report is dumped under ~/.cache/ccdb/", pid, ".tracer\n");
-                    utils::print<utils::is_normal>("\n\n\nIf you plan to file a BUG report, please attach the tracer report dumped as ~/.cache/ccdb/", pid, ".tracer\n\n\n");
+                    utils::print("Tracer report is dumped under ~/.cache/ccdb/", pid, ".tracer\n");
+                    utils::print("\n\n\nIf you plan to file a BUG report, please attach the tracer report dumped as ~/.cache/ccdb/", pid, ".tracer\n\n\n");
+                    utils::print("You can disable this by setting NOCOREDUMPCHECK to true.\n");
                 }
 
                 infile.close();
@@ -101,7 +102,7 @@ int main(int argc, char ** argv)
         }
 
         if (parsed.contains("version")) {
-            utils::print<utils::is_normal>("C++ Clash Dashboard Version ", CCDB_VERSION, " (commit ",
+            utils::print("C++ Clash Dashboard Version ", CCDB_VERSION, " (commit ",
             utils::unpack_string(GIT_HASH, GIT_HASH_len), ", build on ", utils::unpack_string(BUILD_DATE, BUILD_DATE_len), ")\n");
             return EXIT_SUCCESS;
         }
@@ -156,13 +157,13 @@ int main(int argc, char ** argv)
 
             const std::chrono::seconds duration(expire_unix_timestamp);
             const std::chrono::system_clock::time_point time_point(duration);
-            ccdb::utils::print<utils::is_normal>("Total uploaded:    ", ccdb::utils::value_to_size(total_uploaded), "\n");
-            ccdb::utils::print<utils::is_normal>("Total downloaded:  ", ccdb::utils::value_to_size(total_downloaded), "\n");
-            ccdb::utils::print<utils::is_normal>("Total used data:   ", ccdb::utils::value_to_size(total_uploaded + total_downloaded), "\n");
-            ccdb::utils::print<utils::is_normal>("Total usable data: ", ccdb::utils::value_to_size(quota - (total_uploaded + total_downloaded)), "\n");
-            ccdb::utils::print<utils::is_normal>("Quota:             ", ccdb::utils::value_to_size(quota), "\n");
-            ccdb::utils::print<utils::is_normal>("Quota usage perct.:", percentage_lit, "\n");
-            ccdb::utils::print<utils::is_normal>("Expire on:         ",
+            utils::print("Total uploaded:    ", utils::value_to_size(total_uploaded), "\n");
+            utils::print("Total downloaded:  ", utils::value_to_size(total_downloaded), "\n");
+            utils::print("Total used data:   ", utils::value_to_size(total_uploaded + total_downloaded), "\n");
+            utils::print("Total usable data: ", utils::value_to_size(quota - (total_uploaded + total_downloaded)), "\n");
+            utils::print("Quota:             ", utils::value_to_size(quota), "\n");
+            utils::print("Quota usage perct.:", percentage_lit, "\n");
+            utils::print("Expire on:         ",
 #if (defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L
                 std::format("{:%Y-%m-%d %H:%M:%S}", time_point)
 #else
@@ -175,15 +176,15 @@ int main(int argc, char ** argv)
         }
 
         if (backend.empty()) {
-            utils::print<utils::is_normal>(argv[0], " [Arguments [OPTIONS...]...]\n");
+            utils::print(argv[0], " [Arguments [OPTIONS...]...]\n");
             std::cout << PreDefinedArguments.print_help();
             return EXIT_FAILURE;
         }
 
         ////////////////////////////////////////////////////////////////////////////////////////
-        if (!parsed.contains("execute")) utils::print<utils::is_normal>("C++ Clash Dashboard Version ", CCDB_VERSION, " (commit ",
+        if (!parsed.contains("execute")) utils::print("C++ Clash Dashboard Version ", CCDB_VERSION, " (commit ",
             utils::unpack_string(GIT_HASH, GIT_HASH_len), ", build on ", utils::unpack_string(BUILD_DATE, BUILD_DATE_len), ")\n");
-        if (!parsed.contains("execute")) utils::print<utils::is_normal>("Connecting to", " ", backend, "\n");
+        if (!parsed.contains("execute")) utils::print("Connecting to", " ", backend, "\n");
         ////////////////////////////////////////////////////////////////////////////////////////
         std::stringstream ss;
         for (int i = 0; i < argc; i++) {
