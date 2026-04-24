@@ -126,6 +126,9 @@ int main(int argc, char ** argv)
         }
 
         if (parsed.contains("report-issue")) {
+#ifdef __USE_IMG__
+            utils::printImg();
+#endif
             utils::print("Report issue here: ", "https://github.com/Anivice/ccdb/issues/new", "\n");
             utils::exec_command("/bin/sh", "xdg-open https://github.com/Anivice/ccdb/issues/new");
             return EXIT_SUCCESS;

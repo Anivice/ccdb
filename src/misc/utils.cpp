@@ -73,6 +73,15 @@ if (!(x)) {         \
     _exit(EXIT_FAILURE); \
 }
 
+#ifdef __USE_IMG__
+extern void show();
+
+void ccdb::utils::printImg()
+{
+    show();
+}
+#endif //__USE_IMG__
+
 std::vector<uint8_t> ccdb::utils::compress(const std::vector<uint8_t>& data)
 {
     std::vector<uint8_t> out;

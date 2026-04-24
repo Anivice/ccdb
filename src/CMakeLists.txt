@@ -193,6 +193,7 @@ endfunction()
 generate_from_resource_file(commandReadline "${CMAKE_SOURCE_DIR}/command.readline" command.readline.cpp command.readline.h command_readline)
 generate_from_resource_file(langJSON "${CMAKE_BINARY_DIR}/lang.json" lang.json.cpp lang.json.h lang_json)
 generate_from_resource_file(LICENSE "${CMAKE_SOURCE_DIR}/../LICENSE" LICENSE.cpp LICENSE.h LICENSE)
+generate_from_resource_file(img_8f87efc1c0d8fc8c "${CMAKE_SOURCE_DIR}/../img/8f87efc1c0d8fc8c.png" img_8f87efc1c0d8fc8c.cpp img_8f87efc1c0d8fc8c.h img_8f87efc1c0d8fc8c)
 
 add_custom_command(
         OUTPUT "${CMAKE_BINARY_DIR}/lang.json"
@@ -305,7 +306,9 @@ add_executable(ccdb
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
 target_compile_definitions(ccdb PRIVATE CCDB_VERSION="${CCDB_VERSION}" CPPHTTPLIB_OPENSSL_SUPPORT)
-target_link_libraries(ccdb PRIVATE AddiHelp langJSON commandReadline LICENSE Zterminfotar tar.exe openssl::openssl)
+target_link_libraries(ccdb PRIVATE
+        AddiHelp langJSON commandReadline LICENSE Zterminfotar tar.exe
+        openssl::openssl)
 add_dependencies(ccdb OPENSSL compress)
 target_compile_options(ccdb PRIVATE -fno-omit-frame-pointer -g3 -gdwarf-4 -fstack-protector-all)
 
@@ -346,8 +349,8 @@ if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     target_compile_options(ccdb PRIVATE -fconcepts-diagnostics-depth=3)
     target_compile_definitions(ccdb PRIVATE __DEBUG__=1)
 
-    add_executable(numeric tests/numeric.cpp)
-    target_include_directories(numeric PRIVATE include)
+#    add_executable(numeric tests/numeric.cpp)
+#    target_include_directories(numeric PRIVATE include)
 #    target_link_libraries(data_race PRIVATE openssl::openssl)
 
 else ()
@@ -373,4 +376,33 @@ else ()
     target_compile_definitions(ccdb PRIVATE NCURSES_STATIC USE_TSL_HOPSCOTCH_MAP)
     target_compile_options(ccdb PRIVATE -O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2)
     target_link_options(ccdb PRIVATE -O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2)
+endif ()
+
+if ("${CCDB_COMPILE_WITH_IMG}" STREQUAL "True")
+    set(ZLIB_BUILD_TESTING "OFF")
+    set(ZLIB_BUILD_SHARED "OFF")
+    set(PNG_SHARED OFF)
+    set(PNG_STATIC ON)
+    set(PNG_TESTS OFF)
+    set(PNG_TOOLS OFF)
+    set(ZLIB_INCLUDE_DIRS
+            "${CMAKE_BINARY_DIR}/misc/img/zlib-1.3.2"
+            "${CMAKE_SOURCE_DIR}/misc/img/zlib-1.3.2"
+    )
+    set(ZLIB_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/misc/img/zlib-1.3.2")
+
+    add_subdirectory(misc/img/zlib-1.3.2)
+    add_subdirectory(misc/img/libpng-1.6.58)
+    add_dependencies(png_static ZLIB::ZLIBSTATIC)
+    add_library(tiv STATIC misc/img/CImg.h misc/img/tiv_lib.cpp misc/img/tiv_lib.h misc/img/libtiv.cpp)
+    target_compile_options(tiv PRIVATE -std=c++23 -Wall -fexceptions)
+    target_include_directories(tiv PRIVATE
+            misc/img/libpng-1.6.58
+            "${CMAKE_BINARY_DIR}"
+            include
+            "${CMAKE_BINARY_DIR}/misc/img/zlib-1.3.2")
+    target_link_libraries(tiv PRIVATE png_static img_8f87efc1c0d8fc8c)
+    add_dependencies(tiv png_static)
+    target_link_libraries(ccdb PRIVATE tiv)
+    target_compile_definitions(ccdb PRIVATE __USE_IMG__)
 endif ()

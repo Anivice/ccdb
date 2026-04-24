@@ -141,6 +141,10 @@ namespace ccdb::utils {
         pthread_setname_np(pthread_self(), name.c_str());
     }
 
+#ifdef __USE_IMG__
+    void printImg();
+#endif
+
     std::vector<uint8_t> compress(const std::vector<uint8_t>& data);
     std::vector<uint8_t> decompress(const std::vector<uint8_t>& data);
     std::string get_text(const std::string & text); // auto translator
