@@ -33,38 +33,13 @@
 #include "ccdb.h"
 #include "ncursesw/ncurses.h"
 
-bool parse_url(const std::string& url, std::string& scheme, std::string& host, std::string& path)
-{
-    static const std::regex re(R"(^(\w+)://([^/]+)(/.*)$)");
-    std::smatch match;
-    if (!std::regex_match(url, match, re)) {
-        return false;
-    }
-    scheme = match[1];
-    host = match[2];
-    path = match[3];
-    return true;
-}
-
-bool parse_proxy(const std::string& url, std::string& host, int & port)
-{
-    static const std::regex re(R"(^[\w]+://([^/]+):([\d]+)$)");
-    std::smatch match;
-    if (!std::regex_match(url, match, re)) {
-        return false;
-    }
-    host = match[1];
-    port = std::stoi(match[2]);
-    return true;
-}
-
 static std::mutex mutex; // TODO: BUG inside OpenSSL, SSL has concurrency issues: https://github.com/openssl/openssl/issues/29212
 
 ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url, int timeout)
 {
     std::lock_guard<std::mutex> lock(mutex);
     std::string scheme, host, path, proxy_host;
-    if (!parse_url(url, scheme, host, path)) {
+    if (!utils::parse_url(url, scheme, host, path)) {
         throw std::invalid_argument("Invalid URL");
     }
 
@@ -76,35 +51,10 @@ ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url, int timeout)
         cli.set_keep_alive(false);
     }
 
-    if (scheme == "https" && utils::getenv("DISABLE_SERVER_CERTIFICATE_VERIFICATION") == "true") {
-        cli.enable_server_certificate_verification(false);
-    } else {
-        std::vector < std::string > ca_paths = {
-            utils::getenv("SSL_CERTIFICATE"),
-            // possible system CA certificate locations
-            utils::getenv("PREFIX") + "/etc/ssl/certs/ca-certificates.crt",
-            utils::getenv("PREFIX") + "/etc/ssl/certs/ca-bundle.trust.crt",
-            utils::getenv("PREFIX") + "/etc/ssl/cert.pem",
-            utils::getenv("PREFIX") + "/etc/tls/cert.pem",
-            utils::getenv("PREFIX") + "/etc/pki/ca-trust/extracted/openssl/ca-bundle.trust.crt",
-            utils::getenv("PREFIX") + "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem",
-        };
-
-        std::ranges::any_of(ca_paths, [&](const std::string& ca_path)->bool
-        {
-            if (!ca_path.empty() && std::filesystem::exists(ca_path))
-            {
-                cli.set_ca_cert_path(ca_path);
-                cli.enable_server_certificate_verification(true);
-                return true;
-            }
-
-            return false;
-        });
-    }
+    utils::set_ssl_automatically(cli, url);
 
     if (int proxy_port = 0;
-        parse_proxy(utils::getenv(scheme + "_proxy"), proxy_host, proxy_port))
+        utils::parse_proxy(utils::getenv(scheme + "_proxy"), proxy_host, proxy_port))
     {
         cli.set_proxy(proxy_host, proxy_port);
     }

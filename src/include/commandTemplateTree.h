@@ -186,7 +186,7 @@ namespace cmdTpTree
     void handle_sigint_event();
 
     template < CommandHandler handler, SpecialArgumentCandidatePointer spc_gen>
-    void read_command(handler handler_, spc_gen spc_gen_, const std::string & prompt)
+    void read_command(handler handler_, spc_gen spc_gen_, const std::string & prompt, const bool fast_shutdown = false)
     {
         ccdb::utils::set_thread_name("readline");
         if (pipe(sig_pipe) == -1) {
@@ -249,6 +249,10 @@ namespace cmdTpTree
 
         close(sig_pipe[0]);
         close(sig_pipe[1]);
+
+        if (fast_shutdown) {
+            exit(0); // fast shutdown
+        }
     }
 } // cmdTpTree
 

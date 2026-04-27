@@ -247,7 +247,7 @@ namespace ccdb
         }
 
     public:
-        ccdb(const std::string & backend, const std::string & token, std::string latency_url_);
+        ccdb(const std::string & backend, const std::string & token, std::string latency_url_, bool fast_shutdown);
         ccdb(const std::string & backend, const std::string & token, std::string latency_url_, const std::vector<std::string> & cmd);
 
         friend class mode_guard_t;

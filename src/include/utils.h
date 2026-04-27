@@ -36,6 +36,7 @@
 #include "lzw6.h"
 #include "utf8.h"
 #include "colors.h"
+#include "httplib.h"
 
 /// Utilities
 namespace ccdb::utils {
@@ -145,6 +146,9 @@ namespace ccdb::utils {
     void printImg();
 #endif
 
+    bool parse_url(const std::string&, std::string&, std::string&, std::string&);
+    bool parse_proxy(const std::string&, std::string&, int &);
+    void set_ssl_automatically(httplib::Client & client, const std::string & url);
     std::vector<uint8_t> compress(const std::vector<uint8_t>& data);
     std::vector<uint8_t> decompress(const std::vector<uint8_t>& data);
     std::string get_text(const std::string & text); // auto translator

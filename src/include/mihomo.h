@@ -73,6 +73,7 @@ public:
         {
             std::atomic_bool is_running(false);
             httplib::Client http_cli(backend_address_);
+            ccdb::utils::set_ssl_automatically(http_cli, backend_address_);
             http_cli.set_decompress(false);
             http_cli.set_read_timeout(10, 0);
             auto worker = [&]()->void

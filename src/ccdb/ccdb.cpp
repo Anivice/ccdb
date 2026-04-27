@@ -832,7 +832,7 @@ void ccdb::ccdb::init()
     };
 }
 
-ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::string latency_url_)
+ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::string latency_url_, const bool fast_shutdown)
     : backend_instance(backend, token), latency_url(std::move(latency_url_))
 {
     try
@@ -871,19 +871,17 @@ ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::stri
         }
 
         init();
-        cmdTpTree::read_command(handler, auto_completion, "ccdb> ");
+        cmdTpTree::read_command(handler, auto_completion, "ccdb> ", fast_shutdown);
         backend_instance.stop_continuous_updates();
 
         if (backend_instance.force_quit) {
             print<is_error>("Connection broken, force quit\n");
         }
     }
-    catch (std::exception & e)
-    {
+    catch (std::exception & e) {
         std::cerr << e.what() << std::endl;
     }
-    catch (...)
-    {
+    catch (...) {
         print<is_error>("Unknown exception\n");
     }
 }
@@ -900,8 +898,7 @@ ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::stri
         jq.clear();
         (void)handler(cmd);
     }
-    catch (std::exception &)
-    {
+    catch (std::exception &) {
         exit(1);
     }
     catch (...)

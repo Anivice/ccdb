@@ -48,6 +48,7 @@ utils::PreDefinedArgumentType::PreDefinedArgument MainArgument = {
     { .short_name = -1,  .long_name = "subinfo",    .argument_required = false, .description = utils::get_text("Get subinfo") },
     { .short_name = -1,  .long_name = "subinfo_url",.argument_required = true,  .description = utils::get_text("Specify subscription URL (only for --subinfo)") },
     { .short_name = -1,  .long_name = "report-issue",.argument_required = false,.description = utils::get_text("File a BUG report") },
+    { .short_name = -1,  .long_name = "fast-quit",  .argument_required = false, .description = utils::get_text("Fast quit when Readline finishes") },
 };
 
 extern "C" const char *
@@ -216,6 +217,7 @@ int main(int argc, char ** argv)
         // verify connection
         try {
             httplib::Client http_cli(backend);
+            utils::set_ssl_automatically(http_cli, backend);
             http_cli.set_decompress(false);
             http_cli.set_read_timeout(3, 0);
             const httplib::Headers headers = {
@@ -242,8 +244,9 @@ int main(int argc, char ** argv)
 
             const auto json = json::parse(buffer);
             const auto port = json["port"]; // check for correctness
-        } catch (...) {
-            std::cerr << "Failed to communicate with the backend, either this is not a Mihomo control port, or you have the wrong password." << std::endl;
+        } catch (std::exception & e) {
+            std::cerr << e.what() << std::endl;
+            utils::print<ccdb::utils::is_error>("Failed to communicate with the backend, either this is not a Mihomo control port, or you have the wrong password.", "\n");
             return EXIT_FAILURE;
         }
 
@@ -251,7 +254,7 @@ int main(int argc, char ** argv)
         {
             ccdb::ccdb ccdb(backend, token, latency_url, utils::split_via_history(parsed.at("execute")));
         } else {
-            ccdb::ccdb ccdb(backend, token, latency_url);
+            ccdb::ccdb ccdb(backend, token, latency_url, parsed.contains("fast-quit"));
         }
     }
     catch (std::exception &e)

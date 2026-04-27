@@ -25,6 +25,7 @@
 bool mihomo::change_proxy(const std::string & group_name, const std::string & proxy_name) const
 {
     httplib::Client http_cli(backend_address_);
+    ccdb::utils::set_ssl_automatically(http_cli, backend_address_);
     http_cli.set_decompress(false);
     http_cli.set_read_timeout(3, 0);
     const httplib::Headers headers = {
@@ -55,6 +56,7 @@ bool mihomo::change_proxy(const std::string & group_name, const std::string & pr
 void mihomo::get_info_no_instance(const std::string & endpoint_name, const std::function < void(const std::string&) > & method) const
 {
     httplib::Client http_cli(backend_address_);
+    ccdb::utils::set_ssl_automatically(http_cli, backend_address_);
     http_cli.set_decompress(false);
     http_cli.set_read_timeout(3, 0);
     const httplib::Headers headers = {
@@ -85,6 +87,7 @@ void mihomo::get_info_no_instance(const std::string & endpoint_name, const std::
 bool mihomo::change_config(const std::string& json) const
 {
     httplib::Client http_cli(backend_address_);
+    ccdb::utils::set_ssl_automatically(http_cli, backend_address_);
     http_cli.set_decompress(false);
     http_cli.set_read_timeout(3, 0);
     const httplib::Headers headers = {
@@ -117,6 +120,7 @@ bool mihomo::close_all_connections() const {
 bool mihomo::close_connection(const std::string &id) const
 {
     httplib::Client http_cli(backend_address_);
+    ccdb::utils::set_ssl_automatically(http_cli, backend_address_);
     http_cli.set_decompress(false);
     http_cli.set_read_timeout(3, 0);
     const httplib::Headers headers = {

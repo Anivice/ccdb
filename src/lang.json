@@ -838,5 +838,15 @@
     "en"    : "Show version along with LICENSE",
     "en_US" : "Show version along with LICENSE",
     "zh_CN" : "显示版本和版权许可证"
+  },
+  {
+    "en"    : "Fast quit when Readline finishes",
+    "en_US" : "Fast quit when Readline finishes",
+    "zh_CN" : "当Readline结束时快速退出"
+  },
+  {
+    "en"    : "Failed to communicate with the backend, either this is not a Mihomo control port, or you have the wrong password.",
+    "en_US" : "Failed to communicate with the backend, either this is not a Mihomo control port, or you have the wrong password.",
+    "zh_CN" : "无法和Mihomo后端连接，提供的Mihomo后端可能不存在，不是Mihomo后端，或者认证失败。"
   }
 ]
