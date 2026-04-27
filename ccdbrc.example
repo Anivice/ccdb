@@ -19,6 +19,8 @@ Chains = .*
 [clash]
 link = http://MY SUBSCRIPTION LINK
 log = %HOME%/.cache/ccdb/mihomo.log
+sslCert = /etc/ssl/cert.pem
+sslVerify = on
 
 [Shortcut]
 KillConn = k

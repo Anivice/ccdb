@@ -325,7 +325,7 @@ void ccdb::ccdb::init()
         {
             const auto & result = ccdb_config->config_signal_hash_map.at(flag_definition);
             if (!sanity_check(result)) {
-                throw std::invalid_argument("Sanoty check failed for key `" + flag_definition + "`.");
+                throw std::invalid_argument("Sanity check failed for key `" + flag_definition + "`.");
             }
 
             val = result;
@@ -401,6 +401,21 @@ void ccdb::ccdb::init()
     filter_helper("Filter::Chains", 11);
     string_helper("clash::link", clash_sublink, [](const std::string &){ return true; });
     string_helper("clash::log", log_loc, [](const std::string &){ return true; });
+    std::string CCDB_POSSIBLE_SSL_CERTIFICATE;
+    string_helper("clash::sslCert", CCDB_POSSIBLE_SSL_CERTIFICATE, [](const std::string & path)
+    {
+        if (fs::exists(path)) {
+            ::setenv("CCDB_POSSIBLE_SSL_CERTIFICATE", path.c_str(), 1);
+            return true;
+        }
+
+        return false;
+    });
+
+    bool sslVerify = true;
+    flag_helper("clash::sslVerify", sslVerify);
+    if (!sslVerify) ::setenv("DISABLE_SUBLINK_SERVER_CERTIFICATE_VERIFICATION", "true", 1);
+
     backend_instance.mihomo_output_log_location.set(log_loc);
 
     kbd_shortcut_helper("KillConn", "k");

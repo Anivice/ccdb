@@ -35,7 +35,7 @@
 
 static std::mutex mutex; // TODO: BUG inside OpenSSL, SSL has concurrency issues: https://github.com/openssl/openssl/issues/29212
 
-ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url, int timeout)
+ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url, int timeout, const std::string & ssl_cert)
 {
     std::lock_guard<std::mutex> lock(mutex);
     std::string scheme, host, path, proxy_host;
@@ -52,6 +52,17 @@ ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url, int timeout)
     }
 
     utils::set_ssl_automatically(cli, url);
+
+    // Override for sublinks only
+    if (utils::getenv("DISABLE_SUBLINK_SERVER_CERTIFICATE_VERIFICATION") == "true") {
+        cli.enable_server_certificate_verification(false);
+    }
+    else if (const auto CCDB_POSSIBLE_SSL_CERTIFICATE = utils::getenv("CCDB_POSSIBLE_SSL_CERTIFICATE");
+        !CCDB_POSSIBLE_SSL_CERTIFICATE.empty())
+    {
+        cli.set_ca_cert_path(CCDB_POSSIBLE_SSL_CERTIFICATE);
+        cli.enable_server_certificate_verification(true);
+    }
 
     if (int proxy_port = 0;
         utils::parse_proxy(utils::getenv(scheme + "_proxy"), proxy_host, proxy_port))

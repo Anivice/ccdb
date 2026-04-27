@@ -33,7 +33,7 @@ namespace ccdb {
         uint64_t expire_unix_timestamp;
     };
 
-    subinfo_t pull_clash_subinfo(const std::string & url, int timeout = -1);
+    subinfo_t pull_clash_subinfo(const std::string & url, int timeout = -1, const std::string & ssl_cert = "");
 }
 
 #endif //CCDB_PULL_SUBINFO_H
