@@ -22,12 +22,12 @@
 #include <sstream>
 #include <cstring>
 #include <algorithm>
-#include "commandTemplateTree.h"
+#include "Readline.h"
 #include "readline.h"
 #include "command.readline.h"
 #include "print.h"
 
-namespace cmdTpTree
+namespace Readline
 {
     std::string gen_cmd(const unsigned char *src, const unsigned int len)
     {
@@ -210,7 +210,7 @@ namespace cmdTpTree
 
     const NodeType * commandTemplateTree_t::find(const std::vector<std::string> &command_string) const
     {
-        return cmdTpTree::find(root, command_string);
+        return Readline::find(root, command_string);
     }
 
     std::vector<std::string> commandTemplateTree_t::find_sub_commands(std::vector<std::string> command_string) const
@@ -224,7 +224,7 @@ namespace cmdTpTree
             std::ranges::reverse(command_string);
         }
 
-        const auto * node = cmdTpTree::find(root, command_string);
+        const auto * node = Readline::find(root, command_string);
         std::vector < std::string > result;
         for (const auto & v : node->children_) {
             result.push_back(v->name_);
@@ -235,7 +235,7 @@ namespace cmdTpTree
 
     std::string commandTemplateTree_t::get_help(const std::vector<std::string> &command_string) const
     {
-        const auto * node = cmdTpTree::find(root, command_string);
+        const auto * node = Readline::find(root, command_string);
         return ccdb::utils::sprint(node->help_text_);
     }
 
@@ -350,27 +350,32 @@ namespace cmdTpTree
 
     static std::vector < std::string > args_completion_list;
     static int special_index = 0;
+    static std::vector < std::string > active_arg_buffer;
+    static int active_arg_index = 0;
+    tsl::hopscotch_map < std::string /* command */, std::string /* help msg */ > g_extra_help_map;
 
-    void colored_display_hook(char **matches, int num_matches, int max_length)
+    void colored_display_hook(char **matches, const int num_matches, int max_length)
     {
+        static const std::u32string delimiter = U"    ";
+        static const uint64_t delimiter_size = ccdb::utils::UnicodeDisplayWidth::get_width_utf32(delimiter);
         thread_local const std::regex r(R"(^[\d]+\:\_\*\_.*$)");
         std::vector < std::pair < std::string /* string */, uint64_t /* screen length */ > > candidate_list;
         for (int i = 1; i <= num_matches; i++)
         {
-            const std::string match = matches[i];
-            if (std::regex_match(match, r)) {
+            if (const std::string match = matches[i]; std::regex_match(match, r))
+            {
                 std::stringstream ss;
                 auto no_color = ccdb::color::no_color();
                 if (ccdb::utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true"
                     && ccdb::utils::getenv("REVERSE_HIGHLIGHTER") == "true")
                 {
                     ccdb::color::g_color_status_override = 0;
-                    ss << ccdb::color::color(5,5,5,0,0,0);
+                    ss << ccdb::color::color(5,5,5,0,0,0) << "\033[01;02m";
                     no_color = ccdb::color::no_color();
                     ccdb::color::g_color_status_override = -1;
                 }
                 else {
-                    ss << ccdb::color::color(0,0,0,5,5,5);
+                    ss << ccdb::color::color(0,0,0,5,5,5) << (ccdb::color::is_no_color() ? "" : "\033[01m");
                 }
                 ss << match;
                 if (ccdb::utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") == "true") no_color = "";
@@ -382,10 +387,49 @@ namespace cmdTpTree
         }
 
         int max_in_candidate_list = 0;
-        std::ranges::for_each(candidate_list | std::views::values, [&](auto len) {
-            len += 1;
-            if (max_in_candidate_list < len) max_in_candidate_list = len;
+        auto find_max = [&](const bool append = false)
+        {
+                std::ranges::for_each(candidate_list | std::views::values, [&](auto len) {
+                len += (append ? delimiter_size : 0);
+                if (max_in_candidate_list < len) max_in_candidate_list = len;
+            });
+        };
+        find_max();
+
+        std::ranges::for_each(candidate_list,
+        [&](std::pair < std::string /* string */, uint64_t /* screen length */ > & pair)
+        {
+            std::string help_msg;
+            try {
+                std::vector vec = active_arg_buffer;
+                vec.resize(active_arg_index);
+                vec.emplace_back(pair.first);
+                help_msg = command_template_tree.get_help(vec);
+            } catch (const std::invalid_argument &) {
+                /* not a command, no help usage found */
+                if (const auto it = g_extra_help_map.find(pair.first);
+                    it != g_extra_help_map.end())
+                {
+                    help_msg = it->second;
+                }
+            }
+
+            if (!help_msg.empty())
+            {
+                const auto help = std::string(max_in_candidate_list - pair.second, ' ') + " (" + help_msg + ")";
+                if (ccdb::utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true") {
+                    ccdb::color::g_color_status_override = 0;
+                    pair.first += ccdb::color::color(2,2,2) + "\033[03m" + help + ccdb::color::no_color();
+                    ccdb::color::g_color_status_override = -1;
+                } else {
+                    pair.first += help;
+                }
+
+                pair.second += ccdb::utils::UnicodeDisplayWidth::get_width_utf8(help);
+            }
         });
+
+        find_max(true);
         const int col = ccdb::utils::get_col_size();
         const int proper_list_size = col / max_in_candidate_list;
         int index = 0;
@@ -394,8 +438,8 @@ namespace cmdTpTree
         std::ranges::for_each(candidate_list, [&](const auto & pair)
         {
             const auto & [str, len_] = pair;
-            const int len = len_ + 1;
-            std::cout << str << " ";
+            const int len = len_ + delimiter_size;
+            std::cout << str << utf8::utf32to8(delimiter);
             index++;
             if (index >= proper_list_size) {
                 index = 0;
@@ -431,8 +475,10 @@ namespace cmdTpTree
             });
 
             if (!arg.empty()) args.emplace_back(arg);
-            // if (args.size() > arg_index) args.pop_back();
         }
+
+        active_arg_buffer = args;
+        active_arg_index = arg_index;
 
         auto can_find_special_args = [](const std::vector<std::string> & pargs) {
             return std::ranges::any_of(pargs, [](const std::string & arg) {
@@ -640,4 +686,4 @@ namespace cmdTpTree
             std::cerr << e.what() << std::endl;
         }
     }
-} // cmdTpTree
+} // Readline

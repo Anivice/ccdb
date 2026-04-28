@@ -26,6 +26,7 @@
 #include "pull_subinfo.h"
 #include "ccdb.h"
 #include "utils.h"
+#include "ccdbrc.h"
 
 // --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;
@@ -196,11 +197,9 @@ void ccdb::ccdb::get_latency()
     }
 
     update_providers();
-    print_table(titles_lat, table_vals, false,
-        true, { }, 0, nullptr,
-        !less.empty(),
-        "", 0, nullptr,
-        less.empty());
+    simple_print_table_w_pager(titles_lat, table_vals);
+    std::cout << "\n" << std::endl;
+    simple_print_table(titles_lat, table_vals);
 }
 
 void ccdb::ccdb::get_log()
@@ -445,18 +444,7 @@ void ccdb::ccdb::get_proxy()
         });
     });
 
-    print_table(table_titles,
-        table_vals,
-        false,
-        true,
-        { },
-        0,
-        nullptr,
-        !less.empty(),
-        "",
-        0,
-        nullptr,
-        true);
+    simple_print_table_w_pager(table_titles, table_vals);
 }
 
 void ccdb::ccdb::get_vecGroupProxy(const bool show_vgroups)
@@ -504,20 +492,8 @@ void ccdb::ccdb::get_vecGroupProxy(const bool show_vgroups)
     // add my shit in it
     update_providers();
 
-    if (show_vgroups)
-    {
-        print_table(table_titles,
-            table_vals,
-            false,
-            true,
-            { },
-            0,
-            nullptr,
-            !less.empty(),
-            "",
-            0,
-            nullptr,
-            true);
+    if (show_vgroups) {
+        simple_print_table_w_pager(table_titles, table_vals);
     }
 }
 
@@ -614,7 +590,7 @@ void ccdb::ccdb::get_config() const
     }
 }
 
-void ccdb::ccdb::get_log_size() {
+void ccdb::ccdb::get_log_size() const {
     print("Log size:", max_log_size.load(), "\n");
 }
 
@@ -685,4 +661,11 @@ void ccdb::ccdb::map_proxy_chain()
     });
 
     simple_print_table(title, table);
+}
+
+void ccdb::ccdb::ccdbrc()
+{
+    static const std::string ccdbrc = ccdb_utils_unpack_string(::ccdbrc);
+    pager(ccdbrc);
+    std::cout << ccdbrc << std::endl;
 }

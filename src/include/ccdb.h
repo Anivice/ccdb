@@ -142,8 +142,13 @@ namespace ccdb
             int highlight_screen_line = -1
         );
 
-        void simple_print_table(std::vector<std::string> const & table_titles,
-            std::vector < std::vector<std::string> > const & table_values);
+        void simple_print_table(
+            std::vector < std::string > const & table_titles,
+            std::vector < std::vector < std::string > > const & table_values);
+
+        void simple_print_table_w_pager(
+            std::vector < std::string > const & table_titles,
+            std::vector < std::vector < std::string > > const & table_values);
 
         static bool is_connection_valid(const general_info_pulling::connection_t & conn,
                                         const tsl::hopscotch_map < uint64_t, std::string > & filter_patterns);
@@ -181,7 +186,7 @@ namespace ccdb
         void get_filter();
         void get_subinfo();
         void get_config() const;
-        void get_log_size();
+        void get_log_size() const;
         void help();
         static void reset_terminal_mode_forcefully();
         void set_port(int port); // Mihomo http proxy port,
@@ -193,6 +198,7 @@ namespace ccdb
         void apply() const;
         void fork_and_execute(const std::vector<std::string> &);
         void map_proxy_chain();
+        void ccdbrc();
 
         /// Input watcher that sets running flag when q is pressed
         /// @param name Thread name

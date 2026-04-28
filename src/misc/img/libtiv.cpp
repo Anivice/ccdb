@@ -257,7 +257,9 @@ CImg<unsigned char> load_png_from_memory_as_cimg(const unsigned char* png_data, 
     return img; // width=w, height=h, depth=1, spectrum=4
 }
 
-void show()
+#include "libtiv.h"
+
+void show() noexcept
 {
     std::ios::sync_with_stdio(false);  // apparently makes printing faster
 

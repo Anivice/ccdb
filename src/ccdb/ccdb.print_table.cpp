@@ -505,3 +505,14 @@ void ccdb::ccdb::simple_print_table(std::vector<std::string> const &table_titles
     less = less_bak;
     std::cout << std::endl;
 }
+
+void ccdb::ccdb::simple_print_table_w_pager(
+    std::vector<std::string> const &table_titles,
+    std::vector<std::vector<std::string>> const &table_values)
+{
+    print_table(table_titles, table_values, false,
+    true, { }, 0, nullptr,
+    !less.empty(),
+    "", 0, nullptr,
+    less.empty());
+}

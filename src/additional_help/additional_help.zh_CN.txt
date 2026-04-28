@@ -8,9 +8,9 @@
    NO_0xFE0F_EXPAND_EMOJI: 修复Unicode 0xFE0F扩展。例如，"✈和✈️".
                            如果你看不出区别，或者出现Unicode处理BUG，
                            设置该环境变量为`true`可能可以修复该问题
-   DISABLE_SERVER_CERTIFICATE_VERIFICATION: 当使用 `get subinfo` 时， 如果订阅链接是https，拉取信息时会默认加载SSL，
+   DISABLE_SERVER_CERTIFICATE_VERIFICATION: 如果链接是https，拉取信息时会默认加载SSL，
                                             设置该环境变量为`true`可以跳过SSL证书认证
-   SSL_CERTIFICATE: 当使用 `get subinfo` 时， 如果订阅链接是https， 使用该环境变量设置SSL证书位置
+   SSL_CERTIFICATE: 如果链接是https， 使用该环境变量设置SSL证书位置
    NOCOREDUMPCHECK: 禁止CCDB启动时进行崩溃信息收集
    NO_HIGHLIGHTER_LINE_COLOR_CODE: 即使已经设置COLOR为`n`， 在`get connections`里，高亮行依然带有ANSI颜色码。
                                    COLOR=n实际上将输出变为单色输出。

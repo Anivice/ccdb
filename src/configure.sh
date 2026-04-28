@@ -48,7 +48,9 @@ case $ARCH in
     ;;
 esac
 
-CMAKE_CFLAGS="-O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2"
+CMAKE_CFLAGS="-O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2 -fno-omit-frame-pointer -fstack-protector-strong"
+CMAKE_LDFLAGS="-O3 -Wl,--as-needed -flto"
+MAKE_FLAGS="CFLAGS=\"$CMAKE_CFLAGS\" CXXFLAGS=\"$CMAKE_CFLAGS\" LDFLAGS=\"$CMAKE_LDFLAGS\" -j$(nproc)"
 export CXXFLAGS="$CMAKE_CFLAGS"
 export CFLAGS="$CMAKE_CFLAGS"
 export CC="$TARGET"-gcc
@@ -74,11 +76,11 @@ env PATH="$MUSL_SYSROOT"/bin/:"$PATH" cmake -B "$BUILD_DIR" -S "$script_dir" \
             -DTAR_CONFIGURE_ADDITIONAL_FLAGS="--host=$ARCH" \
             -DNCURSES_CONFIGURE_ADDITIONAL_FLAGS="--disable-stripping;--host=$ARCH" \
             -DCMAKE_STRIP="$MUSL_SYSROOT/bin/$STRIP" \
-            -DNCURSES_MAKE_ADDITIONAL_FLAGS="CFLAGS=\"$CMAKE_CFLAGS\" CXXFLAGS=\"$CMAKE_CFLAGS\" -j$(nproc)" \
-            -DREADLINE_MAKE_ADDITIONAL_FLAGS="CFLAGS=\"$CMAKE_CFLAGS\" CXXFLAGS=\"$CMAKE_CFLAGS\" -j$(nproc)" \
-            -DOPENSSL_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
+            -DNCURSES_MAKE_ADDITIONAL_FLAGS="$MAKE_FLAGS" \
+            -DREADLINE_MAKE_ADDITIONAL_FLAGS="$MAKE_FLAGS" \
+            -DOPENSSL_MAKE_ADDITIONAL_FLAGS="$MAKE_FLAGS" \
             -DPERL_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
-            -DTAR_MAKE_ENTIRE="-j$(nproc)" \
+            -DTAR_MAKE_ENTIRE="$MAKE_FLAGS" \
             -DOPENSSL_TARGET="$OPENSSL_TARGET" \
             -DOPENSSL_LIBP="$OPENSSL_LIB_EXPORT_PREFIX" \
             -DCCDB_COMPILE_WITH_IMG="True" \

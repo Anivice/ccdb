@@ -48,7 +48,7 @@ utils::PreDefinedArgumentType::PreDefinedArgument MainArgument = {
     { .short_name = -1,  .long_name = "subinfo",    .argument_required = false, .description = utils::get_text("Get subinfo") },
     { .short_name = -1,  .long_name = "subinfo_url",.argument_required = true,  .description = utils::get_text("Specify subscription URL (only for --subinfo)") },
     { .short_name = -1,  .long_name = "report-issue",.argument_required = false,.description = utils::get_text("File a BUG report") },
-    { .short_name = -1,  .long_name = "fast-quit",  .argument_required = false, .description = utils::get_text("Fast quit when Readline finishes") },
+    { .short_name = -1,  .long_name = "no-fast-quit",  .argument_required = false, .description = utils::get_text("No fast quit when Readline finishes") },
 };
 
 extern "C" const char *
@@ -254,7 +254,7 @@ int main(int argc, char ** argv)
         {
             ccdb::ccdb ccdb(backend, token, latency_url, utils::split_via_history(parsed.at("execute")));
         } else {
-            ccdb::ccdb ccdb(backend, token, latency_url, parsed.contains("fast-quit"));
+            ccdb::ccdb ccdb(backend, token, latency_url, !parsed.contains("no-fast-quit"));
         }
     }
     catch (std::exception &e)

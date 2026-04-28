@@ -96,7 +96,7 @@ std::string ccdb::utils::ParsedArgumentType::at(const char c) const
         }
     }
 
-    throw ccdb::error::no_such_argument("Argument '" + std::string(1, c) + "' not found.");
+    throw error::no_such_argument("Argument '", std::string(1, c), "' not found.");
 }
 
 std::string ccdb::utils::ParsedArgumentType::at(const std::string &str) const
@@ -107,7 +107,7 @@ std::string ccdb::utils::ParsedArgumentType::at(const std::string &str) const
         }
     }
 
-    throw ccdb::error::no_such_argument("Argument '" + str + "' not found.");
+    throw ccdb::error::no_such_argument("Argument '", str, "' not found.");
 }
 
 ccdb::utils::ArgumentParser::ArgumentParser(const int argc, char **argv, const PreDefinedArgumentType & PreDefinedArgs)
@@ -137,7 +137,8 @@ ccdb::utils::ArgumentParser::ArgumentParser(const int argc, char **argv, const P
             }
         }
 
-        throw error::no_such_argument("Unknown argument '" + (arg.short_name > 0 ? std::string(1, arg.short_name) : arg.long_name) + "'.");
+        throw error::no_such_argument("Unknown argument '",
+            (arg.short_name > 0 ? std::string(1, arg.short_name) : arg.long_name), "'.");
     };
 
     for (int i = 1; i < argc; i++)
@@ -153,7 +154,7 @@ ccdb::utils::ArgumentParser::ArgumentParser(const int argc, char **argv, const P
         if (fill_missing(arg_parsed))
         {
             i++;
-            if (i >= argc) throw error::argument_parser_exception("Argument '" + arg + "' requires a parameter but was never provided");
+            if (i >= argc) throw error::argument_parser_exception("Argument '", arg, "' requires a parameter but was never provided.");
             const std::string param = argv[i];
             arg_parsed.parameter = param;
         }

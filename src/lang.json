@@ -848,5 +848,40 @@
     "en"    : "Failed to communicate with the backend, either this is not a Mihomo control port, or you have the wrong password.",
     "en_US" : "Failed to communicate with the backend, either this is not a Mihomo control port, or you have the wrong password.",
     "zh_CN" : "无法和Mihomo后端连接，提供的Mihomo后端可能不存在，不是Mihomo后端，或者认证失败。"
+  },
+  {
+    "en"    : "Argument '",
+    "en_US" : "Argument '",
+    "zh_CN" : "参数 '"
+  },
+  {
+    "en"    : "' not found.",
+    "en_US" : "' not found.",
+    "zh_CN" : "' 不存在。"
+  },
+  {
+    "en"    : "Unknown argument '",
+    "en_US" : "Unknown argument '",
+    "zh_CN" : "未知参数 '"
+  },
+  {
+    "en"    : "' requires a parameter but was never provided.",
+    "en_US" : "' requires a parameter but was never provided.",
+    "zh_CN" : "' 需要子参数，但是没有提供。"
+  },
+  {
+    "en"    : "Cannot open config file ",
+    "en_US" : "Cannot open config file ",
+    "zh_CN" : "无法打开配置文件 "
+  },
+  {
+    "en"    : "Line: ",
+    "en_US" : "Line: ",
+    "zh_CN" : "行: "
+  },
+  {
+    "en"    : ": section head is empty",
+    "en_US" : ": section head is empty",
+    "zh_CN" : ": 没有配置区头部"
   }
 ]

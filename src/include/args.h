@@ -27,14 +27,19 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include "print.h"
 
 namespace ccdb::error {
     class no_such_argument final : public std::invalid_argument {
-    public: explicit no_such_argument(const std::string & msg) : std::invalid_argument(msg) { }
+    public:
+        template < typename... String >
+        explicit no_such_argument(const String & ...msg) : std::invalid_argument(utils::sprint(msg...)) { }
     };
 
     class argument_parser_exception final : public std::runtime_error {
-    public: explicit argument_parser_exception(const std::string & msg) : std::runtime_error(msg) { }
+    public:
+        template < typename... String >
+        explicit argument_parser_exception(const String & ...msg) : std::runtime_error(utils::sprint(msg...)) { }
     };
 }
 

@@ -1,11 +1,11 @@
 [Global]
-ReverseFilter = off
-SortReverse = off
-ChainParser = on
-SortBy = 4
-ReverseMouse = off
-RefreshIntervalMS = 500
-logSize = 4096
+ReverseFilter = off     # Reverse the `get connections/get log` filter
+SortReverse = off       # Reverse `get connections` sorting
+ChainParser = on        # Chain parser for `get connections` column 11
+SortBy = 4              # Sort by which column for `get connections`
+ReverseMouse = off      # Reverse mouse scrolling
+RefreshIntervalMS = 500 # Screen refresh intervals for `get log/nload/get connections`
+logSize = 4096          # Buffer size of `get log`
 
 [Filter]
 Host = .*
@@ -20,7 +20,7 @@ Chains = .*
 link = http://MY SUBSCRIPTION LINK
 log = %HOME%/.cache/ccdb/mihomo.log
 sslCert = /etc/ssl/cert.pem
-sslVerify = on
+sslVerify = on          # This will override DISABLE_SERVER_CERTIFICATE_VERIFICATION=true, but only for subscription links
 
 [Shortcut]
 KillConn = k
@@ -50,4 +50,8 @@ HighlightUP = ^[[1;5A
 HighlightDown = ^[[1;5B
 
 [Alias]
-dashboard = get connections
+
+# Comments for each line of the alias will be recorded and added to readline prompt as help text
+
+dashboard = get connections # clash dashboard
+logs = get log # show logs

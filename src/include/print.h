@@ -46,7 +46,12 @@ namespace ccdb::utils
         arg) } -> std::same_as<decltype(std::cout) &>;
     };
 
-    template < typename MsgType > requires (std::is_same_v<MsgType, is_error> || std::is_same_v<MsgType, is_normal>)
+    // Variadic concept for convenience (all pack elements satisfy StringLike)
+    template < typename... Ts > concept all_message_like = (MsgValueType<Ts> && ...);
+
+    template < typename T > concept MessageType = (std::is_same_v<T, is_error> || std::is_same_v<T, is_normal>);
+
+    template < MessageType MsgType >
     void _print(const char * text)
     {
         if constexpr (std::is_same_v<MsgType, is_error>) {
@@ -56,8 +61,7 @@ namespace ccdb::utils
         }
     }
 
-    template < typename MsgType, MsgValueType T >
-    requires (std::is_same_v<MsgType, is_error> || std::is_same_v<MsgType, is_normal>)
+    template < MessageType MsgType, MsgValueType T >
     void _print(const T & val)
     {
         if constexpr (std::is_same_v<MsgType, is_error>) {
@@ -67,8 +71,7 @@ namespace ccdb::utils
         }
     }
 
-    template < typename MsgType = is_normal, MsgValueType... Args >
-    requires (std::is_same_v<MsgType, is_error> || std::is_same_v<MsgType, is_normal>)
+    template < MessageType MsgType = is_normal, MsgValueType... Args >
     void print(const Args &...args) {
         (_print<MsgType>(args), ...);
     }

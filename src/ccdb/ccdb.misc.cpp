@@ -28,7 +28,7 @@
 #include "additional_help.h"
 #include "BUILD_DATE.h"
 #include "GIT_HASH.h"
-#include "commandTemplateTree.h"
+#include "Readline.h"
 #include "print.h"
 #include "ncursesw/ncurses.h"
 #include "ccdb.h"
@@ -40,8 +40,8 @@ std::atomic_bool ccdb::sysint_pressed = false;
 void ccdb::sigint_handler(int)
 {
     constexpr unsigned char ch = 0x03;
-    if (cmdTpTree::sig_pipe[1] != -1) {
-        (void)write(cmdTpTree::sig_pipe[1], &ch, 1);
+    if (Readline::sig_pipe[1] != -1) {
+        (void)write(Readline::sig_pipe[1], &ch, 1);
     }
     sysint_pressed = true;
 }
@@ -310,7 +310,7 @@ std::string g_help_additional;
 
 void ccdb::ccdb::help()
 {
-    const auto str = cmdTpTree::command_template_tree.get_help();
+    const auto str = Readline::command_template_tree.get_help();
     if (g_help_additional.empty()) {
         unsigned additional_help_len = 0;
         unsigned char * additional_help = nullptr;

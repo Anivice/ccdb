@@ -21,9 +21,19 @@
 
 #ifndef CCDB_CONFIG_H
 #define CCDB_CONFIG_H
+
 #include <string>
 #include "tsl/hopscotch_hash.h"
 #include "tsl/hopscotch_map.h"
+#include "print.h"
+
+namespace ccdb::error {
+    class invalid_configuration final : public std::invalid_argument {
+    public:
+        template < typename... String >
+        explicit invalid_configuration(const String & ...msg) : std::invalid_argument(utils::sprint(msg...)) { }
+    };
+}
 
 namespace ccdb {
     class configuration {
@@ -39,11 +49,13 @@ namespace ccdb {
     private:
         configuration_map_t config_;
         tsl::hopscotch_map < std::string, std::string > config_signal_hash_map_;
+        tsl::hopscotch_map < std::string, std::string > config_comment_hash_map_;
 
     public:
         explicit configuration(const std::string & path);
         const configuration_map_t & config = config_;
         const decltype(config_signal_hash_map_) & config_signal_hash_map = config_signal_hash_map_;
+        const decltype(config_comment_hash_map_) & config_comment_hash_map = config_comment_hash_map_;
     };
 } // ccdb
 

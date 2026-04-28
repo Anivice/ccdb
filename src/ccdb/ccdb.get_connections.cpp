@@ -422,15 +422,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         else
         {
             // print once to the pager, then quit
-            print_table(get_conn_titles,
-                table_vals,
-                false,
-                true,
-                { },
-                0,
-                nullptr,
-                !less.empty(),
-                ss.str());
+            simple_print_table_w_pager(get_conn_titles, table_vals);
             break;
         }
     }

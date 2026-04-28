@@ -194,6 +194,7 @@ generate_from_resource_file(commandReadline "${CMAKE_SOURCE_DIR}/command.readlin
 generate_from_resource_file(langJSON "${CMAKE_BINARY_DIR}/lang.json" lang.json.cpp lang.json.h lang_json)
 generate_from_resource_file(LICENSE "${CMAKE_SOURCE_DIR}/../LICENSE" LICENSE.cpp LICENSE.h LICENSE)
 generate_from_resource_file(img_8f87efc1c0d8fc8c "${CMAKE_SOURCE_DIR}/../img/8f87efc1c0d8fc8c.png" img_8f87efc1c0d8fc8c.cpp img_8f87efc1c0d8fc8c.h img_8f87efc1c0d8fc8c)
+generate_from_resource_file(ccdbrc "${CMAKE_SOURCE_DIR}/../ccdbrc.example" ccdbrc.cpp ccdbrc.h ccdbrc)
 
 add_custom_command(
         OUTPUT "${CMAKE_BINARY_DIR}/lang.json"
@@ -281,7 +282,7 @@ add_dependencies(tar.exe TAR)
 
 # CCDB
 add_executable(ccdb
-        misc/commandTemplateTree.cpp    include/commandTemplateTree.h
+        misc/Readline.cpp               include/Readline.h
         misc/color.cpp                  include/colors.h
         misc/utils.cpp                  include/utils.h
         misc/execute.cpp
@@ -307,7 +308,7 @@ add_executable(ccdb
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
 target_compile_definitions(ccdb PRIVATE CCDB_VERSION="${CCDB_VERSION}" CPPHTTPLIB_OPENSSL_SUPPORT)
 target_link_libraries(ccdb PRIVATE
-        AddiHelp langJSON commandReadline LICENSE Zterminfotar tar.exe
+        AddiHelp langJSON commandReadline LICENSE Zterminfotar tar.exe ccdbrc
         openssl::openssl)
 add_dependencies(ccdb OPENSSL compress)
 target_compile_options(ccdb PRIVATE -fno-omit-frame-pointer -g3 -gdwarf-4 -fstack-protector-all)

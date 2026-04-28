@@ -26,9 +26,17 @@
 #include "config.h"
 
 namespace ccdb {
-    std::string clean_line(const std::string& line)
-    {
+    std::string clean_line(const std::string& line) {
         return line.substr(0, line.find_first_of('#'));
+    }
+
+    std::string get_comments(const std::string& line)
+    {
+        if (line.find('#') == std::string::npos) return {};
+        auto str = line.substr(line.find_first_of('#') + 1);
+        str = str.substr(str.find_first_not_of(' '));
+        str = str.substr(0, str.find_last_not_of(' ') + 1);
+        return str;
     }
 
     std::string get_section(const std::string& line)
@@ -76,7 +84,7 @@ namespace ccdb {
     {
         std::ifstream file(path);
         if (!file) {
-            throw std::invalid_argument("Cannot open config file " + path);
+            throw error::invalid_configuration("Cannot open config file ", path);
         }
 
         std::string line;
@@ -96,17 +104,15 @@ namespace ccdb {
                 if (!key.empty())
                 {
                     if (section.empty()) {
-                        throw std::invalid_argument("Line: " + std::to_string(line_num) + ": section head is empty");
+                        throw error::invalid_configuration("Line: ", std::to_string(line_num), ": section head is empty");
                     }
-                    config_[section][key] = process_value(value);
-                }
-            }
-        }
 
-        for (const auto & [ Section, Pairs] : config_)
-        {
-            for (const auto & [ Key, Value ] : Pairs) {
-                config_signal_hash_map_.emplace(Section + "::" + Key, Value);
+                    const auto Value = process_value(value);
+                    const auto Comment = get_comments(line);
+                    config_[section][key] = Value;
+                    config_signal_hash_map_.emplace(section + "::" + key, Value);
+                    config_comment_hash_map_.emplace(section + "::" + key, Comment);
+                }
             }
         }
     }

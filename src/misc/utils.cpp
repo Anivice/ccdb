@@ -33,11 +33,9 @@
 #include <chrono>
 #include <iomanip>
 #include <regex>
-#include <thread>
 #include <iostream>
 #include <termios.h>
 #include <fcntl.h>
-#include <fstream>
 #include <cstdio>
 #include <cstdlib>
 #include <sys/syscall.h>
@@ -74,12 +72,14 @@ if (!(x)) {         \
 }
 
 #ifdef __USE_IMG__
-extern void show();
+
+#include "libtiv.h"
 
 void ccdb::utils::printImg()
 {
     show();
 }
+
 #endif //__USE_IMG__
 
 bool ccdb::utils::parse_url(const std::string& url, std::string& scheme, std::string& host, std::string& path)
@@ -102,8 +102,9 @@ bool ccdb::utils::parse_proxy(const std::string& url, std::string& host, int & p
     if (!std::regex_match(url, match, re)) {
         return false;
     }
+
     host = match[1];
-    port = std::stoi(match[2]);
+    port = static_cast<int>(std::strtoul(match[2].str().c_str(), nullptr, 10));
     return true;
 }
 
@@ -116,18 +117,18 @@ void ccdb::utils::set_ssl_automatically(httplib::Client & client, const std::str
         throw std::invalid_argument("Invalid URL");
     }
 
-    if (scheme == "https" && utils::getenv("DISABLE_SERVER_CERTIFICATE_VERIFICATION") == "true") {
+    if (scheme == "https" && getenv("DISABLE_SERVER_CERTIFICATE_VERIFICATION") == "true") {
         client.enable_server_certificate_verification(false);
     } else {
-        std::vector < std::string > ca_paths = {
-            utils::getenv("SSL_CERTIFICATE"),
+        std::vector ca_paths = {
+            getenv("SSL_CERTIFICATE"),
             // possible system CA certificate locations
-            utils::getenv("PREFIX") + "/etc/ssl/certs/ca-certificates.crt",
-            utils::getenv("PREFIX") + "/etc/ssl/certs/ca-bundle.trust.crt",
-            utils::getenv("PREFIX") + "/etc/ssl/cert.pem",
-            utils::getenv("PREFIX") + "/etc/tls/cert.pem",
-            utils::getenv("PREFIX") + "/etc/pki/ca-trust/extracted/openssl/ca-bundle.trust.crt",
-            utils::getenv("PREFIX") + "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem",
+            getenv("PREFIX") + "/etc/ssl/certs/ca-certificates.crt",
+            getenv("PREFIX") + "/etc/ssl/certs/ca-bundle.trust.crt",
+            getenv("PREFIX") + "/etc/ssl/cert.pem",
+            getenv("PREFIX") + "/etc/tls/cert.pem",
+            getenv("PREFIX") + "/etc/pki/ca-trust/extracted/openssl/ca-bundle.trust.crt",
+            getenv("PREFIX") + "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem",
         };
 
         std::ranges::any_of(ca_paths, [&](const std::string& ca_path)->bool
@@ -678,21 +679,57 @@ timespec ccdb::utils::get_timespec() noexcept
     return ts;
 }
 
-std::string ccdb::utils::value_to_human(
-    const unsigned long long value,
-    const std::string &lv1, const std::string &lv2,
-    const std::string &lv3, const std::string &lv4)
+std::string ccdb::utils::value_to_human(uint64_t value, const uint64_t p, const std::vector<std::string> &lvs)
 {
+    const auto backup = value;
     std::stringstream ss;
-    if (value < 1024ull || value >= 1024ull * 1024ull * 1024ull * 1024ull * 1024ull) {
-        ss << value << " " << lv1;
-    } else if (value < 1024ull * 1024ull) {
-        ss << std::fixed << std::setprecision(2) << (static_cast<double>(value) / 1024ull) << " " << lv2;
-    } else if (value < 1024ull * 1024ull * 1024ull) {
-        ss << std::fixed << std::setprecision(2) << (static_cast<double>(value) / (1024ull * 1024ull)) << " " << lv3;
-    } else if (value < 1024ull * 1024ull * 1024ull * 1024ull) {
-        ss << std::fixed << std::setprecision(2) << (static_cast<double>(value) / (1024ull * 1024ull * 1024ull)) << " " << lv4;
+    if (lvs.empty()) {
+        throw std::runtime_error("lvs is empty");
     }
+
+    if (value == 0) {
+        ss << 0 << " " << lvs.front();
+        return ss.str();
+    }
+
+    std::vector<uint64_t> values;
+    while (value > 0)
+    {
+        values.push_back(value % p);
+        value /= p;
+    }
+
+    if (values.size() > lvs.size())
+    {
+        uint64_t last = 0;
+        for (uint64_t i = lvs.size(); i < values.size(); i++) {
+            last += values[i] * std::pow(p, i);
+        }
+
+        values.resize(lvs.size());
+        values.back() += last;
+    }
+
+    const std::string metric = lvs[values.size() - 1];
+    const uint64_t metric_length = std::pow(p, values.size() - 1);
+
+    if (values.size() > 2)
+    {
+        uint64_t start = 0;
+        const uint64_t end = values.back();
+
+        for (uint64_t i = 0; i < values.size() - 1; i++) {
+            start += values[i] * std::pow(p, i);
+        }
+
+        values.resize(2);
+        values.front() = start;
+        values.back() = end;
+    }
+
+    ss  << std::fixed << std::setprecision(2)
+        << static_cast<double>(values.back()) + (static_cast<double>(values.front()) / metric_length)
+        << " " << metric;
 
     return ss.str();
 }

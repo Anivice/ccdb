@@ -28,7 +28,7 @@
 #include "config.h"
 #include "print.h"
 #include "term_name.h"
-#include "commandTemplateTree.h"
+#include "Readline.h"
 #include "ccdb.h"
 #include "utils.h"
 
@@ -262,7 +262,7 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
         }
 
         if (T0.joinable()) T0.join();
-        ::ccdb::utils::exec_command("/bin/sh", status.fd_stdout, "-c", command_ss.str());
+        exec_command("/bin/sh", status.fd_stdout, "-c", command_ss.str());
     }
 }
 
@@ -364,8 +364,17 @@ void ccdb::ccdb::init()
     {
         if (ccdb_config && ccdb_config->config.contains("Alias"))
         {
-            for (const auto & [ alias, cmd ] : ccdb_config->config.at("Alias")) {
+            for (const auto & [ alias, cmd ] : ccdb_config->config.at("Alias"))
+            {
                 alias_list.emplace(alias, cmd);
+                if (const std::string alias_hash = "Alias::" + alias; ccdb_config->config_comment_hash_map.contains(alias_hash))
+                {
+                    if (const auto & result = ccdb_config->config_comment_hash_map.at(alias_hash);
+                        !result.empty())
+                    {
+                        Readline::g_extra_help_map.emplace(alias, result);
+                    }
+                }
             }
         }
     };
@@ -514,6 +523,9 @@ void ccdb::ccdb::init()
             }
             else if (command_vector.front() == "reset") {
                 reset_terminal_mode_forcefully();
+            }
+            else if (command_vector.front() == "ccdbrc") {
+                ccdbrc();
             }
             else if ((command_vector.front() == "help") || (command_vector.front() == "?"))  {
                 help();
@@ -886,7 +898,7 @@ ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::stri
         }
 
         init();
-        cmdTpTree::read_command(handler, auto_completion, "ccdb> ", fast_shutdown);
+        Readline::read_command(handler, auto_completion, "ccdb> ", fast_shutdown);
         backend_instance.stop_continuous_updates();
 
         if (backend_instance.force_quit) {
