@@ -55,12 +55,6 @@ namespace Readline
         CurrentStatusType status_ = NoOperation;
     };
 
-    /// convert from unsigned char [] with length to std::string
-    /// @param src unsigned char[] pointer
-    /// @param len array length
-    /// @return parsed std::string
-    [[nodiscard]] std::string gen_cmd(const unsigned char * src, unsigned int len);
-
     /// for_each handler, constraint it to be accepting only void(const Readline::NodeType&, int)
     template <typename F>
     concept Function = requires(F f, const NodeType& a, int d) {

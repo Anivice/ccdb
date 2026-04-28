@@ -29,15 +29,6 @@
 
 namespace Readline
 {
-    std::string gen_cmd(const unsigned char *src, const unsigned int len)
-    {
-        std::vector<char> data;
-        data.resize(len + 1, 0);
-        std::memcpy(data.data(), src, len);
-        std::string ret = data.data();
-        return ret;
-    }
-
     const NodeType * find(const NodeType &entry, const std::string &name)
     {
         for (const auto & v : entry.children_)
@@ -50,8 +41,7 @@ namespace Readline
         return nullptr;
     }
 
-    const NodeType * find(const NodeType &root,
-        const std::vector<std::string> &command_string)
+    const NodeType * find(const NodeType &root, const std::vector<std::string> &command_string)
     {
         auto * entry = &root;
         for (const auto & verb : command_string)
