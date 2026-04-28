@@ -48,7 +48,7 @@ case $ARCH in
     ;;
 esac
 
-CMAKE_CFLAGS="-O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2 -fno-omit-frame-pointer -fstack-protector-strong"
+CMAKE_CFLAGS="-O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2 -fomit-frame-pointer -fno-stack-protector"
 CMAKE_LDFLAGS="-O3 -Wl,--as-needed -flto"
 MAKE_FLAGS="CFLAGS=\"$CMAKE_CFLAGS\" CXXFLAGS=\"$CMAKE_CFLAGS\" LDFLAGS=\"$CMAKE_LDFLAGS\" -j$(nproc)"
 export CXXFLAGS="$CMAKE_CFLAGS"
