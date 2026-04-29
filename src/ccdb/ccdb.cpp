@@ -382,7 +382,7 @@ void ccdb::ccdb::init()
     std::string log_loc;
 
     flag_helper("Global::ReverseFilter", reverse_filter_list);
-    flag_helper("Global::SortReverse", reverse);
+    flag_helper("Global::SortReverse", sort_reverse);
     flag_helper("Global::ChainParser", backend_instance.parse_chains);
     flag_helper("Global::ReverseMouse", reverse_mouse);
     if (utils::getenv("REVERSE_MOUSE") == "true") reverse_mouse = true;
@@ -553,6 +553,12 @@ void ccdb::ccdb::init()
                     get_filter();
                 } else if (command_vector[1] == "subinfo") {
                     get_subinfo();
+                } else if (command_vector[1] == "filter_reverse") {
+                    get_filter_reverse();
+                } else if (command_vector[1] == "sort_reverse") {
+                    get_sort_reverse();
+                } else if (command_vector[1] == "sort_by") {
+                    get_sort_by();
                 } else if (command_vector[1] == "config") {
                     get_config();
                 } else if (command_vector[1] == "logSize") {

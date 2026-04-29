@@ -139,8 +139,8 @@ void ccdb::ccdb::set_sort_by(const std::vector<std::string> &command_vector)
 
 void ccdb::ccdb::set_sort_reverse(const std::vector<std::string> & command_vector)
 {
-    if (command_vector[2] == "on") reverse = true;
-    else if (command_vector[2] == "off") reverse = false;
+    if (command_vector[2] == "on") sort_reverse = true;
+    else if (command_vector[2] == "off") sort_reverse = false;
     else print<is_error>("Invalid option for parser `", command_vector[2], "`\n");
 }
 

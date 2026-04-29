@@ -417,6 +417,18 @@ void ccdb::ccdb::get_log_size() const {
     print("Log size:", max_log_size.load(), "\n");
 }
 
+void ccdb::ccdb::get_filter_reverse() const {
+    print(reverse_filter_list ? "on" : "off", "\n");
+}
+
+void ccdb::ccdb::get_sort_reverse() const {
+    print(sort_reverse ? "on" : "off", "\n");
+}
+
+void ccdb::ccdb::get_sort_by() const {
+    print(sort_by, "\n");
+}
+
 void ccdb::ccdb::map_proxy_chain()
 {
     backend_instance.update_proxy_list();

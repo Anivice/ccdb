@@ -58,7 +58,7 @@ namespace ccdb
         bool reverse_filter_list = false; // reverse white list
         tsl::hopscotch_map < uint64_t, std::string > filter_patterns; // Regex filter patterns for `get connections`
         std::atomic_int sort_by = -1; // get connections table: sort by which column
-        std::atomic_bool reverse = false; // get connections table: if sort is reversed?
+        std::atomic_bool sort_reverse = false; // get connections table: if sort is reversed?
         tsl::hopscotch_map < uint64_t, std::string > index_to_proxy_name_list; // vector translation list
         tsl::hopscotch_map < std::string, int > latency_backups; // results of latency test
         tsl::hopscotch_map < std::string /* groups */, std::vector < std::string > /* endpoint */ > g_proxy_list; // group-proxy list
@@ -186,6 +186,9 @@ namespace ccdb
         void get_subinfo();
         void get_config() const;
         void get_log_size() const;
+        void get_filter_reverse() const;
+        void get_sort_reverse() const;
+        void get_sort_by() const;
         void help();
         static void reset_terminal_mode_forcefully();
         void set_port(int port); // Mihomo http proxy port,

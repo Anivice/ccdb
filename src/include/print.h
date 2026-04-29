@@ -25,6 +25,8 @@
 #include <string>
 #include <iostream>
 #include <sstream>
+#include <atomic>
+#include <type_traits>
 #include "utils.h"
 
 namespace ccdb::utils
@@ -32,56 +34,29 @@ namespace ccdb::utils
     class is_error {};
     class is_normal {};
 
-    template < typename Args >
-    concept MsgValueType = requires(Args arg) {
-        {
-            std::invoke([]<typename T0>(T0 val)->auto &
-            {
-                if constexpr (std::is_same_v<T0, is_error> || std::is_same_v<T0, is_normal>) {
-                    return std::cout;
-                } else {
-                    return (std::cout << val);
-                }
-            },
-        arg) } -> std::same_as<decltype(std::cout) &>;
-    };
+    template<typename T> struct is_atomic : std::false_type {};
+    template<typename U> struct is_atomic<std::atomic<U>> : std::true_type {};
 
-    // Variadic concept for convenience (all pack elements satisfy StringLike)
-    template < typename... Ts > concept all_message_like = (MsgValueType<Ts> && ...);
+    template<typename T>
+    concept Streamable = requires(T v, std::ostream& os) { os << v; };
+
+    template<typename T>
+    concept Printable = Streamable<T> || (is_atomic<T>::value && Streamable<typename T::value_type>);
 
     template < typename T > concept MessageType = (std::is_same_v<T, is_error> || std::is_same_v<T, is_normal>);
+    template < typename T > concept MsgValueType = Printable<T>;
 
-    template < MessageType MsgType >
-    void _print(const char * text)
-    {
-        if constexpr (std::is_same_v<MsgType, is_error>) {
-            std::cerr << get_text(text);
-        } else {
-            std::cout << get_text(text);
-        }
-    }
-
-    template < MessageType MsgType, MsgValueType T >
-    void _print(const T & val)
-    {
-        if constexpr (std::is_same_v<MsgType, is_error>) {
-            std::cerr << val;
-        } else {
-            std::cout << val;
-        }
-    }
-
-    template < MessageType MsgType = is_normal, MsgValueType... Args >
-    void print(const Args &...args) {
-        (_print<MsgType>(args), ...);
-    }
-
-    inline void _sprint(std::ostringstream & oss, const char * text) {
+    inline void _sprint(const char * text, std::ostream & oss) {
         oss << get_text(text);
     }
 
+    template < typename Type, typename AtomicType = std::atomic < Type > >
+    void _sprint(const AtomicType & val, std::ostream & oss) {
+        oss << val.load();
+    }
+
     template < MsgValueType T >
-    void _sprint(std::ostringstream & oss, const T& val) {
+    void _sprint(const T& val, std::ostream & oss) {
         oss << val;
     }
 
@@ -89,8 +64,17 @@ namespace ccdb::utils
     std::string sprint(const Args &...args)
     {
         std::ostringstream oss;
-        (_sprint(oss, args), ...);
+        (_sprint(args, oss), ...);
         return oss.str();
+    }
+
+    template < MessageType MsgType = is_normal, MsgValueType... Args >
+    void print(const Args &...args) {
+        if constexpr (std::is_same_v<MsgType, is_error>) {
+            std::cerr << sprint(args...);
+        } else {
+            std::cout << sprint(args...);
+        }
     }
 }
 

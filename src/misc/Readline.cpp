@@ -394,7 +394,7 @@ namespace Readline
                 std::vector vec = active_arg_buffer;
                 vec.resize(active_arg_index);
                 vec.emplace_back(pair.first);
-                help_msg = command_template_tree.get_help(vec);
+                help_msg = ccdb::utils::get_text(command_template_tree.get_help(vec));
             } catch (const std::invalid_argument &) {
                 /* not a command, no help usage found */
                 if (const auto it = g_extra_help_map.find(pair.first);

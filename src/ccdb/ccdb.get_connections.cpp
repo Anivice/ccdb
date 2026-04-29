@@ -121,7 +121,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         }
         else {
             if (sort_by == sort_by_from_watcher) {
-                reverse = !reverse;
+                sort_reverse = !sort_reverse;
                 sort_by_final = sort_by;
             } else {
                 sort_by = sort_by_from_watcher.load();
@@ -136,7 +136,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
         std::ranges::for_each(get_conn_titles, [&](const std::string & title) {
             if (index_title == sort_by_final) {
-                title_this_session.emplace_back(title + (reverse ? " + " : " - "));
+                title_this_session.emplace_back(title + (sort_reverse ? " + " : " - "));
             }
             else {
                 title_this_session.emplace_back(title);
@@ -181,7 +181,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                                       return (a.downloadSpeed + a.uploadSpeed) > (b.downloadSpeed + b.uploadSpeed);
                                   }
                               });
-        if (reverse) std::ranges::reverse(connections);
+        if (sort_reverse) std::ranges::reverse(connections);
         for (const auto & connection : connections)
         {
             // determine if we need to filter out the result
