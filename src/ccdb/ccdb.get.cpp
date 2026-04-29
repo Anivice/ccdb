@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <chrono>
 #include <utility>
+#include <unordered_map>
 #include "print.h"
 #include "pull_subinfo.h"
 #include "ccdb.h"
@@ -185,11 +186,21 @@ void ccdb::ccdb::get_latency()
         [](const std::pair < std::string, int > & a, const std::pair < std::string, int > & b)->bool
         { return a.second < b.second; });
 
+    std::unordered_map < std::string, uint64_t > index_to_proxy_name_list_reversed;
+    std::ranges::for_each(index_to_proxy_name_list,
+    [&index_to_proxy_name_list_reversed](const std::pair < uint64_t, std::string > & pair)
+    {
+        index_to_proxy_name_list_reversed.emplace(pair.second, pair.first);
+    });
+
     latency_backups.clear();
     for (const auto & [proxy, latency] : list_unordered)
     {
         table_line.push_back(std::to_string(latency));
-        table_line.push_back(proxy);
+        table_line.push_back(
+            (index_to_proxy_name_list_reversed.contains(proxy) ?
+                "<" + std::to_string(index_to_proxy_name_list_reversed.at(proxy)) + "> " : "")
+                + proxy);
         table_vals.emplace_back(table_line);
         table_line.clear();
 
