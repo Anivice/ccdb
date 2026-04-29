@@ -123,9 +123,9 @@ To run a shell command, prefix it with `"$ "` (dollar sign + space/`$[WITH A SPA
 > ![img](img/helper2.png)
 
 > **NOTE 2:**
-> 
-> https://github.com/Anivice/ccdb/blob/main/ccdbrc.example#L56-L57
-> 
+
+https://github.com/Anivice/ccdb/blob/main/ccdbrc.example#L56-L57
+ 
 > Comments for the aliases will be noted and printed in the double tab helper as well:
 > 
 > e.g.:
