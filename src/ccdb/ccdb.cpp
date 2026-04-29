@@ -408,6 +408,8 @@ void ccdb::ccdb::init()
     filter_helper("Filter::DestinationIP", 9);
     filter_helper("Filter::Type", 10);
     filter_helper("Filter::Chains", 11);
+    filter_helper("Filter::logLevel", 12);
+    filter_helper("Filter::logContent", 13);
     string_helper("clash::link", clash_sublink, [](const std::string &){ return true; });
     string_helper("clash::log", log_loc, [](const std::string &){ return true; });
     std::string CCDB_POSSIBLE_SSL_CERTIFICATE;

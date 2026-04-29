@@ -109,13 +109,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             &pause_input_watcher);
     }
 
-    auto valid_check = [&](const general_info_pulling::connection_t & c)->bool
-    {
-        if (reverse_filter_list) {
-            return !is_connection_valid(c, filter_patterns);
-        }
-
-        return is_connection_valid(c, filter_patterns);
+    auto valid_check = [&](const general_info_pulling::connection_t & c)->bool {
+        return is_connection_valid(c);
     };
 
     while (running)

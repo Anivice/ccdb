@@ -138,165 +138,44 @@ void ccdb::ccdb::pager(const std::string &str, const bool override_less_check, b
     }
 }
 
-bool ccdb::ccdb::is_connection_valid
-(   const general_info_pulling::connection_t &conn,
-    const tsl::hopscotch_map<uint64_t, std::string> &filter_patterns)
+bool ccdb::ccdb::is_connection_valid(const general_info_pulling::connection_t &conn)
 {
     try {
         bool result = false;
-        bool hit = false;
         if (filter_patterns.contains(0)) {
-            hit = true;
-            result |= std::regex_search(conn.host, std::regex(filter_patterns.at(0)));
+            result |= std::regex_match(conn.host, std::regex(filter_patterns.at(0)));
         }
 
         if (filter_patterns.contains(1)) {
-            hit = true;
-            result |= std::regex_search(conn.processName, std::regex(filter_patterns.at(1)));
+            result |= std::regex_match(conn.processName, std::regex(filter_patterns.at(1)));
         }
 
         if (filter_patterns.contains(6)) {
-            hit = true;
-            result |= std::regex_search(conn.ruleName, std::regex(filter_patterns.at(6)));
+            result |= std::regex_match(conn.ruleName, std::regex(filter_patterns.at(6)));
         }
 
         if (filter_patterns.contains(8)) {
-            hit = true;
-            result |= std::regex_search(conn.src, std::regex(filter_patterns.at(8)));
+            result |= std::regex_match(conn.src, std::regex(filter_patterns.at(8)));
         }
 
         if (filter_patterns.contains(9)) {
-            hit = true;
-            result |= std::regex_search(conn.destination, std::regex(filter_patterns.at(9)));
+            result |= std::regex_match(conn.destination, std::regex(filter_patterns.at(9)));
         }
 
         if (filter_patterns.contains(10)) {
-            hit = true;
-            result |= std::regex_search(conn.networkType, std::regex(filter_patterns.at(10)));
+            result |= std::regex_match(conn.networkType, std::regex(filter_patterns.at(10)));
         }
 
         if (filter_patterns.contains(11)) {
-            hit = true;
-            result |= std::regex_search(conn.chainName, std::regex(filter_patterns.at(11)));
+            result |= std::regex_match(conn.chainName, std::regex(filter_patterns.at(11)));
         }
 
-        if (hit) return result; // when hit, return filtering result.
-        return filter_patterns.empty(); // no pattern filtering => true, has pattern filtering => false
+        if (reverse_filter_list) return result;
+        return !result;
     } catch(const std::exception& e) {
         std::cerr << e.what() << std::endl;
         return true; // pattern failed, show the result
     }
-}
-
-void ccdb::ccdb::nload(const std::vector<std::string> & vec)
-{
-    std::atomic<uint64_t> total_up = 0, total_down = 0, up_speed = 0, down_speed = 0;
-    std::atomic_bool running = true;
-    std::mutex lock;
-    std::vector<std::string> top_3_conn;
-    const bool switch_to_log_cater = (vec.size() == 2 && vec.back() == "catlog");
-
-    std::thread Worker([&] {
-        nload(
-            &total_up,
-            &total_down,
-            &up_speed,
-            &down_speed,
-            &running,
-            std::ref(top_3_conn),
-            &lock);
-    });
-
-    while (running)
-    {
-        total_up = backend_instance.get_total_uploaded_bytes();
-        total_down = backend_instance.get_total_downloaded_bytes();
-        up_speed = backend_instance.get_current_upload_speed();
-        down_speed = backend_instance.get_current_download_speed();
-        if (!switch_to_log_cater)
-        {
-            auto conn = backend_instance.get_active_connections();
-            std::ranges::sort(conn, [](const general_info_pulling::connection_t & a,
-                const general_info_pulling::connection_t & b)->bool
-            {
-                return (a.downloadSpeed + a.uploadSpeed) > (b.downloadSpeed + b.uploadSpeed);
-            });
-
-            if (conn.size() > 3) {
-                conn.resize(3);
-            }
-
-            int max_host_len = 0;
-            int max_upload_len = 0;
-            int max_download_len = 0;
-            std::ranges::for_each(conn, [&](general_info_pulling::connection_t & c)
-            {
-                c.host = c.processName.empty() ? c.host : (c.host + " (" + c.processName + ")");
-                c.host = c.networkType.empty() ? c.host : (c.host + " <" + c.networkType + ">");
-                c.host = c.host + " " + (c.chainName == "DIRECT" ? "- " : "x ");
-                if (max_host_len < UnicodeDisplayWidth::get_width_utf8(c.host)) {
-                    max_host_len = UnicodeDisplayWidth::get_width_utf8(c.host);
-                }
-
-                {
-                    const auto str = value_to_speed(c.uploadSpeed);
-                    if (max_upload_len < str.length()) {
-                        max_upload_len = static_cast<int>(str.length());
-                    }
-                    c.chainName = str; // temp save
-                }
-
-                {
-                    const auto str = value_to_speed(c.downloadSpeed);
-                    if (max_download_len < UnicodeDisplayWidth::get_width_utf8(str)) {
-                        max_download_len = UnicodeDisplayWidth::get_width_utf8(str);
-                    }
-                    c.destination = str; // temp save
-                }
-            });
-
-            std::vector<std::string> conn_str;
-            std::ranges::for_each(conn, [&](const general_info_pulling::connection_t & c)
-            {
-                const std::string padding(max_host_len - UnicodeDisplayWidth::get_width_utf8(c.host), ' ');
-                const std::string padding2(max_download_len -UnicodeDisplayWidth::get_width_utf8(c.destination), ' ');
-                std::stringstream ss;
-                CRC64 crc64;
-                crc64.update(reinterpret_cast<const uint8_t *>(c.metadata.connectionID.data()),
-                    c.metadata.connectionID.size());
-                ss  << c.host << padding
-                    << sprint(" UP: ") << c.chainName // already is up speed from temp save
-                    << std::string(max_upload_len - c.chainName.length(), ' ')
-                    << sprint(" DL: ") << c.destination // already is down speed from temp save
-                    << padding2 << sprint(" ID: ") << crc64.get_checksum_str();
-                conn_str.push_back(ss.str());
-            });
-
-            {
-                std::lock_guard<std::mutex> lock_gud(lock);
-                top_3_conn = conn_str;
-            }
-        }
-        else
-        {
-            auto log_str = backend_instance.get_logs();
-            std::ranges::reverse(log_str);
-            if (log_str.size() > 3) log_str.resize(3);
-            std::vector<std::string> three_logs;
-            std::ranges::for_each(log_str, [&](const auto & pair_log) {
-                std::stringstream ss;
-                std::ranges::for_each(pair_log, [&](const auto & log){ ss << log << " "; });
-                three_logs.push_back(ss.str());
-            });
-
-            std::lock_guard<std::mutex> lock_gud(lock);
-            top_3_conn = three_logs;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(500l));
-    }
-
-    running = false;
-    if (Worker.joinable()) Worker.join();
 }
 
 void ccdb::ccdb::interactive_verification() const

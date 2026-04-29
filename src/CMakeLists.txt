@@ -296,6 +296,7 @@ add_executable(ccdb
         ccdb/ccdb.misc.cpp
         ccdb/ccdb.get.cpp
         ccdb/ccdb.get_connections.cpp
+        ccdb/ccdb.get_log.cpp
         ccdb/ccdb.set.cpp
         ccdb/ccdb.nload.cpp
 

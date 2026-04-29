@@ -150,8 +150,7 @@ namespace ccdb
             std::vector < std::string > const & table_titles,
             std::vector < std::vector < std::string > > const & table_values);
 
-        static bool is_connection_valid(const general_info_pulling::connection_t & conn,
-                                        const tsl::hopscotch_map < uint64_t, std::string > & filter_patterns);
+        bool is_connection_valid(const general_info_pulling::connection_t & conn);
 
         /// get proxy groups
         std::vector<std::string> get_groups();

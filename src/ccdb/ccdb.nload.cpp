@@ -572,3 +572,147 @@ void ccdb::ccdb::nload(
     std::ranges::for_each(threads, [](auto & T) { if (T.second.joinable()) T.second.join(); });
     std::ranges::for_each(local_workers, [](auto & T) { if (T.joinable()) T.join(); });
 }
+
+void ccdb::ccdb::nload(const std::vector<std::string> & vec)
+{
+    std::atomic<uint64_t> total_up = 0, total_down = 0, up_speed = 0, down_speed = 0;
+    std::atomic_bool running = true;
+    std::mutex lock;
+    std::vector<std::string> top_3_conn;
+    const bool switch_to_log_cater = (vec.size() == 2 && vec.back() == "catlog");
+
+    std::thread Worker([&] {
+        nload(
+            &total_up,
+            &total_down,
+            &up_speed,
+            &down_speed,
+            &running,
+            std::ref(top_3_conn),
+            &lock);
+    });
+
+    std::string log_level_filter, log_content_filter;
+
+    auto auto_assign = [&](const int id, std::string & filter) {
+        if (filter_patterns.contains(id)) filter = filter_patterns.at(id);
+    };
+
+    auto_assign(12, log_level_filter);
+    auto_assign(13, log_content_filter);
+
+    auto if_filter_out = [&](const std::string & line, const std::string & pattern)->bool
+    {
+        const auto ret = std::regex_match(line, std::regex(pattern));
+        if (reverse_filter_list) return !ret;
+        return ret;
+    };
+
+    while (running)
+    {
+        total_up = backend_instance.get_total_uploaded_bytes();
+        total_down = backend_instance.get_total_downloaded_bytes();
+        up_speed = backend_instance.get_current_upload_speed();
+        down_speed = backend_instance.get_current_download_speed();
+        if (!switch_to_log_cater)
+        {
+            auto conn = backend_instance.get_active_connections();
+            std::erase_if(conn, [&](const general_info_pulling::connection_t & conn_)->bool {
+                return !is_connection_valid(conn_);
+            });
+
+            std::ranges::sort(conn, [](const general_info_pulling::connection_t & a,
+                const general_info_pulling::connection_t & b)->bool
+            {
+                return (a.downloadSpeed + a.uploadSpeed) > (b.downloadSpeed + b.uploadSpeed);
+            });
+
+            if (conn.size() > 3) {
+                conn.resize(3);
+            }
+
+            int max_host_len = 0;
+            int max_upload_len = 0;
+            int max_download_len = 0;
+            std::ranges::for_each(conn, [&](general_info_pulling::connection_t & c)
+            {
+
+                c.host = c.processName.empty() ? c.host : (c.host + " (" + c.processName + ")");
+                c.host = c.networkType.empty() ? c.host : (c.host + " <" + c.networkType + ">");
+                c.host = c.host + " " + (c.chainName == "DIRECT" ? "- " : "x ");
+                if (max_host_len < UnicodeDisplayWidth::get_width_utf8(c.host)) {
+                    max_host_len = UnicodeDisplayWidth::get_width_utf8(c.host);
+                }
+
+                {
+                    const auto str = value_to_speed(c.uploadSpeed);
+                    if (max_upload_len < str.length()) {
+                        max_upload_len = static_cast<int>(str.length());
+                    }
+                    c.chainName = str; // temp save
+                }
+
+                {
+                    const auto str = value_to_speed(c.downloadSpeed);
+                    if (max_download_len < UnicodeDisplayWidth::get_width_utf8(str)) {
+                        max_download_len = UnicodeDisplayWidth::get_width_utf8(str);
+                    }
+                    c.destination = str; // temp save
+                }
+            });
+
+            std::vector<std::string> conn_str;
+            std::ranges::for_each(conn, [&](const general_info_pulling::connection_t & c)
+            {
+                const std::string padding(max_host_len - UnicodeDisplayWidth::get_width_utf8(c.host), ' ');
+                const std::string padding2(max_download_len -UnicodeDisplayWidth::get_width_utf8(c.destination), ' ');
+                std::stringstream ss;
+                CRC64 crc64;
+                crc64.update(reinterpret_cast<const uint8_t *>(c.metadata.connectionID.data()),
+                    c.metadata.connectionID.size());
+                ss  << c.host << padding
+                    << sprint(" UP: ") << c.chainName // already is up speed from temp save
+                    << std::string(max_upload_len - c.chainName.length(), ' ')
+                    << sprint(" DL: ") << c.destination // already is down speed from temp save
+                    << padding2 << sprint(" ID: ") << crc64.get_checksum_str();
+                conn_str.push_back(ss.str());
+            });
+
+            {
+                std::lock_guard<std::mutex> lock_gud(lock);
+                top_3_conn = conn_str;
+            }
+        }
+        else
+        {
+            auto log_str = backend_instance.get_logs();
+            std::ranges::reverse(log_str);
+            std::vector<std::string> str_logs, three_logs;
+            std::ranges::for_each(log_str, [&](const auto & pair_log) {
+                std::stringstream ss;
+                std::ranges::for_each(pair_log, [&](const auto & log){ ss << log << " "; });
+                str_logs.push_back(ss.str());
+            });
+
+            std::ranges::any_of(str_logs, [&](const auto & log) ->bool
+            {
+                const auto filtered_out =
+                    (if_filter_out(log, log_level_filter)
+                        || if_filter_out(log, log_content_filter));
+
+                if (!filtered_out) {
+                    three_logs.push_back(log);
+                }
+
+                return three_logs.size() == 3;
+            });
+
+            std::lock_guard<std::mutex> lock_gud(lock);
+            top_3_conn = three_logs;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(500l));
+    }
+
+    running = false;
+    if (Worker.joinable()) Worker.join();
+}
