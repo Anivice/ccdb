@@ -9,7 +9,8 @@ A lightweight terminal dashboard for Clash/Mihomo, written in C++.
  - [Usage](#usage)
  - Quick Start Examples:
    * [Example 1: Switch Proxy in a Proxy Group](#example-1-switch-proxy-in-a-proxy-group)
-   * [Example 2: Shell Parsing of `get config`](#Example-2-Shell-Parsing-of-get-config)
+   * [Example 2: Map the Entire Proxy Chain](#example-2-map-the-entire-proxy-chain)
+   * [Example 3: Shell Parsing of `get config`](#Example-3-Shell-Parsing-of-get-config)
  - [How to Build](#how-to-build)
 
 ## Overview
@@ -67,6 +68,7 @@ ccdb [Arguments [OPTIONS...]...]
     --subinfo                Get subinfo
     --subinfo_url [ARG]      Specify subscription URL (only for --subinfo)
     --report-issue           File a BUG report
+    --no-fast-quit           No fast quit when Readline finishes
 ```
 
 **Frequently Used Commands**:
@@ -78,6 +80,7 @@ closeConnections                : Close all connections
 nload                           : nload-like connection speed monitoring
 set mode [global, rule, direct] : Change proxy mode
 set vgroup [VGROUP] [VPROXY]    : Change endpoints in a proxy group using index
+mapProxyChain                   : Map out current proxy chain
 ...
 ```
 
@@ -111,6 +114,26 @@ this will list all the available candidates like proxy endpoints or groups,
 with additional information like latency (if tested) and vector index.
 
 To run a shell command, prefix it with `"$ "` (dollar sign + space/`$[WITH A SPACE]`).
+
+> **NOTE 1:**
+> 
+> Double tab will show the helper details of each and every candidate:
+> 
+> ![img](img/helper.png)
+> ![img](img/helper2.png)
+
+> **NOTE 2:**
+> 
+> https://github.com/Anivice/ccdb/blob/main/ccdbrc.example#L56-L57
+> 
+> Comments for the aliases will be noted and printed in the double tab helper as well:
+> 
+> e.g.:
+> 
+> ~/.ccdbrc definition: ![~/.ccdbrc definition](img/helper4.png)
+> 
+> Helper output: ![Helper output](img/helper3.png)
+
 
 ### Example 1: Switch Proxy in a Proxy Group
 
@@ -149,7 +172,11 @@ as is shown in the following image.
 
 ![Image](img/set_vgroup3.png)
 
-### Example 2: Shell Parsing of `get config`
+### Example 2: Map the Entire Proxy Chain
+
+![Image](img/mapProxyChains.png)
+
+### Example 3: Shell Parsing of `get config`
 
 CCDB supports shell parsing of its own command outputs.
 Unlike shells, "|" has to be surrounded by spaces, i.e., ` | ` (`[SPACE]|[SPACE]`).

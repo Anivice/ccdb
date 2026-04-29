@@ -173,7 +173,7 @@ namespace ccdb
         void get_proxy();
         void get_vecGroupProxy(bool show_vgroups = true);
         void set_mode(const std::vector<std::string> & command_vector) const;
-        void set_group(const std::vector<std::string> & command_vector);
+        void __attribute_deprecated__ set_group(const std::vector<std::string> & command_vector);
         void set_vgroup(const std::vector<std::string> & command_vector);
         void set_chain_parser(const std::vector<std::string> & command_vector);
         void set_allowlan(const std::vector<std::string> & command_vector) const;

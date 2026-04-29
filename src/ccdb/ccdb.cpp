@@ -566,8 +566,8 @@ void ccdb::ccdb::init()
                 if (command_vector.size() == 3 && command_vector[1] == "mode")  {
                     set_mode(command_vector);
                 }
-                else if (command_vector.size() == 4 && command_vector[1] == "group") { // set group [PROXY] [ENDPOINT]
-                    set_group(command_vector);
+                else if (command_vector.size() >= 2 && command_vector[1] == "group") { // set group [PROXY] [ENDPOINT]
+                    print<is_error>("This command is deprecated, use `set vgroup` instead\n");
                 }
                 else if (command_vector.size() == 4 && command_vector[1] == "vgroup") { // set vgroup [Vec PROXY] [Vec ENDPOINT]
                     set_vgroup(command_vector);

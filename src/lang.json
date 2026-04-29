@@ -883,5 +883,10 @@
     "en"    : ": section head is empty",
     "en_US" : ": section head is empty",
     "zh_CN" : ": 没有配置区头部"
+  },
+  {
+    "en"    : "This command is deprecated, use `set vgroup` instead\n",
+    "en_US" : "This command is deprecated, use `set vgroup` instead\n",
+    "zh_CN" : "该命令已被弃用，请使用`set vgroup`\n"
   }
 ]

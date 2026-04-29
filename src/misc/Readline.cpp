@@ -428,9 +428,14 @@ namespace Readline
         std::ranges::for_each(candidate_list, [&](const auto & pair)
         {
             const auto & [str, len_] = pair;
-            const int len = len_ + delimiter_size;
-            std::cout << str << utf8::utf32to8(delimiter);
             index++;
+            int len = 0;
+
+            {
+                len = len_ + (index >= proper_list_size ? 0 : delimiter_size);
+                std::cout << str << (index >= proper_list_size ? "" : utf8::utf32to8(delimiter));
+            }
+
             if (index >= proper_list_size) {
                 index = 0;
                 std::cout << std::endl;

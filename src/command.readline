@@ -53,9 +53,11 @@
         config          (Get current backend config in JSON),
     >,
     < set (Set parameters): < mode          (Proxy mode):           global (Global mode), rule (Rule mode), direct (Direct mode) >,
-                            < group         (Switch proxy group):   [GROUP] (Group name), [PROXY] (Proxy endpoint name) >,
+                            # < group         (Switch proxy group):   [GROUP] (Group name), [PROXY] (Proxy endpoint name) >,
                             < vgroup        (Switch proxy group by vector): [VGROUP] (Group vector number), [VPROXY] (Proxy vector number) >,
-                            < chain_parser  (Chain parser):         on, off >,
+                            < chain_parser  (Chain parser):         on (Expand `get connection`'s column 11 chain parser),
+                                                                    off (No expansion of `get connection`'s column 11 chain parser)
+                            >,
                             < sort_by       (Sort by column):
                                                                     0 (Host),
                                                                     1 (Process),
@@ -81,8 +83,8 @@
                                                                     12 (Log level),
                                                                     13 (Log content),
                             >, # set filter [INDEX] [PATTERN], pattern cannot be auto completed, so it's simply ignored
-                            < sort_reverse  (Reverse sorting):      on, off >,
-                            < filter_reverse (Reverse filter):      on, off >,
+                            < sort_reverse  (Reverse sorting):      on (reverse), off (no reverse) >,
+                            < filter_reverse (Reverse filter):      on (reverse), off (no reverse) >,
                             port        (Mihomo http proxy port),
                             socksport   (Mihomo socks5 proxy port),
                             redirport   (Mihomo redirect port),
