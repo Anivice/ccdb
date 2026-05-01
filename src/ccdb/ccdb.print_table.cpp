@@ -334,13 +334,7 @@ void ccdb::ccdb::print_table(
 
             if (use_line_highlighter)
             {
-                color::g_color_status_override = 0;
-                std::string color_line_hl = color::color(0,0,0,5,5,5);
-                if (utils::getenv("REVERSE_HIGHLIGHTER") == "true") {
-                    color_line_hl = color::color(5,5,5,0,0,0);
-                }
-
-                color::g_color_status_override = -1;
+                std::string color_line_hl = "\033[07m";
                 if (utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") == "true") {
                     color_line_hl = "";
                 }

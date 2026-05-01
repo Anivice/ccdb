@@ -355,21 +355,16 @@ namespace Readline
             if (const std::string match = matches[i]; std::regex_match(match, r))
             {
                 std::stringstream ss;
-                auto no_color = ccdb::color::no_color();
-                if (ccdb::utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true"
-                    && ccdb::utils::getenv("REVERSE_HIGHLIGHTER") == "true")
-                {
-                    ccdb::color::g_color_status_override = 0;
-                    ss << ccdb::color::color(5,5,5,0,0,0) << "\033[01;02m";
-                    no_color = ccdb::color::no_color();
-                    ccdb::color::g_color_status_override = -1;
+                std::string no_color = "\033[0m";
+                if (ccdb::utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") == "true") {
+                    no_color = "";
+                } else {
+                    ss << "\033[04;05;07m";
                 }
-                else {
-                    ss << ccdb::color::color(0,0,0,5,5,5) << (ccdb::color::is_no_color() ? "" : "\033[01m");
-                }
+
                 ss << match;
-                if (ccdb::utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") == "true") no_color = "";
                 ss << no_color;
+
                 candidate_list.emplace_back(ss.str(), ccdb::utils::UnicodeDisplayWidth::get_width_utf8(match));
             } else {
                 candidate_list.emplace_back(match, ccdb::utils::UnicodeDisplayWidth::get_width_utf8(match));
