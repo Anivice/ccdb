@@ -20,7 +20,6 @@
 //
 
 #include <chrono>
-#include <thread>
 #include <algorithm>
 #include <cmath>
 #include <string>

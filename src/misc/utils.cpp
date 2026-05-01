@@ -131,7 +131,7 @@ void ccdb::utils::set_ssl_automatically(httplib::Client & client, const std::str
             getenv("PREFIX") + "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem",
         };
 
-        std::ranges::any_of(ca_paths, [&](const std::string& ca_path)->bool
+        (void)std::ranges::any_of(ca_paths, [&](const std::string& ca_path)->bool
         {
             if (!ca_path.empty() && std::filesystem::exists(ca_path))
             {
@@ -681,7 +681,6 @@ timespec ccdb::utils::get_timespec() noexcept
 
 std::string ccdb::utils::value_to_human(uint64_t value, const uint64_t p, const std::vector<std::string> &lvs)
 {
-    const auto backup = value;
     std::stringstream ss;
     if (lvs.empty()) {
         throw std::runtime_error("lvs is empty");
@@ -703,15 +702,15 @@ std::string ccdb::utils::value_to_human(uint64_t value, const uint64_t p, const 
     {
         uint64_t last = 0;
         for (uint64_t i = lvs.size(); i < values.size(); i++) {
-            last += values[i] * std::pow(p, i);
+            last += values[i] * static_cast<uint64_t>(std::pow(p, i));
         }
 
         values.resize(lvs.size());
         values.back() += last;
     }
 
-    const std::string metric = lvs[values.size() - 1];
-    const uint64_t metric_length = std::pow(p, values.size() - 1);
+    const std::string & metric = lvs[values.size() - 1];
+    const auto metric_length = std::pow(p, values.size() - 1);
 
     if (values.size() > 2)
     {
@@ -719,7 +718,7 @@ std::string ccdb::utils::value_to_human(uint64_t value, const uint64_t p, const 
         const uint64_t end = values.back();
 
         for (uint64_t i = 0; i < values.size() - 1; i++) {
-            start += values[i] * std::pow(p, i);
+            start += values[i] * static_cast<uint64_t>(std::pow(p, i));
         }
 
         values.resize(2);
@@ -1099,8 +1098,8 @@ void ccdb::utils::CRC64::c_bin2hex(const char bin, char hex[2])
         throw std::invalid_argument("Invalid binary code");
     };
 
-    const char bin_a = static_cast<char>(bin >> 4) & 0x0F;
-    const char bin_b = bin & 0x0F;
+    const char bin_a = static_cast<char>((bin >> 4) & 0x0F);
+    const char bin_b = static_cast<char>(bin & 0x0F);
 
     hex[0] = find_in_table(bin_a);
     hex[1] = find_in_table(bin_b);

@@ -122,7 +122,7 @@ void ccdb::ccdb::get_log()
         {
             // refocus
             int offset = 0;
-            std::ranges::any_of(log_on_current_page, [&](const std::vector<std::string> & line)->bool
+            (void)std::ranges::any_of(log_on_current_page, [&](const std::vector<std::string> & line)->bool
             {
                 if (offset != mouse_y - start_line - 1) {
                     offset++;

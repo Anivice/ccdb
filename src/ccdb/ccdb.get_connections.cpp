@@ -26,7 +26,6 @@
 #include "print.h"
 #include "ccdb.h"
 #include "utils.h"
-#include "pull_subinfo.h"
 
 // --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;
@@ -334,7 +333,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 if (focus_line != -1)
                 {
                     general_info_pulling::connection_t matched_connection;
-                    std::ranges::any_of(connections, [&](const general_info_pulling::connection_t & conn)->bool
+                    (void)std::ranges::any_of(connections, [&](const general_info_pulling::connection_t & conn)->bool
                     {
                         if (conn.metadata.connectionID == focused_connection_id) {
                             matched_connection = conn;

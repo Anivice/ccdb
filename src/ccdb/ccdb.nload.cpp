@@ -694,7 +694,7 @@ void ccdb::ccdb::nload(const std::vector<std::string> & vec)
                 str_logs.push_back(ss.str());
             });
 
-            std::ranges::any_of(str_logs, [&](const auto & log) ->bool
+            (void)std::ranges::any_of(str_logs, [&](const auto & log) ->bool
             {
                 const auto filtered_out =
                     (if_filter_out(log, log_level_filter)
