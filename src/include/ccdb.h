@@ -124,6 +124,7 @@ namespace ccdb
         /// without any sifting instead of partially trimmed content
         /// @param color_code_overrides Override color code for a specific line
         /// @param highlight_screen_line Lines to be selected or highlighted
+        /// @param out If std::ostream is provided and content is redirected to a pager, this will be used as output instead of the pager
         /// @returns NONE
         void print_table(
             std::vector<std::string> const & table_keys,
@@ -139,10 +140,20 @@ namespace ccdb
             std::atomic_int * max_skip_lines_ptr = nullptr,
             bool enforce_no_pager = false, // disable line shrinking, used when NOPAGER=y or pager is not available
             tsl::hopscotch_map < uint64_t, std::string > color_code_overrides = { }, // override color code for a specific line
-            int highlight_screen_line = -1
+            int highlight_screen_line = -1,
+            std::ostream * out = nullptr
         );
 
         void simple_print_table(
+            std::vector < std::string > const & table_titles,
+            std::vector < std::vector < std::string > > const & table_values);
+
+        void simple_print_table_to_ostream(
+            std::vector < std::string > const & table_titles,
+            std::vector < std::vector < std::string > > const & table_values,
+            std::ostream & out_stream);
+
+        std::string simple_print_table_to_std_string(
             std::vector < std::string > const & table_titles,
             std::vector < std::vector < std::string > > const & table_values);
 

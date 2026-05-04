@@ -506,7 +506,14 @@ void ccdb::ccdb::map_proxy_chain()
         });
     });
 
-    simple_print_table(title, table);
+    const auto str = simple_print_table_to_std_string(title, table);
+    if (const auto line_len = UnicodeDisplayWidth::get_width_utf8(str.substr(0, str.find_first_of('\n')));
+        line_len > get_col_size())
+    {
+        pager(str);
+    }
+
+    std::cout << str << std::endl;
 }
 
 void ccdb::ccdb::ccdbrc()

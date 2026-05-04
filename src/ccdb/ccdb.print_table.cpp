@@ -82,7 +82,8 @@ void ccdb::ccdb::print_table(
     std::atomic_int *max_skip_lines_ptr,
     const bool enforce_no_pager,
     tsl::hopscotch_map < uint64_t, std::string > color_code_overrides,
-    int highlight_screen_line)
+    int highlight_screen_line,
+    std::ostream * out)
 {
     std::ostringstream frame;
     std::ostringstream less_output_redirect;
@@ -96,15 +97,21 @@ void ccdb::ccdb::print_table(
         const int len_;
         const int & start_;
         const int & end_;
+        std::ostream * out_;
 
         auto_print_t(std::ostringstream & frame, std::ostringstream & less_output_redirect, ccdb * parent,
-            const int len, const int & start, const int & end)
+            const int len, const int & start, const int & end, std::ostream * out)
             : frame_(frame), less_output_redirect_(less_output_redirect), parent_(parent),
-                len_(len), start_(start), end_(end) { }
+                len_(len), start_(start), end_(end), out_(out) { }
         ~auto_print_t()
         {
-            if (const auto output = less_output_redirect_.str(); !output.empty()) {
-                parent_->pager(output);
+            if (const auto output = less_output_redirect_.str(); !output.empty())
+            {
+                if (out_) {
+                    *out_ << output;
+                } else {
+                    parent_->pager(output);
+                }
                 return; // skip frame output when less pager is specified
             }
 
@@ -141,7 +148,7 @@ void ccdb::ccdb::print_table(
                 std::cout << ss2.str() << std::flush;
             }
         }
-    } auto_print(frame, less_output_redirect, this, static_cast<int>(table_values.size()), skip_lines, current_line_index);
+    } auto_print(frame, less_output_redirect, this, static_cast<int>(table_values.size()), skip_lines, current_line_index, out);
 
     const auto col = get_col_size() - 1;
     const auto lines = get_line_size() - 1;
@@ -490,13 +497,29 @@ void ccdb::ccdb::print_table(
 void ccdb::ccdb::simple_print_table(std::vector<std::string> const &table_titles,
     std::vector<std::vector<std::string>> const &table_values)
 {
+    simple_print_table_to_ostream(table_titles, table_values, std::cout);
+    std::cout << std::endl;
+}
+
+void ccdb::ccdb::simple_print_table_to_ostream(std::vector<std::string> const &table_titles,
+    std::vector<std::vector<std::string>> const &table_values, std::ostream &out_stream)
+{
     const auto less_bak = less;
     less.clear();
     print_table(table_titles, table_values,
         false, true, {}, 0, nullptr, true,
-    "", 0, nullptr, true);
+        "", 0, nullptr, true, {}, -1,
+        &out_stream);
     less = less_bak;
-    std::cout << std::endl;
+}
+
+std::string ccdb::ccdb::simple_print_table_to_std_string(
+    std::vector<std::string> const &table_titles,
+    std::vector<std::vector<std::string>> const &table_values)
+{
+    std::ostringstream out;
+    simple_print_table_to_ostream(table_titles, table_values, out);
+    return out.str();
 }
 
 void ccdb::ccdb::simple_print_table_w_pager(
@@ -504,8 +527,8 @@ void ccdb::ccdb::simple_print_table_w_pager(
     std::vector<std::vector<std::string>> const &table_values)
 {
     print_table(table_titles, table_values, false,
-    true, { }, 0, nullptr,
-    !less.empty(),
-    "", 0, nullptr,
-    less.empty());
+        true, { }, 0, nullptr,
+        !less.empty(),
+        "", 0, nullptr,
+        less.empty());
 }
