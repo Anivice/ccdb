@@ -42,7 +42,7 @@ set(OPENSSL_MAKE_ENTIRE "${MAKE_EXECUTABLE} ${OPENSSL_MAKE_ADDITIONAL_FLAGS}")
 message(STATUS "OpenSSL: ${OPENSSL_MAKE_ENTIRE}")
 ExternalProject_Add(OPENSSL
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/openssl
-        SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/openssl-3.6.2
+        SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/openssl-4.0.0
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/openssl/install
         CONFIGURE_COMMAND   /bin/sh -c "env PERL5LIB=\"${CMAKE_CURRENT_BINARY_DIR}/perl/install/lib/5.42.0/\" PATH=\"${CMAKE_CURRENT_BINARY_DIR}/perl/install/bin:$PATH\" <SOURCE_DIR>/Configure ${OPENSSL_TARGET} no-shared no-docs no-tests --prefix=<INSTALL_DIR> --openssldir=\"<INSTALL_DIR>/ssl\" ${OPENSSL_CONFIGURE_ADDITIONAL_FLAGS}"
         BUILD_COMMAND       /bin/sh -c "${OPENSSL_MAKE_ENTIRE}"
