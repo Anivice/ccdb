@@ -639,7 +639,7 @@ void ccdb::ccdb::nload(const std::vector<std::string> & vec)
 
                 c.host = c.processName.empty() ? c.host : (c.host + " (" + c.processName + ")");
                 c.host = c.networkType.empty() ? c.host : (c.host + " <" + c.networkType + ">");
-                c.host = c.host + " " + (c.chainName == "DIRECT" ? "- " : "x ");
+                c.host = c.host + " " + (c.chainName.find("DIRECT") != std::string::npos ? "- " : "x ");
                 if (max_host_len < UnicodeDisplayWidth::get_width_utf8(c.host)) {
                     max_host_len = UnicodeDisplayWidth::get_width_utf8(c.host);
                 }
