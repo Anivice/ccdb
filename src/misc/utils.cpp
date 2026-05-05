@@ -791,6 +791,13 @@ std::string ccdb::utils::second_to_human_readable(unsigned long long value)
     return std::to_string(day) + "d " + std::to_string(hour) + "h " + std::to_string(minute) + "m " + std::to_string(second) + "s";
 }
 
+std::u32string ccdb::utils::utf8_to_u32(const std::string &s)
+{
+    std::u32string result;
+    utf8::utf8to32(s.begin(), s.end(), std::back_inserter(result));
+    return result;
+}
+
 int ccdb::utils::UnicodeDisplayWidth::get_width_utf8(const std::string &utf8_str)
 {
     std::u32string utf32_str;
@@ -932,13 +939,13 @@ bool ccdb::utils::is_less_available()
 }
 
 void put_cap(const char* cap) {
-    if (!cap || cap == (char*)-1) return;
+    if (!cap || cap == reinterpret_cast<const char *>(-1)) return;
     putp(cap);
 }
 
 const char* capstr(const char* name) {
-    char* s = tigetstr(name);
-    if (s == (char*)-1 || s == nullptr) return nullptr;
+    const char* s = tigetstr(name);
+    if (s == reinterpret_cast<const char *>(-1) || s == nullptr) return nullptr;
     return s;
 }
 

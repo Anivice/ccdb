@@ -151,12 +151,7 @@ namespace ccdb::utils {
     /// UTF8 std::string to std::u32string
     /// @param s UTF8 string
     /// @return UTF32 string
-    constexpr std::u32string utf8_to_u32(const std::string& s)
-    {
-        std::u32string result;
-        utf8::utf8to32(s.begin(), s.end(), std::back_inserter(result));
-        return result;
-    }
+    std::u32string utf8_to_u32(const std::string& s);
 
     /// Character display width
     class UnicodeDisplayWidth {
