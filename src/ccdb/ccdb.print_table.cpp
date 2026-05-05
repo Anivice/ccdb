@@ -75,8 +75,14 @@ static std::string highlight(std::string & str, const std::string & pattern, con
     return original_color + regex_replace_all(ret, pattern,
         [&](const std::smatch & mat)->std::string
         {
-            matches += 1;
-            return ::ccdb::color::color(0,0,0,5,5,0) + mat[0].str() + ccdb::color::no_color() + original_color;
+            const auto & mat_str = mat[0].str();
+            if ((mat_str.size() == 1 && std::isprint(mat_str.front())) || mat_str.size() > 1)
+            {
+                matches += 1;
+                return ::ccdb::color::color(0,0,0,5,5,0) + mat[0].str() + ccdb::color::no_color() + original_color;
+            }
+    
+            return mat_str;
         });
 }
 
