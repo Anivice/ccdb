@@ -73,10 +73,10 @@ static std::string highlight(std::string & str, const std::string & pattern, con
     if (pattern.empty()) return str;
     std::string ret = strip_color(str);
     return original_color + regex_replace_all(ret, pattern,
-        [&](const std::smatch &)->std::string
+        [&](const std::smatch & mat)->std::string
         {
             matches += 1;
-            return ::ccdb::color::color(0,0,0,5,5,0) + pattern + ccdb::color::no_color() + original_color;
+            return ::ccdb::color::color(0,0,0,5,5,0) + mat[0].str() + ccdb::color::no_color() + original_color;
         });
 }
 
