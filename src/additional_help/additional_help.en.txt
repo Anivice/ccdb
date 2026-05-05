@@ -25,3 +25,4 @@ Keyboard Shortcuts:
                             P: Print raw JSON from Mihomo core. If `jq` can be found, JSON will be parsed by jq
                        F1-F12: Specify which column (0-11) to sort the table, press on the same column again to reverse the sort
                        Ctrl+C: Abort the watcher
+                            /: Search and highlight

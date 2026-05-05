@@ -108,6 +108,7 @@ mapProxyChain                   : Map out current proxy chain
       * P: Print raw JSON from Mihomo core. If `jq` can be found, JSON will be parsed by jq
       * F1-F12: Specify which column (0-11) to sort the table, press on the same column again to reverse the sort
       * Ctrl+C: Abort the watcher
+      * /: Search and highlight
 
 Press Tab twice to list candidates in a command,
 this will list all the available candidates like proxy endpoints or groups,
@@ -123,9 +124,9 @@ To run a shell command, prefix it with `"$ "` (dollar sign + space/`$[WITH A SPA
 > ![img](img/helper2.png)
 
 > **NOTE 2:**
-
-https://github.com/Anivice/ccdb/blob/c5b70b0a5202ae794469e36ee95c3f00c646facf/ccdbrc.example#L56-L57
- 
+> 
+> https://github.com/Anivice/ccdb/blob/c5b70b0a5202ae794469e36ee95c3f00c646facf/ccdbrc.example#L56-L57
+> 
 > Comments for the aliases will be noted and printed in the double tab helper as well:
 > 
 > e.g.:
