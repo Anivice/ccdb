@@ -37,16 +37,22 @@ void ccdb::ccdb::get_log()
     std::atomic_int max_skip_lines = 0;
     std::atomic_int current_skip_lines = 0;
     std::atomic_bool running = true;
-    std::atomic_int mouse_x, mouse_y;
+    std::atomic_int mouse_x = 0, mouse_y = 0;
     std::vector < bool > do_col_hide;
     do_col_hide.resize(log_titles.size(), false);
     uint64_t focused_log = 0; // crc64 of focused log entry
     bool focused = false;
     constexpr int start_line = 5;
     setup_term term;
+    ccdb_atomic_t < std::u32string > search_content_buffer;
+    std::atomic_int cursor_position = 0;
+    std::atomic_bool show_search = false;
+    std::string search_content;
+
     auto input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
         &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
-        &mouse_x, &mouse_y, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+        &mouse_x, &mouse_y, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+        &show_search, &search_content_buffer, &cursor_position);
 
     std::string log_level_filter, log_content_filter;
     if (filter_patterns.contains(12)) log_level_filter = filter_patterns.at(12);
@@ -155,6 +161,14 @@ void ccdb::ccdb::get_log()
 
         term.move_home();
 
+        if (!search_content_buffer.get().empty() && search_content_buffer.get().back() == '\n')
+        {
+            search_content = utf8::utf32to8(search_content_buffer.get());
+            search_content.pop_back(); // pop '\n'
+            search_content_buffer.set({});
+            std::cout << term.clear;
+        }
+
         print_table(log_titles,
             lines,
             false,
@@ -168,19 +182,30 @@ void ccdb::ccdb::get_log()
             &max_skip_lines,
             false,
             line_color_overrides,
-            focus_line);
+            focus_line,
+            nullptr,
+            &show_search,
+            &search_content_buffer,
+            &cursor_position,
+            search_content);
 
         term.ed_clear();
 
         const int local_leading_spaces = leading_spaces;
         const int local_skip_lines = current_skip_lines;
         const int local_mouse_y = mouse_y;
+        const int local_cursor_position = cursor_position;
+        const auto local_str_len = search_content_buffer.get().size();
+        const bool local_show_search = show_search;
 
         for (int i = 0; i < screen_refresh_interval_in_ms / 10; i++)
         {
             if (local_leading_spaces != leading_spaces
                 || local_skip_lines != current_skip_lines
                 || local_mouse_y != mouse_y
+                || local_cursor_position != cursor_position
+                || local_str_len != search_content_buffer.get().size()
+                || local_show_search != show_search
                 || window_size_change)
             {
                 if (window_size_change) {

@@ -56,6 +56,10 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     atomic_subinfo_ball_t subinfo_ball = std::make_unique<ccdb_atomic_t<subinfo_ball_t>>();
     std::vector < std::pair < std::unique_ptr<std::atomic_bool>, std::thread > > threads;
     std::atomic_bool pause_input_watcher = false;
+    ccdb_atomic_t < std::u32string > search_content_buffer;
+    std::atomic_int cursor_position = 0;
+    std::atomic_bool show_search = false;
+    std::string search_content;
 
     auto show_info = [&](const std::string & msg, const std::string & level) {
         g_title_lines.emplace_back("[" + level + "]: " + msg, std::chrono::high_resolution_clock::now());
@@ -101,11 +105,11 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     }
 
     if (use_input) {
-        setup_term = std::make_unique<::ccdb::utils::setup_term>();
+        setup_term = std::make_unique<utils::setup_term>();
         input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
             &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
             &mouse_x, &mouse_y, &kill_connection, &focus_to_highlight, &conn_show_detail, &sort_by_from_watcher, &atm_focus,
-            &pause_input_watcher);
+            &pause_input_watcher, &show_search, &search_content_buffer, &cursor_position);
     }
 
     auto valid_check = [&](const general_info_pulling::connection_t & c)->bool {
@@ -358,6 +362,14 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
             setup_term->move_home();
 
+            if (!search_content_buffer.get().empty() && search_content_buffer.get().back() == '\n')
+            {
+                search_content = utf8::utf32to8(search_content_buffer.get());
+                search_content.pop_back(); // pop '\n'
+                search_content_buffer.set({});
+                std::cout << setup_term->clear;
+            }
+
             print_table(title_this_session,
                 table_vals,
                 false,
@@ -371,7 +383,12 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 &max_skip_lines,
                 false,
                 {},
-                focus_line);
+                focus_line,
+                nullptr,
+                &show_search,
+                &search_content_buffer,
+                &cursor_position,
+                search_content);
 
             setup_term->ed_clear();
 
@@ -382,6 +399,9 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             const bool local_kill_status = kill_connection;
             const bool local_show_detail = conn_show_detail;
             const int local_sort_by_from_watcher = sort_by_from_watcher;
+            const int local_cursor_position = cursor_position;
+            const auto local_str_len = search_content_buffer.get().size();
+            const bool local_show_search = show_search;
 
             for (int i = 0; i < screen_refresh_interval_in_ms / 10; i++)
             {
@@ -393,6 +413,9 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     || local_kill_status != kill_connection
                     || local_show_detail != conn_show_detail
                     || local_sort_by_from_watcher != sort_by_from_watcher
+                    || local_cursor_position != cursor_position
+                    || local_str_len != search_content_buffer.get().size()
+                    || local_show_search != show_search
                     || !running)
                 {
                     if (window_size_change) {

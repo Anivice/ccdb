@@ -34,6 +34,8 @@
 
 namespace ccdb
 {
+    class auto_print_t;
+
     class ccdb
     {
     private:
@@ -125,6 +127,10 @@ namespace ccdb
         /// @param color_code_overrides Override color code for a specific line
         /// @param highlight_screen_line Lines to be selected or highlighted
         /// @param out If std::ostream is provided and content is redirected to a pager, this will be used as output instead of the pager
+        /// @param show_search Show search blue box?
+        /// @param search_line_boxContent Content shown inside search line
+        /// @param cursor_position_in_search_box Cursor position in search box, offset to the content
+        /// @param highlight_str Highlight this string
         /// @returns NONE
         void print_table(
             std::vector<std::string> const & table_keys,
@@ -141,7 +147,11 @@ namespace ccdb
             bool enforce_no_pager = false, // disable line shrinking, used when NOPAGER=y or pager is not available
             tsl::hopscotch_map < uint64_t, std::string > color_code_overrides = { }, // override color code for a specific line
             int highlight_screen_line = -1,
-            std::ostream * out = nullptr
+            std::ostream * out = nullptr,
+            std::atomic_bool * show_search = nullptr,
+            ccdb_atomic_t < std::u32string > * search_line_boxContent = nullptr,
+            std::atomic_int * cursor_position_in_search_box = nullptr,
+            const std::string & highlight_str = ""
         );
 
         void simple_print_table(
@@ -232,6 +242,9 @@ namespace ccdb
         /// @param sort_by_ptr
         /// @param current_focus_ptr
         /// @param pause
+        /// @param show_search
+        /// @param search_content_buffer
+        /// @param cursor_position
         void get_conn_input_watcher(
             std::atomic_bool * running_ptr,
             std::atomic_int * leading_spaces_ptr,
@@ -245,7 +258,10 @@ namespace ccdb
             std::atomic_bool * show_detail,
             std::atomic_int * sort_by_ptr,
             const std::atomic_int * current_focus_ptr,
-            const std::atomic_bool * pause);
+            const std::atomic_bool * pause,
+            std::atomic_bool * show_search,
+            ccdb_atomic_t < std::u32string > * search_content_buffer,
+            std::atomic_int * cursor_position);
 
         void init();
 
@@ -269,7 +285,7 @@ namespace ccdb
         ccdb(const std::string & backend, const std::string & token, std::string latency_url_, bool fast_shutdown);
         ccdb(const std::string & backend, const std::string & token, std::string latency_url_, const std::vector<std::string> & cmd);
 
-        friend class mode_guard_t;
+        friend class auto_print_t;
     };
 
     /// signal SIGINT watcher

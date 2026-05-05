@@ -20,7 +20,7 @@ Environment:
                                    Note that this will make highlighted lines invisible.
 Keyboard Shortcuts:
   `get connections`: Get connections has multiple keyboard shortcuts:
-     Mouse Click/Ctrl+UP/DOWN: Move highlight
+     Mouse Click/Ctrl+UP/Ctrl+DOWN: Move highlight (Mouse click applies to `get log` as well)
                             K: Kill the highlighted connection
                             P: Print raw JSON from Mihomo core. If `jq` can be found, JSON will be parsed by jq
                        F1-F12: Specify which column (0-11) to sort the table, press on the same column again to reverse the sort

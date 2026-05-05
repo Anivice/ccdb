@@ -344,8 +344,21 @@ int execute_within_page(char** argv, const std::string & to_write, const std::st
     return EXIT_FAILURE;
 }
 
+#ifndef __attribute_used__
+# if __has_attribute (__used__)
+#   define __attribute_used__ __attribute__ ((__used__))
+#   define __attribute_noinline__ __attribute__ ((__noinline__))
+# else
+#   define __attribute_used__ __attribute__ ((__unused__))
+#   define __attribute_noinline__ /* Ignore */
+# endif
+#endif //__attribute_used__
+
 std::atomic_bool term_inited = false;
-static class init_term_t {
+static
+__attribute_used__
+class init_term_t
+{
 public:
     init_term_t()
     {
@@ -778,13 +791,6 @@ std::string ccdb::utils::second_to_human_readable(unsigned long long value)
     return std::to_string(day) + "d " + std::to_string(hour) + "h " + std::to_string(minute) + "m " + std::to_string(second) + "s";
 }
 
-std::u32string ccdb::utils::utf8_to_u32(const std::string &s)
-{
-    std::u32string result;
-    utf8::utf8to32(s.begin(), s.end(), std::back_inserter(result));
-    return result;
-}
-
 int ccdb::utils::UnicodeDisplayWidth::get_width_utf8(const std::string &utf8_str)
 {
     std::u32string utf32_str;
@@ -1121,4 +1127,13 @@ std::string ccdb::utils::CRC64::bin2hex(const std::string &str)
 {
     const std::vector < char > vec(str.begin(), str.end());
     return bin2hex(vec);
+}
+
+std::string ccdb::utils::strip_color(std::string str_)
+{
+    constexpr auto color_pattern = R"(\x1B\[(?:\d*(?:;\d*)*)?m)";
+    regex_replace_all(str_, color_pattern, [](const auto &)->std::string {
+        return "";
+    });
+    return str_;
 }

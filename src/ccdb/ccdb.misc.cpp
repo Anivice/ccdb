@@ -338,7 +338,10 @@ void ccdb::ccdb::get_conn_input_watcher(
     std::atomic_bool * show_detail,
     std::atomic_int * sort_by_ptr,
     const std::atomic_int * current_focus_ptr,
-    const std::atomic_bool * pause)
+    const std::atomic_bool * pause,
+    std::atomic_bool * show_search,
+    ccdb_atomic_t < std::u32string > * search_content_buffer,
+    std::atomic_int * cursor_position)
 {
     set_thread_name("get/conn:input");
     interactive_verification();
@@ -380,10 +383,12 @@ void ccdb::ccdb::get_conn_input_watcher(
     const std::regex mouse_pattern(R"(^\^\[\[\<[\d]+\;([\d]+)\;([\d]+)[Mm]$)");
     const std::regex mouse_scroll_down_pattern(R"(^\^\[\[\<65\;([\d]+)\;([\d]+)[Mm]$)");
     const std::regex mouse_scroll_up_pattern(R"(^\^\[\[\<64\;([\d]+)\;([\d]+)[Mm]$)");
+    const std::regex escape_pattern(R"(^\^\[\[.*$)");
 
     std::vector <int> ch_list;
     char ch;
     bool esc_caught = false;
+    bool timeout_on_read = false;
 
     auto up = [&](const int row_step)
     {
@@ -474,12 +479,19 @@ void ccdb::ccdb::get_conn_input_watcher(
             continue;
         }
 
-        if (const ssize_t sz = read_with_timeout(STDIN_FILENO, &ch, 1, 50); sz == -1) {
+        if (const ssize_t sz = read_with_timeout(STDIN_FILENO, &ch, 1, 50); sz == -1)
+        {
             if (esc_caught == true) {
                 break;
             }
-            ch_list.clear();
-            continue;
+
+            if (show_search && !*show_search) {
+                ch_list.clear();
+                continue;
+            }
+
+            ch = 0;
+            timeout_on_read = true;
         }
 
         const auto [row, col] = get_screen_row_col();
@@ -487,17 +499,122 @@ void ccdb::ccdb::get_conn_input_watcher(
         const auto col_step = std::max(col / 8, 1);
         const auto page_size = std::max(row - 8 /* list headers, etc. */, 1);
         std::string str_buffer;
-        if ((ch == 'q' || ch == 'Q') && ch_list.empty())
+        if (ch_list.empty())
         {
-            break;
+            if (ch == '/' && show_search && !*show_search)
+            {
+                *show_search = true;
+                *cursor_position = 0;
+                search_content_buffer->set({});
+                continue;
+            }
+
+            if (ch == '\n' && show_search && *show_search)
+            {
+                *show_search = false;
+                search_content_buffer->set(search_content_buffer->get() + utf8_to_u32("\n"));
+                if (cursor_position) {
+                    *cursor_position = -1;
+                }
+
+                continue;
+            }
+
+            if ((!show_search || (show_search && !*show_search)) && (ch == 'q' || ch == 'Q')) break;
         }
 
         esc_caught = (ch == 27);
-        ch_list.push_back(ch);
+        if (ch) ch_list.push_back(ch);
         str_buffer = ch_list_to_string(ch_list);
 
+        if (std::lock_guard<std::mutex> thread_mtx_kbd_shortcut(keyboard_shortcut_map_mtx);
+            show_search && *show_search)
         {
-            std::lock_guard<std::mutex> thread_mtx_kbd_shortcut(keyboard_shortcut_map_mtx);
+            if (validation(str_buffer, keyboard_shortcut_map.at("MoveLeft"))) // left arrow
+            {
+                if (cursor_position && *cursor_position > 0) {
+                    *cursor_position -= 1;
+                }
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("MoveRight"))) // right arrow
+            {
+                if (cursor_position && *cursor_position < search_content_buffer->get().length()) {
+                    *cursor_position += 1;
+                }
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("ToStart"))) {
+                if (cursor_position) *cursor_position = 0;
+            }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("ToEnd"))) {
+                if (cursor_position) *cursor_position = search_content_buffer->get().length();
+            }
+            if (validation(str_buffer, "^[[3~")) // Delete
+            {
+                if (auto str = search_content_buffer->get(); !str.empty())
+                {
+                    if ((*cursor_position + 1) < str.length())
+                    {
+                        str.erase(*cursor_position + 1, 1); // cursor position does not change on Delete
+                    } else {
+                        str.pop_back();
+                        *cursor_position = str.length(); // cursor position changes according to str len
+                    }
+
+                    search_content_buffer->set(str);
+                }
+
+                ch_list.clear();
+            }
+            if (validation(str_buffer, "^127")) // Backspace
+            {
+                if (auto str = search_content_buffer->get();
+                    *cursor_position > 0) // DEL
+                {
+                    if (*cursor_position < str.length()) {
+                        str.erase(*cursor_position, 1);
+                        *cursor_position -= 1;
+                    } else {
+                        str.pop_back();
+                        *cursor_position = str.length();
+                    }
+
+                    search_content_buffer->set(str);
+                }
+
+                ch_list.clear();
+            }
+            else if (std::regex_match(str_buffer, escape_pattern) && timeout_on_read) {
+                ch_list.clear();
+            }
+            else if (!str_buffer.empty() && (timeout_on_read || str_buffer.front() != '^'))
+            {
+                auto str = search_content_buffer->get();
+                std::ranges::for_each(ch_list, [&](const int c)
+                {
+                    if (std::isprint(c))
+                    {
+                        if (*cursor_position < str.length()) {
+                            str.insert(cursor_position->load(), 1, static_cast<std::u32string::value_type>(c));
+                            *cursor_position += 1;
+                        } else {
+                            str += static_cast<std::u32string::value_type>(c);
+                            *cursor_position = str.length();
+                        }
+                    }
+                });
+
+                search_content_buffer->set(str);
+                ch_list.clear();
+            }
+
+            if (timeout_on_read) {
+                ch_list.clear();
+            }
+
+            timeout_on_read = false;
+        }
+        else
+        {
             if (validation(str_buffer, keyboard_shortcut_map.at("KillConn")))
             {
                 if (kill_signal_sent) *kill_signal_sent = true;

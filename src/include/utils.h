@@ -151,7 +151,12 @@ namespace ccdb::utils {
     /// UTF8 std::string to std::u32string
     /// @param s UTF8 string
     /// @return UTF32 string
-    std::u32string utf8_to_u32(const std::string& s);
+    constexpr std::u32string utf8_to_u32(const std::string& s)
+    {
+        std::u32string result;
+        utf8::utf8to32(s.begin(), s.end(), std::back_inserter(result));
+        return result;
+    }
 
     /// Character display width
     class UnicodeDisplayWidth {
@@ -335,6 +340,8 @@ namespace ccdb::utils {
         crc64.update(reinterpret_cast<const uint8_t *>(data.c_str()), data.size());
         return crc64.get_checksum_str();
     }
+
+    std::string strip_color(std::string str_);
 }
 
 /// Automatic unpack from xxd with xxd naming convention

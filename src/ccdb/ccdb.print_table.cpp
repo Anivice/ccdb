@@ -68,29 +68,18 @@ static std::string generate_linear_handle(
     return ret;
 }
 
-void ccdb::ccdb::print_table(
-    std::vector<std::string> const &table_keys,
-    std::vector<std::vector<std::string>> const &table_values,
-    bool muff_non_ascii,
-    bool seperator,
-    const std::vector<bool> &table_hide,
-    uint64_t leading_offset,
-    std::atomic_int *max_tailing_size_ptr,
-    bool using_pager,
-    std::string additional_info_before_table,
-    int skip_lines,
-    std::atomic_int *max_skip_lines_ptr,
-    const bool enforce_no_pager,
-    tsl::hopscotch_map < uint64_t, std::string > color_code_overrides,
-    int highlight_screen_line,
-    std::ostream * out)
+static std::string highlight(std::string & str, const std::string & pattern, const std::string & original_color)
 {
-    std::ostringstream frame;
-    std::ostringstream less_output_redirect;
-    int current_line_index = 0;
+    if (pattern.empty()) return str;
+    std::string ret = strip_color(str);
+    return original_color + replace_all(ret, pattern,
+        ::ccdb::color::color(0,0,0,5,5,0) + pattern + ccdb::color::no_color() + original_color);
+}
 
-    class auto_print_t {
-    public:
+namespace ccdb {
+    class auto_print_t
+    {
+    private:
         std::ostringstream & frame_;
         std::ostringstream & less_output_redirect_;
         ccdb * parent_;
@@ -98,11 +87,106 @@ void ccdb::ccdb::print_table(
         const int & start_;
         const int & end_;
         std::ostream * out_;
+        std::atomic_bool * show_search_;
+        ccdb_atomic_t < std::u32string > * search_line_boxContent_; // content for the buffer?
+        std::atomic_int * cursor_position_in_search_box_; // cursor position for the buffer?
+        const std::string color_line_hl_; // highlight color
 
-        auto_print_t(std::ostringstream & frame, std::ostringstream & less_output_redirect, ccdb * parent,
-            const int len, const int & start, const int & end, std::ostream * out)
-            : frame_(frame), less_output_redirect_(less_output_redirect), parent_(parent),
-                len_(len), start_(start), end_(end), out_(out) { }
+        std::u32string print_search_box() const
+        {
+            if (show_search_ && *show_search_)
+            {
+                /// normalized values
+                const std::u32string content = search_line_boxContent_->get();
+                const int position = *cursor_position_in_search_box_;
+                if (position < 0) return {};
+                const auto col_size = get_col_size();
+                auto before = content.substr(0, position);
+                if (before.empty() && content.empty()) {
+                    return
+                        utf8_to_u32(color::color(5,5,5,0,0,5)) +
+                        utf8_to_u32(color_line_hl_) +
+                            std::u32string(1, L'█') +
+                        utf8_to_u32(color::no_color()) +
+                        utf8_to_u32(color::color(5,5,5,0,0,5)) +
+                            std::u32string(get_col_size() - 1, ' ') +
+                        utf8_to_u32(color::no_color());
+                }
+
+                const auto highlight = position < content.length() ? static_cast<signed long long int>(content[position]) : 0;
+                auto after = highlight > 0 ? content.substr(position + 1) : std::u32string();
+
+                // print the box:
+                if (UnicodeDisplayWidth::get_width_utf32(content) > (col_size - 1))
+                {
+                    while (UnicodeDisplayWidth::get_width_utf32(before) > (col_size - 1)) {
+                        before.erase(before.begin());
+                    }
+                }
+
+                if (utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true") {
+                    color::g_color_status_override = 0;
+                }
+
+                int bf_len = UnicodeDisplayWidth::get_width_utf32(before) + 1;
+                before =
+                    utf8_to_u32(color::color(5,5,5,0,0,5)) + before +
+                    utf8_to_u32(color_line_hl_) +
+                    std::u32string(1, highlight > 0 ? static_cast<wchar_t>(highlight) : L'█') +
+                    utf8_to_u32(color::no_color()) + utf8_to_u32(color::color(5,5,5,0,0,5));
+
+                while (!after.empty())
+                {
+                    if (const auto ch = after.front();
+                        (UnicodeDisplayWidth::get_width_utf32({ch}) + bf_len) > col_size)
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        before += ch;
+                        after.erase(after.begin());
+                        bf_len += UnicodeDisplayWidth::get_width_utf32({ ch });
+                    }
+                }
+
+                before += std::u32string(std::max(col_size - bf_len, 0), ' ') + utf8_to_u32(color::no_color());
+                color::g_color_status_override = -1;
+                return before;
+            }
+
+            return { };
+        }
+
+    public:
+        auto_print_t(
+            std::ostringstream & frame,
+            std::ostringstream & less_output_redirect,
+            ccdb * parent,
+            const int len,
+            const int & start,
+            const int & end,
+            std::ostream * out,
+            std::atomic_bool * show_search,
+            ccdb_atomic_t < std::u32string > * search_line_boxContent,
+            std::atomic_int * cursor_position_in_search_box,
+            const std::string & color_line_hl
+        )
+        :
+            frame_(frame),
+            less_output_redirect_(less_output_redirect),
+            parent_(parent),
+            len_(len),
+            start_(start),
+            end_(end),
+            out_(out),
+            show_search_(show_search),
+            search_line_boxContent_(search_line_boxContent),
+            cursor_position_in_search_box_(cursor_position_in_search_box),
+            color_line_hl_(color_line_hl.empty() ? "" : "\033[05;07m")
+        {
+        }
+
         ~auto_print_t()
         {
             if (const auto output = less_output_redirect_.str(); !output.empty())
@@ -112,6 +196,7 @@ void ccdb::ccdb::print_table(
                 } else {
                     parent_->pager(output);
                 }
+
                 return; // skip frame output when less pager is specified
             }
 
@@ -129,14 +214,6 @@ void ccdb::ccdb::print_table(
                 const std::string progress_bar = generate_linear_handle(len_, start_, end_, static_cast<int>(vec.size()));
                 const std::u32string progress_bar32 = utf8_to_u32(progress_bar);
 
-                auto strip_color = [](std::string str_)->std::string {
-                    constexpr auto color_pattern = R"(\x1B\[(?:\d*(?:;\d*)*)?m)";
-                    regex_replace_all(str_, color_pattern, [](const auto &)->std::string {
-                        return "";
-                    });
-                    return str_;
-                };
-
                 for (const auto & c : progress_bar32)
                 {
                     const auto no_color_str = strip_color(vec.front());
@@ -145,16 +222,62 @@ void ccdb::ccdb::print_table(
                     vec.erase(vec.begin());
                 }
 
-                std::cout << ss2.str() << std::flush;
+                std::cout << ss2.str();
+                std::cout << utf8::utf32to8(print_search_box()) << std::flush;
             }
         }
-    } auto_print(frame, less_output_redirect, this, static_cast<int>(table_values.size()), skip_lines, current_line_index, out);
+    };
+}
+
+void ccdb::ccdb::print_table(
+    std::vector<std::string> const &table_keys,
+    std::vector<std::vector<std::string>> const &table_values,
+    bool muff_non_ascii,
+    bool seperator,
+    const std::vector<bool> &table_hide,
+    uint64_t leading_offset,
+    std::atomic_int *max_tailing_size_ptr,
+    bool using_pager,
+    std::string additional_info_before_table,
+    int skip_lines,
+    std::atomic_int *max_skip_lines_ptr,
+    const bool enforce_no_pager,
+    tsl::hopscotch_map < uint64_t, std::string > color_code_overrides,
+    int highlight_screen_line,
+    std::ostream * out,
+    std::atomic_bool * show_search,
+    ccdb_atomic_t < std::u32string > * search_line_boxContent,
+    std::atomic_int * cursor_position_in_search_box,
+    const std::string & highlight_str
+)
+{
+    std::ostringstream frame;
+    std::ostringstream less_output_redirect;
+    int current_line_index = 0;
+    std::string color_line_hl = "\033[07m";
+    if (utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") == "true") {
+        color_line_hl = "";
+    }
+
+    auto_print_t auto_print(
+        frame,
+        less_output_redirect,
+        this,
+        static_cast<int>(table_values.size()),
+        skip_lines,
+        current_line_index,
+        out,
+        show_search,
+        search_line_boxContent,
+        cursor_position_in_search_box,
+        color_line_hl
+    );
 
     const auto col = get_col_size() - 1;
     const auto lines = get_line_size() - 1;
     if (get_col_size() < 1 || get_line_size() < 1) return;
 
-    if (lines < 9) {
+    if (lines < 9 || col < 3) {
         frame << color::color(0,0,0,5,0,0) << sprint("TOO SMALL") << color::no_color() << std::endl;
         return;
     }
@@ -250,7 +373,7 @@ void ccdb::ccdb::print_table(
         replace_all(line_, "\n", "");
         replace_all(line_, "\r", "");
         replace_all(line_, "\t", std::string(tab_space_size, ' ')); // Tab
-        auto line = utils::utf8_to_u32(line_);
+        auto line = utf8_to_u32(line_);
         if (max_tailing_size_ptr && !using_pager && !enforce_no_pager)
         {
             // cut
@@ -297,7 +420,7 @@ void ccdb::ccdb::print_table(
                     int offset = 0;
                     for (const auto & c : line)
                     {
-                        p_size += utils::UnicodeDisplayWidth::get_width_utf32({c});
+                        p_size += UnicodeDisplayWidth::get_width_utf32({c});
                         if (p_size > (col - 1)) {
                             break;
                         }
@@ -311,8 +434,8 @@ void ccdb::ccdb::print_table(
                         padding = std::string((col - 1) - ap_size, ' ');
                     }
 
-                    line = line.substr(0, offset) + utils::utf8_to_u32(padding) +
-                           utils::utf8_to_u32(color::color(5,5,5,0,0,0) + ">" + color::no_color());
+                    line = line.substr(0, offset) + utf8_to_u32(padding) +
+                           utf8_to_u32(color::color(5,5,5,0,0,0) + ">" + color::no_color());
                 }
                 else
                 {
@@ -340,11 +463,6 @@ void ccdb::ccdb::print_table(
 
             if (use_line_highlighter)
             {
-                std::string color_line_hl = "\033[07m";
-                if (utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") == "true") {
-                    color_line_hl = "";
-                }
-
                 frame << color_line_hl;
             }
 
@@ -352,7 +470,8 @@ void ccdb::ccdb::print_table(
                 color::g_color_status_override = 0;
             }
 
-            frame << utf8_str << color::no_color();
+            frame << highlight(utf8_str, highlight_str, use_line_highlighter ? color_line_hl : color)
+                  << color::no_color();
             color::g_color_status_override = -1;
             if (endl) frame << std::endl;
             printed_lines++;
@@ -476,7 +595,7 @@ void ccdb::ccdb::print_table(
     } else {
         const auto col_sz = col;
         const auto line_sz = lines;
-        if ((col_sz > 2) && (printed_lines <= (line_sz - 2) && get_string_screen_length(separation_line) > 2))
+        if (/* (col_sz > 2) && */ (printed_lines <= (line_sz - 2) && get_string_screen_length(separation_line) > 2))
         {
             frame       << color::color(5,5,5,0,0,0)
                         << "+" << std::string(std::min(static_cast<long long>(col_sz - 2ul),
