@@ -68,12 +68,16 @@ static std::string generate_linear_handle(
     return ret;
 }
 
-static std::string highlight(std::string & str, const std::string & pattern, const std::string & original_color)
+static std::string highlight(std::string & str, const std::string & pattern, const std::string & original_color, int & matches)
 {
     if (pattern.empty()) return str;
     std::string ret = strip_color(str);
-    return original_color + replace_all(ret, pattern,
-        ::ccdb::color::color(0,0,0,5,5,0) + pattern + ccdb::color::no_color() + original_color);
+    return original_color + regex_replace_all(ret, pattern,
+        [&](const std::smatch &)->std::string
+        {
+            matches += 1;
+            return ::ccdb::color::color(0,0,0,5,5,0) + pattern + ccdb::color::no_color() + original_color;
+        });
 }
 
 namespace ccdb {
@@ -91,6 +95,8 @@ namespace ccdb {
         ccdb_atomic_t < std::u32string > * search_line_boxContent_; // content for the buffer?
         std::atomic_int * cursor_position_in_search_box_; // cursor position for the buffer?
         const std::string color_line_hl_; // highlight color
+        const int & matches_;
+        const std::string & highlight_str_;
 
         std::u32string print_search_box() const
         {
@@ -155,7 +161,18 @@ namespace ccdb {
                 return before;
             }
 
-            return { };
+            if (matches_ != 0)
+            {
+                std::string str = "/" + highlight_str_ + ": " + std::to_string(matches_);
+                while (str.empty() && UnicodeDisplayWidth::get_width_utf8(str)) {
+                    str.erase(str.begin());
+                }
+
+                str += std::string(std::max(get_col_size() - UnicodeDisplayWidth::get_width_utf8(str), 0), ' ');
+                return utf8_to_u32(sprint(color::color(5,5,5,0,0,5), str, color::no_color()));
+            }
+
+            return std::u32string(get_col_size(), ' ');
         }
 
     public:
@@ -170,7 +187,9 @@ namespace ccdb {
             std::atomic_bool * show_search,
             ccdb_atomic_t < std::u32string > * search_line_boxContent,
             std::atomic_int * cursor_position_in_search_box,
-            const std::string & color_line_hl
+            const std::string & color_line_hl,
+            const int & matches,
+            const std::string & highlight_str
         )
         :
             frame_(frame),
@@ -183,7 +202,9 @@ namespace ccdb {
             show_search_(show_search),
             search_line_boxContent_(search_line_boxContent),
             cursor_position_in_search_box_(cursor_position_in_search_box),
-            color_line_hl_(color_line_hl.empty() ? "" : "\033[05;07m")
+            color_line_hl_(color_line_hl.empty() ? "" : "\033[05;07m"),
+            matches_(matches),
+            highlight_str_(highlight_str)
         {
         }
 
@@ -212,9 +233,9 @@ namespace ccdb {
 
                 std::stringstream ss2;
                 const std::string progress_bar = generate_linear_handle(len_, start_, end_, static_cast<int>(vec.size()));
-                const std::u32string progress_bar32 = utf8_to_u32(progress_bar);
 
-                for (const auto & c : progress_bar32)
+                for (const std::u32string progress_bar32 = utf8_to_u32(progress_bar);
+                    const auto & c : progress_bar32)
                 {
                     const auto no_color_str = strip_color(vec.front());
                     const int padding = get_col_size() - UnicodeDisplayWidth::get_width_utf8(no_color_str) - 1;
@@ -255,6 +276,7 @@ void ccdb::ccdb::print_table(
     std::ostringstream less_output_redirect;
     int current_line_index = 0;
     std::string color_line_hl = "\033[07m";
+    int matches = 0;
     if (utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") == "true") {
         color_line_hl = "";
     }
@@ -270,7 +292,9 @@ void ccdb::ccdb::print_table(
         show_search,
         search_line_boxContent,
         cursor_position_in_search_box,
-        color_line_hl
+        color_line_hl,
+        matches,
+        highlight_str
     );
 
     const auto col = get_col_size() - 1;
@@ -470,7 +494,7 @@ void ccdb::ccdb::print_table(
                 color::g_color_status_override = 0;
             }
 
-            frame << highlight(utf8_str, highlight_str, use_line_highlighter ? color_line_hl : color)
+            frame << highlight(utf8_str, highlight_str, use_line_highlighter ? color_line_hl : color, matches)
                   << color::no_color();
             color::g_color_status_override = -1;
             if (endl) frame << std::endl;

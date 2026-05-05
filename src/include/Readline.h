@@ -26,7 +26,6 @@
 #include <memory>
 #include <functional>
 #include <unistd.h>
-#include <fcntl.h>
 #include <cerrno>
 #include "ccdb.h"
 #include "utils.h"

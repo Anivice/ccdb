@@ -303,7 +303,7 @@ namespace ccdb::utils {
         [[nodiscard]] uint64_t get_checksum() const;
 
         /// get checksum in std::string
-        std::string get_checksum_str() const;
+        [[nodiscard]] std::string get_checksum_str() const;
 
     private:
         uint64_t crc64_value{};
