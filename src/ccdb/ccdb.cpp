@@ -855,6 +855,24 @@ void ccdb::ccdb::init()
                 const auto aliases= alias_list | std::views::keys;
                 return { aliases.begin(), aliases.end() };
             }
+            else if (special_filler == "[ALIAS_ARGUMENT...]")
+            {
+                try {
+                    if (args.empty()) return { };
+                    const auto & alias_name = args.front();
+                    const auto & ptr = alias_list.find(alias_name);
+                    if (ptr == alias_list.end()) return { };
+                    std::vector < std::string > arg_true;
+                    const auto replacement = split_via_history(ptr->second);
+                    arg_true.insert(arg_true.end(), replacement.begin(), replacement.end());
+                    arg_true.insert(arg_true.end(), args.begin() + 1, args.end());
+                    arg_true.resize(arg_index + 1);
+                    const auto & verbs = Readline::command_template_tree.find_sub_commands(arg_true);
+                    return { verbs.begin(), verbs.end() };
+                } catch (std::exception &) {
+                    return { };
+                }
+            }
         } catch (std::out_of_range &) {
             return { };
         } catch (std::exception &) {

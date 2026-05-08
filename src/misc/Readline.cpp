@@ -390,7 +390,10 @@ namespace Readline
                 vec.resize(active_arg_index);
                 vec.emplace_back(pair.first);
                 help_msg = ccdb::utils::get_text(command_template_tree.get_help(vec));
-            } catch (const std::invalid_argument &) {
+            }
+            catch (const std::invalid_argument &)
+            {
+                thread_local const std::regex rh(R"((\w+)\[HELP\:(.*)\])");
                 /* not a command, no help usage found */
                 if (const auto it = g_extra_help_map.find(pair.first);
                     it != g_extra_help_map.end())
@@ -526,7 +529,8 @@ namespace Readline
                 current_verbs = verbs;
                 matches = rl_completion_matches(text, arg_generator);
             }
-            else {
+            else
+            {
                 if (const auto sub_commands = command_template_tree.find_sub_commands(lookup);
                     can_find_special_args(sub_commands))
                 {
@@ -542,7 +546,26 @@ namespace Readline
                     matches = rl_completion_matches(text, arg_generator);
                 }
             }
-        } catch (std::invalid_argument &) {
+        }
+        catch (std::invalid_argument &)
+        {
+            // handle alias names when possible
+            if (SpecialArgumentCandidatesGenerator)
+            {
+                const auto & alias_list = SpecialArgumentCandidatesGenerator(args, "[ALIAS]", arg_index);
+                if (!args.empty())
+                {
+                    const auto & alias_name = args.front();
+                    if (const auto ptr = std::ranges::find(alias_list, alias_name);
+                        ptr != alias_list.end())
+                    {
+                        special_handler("[ALIAS_ARGUMENT...]", arg_index);
+                        rl_attempted_completion_over = 1;
+                        return matches;
+                    }
+                }
+            }
+
             auto complete = [&]
             {
                 if (const auto current_index = arg_index - special_index;

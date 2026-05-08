@@ -95,7 +95,7 @@
                             mixedport   (Mihomo mixed proxy port),
                             < allowlan  (Allow LAN connections): on, off >,
                             < loglevel  (Mihomo backend log level): silent, debug, info, warning, error >,
-                            logSize         (Log buffer size),
+                            logSize     (Log buffer size),
     >,
     < closeConnections (Close all connections): [NONE] >,
     < clearFilter (Clear get connection/log filtering patterns): [NONE] >,
@@ -107,7 +107,7 @@
     < ? (Print help): [NONE] >,
     < mapProxyChain (Map out current proxy chain): [NONE] >,
     < ccdbrc (Print an example version of the ~/.ccdbrc): [NONE] >,
-    < [ALIAS]: [NONE] >,
+    < [ALIAS]: [ALIAS_ARGUMENT...] >,
 }
 
 # $ ssh me@localhost
