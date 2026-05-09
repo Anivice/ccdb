@@ -866,8 +866,28 @@ void ccdb::ccdb::init()
                     const auto replacement = split_via_history(ptr->second);
                     arg_true.insert(arg_true.end(), replacement.begin(), replacement.end());
                     arg_true.insert(arg_true.end(), args.begin() + 1, args.end());
-                    arg_true.resize(arg_index + 1);
+                    arg_true.resize(arg_index + (replacement.size() - 1));
                     const auto & verbs = Readline::command_template_tree.find_sub_commands(arg_true);
+                    for (const auto & verb : verbs)
+                    {
+                        auto arg_hash_list = args;
+                        std::vector < std::string > args_verb = arg_true;
+
+                        arg_hash_list.resize(arg_index);
+
+                        args_verb.emplace_back(verb);
+                        arg_hash_list.emplace_back(verb);
+
+                        std::stringstream ss;
+                        std::ranges::for_each(arg_hash_list, [&ss](const auto & arg) {
+                            ss << arg << ":";
+                        });
+
+                        try {
+                            const auto & hash = ss.str();
+                            Readline::g_extra_help_map.emplace(hash, Readline::command_template_tree.get_help(args_verb));
+                        } catch (std::exception &) { /* ... slient drop */ }
+                    }
                     return { verbs.begin(), verbs.end() };
                 } catch (std::exception &) {
                     return { };

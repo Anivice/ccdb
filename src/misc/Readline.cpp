@@ -385,20 +385,31 @@ namespace Readline
         [&](std::pair < std::string /* string */, uint64_t /* screen length */ > & pair)
         {
             std::string help_msg;
+            std::vector vec = active_arg_buffer;
+            vec.resize(active_arg_index);
+            vec.emplace_back(pair.first);
             try {
-                std::vector vec = active_arg_buffer;
-                vec.resize(active_arg_index);
-                vec.emplace_back(pair.first);
                 help_msg = ccdb::utils::get_text(command_template_tree.get_help(vec));
             }
             catch (const std::invalid_argument &)
             {
-                thread_local const std::regex rh(R"((\w+)\[HELP\:(.*)\])");
+                std::stringstream ss;
+                std::ranges::for_each(vec, [&ss](const std::string & str) {
+                    ss << str << ":";
+                });
+
+                const std::string & hash = ss.str();
+
                 /* not a command, no help usage found */
                 if (const auto it = g_extra_help_map.find(pair.first);
                     it != g_extra_help_map.end())
                 {
                     help_msg = it->second;
+                }
+                else if (const auto it2 = g_extra_help_map.find(hash);
+                    it2 != g_extra_help_map.end())
+                {
+                    help_msg = it2->second;
                 }
             }
 
