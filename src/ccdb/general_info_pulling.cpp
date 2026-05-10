@@ -53,9 +53,12 @@ void general_info_pulling::update_from_connections(const std::string& info)
         for (const auto& connection : data["connections"])
         {
             const std::string id = connection["id"];
-            const auto network_type = std::string(connection["metadata"]["network"]);
+            const auto network_type = std::string(connection["metadata"]["network"])
+                + "/" + std::string(connection["metadata"]["dnsMode"]);
             const auto host = std::string(connection["metadata"]["host"]);
-            const auto dest = std::string(connection["metadata"]["destinationIP"]);
+            auto dest = std::string(connection["metadata"]["destinationIP"]);
+            if (const auto remoteIP = std::string(connection["metadata"]["remoteDestination"]);
+                dest.empty() && remoteIP!= "127.0.0.1") { dest = remoteIP; }
             const auto dest_port = std::string(connection["metadata"]["destinationPort"]);
             connection_t conn = { };
             conn.host = std::string(host.empty() ? dest : host) + ":" + dest_port;
