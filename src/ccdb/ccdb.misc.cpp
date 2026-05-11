@@ -341,7 +341,8 @@ void ccdb::ccdb::get_conn_input_watcher(
     const std::atomic_bool * pause,
     std::atomic_bool * show_search,
     ccdb_atomic_t < std::u32string > * search_content_buffer,
-    std::atomic_int * cursor_position)
+    std::atomic_int * cursor_position,
+    std::atomic < search_move_t > * search_focus_move)
 {
     set_thread_name("get/conn:input");
     interactive_verification();
@@ -546,7 +547,7 @@ void ccdb::ccdb::get_conn_input_watcher(
                 if (cursor_position) *cursor_position = 0;
             }
             else if (validation(str_buffer, keyboard_shortcut_map.at("ToEnd"))) {
-                if (cursor_position) *cursor_position = search_content_buffer->get().length();
+                if (cursor_position) *cursor_position = static_cast<int>(search_content_buffer->get().length());
             }
             if (validation(str_buffer, "^[[3~")) // Delete
             {
@@ -557,7 +558,7 @@ void ccdb::ccdb::get_conn_input_watcher(
                         str.erase(*cursor_position + 1, 1); // cursor position does not change on Delete
                     } else {
                         str.pop_back();
-                        *cursor_position = str.length(); // cursor position changes according to str len
+                        *cursor_position = static_cast<int>(str.length()); // cursor position changes according to str len
                     }
 
                     search_content_buffer->set(str);
@@ -571,11 +572,11 @@ void ccdb::ccdb::get_conn_input_watcher(
                     *cursor_position > 0) // DEL
                 {
                     if (*cursor_position < str.length()) {
-                        str.erase(*cursor_position, 1);
+                        str.erase(*cursor_position - 1, 1);
                         *cursor_position -= 1;
                     } else {
                         str.pop_back();
-                        *cursor_position = str.length();
+                        *cursor_position = static_cast<int>(str.length());
                     }
 
                     search_content_buffer->set(str);
@@ -598,7 +599,7 @@ void ccdb::ccdb::get_conn_input_watcher(
                             *cursor_position += 1;
                         } else {
                             str += static_cast<std::u32string::value_type>(c);
-                            *cursor_position = str.length();
+                            *cursor_position = static_cast<int>(str.length());
                         }
                     }
                 });
@@ -615,9 +616,13 @@ void ccdb::ccdb::get_conn_input_watcher(
         }
         else
         {
-            if (validation(str_buffer, keyboard_shortcut_map.at("KillConn")))
+            if (validation(str_buffer, "n"))
             {
-                if (kill_signal_sent) *kill_signal_sent = true;
+                if (search_focus_move) *search_focus_move = SEARCH_MOVE_DOWN;
+            }
+            else if (validation(str_buffer, "N"))
+            {
+                if (search_focus_move) *search_focus_move = SEARCH_MOVE_UP;
             }
             else if (validation(str_buffer, keyboard_shortcut_map.at("ShowDetail")))
             {

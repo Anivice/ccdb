@@ -60,6 +60,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::atomic_int cursor_position = 0;
     std::atomic_bool show_search = false;
     std::string search_content;
+    std::atomic < search_move_t > search_focus_move;
+    std::vector < std::string > search_matches;
 
     auto show_info = [&](const std::string & msg, const std::string & level) {
         g_title_lines.emplace_back("[" + level + "]: " + msg, std::chrono::high_resolution_clock::now());
@@ -109,15 +111,33 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
             &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
             &mouse_x, &mouse_y, &kill_connection, &focus_to_highlight, &conn_show_detail, &sort_by_from_watcher, &atm_focus,
-            &pause_input_watcher, &show_search, &search_content_buffer, &cursor_position);
+            &pause_input_watcher, &show_search, &search_content_buffer, &cursor_position, &search_focus_move);
     }
 
     auto valid_check = [&](const general_info_pulling::connection_t & c)->bool {
         return is_connection_valid(c);
     };
 
+    auto is_highlight_match = [&](const std::vector < std::string > & line)->bool
+    {
+        if (search_content.empty()) return false;
+        std::stringstream ss;
+        std::ranges::for_each(line, [&ss](const auto & l){ ss << l; });
+        std::string str = ss.str();
+        const std::string bak = str;
+        return bak != regex_replace_all(str, search_content,
+        [&](const std::smatch & mat)->std::string
+        {
+            const auto & mat_str = mat[0].str();
+            if ((mat_str.size() == 1 && std::isprint(mat_str.front())) || mat_str.size() > 1)
+                { return "<match>" + mat[0].str() + "</match>"; }
+            return mat_str;
+        });
+    };
+
     while (running)
     {
+        search_matches.clear();
         int sort_by_final { };
         if (sort_by_from_watcher == -1) {
             sort_by_final = sort_by;
@@ -205,9 +225,35 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     connection.chainName,
                 });
 
+                if (is_highlight_match(table_vals.back())) {
+                    search_matches.emplace_back(connection.metadata.connectionID);
+                }
+
                 connections_filtered.emplace_back(connection);
             }
         }
+
+        if (const auto it = std::ranges::find(search_matches, focused_connection_id);
+            it != search_matches.end())
+        {
+            if (search_focus_move == SEARCH_MOVE_DOWN)
+            {
+                if ((it + 1) < search_matches.end()) focused_connection_id = *(it + 1);
+                focus_to_highlight = true;
+            }
+            else if (search_focus_move == SEARCH_MOVE_UP)
+            {
+                if (it > search_matches.begin()) focused_connection_id = *(it - 1);
+                focus_to_highlight = true;
+            }
+        }
+        else if (!search_matches.empty() && it == search_matches.end())
+        {
+            focused_connection_id = search_matches.front();
+            focus_to_highlight = true;
+        }
+
+        search_focus_move = IDLE_STATE;
 
         std::stringstream ss;
         auto append_msg = [&](const std::string & msg) {
@@ -219,8 +265,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
         while (!g_title_lines.empty())
         {
-            const auto now = std::chrono::high_resolution_clock::now();
-            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - g_title_lines.front().second).count() >=
+            if (const auto now = std::chrono::high_resolution_clock::now();
+                std::chrono::duration_cast<std::chrono::milliseconds>(now - g_title_lines.front().second).count() >=
                 (3000 / g_title_lines.size())) // transcendental display time
             {
                 g_title_lines.erase(g_title_lines.begin());
@@ -262,7 +308,10 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         {
             int focus_line = -1;
             std::string focused_connection_info;
-            const auto upper_bound = std::min(static_cast<uint64_t>(get_line_size() >= 1 ? get_line_size() - 1 : 0),
+            const auto upper_bound = std::min(
+                static_cast<uint64_t>(get_line_size() >= 6 ?
+                    ((table_vals.size() > get_line_size() - 6) ? (get_line_size() - 2) : (get_line_size() - 1))
+                    : 0),
                 static_cast<uint64_t>(connections_filtered.size() + 7));
             const int focus = mouse_y - 7; // focus starts with 0
             const auto offset = current_skip_lines + focus;
@@ -402,6 +451,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             const int local_cursor_position = cursor_position;
             const auto local_str_len = search_content_buffer.get().size();
             const bool local_show_search = show_search;
+            const int local_search_focus_move = search_focus_move;
 
             for (int i = 0; i < screen_refresh_interval_in_ms / 10; i++)
             {
@@ -416,6 +466,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     || local_cursor_position != cursor_position
                     || local_str_len != search_content_buffer.get().size()
                     || local_show_search != show_search
+                    || local_search_focus_move != search_focus_move
                     || !running)
                 {
                     if (window_size_change) {

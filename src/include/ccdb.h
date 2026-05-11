@@ -228,6 +228,8 @@ namespace ccdb
         /// @param running Running flag
         void generic_input_watcher(const std::string & name, std::atomic_bool * running) const;
 
+        enum search_move_t : int { IDLE_STATE = -1, SEARCH_MOVE_UP = 1, SEARCH_MOVE_DOWN = 2 };
+
         /// Input watcher that sets running flag when q is pressed, and changes
         /// @param running_ptr Running flag
         /// @param leading_spaces_ptr Leading spaces, set by watcher from left/right/Home/End keys
@@ -245,6 +247,7 @@ namespace ccdb
         /// @param show_search
         /// @param search_content_buffer
         /// @param cursor_position
+        /// @param search_focus_move
         void get_conn_input_watcher(
             std::atomic_bool * running_ptr,
             std::atomic_int * leading_spaces_ptr,
@@ -261,7 +264,8 @@ namespace ccdb
             const std::atomic_bool * pause,
             std::atomic_bool * show_search,
             ccdb_atomic_t < std::u32string > * search_content_buffer,
-            std::atomic_int * cursor_position);
+            std::atomic_int * cursor_position,
+            std::atomic < search_move_t > * search_focus_move);
 
         void init();
 
