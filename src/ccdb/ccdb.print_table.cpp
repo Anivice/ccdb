@@ -101,10 +101,11 @@ namespace ccdb {
         ccdb_atomic_t < std::u32string > * search_line_boxContent_; // content for the buffer?
         std::atomic_int * cursor_position_in_search_box_; // cursor position for the buffer?
         const std::string color_line_hl_; // highlight color
+        const wchar_t cursor_ = utils::getenv("CURSOR").empty() ? L'█' : utils::getenv("CURSOR").front();
         const int & matches_;
         const std::string & highlight_str_;
 
-        std::u32string print_search_box() const
+        [[nodiscard]] std::u32string print_search_box() const
         {
             if (show_search_ && *show_search_)
             {
@@ -116,11 +117,9 @@ namespace ccdb {
                 auto before = content.substr(0, position);
                 if (before.empty() && content.empty()) {
                     return
-                        utf8_to_u32(color::color(5,5,5,0,0,5)) +
-                        utf8_to_u32(color_line_hl_) +
-                            std::u32string(1, L'█') +
-                        utf8_to_u32(color::no_color()) +
-                        utf8_to_u32(color::color(5,5,5,0,0,5)) +
+                        utf8_to_u32(color_line_hl_ + color::color(5,5,5,0,0,5)) +
+                             std::u32string(1, cursor_) +
+                        utf8_to_u32(color::no_color() + color::color(5,5,5,0,0,5)) +
                             std::u32string(get_col_size() - 1, ' ') +
                         utf8_to_u32(color::no_color());
                 }
@@ -144,7 +143,7 @@ namespace ccdb {
                 before =
                     utf8_to_u32(color::color(5,5,5,0,0,5)) + before +
                     utf8_to_u32(color_line_hl_) +
-                    std::u32string(1, highlight > 0 ? static_cast<wchar_t>(highlight) : L'█') +
+                    std::u32string(1, highlight > 0 ? static_cast<wchar_t>(highlight) : cursor_) +
                     utf8_to_u32(color::no_color()) + utf8_to_u32(color::color(5,5,5,0,0,5));
 
                 while (!after.empty())
@@ -178,7 +177,7 @@ namespace ccdb {
                 return utf8_to_u32(sprint(color::color(5,5,5,0,0,5), str, color::no_color()));
             }
 
-            return std::u32string(get_col_size(), ' ');
+            return { static_cast<std::u32string::size_type>(get_col_size()), ' ', std::u32string::allocator_type() };
         }
 
     public:
@@ -208,7 +207,7 @@ namespace ccdb {
             show_search_(show_search),
             search_line_boxContent_(search_line_boxContent),
             cursor_position_in_search_box_(cursor_position_in_search_box),
-            color_line_hl_(color_line_hl.empty() ? "" : "\033[05;07m"),
+            color_line_hl_(color_line_hl.empty() ? "" : "\033[01;05;07m"),
             matches_(matches),
             highlight_str_(highlight_str)
         {

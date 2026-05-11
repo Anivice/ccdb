@@ -60,6 +60,30 @@ namespace ccdb::color
     /// @return ANSI color string that sets foreground and background color
     std::string color(int r, int g, int b, int br, int bg, int bb) noexcept;
 
+    /// Return ANSI color string that sets foreground color
+    /// @param r Red
+    /// @param g Green
+    /// @param b Blue
+    /// @return ANSI color string that sets foreground color
+    std::string color24(int r, int g, int b) noexcept;
+
+    /// Return ANSI color string that sets background color
+    /// @param r Red
+    /// @param g Green
+    /// @param b Blue
+    /// @return ANSI color string that sets background color
+    std::string bg_color24(int r, int g, int b) noexcept;
+
+    /// Return ANSI color string that sets foreground and background color
+    /// @param r Foreground Red
+    /// @param g Foreground Green
+    /// @param b Foreground Blue
+    /// @param br Background Red
+    /// @param bg Background Green
+    /// @param bb Background Blue
+    /// @return ANSI color string that sets foreground and background color
+    std::string color24(int r, int g, int b, int br, int bg, int bb) noexcept;
+
     /// Override color code status check results
     extern std::atomic_int g_color_status_override;
 }

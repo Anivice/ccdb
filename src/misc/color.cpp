@@ -30,6 +30,35 @@
 
 std::atomic_int ccdb::color::g_color_status_override = -1;
 
+static inline int clamp_rgb(int v)
+{
+    return std::clamp(v, 0, 255);
+}
+
+static std::string color(int r, int g, int b)
+{
+    r = clamp_rgb(r);
+    g = clamp_rgb(g);
+    b = clamp_rgb(b);
+
+    return "\x1b[38;2;" +
+           std::to_string(r) + ";" +
+           std::to_string(g) + ";" +
+           std::to_string(b) + "m";
+}
+
+static std::string bgcolor(int r, int g, int b)
+{
+    r = clamp_rgb(r);
+    g = clamp_rgb(g);
+    b = clamp_rgb(b);
+
+    return "\x1b[48;2;" +
+           std::to_string(r) + ";" +
+           std::to_string(g) + ";" +
+           std::to_string(b) + "m";
+}
+
 bool ccdb::color::is_no_color() noexcept
 {
     static std::atomic_int is_no_color_cache = -1;
@@ -76,25 +105,63 @@ std::string ccdb::color::no_color() noexcept
     return "";
 }
 
+static int constrain(int var, const int min, const int max)
+{
+    var = std::max(var, min);
+    var = std::min(var, max);
+    return var;
+}
+
+std::string ccdb::color::color24(int r, int g, int b) noexcept
+{
+    if (is_no_color()) {
+        return "";
+    }
+
+    r = constrain(r, 0, 255);
+    g = constrain(g, 0, 255);
+    b = constrain(b, 0, 255);
+
+    return ::color(r, g, b);
+}
+
+std::string ccdb::color::bg_color24(int r, int g, int b) noexcept
+{
+    if (is_no_color()) {
+        return "";
+    }
+
+    r = constrain(r, 0, 255);
+    g = constrain(g, 0, 255);
+    b = constrain(b, 0, 255);
+
+    return ::bgcolor(r, g, b);
+}
+
+std::string ccdb::color::color24(const int r, const int g, const int b, const int br, const int bg, const int bb) noexcept
+{
+    if (is_no_color()) {
+        return "";
+    }
+
+    return color(r, g, b) + bg_color(br, bg, bb);
+}
+
 std::string ccdb::color::color(int r, int g, int b) noexcept
 {
     if (is_no_color()) {
         return "";
     }
 
-    auto constrain = [](int var, const int min, const int max)->int
-    {
-        var = std::max(var, min);
-        var = std::min(var, max);
-        return var;
-    };
-
     r = constrain(r, 0, 5);
     g = constrain(g, 0, 5);
     b = constrain(b, 0, 5);
 
-    const int scale = 16 + 36 * r + 6 * g + b;
-    return "\033[38;5;" + std::to_string(scale) + "m";
+    r *= 51;
+    g *= 51;
+    b *= 51;
+
+    return color24(r, g, b);
 }
 
 std::string ccdb::color::bg_color(int r, int g, int b) noexcept
@@ -103,19 +170,15 @@ std::string ccdb::color::bg_color(int r, int g, int b) noexcept
         return "";
     }
 
-    auto constrain = [](int var, const int min, const int max)->int
-    {
-        var = std::max(var, min);
-        var = std::min(var, max);
-        return var;
-    };
-
     r = constrain(r, 0, 5);
     g = constrain(g, 0, 5);
     b = constrain(b, 0, 5);
 
-    const int scale = 16 + 36 * r + 6 * g + b;
-    return "\033[48;5;" + std::to_string(scale) + "m";
+    r *= 51;
+    g *= 51;
+    b *= 51;
+
+    return bg_color24(r, g, b);
 }
 
 std::string ccdb::color::color(const int r, const int g, const int b, const int br, const int bg, const int bb) noexcept

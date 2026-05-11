@@ -910,8 +910,8 @@ ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::stri
 {
     try
     {
-        if (const auto terminal_name = get_terminal_emulator_name();
-        terminal_name == "gnome-terminal"
+        const auto terminal_name = get_terminal_emulator_name();
+        if (terminal_name == "gnome-terminal"
         || terminal_name == "android-termux"
         || terminal_name == "ptyxis"
         || terminal_name == "xterm"
@@ -923,6 +923,10 @@ ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::stri
         }
         else if (terminal_name == "konsole" || terminal_name == "kitty") {
             setenv("NO_0xFE0F_EXPAND_EMOJI", "false");
+        }
+
+        if (terminal_name == "android-termux") {
+            setenv("CURSOR", " ");
         }
 
         if (const auto color_fgbg = utils::getenv("COLORFGBG"); !color_fgbg.empty())
