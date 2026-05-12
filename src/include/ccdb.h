@@ -34,6 +34,7 @@
 
 namespace ccdb
 {
+    bool is_highlight_match(const std::vector < std::string > & line, const std::string & search_content);
     class auto_print_t;
 
     class ccdb

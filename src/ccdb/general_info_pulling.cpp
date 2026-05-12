@@ -29,6 +29,7 @@
 #include <fstream>
 #include "print.h"
 #include "general_info_pulling.h"
+#include "utils.h"
 
 void general_info_pulling::update_from_traffic(const std::string& info)
 {
@@ -107,27 +108,37 @@ void general_info_pulling::update_from_connections(const std::string& info)
     }
 }
 
+static std::string get_checksum(const std::vector < std::string > & line)
+{
+    std::stringstream ss;
+    std::ranges::for_each(line, [&ss](const auto & l){ ss << l; });
+    const std::string str = ss.str();
+    ccdb::utils::CRC64 crc64; crc64.update(reinterpret_cast<const uint8_t *>(str.data()), str.size());
+    return crc64.get_checksum_str();
+}
+
 void general_info_pulling::update_from_logs(const std::string& info)
 {
-    json data;
-    try {
+    try
+    {
+        json data;
         data = json::parse(info);
         std::string type = data["type"], payload = data["payload"];
         std::ranges::transform(type, type.begin(), ::toupper);
-        const std::string log_location = mihomo_output_log_location.get();
 
-        if (!log_location.empty() && log_warning_count < 3)
+        if (const std::string log_location = mihomo_output_log_location.get();
+            !log_location.empty() && log_warning_count < 3)
         {
             // 1. dirname of the path
-            const std::string dirname = log_location.substr(0, log_location.find_last_of('/'));
             // 2. check if dir exists, if not we create them
-            if (!std::filesystem::exists(dirname)) {
+            if (const std::string dirname = log_location.substr(0, log_location.find_last_of('/'));
+                !std::filesystem::exists(dirname))
+            {
                 std::filesystem::create_directories(dirname);
             }
 
             // 3. open file, append log
-            std::ofstream file(log_location, std::ios::app);
-            if (!file) {
+            if (std::ofstream file(log_location, std::ios::app); !file) {
                 ccdb::utils::print<ccdb::utils::is_error>("Failed to write to log file!", "\n");
                 ++log_warning_count;
             } else {
@@ -153,15 +164,20 @@ void general_info_pulling::update_from_logs(const std::string& info)
         };
     #endif
 
-        logs.emplace_back(std::vector<std::string> {
-    #if ((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
+        std::vector < std::string > line
+        {
+#if ((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
             std::format("{:%Y-%m-%d %H:%M:%S}", std::chrono::high_resolution_clock::now()),
     #else
             current_time_formatted(),
     #endif
             type,
             payload
-        });
+        };
+
+        const auto hash_checksum = get_checksum(line);
+        line.emplace_back(hash_checksum);
+        logs.emplace_back(line);
     } catch (const std::exception &) {
         force_quit = true;
     }

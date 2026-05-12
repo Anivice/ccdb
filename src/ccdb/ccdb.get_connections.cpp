@@ -30,6 +30,26 @@
 // --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;
 
+namespace ccdb
+{
+    bool is_highlight_match(const std::vector < std::string > & line, const std::string & search_content)
+    {
+        if (search_content.empty()) return false;
+        std::stringstream ss;
+        std::ranges::for_each(line, [&ss](const auto & l){ ss << l; });
+        std::string str = ss.str();
+        const std::string bak = str;
+        return bak != regex_replace_all(str, search_content,
+        [&](const std::smatch & mat)->std::string
+            {
+                const auto & mat_str = mat[0].str();
+                if ((mat_str.size() == 1 && std::isprint(mat_str.front())) || mat_str.size() > 1)
+                { return "<match>" + mat[0].str() + "</match>"; }
+            return mat_str;
+        });
+    }
+}
+
 void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 {
     std::atomic_int leading_spaces = 0;
@@ -116,23 +136,6 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
     auto valid_check = [&](const general_info_pulling::connection_t & c)->bool {
         return is_connection_valid(c);
-    };
-
-    auto is_highlight_match = [&](const std::vector < std::string > & line)->bool
-    {
-        if (search_content.empty()) return false;
-        std::stringstream ss;
-        std::ranges::for_each(line, [&ss](const auto & l){ ss << l; });
-        std::string str = ss.str();
-        const std::string bak = str;
-        return bak != regex_replace_all(str, search_content,
-        [&](const std::smatch & mat)->std::string
-        {
-            const auto & mat_str = mat[0].str();
-            if ((mat_str.size() == 1 && std::isprint(mat_str.front())) || mat_str.size() > 1)
-                { return "<match>" + mat[0].str() + "</match>"; }
-            return mat_str;
-        });
     };
 
     while (running)
@@ -225,7 +228,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     connection.chainName,
                 });
 
-                if (is_highlight_match(table_vals.back())) {
+                if (is_highlight_match(table_vals.back(), search_content)) {
                     search_matches.emplace_back(connection.metadata.connectionID);
                 }
 

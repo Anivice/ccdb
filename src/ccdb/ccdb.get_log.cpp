@@ -40,8 +40,7 @@ void ccdb::ccdb::get_log()
     std::atomic_int mouse_x = 0, mouse_y = 0;
     std::vector < bool > do_col_hide;
     do_col_hide.resize(log_titles.size(), false);
-    uint64_t focused_log = 0; // crc64 of focused log entry
-    bool focused = false;
+    std::string focused_log; // crc64 of focused log entry
     constexpr int start_line = 5;
     setup_term term;
     ccdb_atomic_t < std::u32string > search_content_buffer;
@@ -63,15 +62,6 @@ void ccdb::ccdb::get_log()
         const auto ret = std::regex_match(line, std::regex(pattern));
         if (reverse_filter_list) return !ret;
         return ret;
-    };
-
-    auto get_checksum = [](const std::vector < std::string > & line)->uint64_t
-    {
-        std::stringstream ss;
-        std::ranges::for_each(line, [&ss](const auto & l){ ss << l; });
-        const std::string str = ss.str();
-        CRC64 crc64; crc64.update(reinterpret_cast<const uint8_t *>(str.data()), str.size());
-        return crc64.get_checksum();
     };
 
     while (running)
@@ -106,6 +96,7 @@ void ccdb::ccdb::get_log()
             line_off++;
         }
 
+        /// focus
         int focus_line = -1;
 
         std::vector < std::vector < std::string > > log_on_current_page
@@ -135,20 +126,19 @@ void ccdb::ccdb::get_log()
                     return false;
                 }
 
-                focused_log = get_checksum(line);
-                focused = true;
+                focused_log = line[3];
                 focus_line = mouse_y;
                 return true;
             });
         }
-        else if (focused)
+        else if (!focused_log.empty())
         {
             // find the focused line on page
             if (int index = 0;
                 std::ranges::any_of(log_on_current_page, [&](const std::vector<std::string> & line)->bool
                 {
                     index++;
-                    const uint64_t line_hash = get_checksum(line);
+                    const auto & line_hash = line[3];
                     return (line_hash == focused_log);
                 })
             )
