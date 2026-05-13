@@ -628,6 +628,10 @@ void ccdb::ccdb::get_conn_input_watcher(
             {
                 if (show_detail) *show_detail = true;
             }
+            else if (validation(str_buffer, keyboard_shortcut_map.at("KillConn")))
+            {
+                if (kill_signal_sent) *kill_signal_sent = true;
+            }
             else if (validation(str_buffer, keyboard_shortcut_map.at("Focus")))
             {
                 if (refocus) *refocus = true;
