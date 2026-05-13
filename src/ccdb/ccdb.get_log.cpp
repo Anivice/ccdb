@@ -177,7 +177,8 @@ void ccdb::ccdb::get_log()
             &show_search,
             &search_content_buffer,
             &cursor_position,
-            search_content);
+            search_content,
+            { 0, 2, 0 });
 
         term.ed_clear();
 

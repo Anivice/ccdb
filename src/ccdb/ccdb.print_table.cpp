@@ -274,7 +274,8 @@ void ccdb::ccdb::print_table(
     std::atomic_bool * show_search,
     ccdb_atomic_t < std::u32string > * search_line_boxContent,
     std::atomic_int * cursor_position_in_search_box,
-    const std::string & highlight_str
+    const std::string & highlight_str,
+    const std::vector < int > & column_alignment
 )
 {
     std::ostringstream frame;
@@ -590,10 +591,38 @@ void ccdb::ccdb::print_table(
                 continue;
             }
 
+            const int current_alignment = column_alignment.empty() ? 0 /* left */ : column_alignment[index];
             const auto & current_key = table_keys[index++];
-            const int paddings = static_cast<int>(size_map[current_key] - get_string_screen_length(val)) + 2;
-            constexpr int before = 1;
-            const int after = std::max(paddings - before, 1);
+
+            int before = 0;
+            int after = 0;
+
+            switch (current_alignment)
+            {
+                default:
+                case 0: // left
+                {
+                    const int paddings = static_cast<int>(size_map[current_key] - get_string_screen_length(val)) + 2;
+                    before = 1;
+                    after = std::max(paddings - before, 1);
+                }
+                    break;
+                case 1: // right
+                {
+                    const int paddings = static_cast<int>(size_map[current_key] - get_string_screen_length(val)) + 2;
+                    after = 1;
+                    before = std::max(paddings - after, 1);
+                }
+                    break;
+                case 2: // center
+                {
+                    const int paddings = static_cast<int>(size_map[current_key] - get_string_screen_length(val)) + 2;
+                    before = paddings / 2;
+                    after = std::max(paddings - before, 1);
+                }
+                    break;
+            }
+
             val_line_stream << (seperator ? "|" : " ") << std::string(before, ' ');
             std::string output;
             output = val;

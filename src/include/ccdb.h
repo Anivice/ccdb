@@ -132,6 +132,7 @@ namespace ccdb
         /// @param search_line_boxContent Content shown inside search line
         /// @param cursor_position_in_search_box Cursor position in search box, offset to the content
         /// @param highlight_str Highlight this string
+        /// @param column_alignment
         /// @returns NONE
         void print_table(
             std::vector<std::string> const & table_keys,
@@ -152,7 +153,8 @@ namespace ccdb
             std::atomic_bool * show_search = nullptr,
             ccdb_atomic_t < std::u32string > * search_line_boxContent = nullptr,
             std::atomic_int * cursor_position_in_search_box = nullptr,
-            const std::string & highlight_str = ""
+            const std::string & highlight_str = "",
+            const std::vector < int > & column_alignment = { }
         );
 
         void simple_print_table(
