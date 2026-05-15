@@ -18,15 +18,15 @@ A lightweight terminal dashboard for Clash/Mihomo, written in C++.
 CCDB targets low-resource environments (for example, embedded devices) and users who want a low-overhead dashboard.
 
 CCDB depends on the following open-source libraries:
- - [CPP-HTTPLIB v0.43.3](https://github.com/yhirose/cpp-httplib)
- - [GNU Readline 8.3](https://ftp.gnu.org/gnu/readline/)
- - [GNU Ncurses 6.6](https://ftp.gnu.org/gnu/ncurses/)
- - [TSL Hopscotch-Hashing Map v2.4.0](https://github.com/Tessil/hopscotch-map)
- - [UTF8-CPP 4.0.9](https://github.com/nemtrif/utfcpp)
- - [JSON for Modern C++ 3.12.0](https://github.com/nlohmann/json)
- - [Perl 5.42.0](https://www.perl.org/)
- - [OpenSSL 4.0.0](https://github.com/openssl/openssl)
- - [GNU Tar 1.35](https://www.gnu.org/software/tar)
+ - [CPP-HTTPLIB v0.45.0](https://github.com/yhirose/cpp-httplib) (Embedded)
+ - [GNU Readline 8.3](https://ftp.gnu.org/gnu/readline/) (Embedded)
+ - [GNU Ncurses 6.6](https://ftp.gnu.org/gnu/ncurses/) (Embedded)
+ - [TSL Hopscotch-Hashing Map v2.4.0](https://github.com/Tessil/hopscotch-map) (Embedded)
+ - [UTF8-CPP 4.0.9](https://github.com/nemtrif/utfcpp) (Embedded)
+ - [JSON for Modern C++ 3.12.0](https://github.com/nlohmann/json) (Embedded)
+ - [Perl 5.42.0](https://www.perl.org/) (Not embedded, required by OpenSSL)
+ - [OpenSSL 3.6.2](https://github.com/openssl/openssl) (Embedded)
+ - [GNU Tar 1.35](https://www.gnu.org/software/tar) (Embedded)
 
 ## Features
 
