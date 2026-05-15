@@ -244,7 +244,7 @@ namespace ccdb
         /// @param kill_signal_sent Kill one connection, sent by pressing F. Used to kill one connection in `get connections`
         /// @param refocus Refocus, by pressing F
         /// @param show_detail Show full JSON raw output from backend by pressing P
-        /// @param sort_by_ptr
+        /// @param sort_by_ptr F1-F12
         /// @param current_focus_ptr
         /// @param pause
         /// @param show_search

@@ -239,12 +239,12 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         if (const auto it = std::ranges::find(search_matches, focused_connection_id);
             it != search_matches.end())
         {
-            if (search_focus_move == SEARCH_MOVE_DOWN)
+            if (search_matches.size() >= 2 && search_focus_move == SEARCH_MOVE_DOWN)
             {
                 if ((it + 1) < search_matches.end()) focused_connection_id = *(it + 1);
                 focus_to_highlight = true;
             }
-            else if (search_focus_move == SEARCH_MOVE_UP)
+            else if (search_matches.size() >= 2 && search_focus_move == SEARCH_MOVE_UP)
             {
                 if (it > search_matches.begin()) focused_connection_id = *(it - 1);
                 focus_to_highlight = true;
