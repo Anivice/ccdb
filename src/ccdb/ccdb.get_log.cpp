@@ -47,7 +47,7 @@ void ccdb::ccdb::get_log()
     std::atomic_int cursor_position = 0;
     std::atomic_bool show_search = false;
     std::string search_content;
-    std::vector < std::string > all_matches;
+    std::vector < std::pair < std::string /* checksum */, bool /* if match ? */ > > all_matches;
     std::string last_checked_log;
     std::atomic_bool refocus = false;
     std::atomic < search_move_t > search_focus_move;
@@ -88,11 +88,8 @@ void ccdb::ccdb::get_log()
                 continue;
             }
 
-            if (const std::vector < std::string > content { log.begin(), log.end() - 1 };
-                is_highlight_match(content, search_content))
-            {
-                all_matches.emplace_back(checksum);
-            }
+            const std::vector < std::string > content { log.begin(), log.end() - 1 };
+            all_matches.emplace_back(checksum, is_highlight_match(content, search_content));
 
             // matched or not, we checked
             last_checked_log = checksum;
@@ -103,7 +100,6 @@ void ccdb::ccdb::get_log()
     {
         auto current_vector = backend_instance.get_logs();
         check_log_search(current_vector); // do this BEFORE reverse
-        if (!all_matches.empty() && focused_log.empty()) focused_log = all_matches.back();
         std::ranges::reverse(current_vector);
         std::vector < std::vector < std::string > > lines;
         tsl::hopscotch_map<uint64_t, std::string> line_color_overrides;
@@ -137,33 +133,46 @@ void ccdb::ccdb::get_log()
         {
             default:
             case IDLE_STATE: break;
+            case SEARCH_MOVE_UP:
+            {
+                if (all_matches.empty()) break;
+                const auto ptr =
+                    std::ranges::find_if(all_matches, [&](const auto & log)->bool
+                {
+                    return log.first == focused_log;
+                });
+
+                decltype(all_matches) reverse { ptr + 1, all_matches.end() };
+                (void)std::ranges::any_of(reverse, [&](const auto & log)->bool
+                {
+                    if (log.second) {
+                        focused_log = log.first;
+                        refocus = true;
+                    }
+
+                    return log.second;
+                });
+            }
+            break;
             case SEARCH_MOVE_DOWN:
             {
                 if (all_matches.empty()) break;
-                if (const auto ptr = std::ranges::find(all_matches, focused_log);
-                    ptr == all_matches.end())
+                const auto ptr =
+                    std::ranges::find_if(all_matches, [&](const auto & log)->bool
                 {
-                    focused_log = all_matches.back(); // matches are reversed
-                }
-                else if (all_matches.size() >= 2 && ptr != all_matches.begin()) { // not the last one
-                    focused_log = *(ptr - 1);
-                }
-
-                refocus = true;
-            }
-            break;
-            case SEARCH_MOVE_UP: {
-                if (all_matches.empty()) break;
-                if (const auto ptr = std::ranges::find(all_matches, focused_log);
-                    ptr == all_matches.end())
+                    return log.first == focused_log;
+                });
+                decltype(all_matches) reverse { all_matches.begin(), ptr };
+                std::ranges::reverse(reverse);
+                (void)std::ranges::any_of(reverse, [&](const auto & log)->bool
                 {
-                    focused_log = all_matches.front();
-                }
-                else if (all_matches.size() >= 2 && (ptr + 1) != all_matches.end()) { // not the first one
-                    focused_log = *(ptr + 1);
-                }
+                    if (log.second) {
+                        focused_log = log.first;
+                        refocus = true;
+                    }
 
-                refocus = true;
+                    return log.second;
+                });
             }
             break;
         }

@@ -81,7 +81,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::atomic_bool show_search = false;
     std::string search_content;
     std::atomic < search_move_t > search_focus_move;
-    std::vector < std::string > search_matches;
+    std::vector < std::pair < std::string /* checksum */, bool /* if match ? */ > > search_matches;
 
     auto show_info = [&](const std::string & msg, const std::string & level) {
         g_title_lines.emplace_back("[" + level + "]: " + msg, std::chrono::high_resolution_clock::now());
@@ -228,31 +228,71 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     connection.chainName,
                 });
 
-                if (is_highlight_match(table_vals.back(), search_content)) {
-                    search_matches.emplace_back(connection.metadata.connectionID);
-                }
-
+                search_matches.emplace_back(connection.metadata.connectionID,
+                    is_highlight_match(table_vals.back(), search_content));
                 connections_filtered.emplace_back(connection);
             }
         }
 
-        if (const auto it = std::ranges::find(search_matches, focused_connection_id);
-            it != search_matches.end())
+        const auto it = std::ranges::find_if(search_matches,
+        [&](const std::pair < std::string, bool > & conn)->bool {
+            return conn.first == focused_connection_id;
+        });
+
+        switch (search_focus_move)
         {
-            if (search_matches.size() >= 2 && search_focus_move == SEARCH_MOVE_DOWN)
+            case SEARCH_MOVE_UP:
             {
-                if ((it + 1) < search_matches.end()) focused_connection_id = *(it + 1);
+                if (search_matches.size() >= 2 && it != search_matches.end())
+                {
+                    if (it > search_matches.begin())
+                    {
+                        decltype(search_matches) reverse { search_matches.begin(), it };
+                        std::ranges::reverse(reverse);
+                        (void)std::ranges::any_of(reverse, [&](const auto & conn)->bool
+                        {
+                            if (conn.second) {
+                                focused_connection_id = conn.first;
+                            }
+
+                            return conn.second;
+                        });
+                    }
+                } else if (!search_matches.empty() && it == search_matches.end()) {
+                    focused_connection_id = search_matches.back().first;
+                }
+
                 focus_to_highlight = true;
             }
-            else if (search_matches.size() >= 2 && search_focus_move == SEARCH_MOVE_UP)
+            break;
+
+            case SEARCH_MOVE_DOWN:
             {
-                if (it > search_matches.begin()) focused_connection_id = *(it - 1);
+                if (search_matches.size() >= 2 && it != search_matches.end())
+                {
+                    const decltype(search_matches) reverse { it + 1, search_matches.end() };
+                    (void)std::ranges::any_of(reverse, [&](const auto & conn)->bool
+                    {
+                        if (conn.second) {
+                            focused_connection_id = conn.first;
+                        }
+
+                        return conn.second;
+                    });
+                } else if (!search_matches.empty() && it == search_matches.end()) {
+                    focused_connection_id = search_matches.front().first;
+                }
+
                 focus_to_highlight = true;
             }
+            break;
+
+            default: break;
         }
-        else if (!search_matches.empty() && it == search_matches.end())
+
+        if (!search_matches.empty() && focused_connection_id.empty())
         {
-            focused_connection_id = search_matches.front();
+            focused_connection_id = search_matches.front().first;
             focus_to_highlight = true;
         }
 
@@ -317,9 +357,10 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     : 0),
                 static_cast<uint64_t>(connections_filtered.size() + 7));
             const int focus = mouse_y - 7; // focus starts with 0
-            const auto offset = current_skip_lines + focus;
+
             // calculate mouse_y to see which one is focused
-            if (mouse_y >= 7 && mouse_y <= upper_bound && offset < connections_filtered.size())
+            if (const auto offset = current_skip_lines + focus;
+                mouse_y >= 7 && mouse_y <= upper_bound && offset < connections_filtered.size())
             {
                 focused_connection_id = connections_filtered[offset].metadata.connectionID;
                 mouse_y = -1;
