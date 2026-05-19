@@ -6,10 +6,11 @@ _outh="$2"
 _name="$3"
 _in="$4"
 _compress_cmd="$5"
+_xxd="$6"
 compress_out=/tmp/"$(basename "${_in}").Z"
 
 "$_compress_cmd" "${_in}" "$compress_out"
-xxd -i -n "$_name" < "${compress_out}" > "${_outc}"
+"$_xxd" -i -n "$_name" < "${compress_out}" > "${_outc}"
 rm "$compress_out"
 
 def=$(sed -E 's/(.*)/\U\1/g' <<< "$(basename "$_outh")" | sed -E 's/([\.|\/|-])/_/g' | tr ' ' '_')

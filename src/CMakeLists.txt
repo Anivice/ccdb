@@ -8,6 +8,8 @@ set(CMAKE_CXX_STANDARD 23)
 find_program(MAKE_EXECUTABLE NAMES make gmake REQUIRED)
 include(ExternalProject)
 
+add_executable(xxd compile_utils/xxd.c)
+
 set(PerlEnv "env CC= CXX= LD= ")
 if ("${NO_USE_PERL_AS_NATIVE}" STREQUAL "True")
     set(PerlEnv "")
@@ -169,7 +171,7 @@ add_executable(decompress compile_utils/decompress.cpp)
 target_include_directories(compress PRIVATE include)
 target_include_directories(decompress PRIVATE include)
 
-find_program(XXD_EXEC   xxd     REQUIRED)
+# find_program(XXD_EXEC   xxd     REQUIRED)
 find_program(SED_EXEC   sed     REQUIRED)
 find_program(GREP_EXEC  grep    REQUIRED)
 find_program(CAT_EXEC   cat     REQUIRED)
@@ -182,8 +184,8 @@ function(generate_from_resource_file NAME RES OUT_CPP OUT_H XXD_NAME)
 
     add_custom_command(
         OUTPUT "${_outc}" "${_outh}"
-        COMMAND "${CMAKE_SOURCE_DIR}/script/gen_header.sh" "${_outc}" "${_outh}" "${XXD_NAME}" "${_in}" "${CMAKE_CURRENT_BINARY_DIR}/compress"
-        DEPENDS "${_in}" "${CMAKE_SOURCE_DIR}/script/gen_header.sh" compress
+        COMMAND "${CMAKE_SOURCE_DIR}/script/gen_header.sh" "${_outc}" "${_outh}" "${XXD_NAME}" "${_in}" "${CMAKE_CURRENT_BINARY_DIR}/compress" "${CMAKE_CURRENT_BINARY_DIR}/xxd"
+            DEPENDS "${_in}" "${CMAKE_SOURCE_DIR}/script/gen_header.sh" compress xxd
         VERBATIM
     )
 
@@ -241,8 +243,8 @@ function(generate_from_resource_dir NAME RES OUT_CPP OUT_H XXD_NAME)
 
     add_custom_command(
             OUTPUT "${_outc}" "${_outh}"
-            COMMAND "${CMAKE_SOURCE_DIR}/script/gen_header.sh" "${_outc}" "${_outh}" "${XXD_NAME}" "${_in}.tar" "${CMAKE_CURRENT_BINARY_DIR}/compress"
-            DEPENDS "${_in}.tar" "${CMAKE_SOURCE_DIR}/script/gen_header.sh" compress
+            COMMAND "${CMAKE_SOURCE_DIR}/script/gen_header.sh" "${_outc}" "${_outh}" "${XXD_NAME}" "${_in}.tar" "${CMAKE_CURRENT_BINARY_DIR}/compress" "${CMAKE_CURRENT_BINARY_DIR}/xxd"
+            DEPENDS "${_in}.tar" "${CMAKE_SOURCE_DIR}/script/gen_header.sh" compress xxd
             VERBATIM
     )
 
@@ -267,7 +269,7 @@ ExternalProject_Add(TAR
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/tar
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/tar-1.35
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/tar/install
-        CONFIGURE_COMMAND   /bin/sh -c "CC=${CMAKE_C_COMPILER} LD=${CMAKE_LINKER} CFLAGS=\"${TAR_C_FLAGS}\" LDFLAGS=\"${TAR_LD_FLAGS}\" <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --without-gzip --without-bzip2 --without-xz --without-zstd --without-lzip --without-lzma --without-lzop --without-compress --disable-nls ${TAR_CONFIGURE_ADDITIONAL_FLAGS}"
+        CONFIGURE_COMMAND   /bin/sh -c "MAKEINFO=true CC=${CMAKE_C_COMPILER} LD=${CMAKE_LINKER} CFLAGS=\"${TAR_C_FLAGS}\" LDFLAGS=\"${TAR_LD_FLAGS}\" <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --without-gzip --without-bzip2 --without-xz --without-zstd --without-lzip --without-lzma --without-lzop --without-compress --disable-nls ${TAR_CONFIGURE_ADDITIONAL_FLAGS}"
         BUILD_COMMAND       /bin/sh -c "${TAR_MAKE_ENTIRE} CFLAGS=\"${TAR_C_FLAGS}\" LDFLAGS=\"${TAR_LD_FLAGS}\""
         INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${TAR_MAKE_INSTALL_ADDITIONAL_FLAGS} && STRIP=${CMAKE_STRIP} ${CMAKE_SOURCE_DIR}/script/strip.sh "<INSTALL_DIR>/bin/tar"
         TEST_COMMAND        ""

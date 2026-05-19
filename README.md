@@ -27,6 +27,7 @@ CCDB depends on the following open-source libraries:
  - [Perl 5.42.0](https://www.perl.org/) (Not embedded, required by OpenSSL)
  - [OpenSSL 3.6.2](https://github.com/openssl/openssl) (Embedded)
  - [GNU Tar 1.35](https://www.gnu.org/software/tar) (Embedded)
+ - [XXD, from VIM](https://github.com/vim/vim/) (Not embedded, required by the build system)
 
 ## Features
 
@@ -203,9 +204,9 @@ environment variable `$CCDB`, which is a duplicate of the parent `ccdb` argument
 You need
 
   * a complete C++ toolchain of either GCC or Clang that can process at least C++ 17 (GCC >= 13 would be fine)
-  * `xxd` utility, usually included in `vim` package, or separated, depending on your distro packaging.
   * `cmake` and your build system of choice (either Unix Makefile [`make`] or Ninja [`ninja`]).
   * `tar`, `sed`, and `grep`, the standard POSIX tools that should exist on all Linux systems by default.
+  * GNU's `automake`, required by `tar` package for `ccdb`
 
 to build CCDB.
 
