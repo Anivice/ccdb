@@ -290,11 +290,11 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             default: break;
         }
 
-        if (!search_matches.empty() && focused_connection_id.empty())
-        {
-            focused_connection_id = search_matches.front().first;
-            focus_to_highlight = true;
-        }
+        // if (!search_matches.empty() && focused_connection_id.empty())
+        // {
+        //     focused_connection_id = search_matches.front().first;
+        //     focus_to_highlight = true;
+        // }
 
         search_focus_move = IDLE_STATE;
 
