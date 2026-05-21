@@ -365,7 +365,7 @@ void general_info_pulling::update_proxy_list()
                     continue;
                 }
 
-                if (proxy.contains("history") && proxy["history"].front().contains("delay")) {
+                if (proxy.contains("history") && !proxy["history"].empty() && proxy["history"].front().contains("delay")) {
                     const auto latency = proxy["history"].back()["delay"].get<int>();
                     proxy_latency[string_name] = (latency > 0 ? latency : -1); // 0 means not valid
                 } else {
