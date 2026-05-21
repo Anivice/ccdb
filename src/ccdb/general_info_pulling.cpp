@@ -356,13 +356,20 @@ void general_info_pulling::update_proxy_list()
             proxy_latency.clear();
             proxy_list.clear();
 
-            json data = json::parse(proxies);
-            for (const auto & proxy : data["proxies"])
+            for (const json data = json::parse(proxies);
+                const auto & proxy : data["proxies"])
             {
                 std::string string_name(proxy["name"]);
                 if (std::ranges::find(ignored_proxies, string_name) != ignored_proxies.end()) {
                     // skip ignored words
                     continue;
+                }
+
+                if (proxy.contains("history") && proxy["history"].front().contains("delay")) {
+                    const auto latency = proxy["history"].back()["delay"].get<int>();
+                    proxy_latency[string_name] = (latency > 0 ? latency : -1); // 0 means not valid
+                } else {
+                    proxy_latency[string_name] = -1;
                 }
 
                 std::vector < std::string > group_members;
@@ -380,18 +387,14 @@ void general_info_pulling::update_proxy_list()
                     continue; // not a group
                 }
 
-                proxy_groups[string_name] = { group_members, proxy["now"] };
+                // balancers doesn't have a fixed endpoint, thus lacking "now" in its JSON
+                proxy_groups[string_name] = { group_members, proxy.contains("now") ? proxy["now"] : "" };
             }
         }
         catch (const std::exception & e)
         {
             ccdb::utils::print<ccdb::utils::is_error>("Cannot update proxy list: ", e.what(), "\n");
         }
-    });
-
-    std::ranges::for_each(proxy_list, [&](const std::pair < std::string, proxy_info_t > & proxy_)
-    {
-        proxy_latency.emplace(proxy_.first, -1);
     });
 }
 

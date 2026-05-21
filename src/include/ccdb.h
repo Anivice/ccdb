@@ -63,7 +63,6 @@ namespace ccdb
         std::atomic_int sort_by = -1; // get connections table: sort by which column
         std::atomic_bool sort_reverse = false; // get connections table: if sort is reversed?
         tsl::hopscotch_map < uint64_t, std::string > index_to_proxy_name_list; // vector translation list
-        tsl::hopscotch_map < std::string, int > latency_backups; // results of latency test
         tsl::hopscotch_map < std::string /* groups */, std::vector < std::string > /* endpoint */ > g_proxy_list; // group-proxy list
         const std::string latency_url; // latency URL
         std::unique_ptr<configuration> ccdb_config;

@@ -1144,3 +1144,46 @@ std::string ccdb::utils::strip_color(std::string str_)
     });
     return str_;
 }
+
+#define BT_BUF_SIZE 100
+
+std::string ccdb::utils::backtracer()
+{
+    std::stringstream ss;
+    void *buffer[BT_BUF_SIZE];
+
+    // Capture the current stack frames
+    const int nptrs = backtrace(buffer, BT_BUF_SIZE);
+    ss << ccdb::utils::sprint("Backtracer has ", nptrs, " frames\n");
+
+    // Translate addresses into human-readable strings (function names + offsets)
+    char** strings = backtrace_symbols(buffer, nptrs);
+    if (strings == nullptr) {
+        perror("backtrace_symbols");
+        exit(EXIT_FAILURE);
+    }
+
+    // Print the stack trace
+    ss << ccdb::utils::sprint("Stack trace:\n");
+    for (int i = 0; i < nptrs; i++) {
+        ss << "    #" << i << "  " << strings[i] << "\n";
+        const std::string str(strings[i]);
+        if (std::smatch matches; std::regex_search(str, matches, std::regex(R"(^\/.*\[(0x[\d|\w]+)\]$)")))
+        {
+            const std::string addr = matches[1].str();
+            std::vector < char > buff (512, 0);
+            const auto sz = readlink("/proc/self/exe", buff.data(), 512);
+            std::string proc_self { buff.begin(), buff.begin() + sz };
+            if (const auto status = ccdb::utils::exec_command2("/bin/sh",
+                "addr2line --demangle -f -p -a -e " + proc_self + " " + addr);
+                status.exit_status == 0)
+            {
+                ss << "        " << status.fd_stdout
+                   << (!status.fd_stdout.empty() ? (status.fd_stdout.back() == '\n' ? "" : "\n") : "\n");
+            }
+        }
+    }
+
+    free(strings);
+    return ss.str();
+}

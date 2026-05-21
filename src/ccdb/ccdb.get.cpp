@@ -62,6 +62,7 @@ std::vector<std::string> ccdb::ccdb::get_endpoints(const std::string & group)
 std::vector<std::string> ccdb::ccdb::get_vgroups()
 {
     auto groups = get_groups();
+    const auto & latencies = backend_instance.get_proxies_and_latencies_as_pair().second;
     tsl::hopscotch_map < std::string, uint64_t > reverse_search_map;
     std::ranges::for_each(index_to_proxy_name_list, [&](const std::pair < uint64_t, std::string> & pair) {
         reverse_search_map.emplace(pair.second, pair.first);
@@ -73,8 +74,8 @@ std::vector<std::string> ccdb::ccdb::get_vgroups()
         {
             std::stringstream ss;
             ss << ptr->second << ": " << group;
-            if (auto lptr = latency_backups.find(group); 
-                    lptr != latency_backups.end() && lptr->second != -1)
+            if (auto lptr = latencies.find(group);
+                    lptr != latencies.end() && lptr->second != -1)
             {
                 ss << " (" << lptr->second << ")";
             }
@@ -88,6 +89,7 @@ std::vector<std::string> ccdb::ccdb::get_vgroups()
 std::vector<std::string> ccdb::ccdb::get_vendpoints(const std::string & group)
 {
     auto endpoints = get_endpoints(group);
+    const auto & latencies = backend_instance.get_proxies_and_latencies_as_pair().second;
     tsl::hopscotch_map < std::string, uint64_t > reverse_search_map;
     std::ranges::for_each(index_to_proxy_name_list, [&](const std::pair < uint64_t, std::string> & pair) {
         reverse_search_map.emplace(pair.second, pair.first);
@@ -101,8 +103,8 @@ std::vector<std::string> ccdb::ccdb::get_vendpoints(const std::string & group)
         {
             std::stringstream ss;
             ss << ptr->second << ": " << (is_chosen ? "* " : "") << endpoint;
-            if (auto lptr = latency_backups.find(endpoint); 
-                    lptr != latency_backups.end() && lptr->second != -1)
+            if (auto lptr = latencies.find(endpoint);
+                    lptr != latencies.end() && lptr->second != -1)
             {
                 ss << " (" << lptr->second << ")";
             }
@@ -193,7 +195,6 @@ void ccdb::ccdb::get_latency()
         index_to_proxy_name_list_reversed.emplace(pair.second, pair.first);
     });
 
-    latency_backups.clear();
     for (const auto & [proxy, latency] : list_unordered)
     {
         table_line.push_back(std::to_string(latency));
@@ -203,8 +204,6 @@ void ccdb::ccdb::get_latency()
                 + proxy);
         table_vals.emplace_back(table_line);
         table_line.clear();
-
-        latency_backups.emplace(proxy, latency);
     }
 
     update_providers();
@@ -216,19 +215,6 @@ void ccdb::ccdb::get_latency()
 void ccdb::ccdb::get_proxy()
 {
     auto [proxy_list, proxy_lat] = backend_instance.get_proxies_and_latencies_as_pair();
-    bool is_all_uninited = true;
-    for (const auto & lat : proxy_lat | std::views::values)
-    {
-        if (lat != -1) {
-            is_all_uninited = false;
-            break;
-        }
-    }
-
-    // has results, then we update local backups
-    if (!is_all_uninited) {
-        latency_backups = proxy_lat;
-    }
     // mandatory update for each pull
     backend_instance.update_proxy_list();
     update_providers();
@@ -270,7 +256,7 @@ void ccdb::ccdb::get_proxy()
         std::ranges::for_each(element.second.first, [&](const std::string & proxy)
         {
             int latency = -1;
-            if (latency_backups.contains(proxy)) latency = latency_backups.at(proxy);
+            if (proxy_lat.contains(proxy)) latency = proxy_lat.at(proxy);
             push_line("", proxy == element.second.second ? "*" : "",
                 (proxy == element.second.second ? "=> " : "") + auto_add_index_vec(proxy) +
                 (latency == -1 ? "" : " (" + std::to_string(latency) + ")")
@@ -443,7 +429,7 @@ void ccdb::ccdb::get_sort_by() const {
 void ccdb::ccdb::map_proxy_chain()
 {
     backend_instance.update_proxy_list();
-    const auto proxy_list = backend_instance.get_proxies_and_latencies_as_pair().first;
+    const auto & [ proxy_list, latencies ] = backend_instance.get_proxies_and_latencies_as_pair();
     std::map < std::string, std::vector < std::string > > path_map;
     std::ranges::for_each(proxy_list, [&](const std::pair < std::string, std::pair < std::vector<std::string>, std::string> > & element)
     {
@@ -492,10 +478,10 @@ void ccdb::ccdb::map_proxy_chain()
         const auto & [name, chains] = pair;
         std::ostringstream ss;
         for (auto it = chains.begin(); it != chains.end(); ++it) {
-            const auto ptr = latency_backups.find(*it);
+            const auto ptr = latencies.find(*it);
             const auto index = reverse_search_map.find(*it);
             ss << (index == reverse_search_map.end() ? "" : "<" + std::to_string(index->second) + "> ")
-               << *it << (latency_backups.end() != ptr ? "(" + std::to_string(ptr->second) + ")" : "")
+               << *it << ((latencies.end() != ptr && ptr->second > 0) ? "(" + std::to_string(ptr->second) + ")" : "")
                << ((it == chains.end() - 1) ? "" : " => ");
         }
 
