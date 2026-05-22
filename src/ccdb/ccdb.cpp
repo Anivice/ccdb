@@ -561,6 +561,8 @@ void ccdb::ccdb::init()
                     get_sort_by();
                 } else if (command_vector[1] == "config") {
                     get_config();
+                } else if (command_vector[1] == "latencyHistory") {
+                    get_latencyHistory(command_vector);
                 } else if (command_vector[1] == "logSize") {
                     get_log_size();
                 } else {
@@ -701,6 +703,14 @@ void ccdb::ccdb::init()
                     group = clean(args[2]);
                 }
                 return escape(get_vendpoints(index_to_proxy_name_list.at(std::strtol(group.c_str(), nullptr, 10))));
+            }
+            else if (special_filler == "[ENDPOINTS...]")
+            {
+                std::vector<std::string> endpoints;
+                for (const auto & [index, name] : index_to_proxy_name_list) {
+                    endpoints.push_back(std::to_string(index) + ": " + name);
+                }
+                return escape({endpoints.begin(), endpoints.end()});
             }
             else if (special_filler == "[SHELLCOMMAND]")
             {

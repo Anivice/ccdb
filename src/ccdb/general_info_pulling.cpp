@@ -499,3 +499,22 @@ std::string general_info_pulling::get_config() const
     backend_client.get_info_no_instance("configs", [&](const std::string & r){ ret = r; });
     return ret;
 }
+
+std::string general_info_pulling::get_proxy_metadata(const std::string& proxy_name) const
+{
+    std::string ret;
+    backend_client.get_info_no_instance("proxies", [&ret](const std::string & info)
+    {
+        ret = info;
+    });
+
+    try
+    {
+        const auto proxies = nlohmann::json::parse(ret);
+        return proxies["proxies"][proxy_name].dump(4);
+    }
+    catch (...)
+    {
+        return { };
+    }
+}

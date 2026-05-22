@@ -50,6 +50,18 @@ namespace ccdb::utils
         oss << get_text(text);
     }
 
+    inline void _sprint(const double val, std::ostream & oss) {
+        oss << std::fixed << std::setprecision(2) << val;
+    }
+
+    inline void _sprint(const float val, std::ostream & oss) {
+        oss << std::fixed << std::setprecision(2) << val;
+    }
+
+    inline void _sprint(const long double val, std::ostream & oss) {
+        oss << std::fixed << std::setprecision(2) << val;
+    }
+
     template < typename Type, typename AtomicType = std::atomic < Type > >
     void _sprint(const AtomicType & val, std::ostream & oss) {
         oss << val.load();

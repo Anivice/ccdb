@@ -177,7 +177,7 @@ public:
     bool modify_config(const std::string & json) const { return backend_client.change_config(json); }
     bool modify_config_int(const std::string & entry, uint64_t val) const;
     std::string get_config() const;
-
+    std::string get_proxy_metadata(const std::string & proxy_name) const;
     std::atomic_int max_log_size = 4096;
 };
 

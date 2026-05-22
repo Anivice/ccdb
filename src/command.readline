@@ -54,6 +54,7 @@
         filter_reverse  (Filter reverse status),
         sort_reverse    (Sorting reverse status),
         sort_by         (Sorting column),
+        < latencyHistory  (Backend latency history): [ENDPOINTS...] >,
     >,
     < set (Set parameters): < mode          (Proxy mode):           global (Global mode), rule (Rule mode), direct (Direct mode) >,
                             # < group         (Switch proxy group):   [GROUP] (Group name), [PROXY] (Proxy endpoint name) >,

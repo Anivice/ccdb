@@ -23,6 +23,10 @@
 #include <chrono>
 #include <utility>
 #include <unordered_map>
+#include <cstdlib>
+#include <vector>
+#include <numeric>
+#include <stdexcept>
 #include "print.h"
 #include "pull_subinfo.h"
 #include "ccdb.h"
@@ -265,6 +269,161 @@ void ccdb::ccdb::get_proxy()
     });
 
     simple_print_table_w_pager(table_titles, table_vals);
+}
+
+/**
+ * Compute the median of a sorted sub‑range of integers.
+ * Returns a double to avoid unwanted integer truncation.
+ */
+static double median_of_sorted(const std::vector<int>& sorted, const size_t start, const size_t end)
+{
+    if (const size_t count = end - start + 1; /* count % 2 == 1 */ count & 0x01) { // odd
+        return sorted[start + count / 2];
+    } else {
+        const size_t idx = start + count / 2;
+        return (sorted[idx - 1] + sorted[idx]) / 2.0;
+    }
+}
+
+/**
+ * Apply IQR‑based outlier removal and return a summary latency.
+ *
+ * @param data       Vector of (timestamp_epoch, latency_ms) pairs.
+ * @param use_median If true, return the median of the cleaned data;
+ *                   otherwise the arithmetic mean.
+ * @return           Summary latency in milliseconds (double).
+ */
+static double iqr_filtered_latency(const std::vector<std::pair<uint64_t, int>>& data, const bool use_median = true)
+{
+    if (data.empty()) {
+        throw std::invalid_argument("data vector is empty");
+    }
+
+    std::vector<int> latencies;
+    latencies.reserve(data.size());
+    for (const auto& lat : data | std::views::values) {
+        latencies.push_back(lat);
+    }
+
+    std::vector<int> sorted_lat = latencies;
+    std::ranges::sort(sorted_lat);
+
+    // Determine Q1 (25th percentile) and Q3 (75th percentile)
+    // Using the inclusive median method (Tukey's hinges):
+    //  - If odd size, the median is included in both halves.
+    const size_t n = sorted_lat.size();
+    const size_t mid = n / 2;
+    double Q1, Q3;
+
+    if (!(n & 0x01) /* n % 2 == 0 */) {
+        // Even: lower half [0 .. mid-1], upper half [mid .. n-1]
+        Q1 = median_of_sorted(sorted_lat, 0, mid - 1);
+        Q3 = median_of_sorted(sorted_lat, mid, n - 1);
+    } else {
+        // Odd: both halves include the median
+        Q1 = median_of_sorted(sorted_lat, 0, mid);      // mid is inclusive
+        Q3 = median_of_sorted(sorted_lat, mid, n - 1);
+    }
+
+    const double IQR = Q3 - Q1;
+    const double lower_bound = Q1 - 1.5 * IQR;
+    const double upper_bound = Q3 + 1.5 * IQR;
+
+    // Keep only measurements whose latency lies within [lower_bound, upper_bound]
+    std::vector<int> clean_latencies;
+    for (const auto& lat : data | std::views::values) {
+        if (lat >= lower_bound && lat <= upper_bound) {
+            clean_latencies.push_back(lat);
+        }
+    }
+
+    // If all data were outliers (extremely rare but possible), fall back to original data.
+    // Otherwise the cleaned vector would be empty.
+    if (clean_latencies.empty()) {
+        // Everything was marked as outlier – return the original median/mean.
+        clean_latencies = latencies;
+    }
+
+    // Compute final summary statistic
+    if (use_median) {
+        std::ranges::sort(clean_latencies);
+        if (const size_t sz = clean_latencies.size(); /* sz % 2 == 1 */ sz & 0x01) { // odd
+            return clean_latencies[sz / 2];
+        } else {
+            return (clean_latencies[sz / 2 - 1] + clean_latencies[sz / 2]) / 2.0;
+        }
+    } else {
+        const double sum = std::accumulate(clean_latencies.begin(), clean_latencies.end(), 0.0);
+        return sum / clean_latencies.size();
+    }
+}
+
+static std::string color_coding(const int delay, const int boundary = 500)
+{
+    const int r = (delay > boundary || delay == 0) ? boundary : delay;
+    const double rd_pct = static_cast<double>(r) / boundary;
+    const double gr_pct = 1.00 - rd_pct;
+    const int rgb_r = rd_pct * 255;
+    const int rgb_g = gr_pct * 255;
+    return ccdb::color::color24(rgb_r, rgb_g, 0);
+}
+
+void ccdb::ccdb::get_latencyHistory(std::vector<std::string> command_vector)
+{
+    command_vector.erase(command_vector.begin(), command_vector.begin() + 2); // first two elements are discarded
+    if (command_vector.empty())
+    {
+        const auto & self = index_to_proxy_name_list | std::views::values;
+        command_vector = {self.begin(), self.end()};
+    }
+
+    for (auto & str : command_vector)
+    {
+        if (str.find(':') != std::string::npos)
+        {
+            try
+            {
+                str = str.substr(0, str.find_first_of(':'));
+                const auto index = std::strtol(str.c_str(), nullptr, 10);
+                str = index_to_proxy_name_list.at(index);
+            }
+            catch (const std::exception & e)
+            {
+                std::cerr << e.what() << std::endl;
+                return;
+            }
+        }
+    }
+
+    for (auto & proxyName : command_vector)
+    {
+        const auto metadata = backend_instance.get_proxy_metadata(proxyName);
+        if (const auto json = json::parse(metadata); json.contains("extra"))
+        {
+            print(color::color(0,0,5,5,5,5), proxyName, color::no_color(), "\n");
+            for (const auto & [ url, latency_history ] : json["extra"].items())
+            {
+                print("  ", url, ", alive: ", latency_history["alive"], "\n");
+                if (latency_history.contains("history"))
+                {
+                    std::vector < std::pair < uint64_t, int > > latency_history_vec;
+                    for (const auto & history : latency_history["history"])
+                    {
+                        std::string time = history["time"];
+                        const long delay = history["delay"];
+                        print("    ", replace_all(time, "\"", ""), ": ",
+                            color_coding(delay), delay, color::no_color(), "\n");
+                        latency_history_vec.emplace_back(get_time(time), delay);
+                    }
+
+                    const auto typical = iqr_filtered_latency(latency_history_vec);
+                    const auto avg = iqr_filtered_latency(latency_history_vec, false);
+                    print("  IQR: typical=", color_coding(typical), typical, color::no_color(),
+                        ", avg=", color_coding(avg), avg, color::no_color(), "\n");
+                }
+            }
+        }
+    }
 }
 
 void ccdb::ccdb::get_vecGroupProxy(const bool show_vgroups)

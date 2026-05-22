@@ -193,6 +193,7 @@ namespace ccdb
         void get_latency();
         void get_log();
         void get_proxy();
+        void get_latencyHistory(std::vector<std::string> command_vector);
         void get_vecGroupProxy(bool show_vgroups = true);
         void set_mode(const std::vector<std::string> & command_vector) const;
         void __attribute_deprecated__ set_group(const std::vector<std::string> & command_vector);
