@@ -354,18 +354,19 @@ static double iqr_filtered_latency(const std::vector<std::pair<uint64_t, int>>& 
         }
     } else {
         const double sum = std::accumulate(clean_latencies.begin(), clean_latencies.end(), 0.0);
-        return sum / clean_latencies.size();
+        return sum / static_cast<double>(clean_latencies.size());
     }
 }
 
-static std::string color_coding(const int delay, const int boundary = 500)
+template < typename Type >
+static std::string color_coding(const Type delay, const int boundary = 500)
 {
-    const int r = (delay > boundary || delay == 0) ? boundary : delay;
+    const Type r = (delay > boundary || delay == 0) ? boundary : delay;
     const double rd_pct = static_cast<double>(r) / boundary;
     const double gr_pct = 1.00 - rd_pct;
-    const int rgb_r = rd_pct * 255;
-    const int rgb_g = gr_pct * 255;
-    return ccdb::color::color24(rgb_r, rgb_g, 0);
+    const auto rgb_r = static_cast<Type>(rd_pct * 255);
+    const auto rgb_g = static_cast<Type>(gr_pct * 255);
+    return ccdb::color::color24(static_cast<int>(rgb_r), static_cast<int>(rgb_g), 0);
 }
 
 void ccdb::ccdb::get_latencyHistory(std::vector<std::string> command_vector)
@@ -407,14 +408,15 @@ void ccdb::ccdb::get_latencyHistory(std::vector<std::string> command_vector)
             print(color::color(0,0,5,5,5,5), proxyName, color::no_color(), "\n");
             for (const auto & [ url, latency_history ] : json["extra"].items())
             {
-                print("  ", url, ", alive: ", latency_history["alive"], "\n");
+                print("  ", color::color(2,1,5), (color::is_no_color() ? "" :  "\033[04m"),
+                    url, color::no_color(), ", alive: ", latency_history["alive"], "\n");
                 if (latency_history.contains("history"))
                 {
                     std::vector < std::pair < uint64_t, int > > latency_history_vec;
                     for (const auto & history : latency_history["history"])
                     {
                         std::string time = history["time"];
-                        const long delay = history["delay"];
+                        const int delay = history["delay"];
                         print("    ", replace_all(time, "\"", ""), ": ",
                             color_coding(delay), delay, color::no_color(), "\n");
                         latency_history_vec.emplace_back(get_time(time), delay);
@@ -422,7 +424,8 @@ void ccdb::ccdb::get_latencyHistory(std::vector<std::string> command_vector)
 
                     const auto typical = iqr_filtered_latency(latency_history_vec);
                     const auto avg = iqr_filtered_latency(latency_history_vec, false);
-                    print("  IQR: typical=", color_coding(typical), typical, color::no_color(),
+                    print("  ", color::color(2,4,5), "IQR", color::no_color(),
+                        ": typical=", color_coding(typical), typical, color::no_color(),
                         ", avg=", color_coding(avg), avg, color::no_color(), "\n");
                 }
             }
