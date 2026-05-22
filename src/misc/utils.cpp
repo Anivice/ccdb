@@ -1142,9 +1142,13 @@ std::string ccdb::utils::strip_color(std::string str_)
 }
 
 #define BT_BUF_SIZE 100
+#ifdef __GLIBC__
+# include <execinfo.h>
+#endif
 
 std::string ccdb::utils::backtracer()
 {
+#ifdef __GLIBC__
     std::stringstream ss;
     void *buffer[BT_BUF_SIZE];
 
@@ -1182,4 +1186,7 @@ std::string ccdb::utils::backtracer()
 
     free(strings);
     return ss.str();
+#else
+    return { };
+#endif
 }

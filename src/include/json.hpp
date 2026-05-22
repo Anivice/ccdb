@@ -2,7 +2,6 @@
 #define CCDB_JSON_H
 
 #include <stdexcept>
-#include <execinfo.h>
 #include "utils.h"
 
 #define JSON_STRX(x) #x
