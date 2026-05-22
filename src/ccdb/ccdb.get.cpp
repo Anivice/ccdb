@@ -379,7 +379,11 @@ void ccdb::ccdb::get_latencyHistory(std::vector<std::string> command_vector)
 
     for (auto & str : command_vector)
     {
-        if (str.find(':') != std::string::npos)
+        if (str.find(':') != std::string::npos ||
+            std::ranges::all_of(str, [](const auto & c) {
+                return '0' <= c && c <= '9';
+            })
+        )
         {
             try
             {
