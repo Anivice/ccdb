@@ -183,38 +183,42 @@ void ccdb::ccdb::get_log()
         {
             if (refocus && !focused_log.empty())
             {
-                refocus = false;
-                if (int index = 0;
-                    std::ranges::any_of(current_vector,
-                    [&](const std::vector<std::string> & line)->bool
-                    {
-                        if (const auto & checksum = line.back(); checksum == focused_log) {
-                            return true;
-                        }
-
-                        index++;
-                        return false;
-                    })
-                )
+                auto can_i_find_in_this_index = [&](const int i)->bool
                 {
-                    // found, index is the focused log
-                    current_skip_lines = std::min(index, max_skip_lines.load());
+                    auto log_on_current_page_ = make_screen_vector_frame(current_vector,
+                           i, get_line_size(), start_line);
+                    for (auto it = log_on_current_page_.begin(); it != log_on_current_page_.end();) {
+                        if (it->empty()) log_on_current_page_.erase(it);
+                        else ++it;
+                    }
+
+                    return std::ranges::any_of(log_on_current_page_, [&](const std::vector<std::string> & line)->bool
+                    {
+                        return (focused_log == line[3]);
+                    });
+                };
+
+                if (!can_i_find_in_this_index(current_skip_lines))
+                {
+                    for (int i = 0; i < max_skip_lines; i++)
+                    {
+                        if (can_i_find_in_this_index(i))
+                        {
+                            current_skip_lines = i;
+                            break;
+                        }
+                    }
                 }
+
+                refocus = false;
             }
         }
 
         /// focus
         int focus_line = -1;
         {
-            std::vector < std::vector < std::string > > log_on_current_page
-            {
-                current_vector.begin() + current_skip_lines,
-                current_vector.begin() + current_skip_lines +
-                    std::min(
-                        static_cast<std::vector<int>::difference_type>(get_line_size() - start_line),
-                        static_cast<std::vector<int>::difference_type>(current_vector.size()) - current_skip_lines)
-            };
-
+            auto log_on_current_page = make_screen_vector_frame(current_vector,
+                current_skip_lines, get_line_size(), start_line);
             const int fr = get_line_size() - start_line - 1 /* print_table do not use the last line */; // space without heads
             const int window_frame_size = std::min(
                 static_cast<int>(current_vector.size()), // list size

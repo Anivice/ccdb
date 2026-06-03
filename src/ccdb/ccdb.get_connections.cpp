@@ -68,6 +68,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::atomic_bool conn_show_detail = false;
     std::atomic_int sort_by_from_watcher = -1;
     std::string focused_connection_id;
+    int focused_index = -1;
     std::vector < std::pair < std::string, std::chrono::time_point<std::chrono::high_resolution_clock> > > g_title_lines;
     std::vector < std::thread > child_workers;
     std::vector <std::string> title_this_session;
@@ -82,6 +83,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::string search_content;
     std::atomic < search_move_t > search_focus_move;
     std::vector < std::pair < std::string /* checksum */, bool /* if match ? */ > > search_matches;
+    std::string focused_connection_info;
+    constexpr int start_line = 6;
 
     auto show_info = [&](const std::string & msg, const std::string & level) {
         g_title_lines.emplace_back("[" + level + "]: " + msg, std::chrono::high_resolution_clock::now());
@@ -234,6 +237,19 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             }
         }
 
+        // if focused_connection_id is not present anymore, delete it
+        if (!focused_connection_id.empty())
+        {
+            if (!std::ranges::any_of(connections_filtered, [&](const general_info_pulling::connection_t & connection)
+            {
+                return connection.metadata.connectionID == focused_connection_id;
+            }))
+            {
+                show_info("Connection " + focused_connection_info + " not present, deleted", "INFO");
+                focused_connection_id.clear();
+            }
+        }
+
         const auto it = std::ranges::find_if(search_matches,
         [&](const std::pair < std::string, bool > & conn)->bool {
             return conn.first == focused_connection_id;
@@ -347,66 +363,150 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             }
         }
 
-        if (use_input)
+        auto move = [&](const std::function<bool(decltype(connections_filtered)::const_iterator it_,
+            const decltype(connections_filtered) & vec)> & do_i_process,
+            const std::function<std::string(decltype(connections_filtered)::const_iterator it_)> & how_do_i_process)
         {
-            int focus_line = -1;
-            std::string focused_connection_info;
-            const auto upper_bound = std::min(
-                static_cast<uint64_t>(get_line_size() >= 6 ?
-                    ((table_vals.size() > get_line_size() - 6) ? (get_line_size() - 2) : (get_line_size() - 1))
-                    : 0),
-                static_cast<uint64_t>(connections_filtered.size() + 7));
-            const int focus = mouse_y - 7; // focus starts with 0
-
-            // calculate mouse_y to see which one is focused
-            if (const auto offset = current_skip_lines + focus;
-                mouse_y >= 7 && mouse_y <= upper_bound && offset < connections_filtered.size())
-            {
-                focused_connection_id = connections_filtered[offset].metadata.connectionID;
-                mouse_y = -1;
-                // show_info("Highlighted " + connections_filtered[offset].host, "DEBUG");
-            }
-
             if (!focused_connection_id.empty())
             {
-                uint64_t i = 0;
                 bool found = false;
-                for (;i < connections_filtered.size(); i++)
+                for (auto it_ = connections_filtered.begin(); it_ != connections_filtered.end(); ++it_)
                 {
-                    if (connections_filtered[i].metadata.connectionID == focused_connection_id) {
-                        focused_connection_info = connections_filtered[i].host;
+                    if (it_->metadata.connectionID == focused_connection_id)
+                    {
+                        if (do_i_process(it_, connections_filtered))
+                        {
+                            focus_to_highlight = true;
+                            focused_connection_id = how_do_i_process(it_);
+                        }
+
                         found = true;
                         break;
                     }
                 }
 
-                if (found)
-                {
-                    focus_line = static_cast<int>(i) + 7 - current_skip_lines;
-                    if (focus_to_highlight)
-                    {
-                        if (focus_line < 7 || focus_line > upper_bound) {
-                            current_skip_lines = std::min(static_cast<int>(i), max_skip_lines.load());
-                            focus_line = static_cast<int>(i) + 7 - current_skip_lines;
-                        }
-
-                        focus_to_highlight = false;
-                    }
-                    else {
-                        if (focus_line < 7 || focus_line > upper_bound) focus_line = -1;
-                    }
-                }
-                else {
-                    show_info(sprint("Focused connection not present, deleted."), "INFO");
-                    focused_connection_id.clear();
-                    mouse_y = -1;
+                if (!found && focused_index < connections_filtered.size()) {
+                    focused_connection_id = connections_filtered.at(focused_index).metadata.connectionID;
                 }
             }
+        };
 
-            if (focus_line != -1) {
-                atm_focus = focus_line - 7;
-            } else {
-                atm_focus = 0;
+        if (use_input)
+        {
+            /// move
+            switch (atm_focus)
+            {
+            // move down
+            case 1:
+                {
+                    move([&](auto it_, const auto & vec)->bool{
+                        return it_ != (vec.end() - 1);
+                    },
+                    [&](auto it_)->std::string
+                    {
+                        return (it_ + 1)->metadata.connectionID;
+                    });
+                }
+            break;
+            // move up
+            case 2:
+                {
+                    move([&](auto it_, const auto & vec)->bool{
+                        return it_ != vec.begin();
+                    },
+                    [&](auto it_)->std::string
+                    {
+                        return (it_ - 1)->metadata.connectionID;
+                    });
+                }
+            break;
+            default: break;
+            }
+            atm_focus = -1;
+
+            /// refocus
+            if (focus_to_highlight || kill_connection)
+            {
+                auto can_i_find_in_this_index = [&](const int i)->bool
+                {
+                    auto connections_current_page = make_screen_vector_frame(connections_filtered,
+                           i, get_line_size(), start_line);
+                    return std::ranges::any_of(connections_current_page, [&](const general_info_pulling::connection_t & conn)->bool
+                    {
+                        return (conn.metadata.connectionID == focused_connection_id);
+                    });
+                };
+
+                // don't refresh window if this already exists
+                if (!can_i_find_in_this_index(current_skip_lines))
+                {
+                    for (int i = 0; i < max_skip_lines; i++)
+                    {
+                        if (can_i_find_in_this_index(i))
+                        {
+                            current_skip_lines = i;
+                            break;
+                        }
+                    }
+                }
+
+                focus_to_highlight = false;
+            }
+
+            /// focus
+            int focus_line = -1;
+            {
+                auto connections_current_page = make_screen_vector_frame(connections_filtered,
+                    current_skip_lines, get_line_size(), start_line);
+                const int fr = get_line_size() - start_line - 1 /* print_table do not use the last line */; // space without heads
+                const int window_frame_size = std::min(
+                static_cast<int>(connections_filtered.size()), // list size
+                    fr - (connections_filtered.size() > fr ? 1 : 0) - (current_skip_lines == max_skip_lines ? 1 : 0));
+                connections_current_page.resize(window_frame_size);
+
+                if (mouse_y > start_line && (mouse_y - start_line) <= window_frame_size)
+                {
+                    // refocus
+                    int offset = 0;
+                    if (!std::ranges::any_of(connections_current_page, [&](const general_info_pulling::connection_t & line)->bool
+                    {
+                        if (offset != mouse_y - start_line - 1) {
+                            offset++;
+                            return false;
+                        }
+
+                        focused_connection_id = line.metadata.connectionID;
+                        focus_line = mouse_y;
+                        return true;
+                    }))
+                    {
+                        show_info("Connection " + focused_connection_info + " is closed", "INFO");
+                    }
+                }
+                else if (!focused_connection_id.empty())
+                {
+                    // find the focused line on page
+                    if (int index = 0;
+                        std::ranges::any_of(connections_current_page, [&](const general_info_pulling::connection_t & line)->bool
+                        {
+                            index++;
+                            if (const auto & line_hash = line.metadata.connectionID;
+                                line_hash == focused_connection_id)
+                            {
+                                focused_connection_info = line.host;
+                                return true;
+                            }
+
+                            return false;
+                        })
+                    )
+                    {
+                        focus_line = index + start_line;
+                        focused_index = index;
+                    }
+                }
+
+                mouse_y = -1;
             }
 
             if (kill_connection)
@@ -501,6 +601,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             const auto local_str_len = search_content_buffer.get().size();
             const bool local_show_search = show_search;
             const int local_search_focus_move = search_focus_move;
+            const int local_atm_focus = atm_focus;
 
             for (int i = 0; i < screen_refresh_interval_in_ms / 10; i++)
             {
@@ -516,6 +617,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     || local_str_len != search_content_buffer.get().size()
                     || local_show_search != show_search
                     || local_search_focus_move != search_focus_move
+                    || local_atm_focus != atm_focus
                     || !running)
                 {
                     if (window_size_change) {

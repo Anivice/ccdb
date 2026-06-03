@@ -263,7 +263,7 @@ namespace ccdb
             std::atomic_bool * refocus,
             std::atomic_bool * show_detail,
             std::atomic_int * sort_by_ptr,
-            const std::atomic_int * current_focus_ptr,
+            std::atomic_int * focus_move,
             const std::atomic_bool * pause,
             std::atomic_bool * show_search,
             ccdb_atomic_t < std::u32string > * search_content_buffer,
@@ -419,6 +419,27 @@ namespace ccdb
         running = false;
         if (T.joinable()) T.join();
         return status == 0;
+    }
+
+    template < typename vecType >
+    std::vector<vecType> make_screen_vector_frame(std::vector<vecType> & vec,
+        const int current_skip_lines, const int get_line_size, const int start_line)
+    {
+        auto frame_size = get_line_size - start_line - 1 /* search line is always empty*/;
+        if (vec.size() > frame_size) {
+            frame_size -= 1;
+        }
+
+        std::vector <vecType> vecReturn
+        {
+            vec.begin() + current_skip_lines,
+            vec.begin() + current_skip_lines +
+                std::min(
+                    static_cast<std::vector<int>::difference_type>(get_line_size - start_line),
+                    static_cast<std::vector<int>::difference_type>(vec.size()) - current_skip_lines)
+        };
+        vecReturn.resize(frame_size);
+        return vecReturn;
     }
 }
 

@@ -8,9 +8,20 @@ set(CMAKE_CXX_STANDARD 23)
 find_program(MAKE_EXECUTABLE NAMES make gmake REQUIRED)
 include(ExternalProject)
 
+set(MAKE_CC_EXEC "cc")
+set(MAKE_CXX_EXEC "c++")
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM)
+    set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
+    set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
+    message(STATUS "Using ccache: ${CCACHE_PROGRAM}")
+    set(MAKE_CC_EXEC "${CCACHE_PROGRAM} cc")
+    set(MAKE_CXX_EXEC "${CCACHE_PROGRAM} c++")
+endif()
+
 add_executable(xxd compile_utils/xxd.c)
 
-set(PerlEnv "env CC= CXX= LD= ")
+set(PerlEnv "env CC=\"${CCACHE_PROGRAM} cc\" CXX=\"${CCACHE_PROGRAM} c++\" LD= ")
 if ("${NO_USE_PERL_AS_NATIVE}" STREQUAL "True")
     set(PerlEnv "")
 endif ()
@@ -40,7 +51,7 @@ if ("${OPENSSL_LIBP}" STREQUAL "")
 endif ()
 
 # OpenSSL
-set(OPENSSL_MAKE_ENTIRE "${MAKE_EXECUTABLE} ${OPENSSL_MAKE_ADDITIONAL_FLAGS}")
+set(OPENSSL_MAKE_ENTIRE "${MAKE_EXECUTABLE} CC=\"${CCACHE_PROGRAM} cc\" CXX=\"${CCACHE_PROGRAM} c++\" ${OPENSSL_MAKE_ADDITIONAL_FLAGS}")
 message(STATUS "OpenSSL: ${OPENSSL_MAKE_ENTIRE}")
 ExternalProject_Add(OPENSSL
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/openssl
@@ -81,7 +92,7 @@ add_dependencies(openssl::openssl OPENSSL)
 
 # Ncurses
 
-set(NCURSES_MAKE_ENTIRE "${MAKE_EXECUTABLE} ${NCURSES_MAKE_ADDITIONAL_FLAGS}")
+set(NCURSES_MAKE_ENTIRE "${MAKE_EXECUTABLE} CC=\"${CCACHE_PROGRAM} cc\" CXX=\"${CCACHE_PROGRAM} c++\" ${NCURSES_MAKE_ADDITIONAL_FLAGS}")
 message(STATUS "NCRUSES: ${NCURSES_MAKE_ENTIRE}")
 ExternalProject_Add(NCURSES
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/ncurses
@@ -118,7 +129,7 @@ include_directories("${NCURSES_INCLUDE_DIR}")
 
 # Readline
 
-set(READLINE_MAKE_ENTIRE "${MAKE_EXECUTABLE} ${READLINE_MAKE_ADDITIONAL_FLAGS}")
+set(READLINE_MAKE_ENTIRE "${MAKE_EXECUTABLE} CC=\"${CCACHE_PROGRAM} cc\" CXX=\"${CCACHE_PROGRAM} c++\" ${READLINE_MAKE_ADDITIONAL_FLAGS}")
 message(STATUS "READLINE: ${READLINE_MAKE_ENTIRE}")
 ExternalProject_Add(READLINE
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/readline
@@ -263,7 +274,7 @@ if ("${CMAKE_BUILD_STATIC}" STREQUAL "True")
     set(TAR_C_FLAGS "-O2 -static")
 endif ()
 
-set(TAR_MAKE_ENTIRE "${MAKE_EXECUTABLE} ${TAR_MAKE_ADDITIONAL_FLAGS}")
+set(TAR_MAKE_ENTIRE "${MAKE_EXECUTABLE} CC=\"${CCACHE_PROGRAM} cc\" CXX=\"${CCACHE_PROGRAM} c++\" ${TAR_MAKE_ADDITIONAL_FLAGS}")
 message(STATUS "TAR: ${TAR_MAKE_ENTIRE}")
 ExternalProject_Add(TAR
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/tar

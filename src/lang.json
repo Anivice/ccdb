@@ -893,5 +893,10 @@
     "en"    : "Print an example version of the ~/.ccdbrc",
     "en_US" : "Print an example version of the ~/.ccdbrc",
     "zh_CN" : "打印~/.ccdbrc的样例"
+  },
+  {
+    "en"    : " closed, removed",
+    "en_US" : " closed, removed",
+    "zh_CN" : "已关闭"
   }
 ]

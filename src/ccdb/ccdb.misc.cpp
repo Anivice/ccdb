@@ -337,7 +337,7 @@ void ccdb::ccdb::get_conn_input_watcher(
     std::atomic_bool * refocus,
     std::atomic_bool * show_detail,
     std::atomic_int * sort_by_ptr,
-    const std::atomic_int * current_focus_ptr,
+    std::atomic_int * focus_move,
     const std::atomic_bool * pause,
     std::atomic_bool * show_search,
     ccdb_atomic_t < std::u32string > * search_content_buffer,
@@ -458,18 +458,12 @@ void ccdb::ccdb::get_conn_input_watcher(
 
     auto hl_up=[&]
     {
-        if (mouse_y && current_focus_ptr) {
-            const int result = *current_focus_ptr + 7 - 1;
-            *mouse_y = (result >= 0 ? result : 0);
-        }
+        if (focus_move) *focus_move = 2;
     };
 
     auto hl_down=[&]
     {
-        if (mouse_y && current_focus_ptr) {
-            const int result = *current_focus_ptr + 7 + 1;
-            *mouse_y = (result >= 0 ? result : 0);
-        }
+        if (focus_move) *focus_move = 1;
     };
 
     while (running)
