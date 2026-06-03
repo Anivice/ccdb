@@ -85,6 +85,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::vector < std::pair < std::string /* checksum */, bool /* if match ? */ > > search_matches;
     std::string focused_connection_info;
     constexpr int start_line = 6;
+    int vector_size_last_time = -1;
 
     auto show_info = [&](const std::string & msg, const std::string & level) {
         g_title_lines.emplace_back("[" + level + "]: " + msg, std::chrono::high_resolution_clock::now());
@@ -563,6 +564,9 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 std::cout << setup_term->clear;
             }
 
+            const bool skip_due_to_shrink = (vector_size_last_time > table_vals.size());
+            vector_size_last_time = static_cast<int>(table_vals.size());
+
             print_table(title_this_session,
                 table_vals,
                 false,
@@ -618,7 +622,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     || local_show_search != show_search
                     || local_search_focus_move != search_focus_move
                     || local_atm_focus != atm_focus
-                    || !running)
+                    || !running
+                    || skip_due_to_shrink)
                 {
                     if (window_size_change) {
                         std::cout << setup_term->clear << std::flush;
