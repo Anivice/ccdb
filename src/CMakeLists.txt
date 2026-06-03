@@ -10,6 +10,7 @@ include(ExternalProject)
 
 set(MAKE_CC_EXEC "${CMAKE_C_COMPILER}")
 set(MAKE_CXX_EXEC "${CMAKE_CXX_COMPILER}")
+set(PerlEnv "env CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" LD= ")
 find_program(CCACHE_PROGRAM ccache)
 if(NOT (("${CCACHE_PROGRAM}" STREQUAL "CCACHE_PROGRAM-NOTFOUND") OR (NOT "${CCACHE_PROGRAM}" STREQUAL "NOTFOUND")))
     set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
@@ -17,14 +18,15 @@ if(NOT (("${CCACHE_PROGRAM}" STREQUAL "CCACHE_PROGRAM-NOTFOUND") OR (NOT "${CCAC
     message(STATUS "Using ccache: ${CCACHE_PROGRAM}")
     set(MAKE_CC_EXEC "${CCACHE_PROGRAM} ${CMAKE_C_COMPILER}")
     set(MAKE_CXX_EXEC "${CCACHE_PROGRAM} ${CMAKE_CXX_COMPILER}")
+else ()
+    set(PerlEnv "env CC= CXX= LD= ")
 endif()
 
-add_executable(xxd compile_utils/xxd.c)
-
-set(PerlEnv "env CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" LD= ")
 if ("${NO_USE_PERL_AS_NATIVE}" STREQUAL "True")
     set(PerlEnv "")
 endif ()
+
+add_executable(xxd compile_utils/xxd.c)
 
 # Perl
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/NonCMake/perl-5.42.0/p)
