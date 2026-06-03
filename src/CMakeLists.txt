@@ -22,6 +22,8 @@ else ()
     set(PerlEnv "env CC= CXX= LD= ")
 endif()
 
+message(STATUS "C: ${MAKE_CC_EXEC} C++: ${MAKE_CXX_EXEC}")
+
 if ("${NO_USE_PERL_AS_NATIVE}" STREQUAL "True")
     set(PerlEnv "")
 endif ()
@@ -94,7 +96,7 @@ add_dependencies(openssl::openssl OPENSSL)
 
 # Ncurses
 
-set(NCURSES_MAKE_ENTIRE "${MAKE_EXECUTABLE} CC=\"${MAKE_C_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" ${NCURSES_MAKE_ADDITIONAL_FLAGS}")
+set(NCURSES_MAKE_ENTIRE "${MAKE_EXECUTABLE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" ${NCURSES_MAKE_ADDITIONAL_FLAGS}")
 message(STATUS "NCRUSES: ${NCURSES_MAKE_ENTIRE}")
 ExternalProject_Add(NCURSES
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/ncurses
