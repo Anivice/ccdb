@@ -690,7 +690,7 @@ void ccdb::ccdb::nload(const std::vector<std::string> & vec)
             std::vector<std::string> str_logs, three_logs;
             std::ranges::for_each(log_str, [&](const auto & pair_log) {
                 std::stringstream ss;
-                std::ranges::for_each(pair_log, [&](const auto & log){ ss << log << " "; });
+                ss << pair_log[0] << " " << pair_log[1] << " " << pair_log[2];
                 str_logs.push_back(ss.str());
             });
 

@@ -625,10 +625,11 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     || !running
                     || skip_due_to_shrink)
                 {
-                    if (window_size_change) {
+                    if (window_size_change || skip_due_to_shrink) {
                         std::cout << setup_term->clear << std::flush;
                         window_size_change = false;
                     }
+
                     break;
                 }
 

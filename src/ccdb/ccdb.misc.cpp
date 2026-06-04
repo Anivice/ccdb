@@ -356,6 +356,7 @@ void ccdb::ccdb::get_conn_input_watcher(
 
     // pull SIGINT every 50ms
     threads.emplace_back([&] { while (running) {
+        set_thread_name("input:/SIGINT Puller");
         if (sigint_status || backend_instance.force_quit) { running = false; break; }
         std::this_thread::sleep_for(std::chrono::milliseconds(50l));
     } });
@@ -363,20 +364,25 @@ void ccdb::ccdb::get_conn_input_watcher(
     auto ch_list_to_string = [](const std::vector < int > & list)->std::string
     {
         std::string str;
-        std::ranges::for_each(list, [&str](const int c) {
+        std::ranges::for_each(list, [&str](const int c)
+        {
             if (const char cc = *reinterpret_cast<const char *>(&c); std::isprint(cc)) {
                 str.push_back(cc);
             } else {
-                if (cc == 27) // ESCAPE
-                {
+                if (cc == 27) { // ESCAPE
                     str += "^[";
-                }
-                else {
+                } else {
                     str += "^";
                     str.append(std::to_string(c));
                 }
             }
+
+            if (utils::getenv("SHOW_INPUT_TRACE") == "true")
+                std::cerr << std::hex << c << " ";
         });
+
+        if (utils::getenv("SHOW_INPUT_TRACE") == "true")
+            std::cerr << "\n --> STR: " << str << std::endl;
         return str;
     };
 

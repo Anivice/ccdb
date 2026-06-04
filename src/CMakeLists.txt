@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD 23)
 
 # readline only supports Makefile
 find_program(MAKE_EXECUTABLE NAMES make gmake REQUIRED)
+find_program(RECONFIGURE_EXECUTABLE NAMES autoreconf REQUIRED) # REQUIRED BY TAR
 include(ExternalProject)
 
 set(MAKE_CC_EXEC "${CMAKE_C_COMPILER}")
