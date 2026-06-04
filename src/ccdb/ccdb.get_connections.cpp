@@ -400,11 +400,10 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             // move down
             case 1:
                 {
-                    move([&](auto it_, const auto & vec)->bool{
+                    move([&](auto it_, const auto & vec)->bool {
                         return it_ != (vec.end() - 1);
                     },
-                    [&](auto it_)->std::string
-                    {
+                    [&](auto it_)->std::string {
                         return (it_ + 1)->metadata.connectionID;
                     });
                 }
@@ -412,11 +411,10 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             // move up
             case 2:
                 {
-                    move([&](auto it_, const auto & vec)->bool{
+                    move([&](auto it_, const auto & vec)->bool {
                         return it_ != vec.begin();
                     },
-                    [&](auto it_)->std::string
-                    {
+                    [&](auto it_)->std::string {
                         return (it_ - 1)->metadata.connectionID;
                     });
                 }
@@ -456,11 +454,12 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
             /// focus
             int focus_line = -1;
+            int window_frame_size = 0;
             {
                 auto connections_current_page = make_screen_vector_frame(connections_filtered,
                     current_skip_lines, get_line_size(), start_line);
                 const int fr = get_line_size() - start_line - 1 /* print_table do not use the last line */; // space without heads
-                const int window_frame_size = std::min(
+                window_frame_size = std::min(
                 static_cast<int>(connections_filtered.size()), // list size
                     fr - (connections_filtered.size() > fr ? 1 : 0) - (current_skip_lines == max_skip_lines ? 1 : 0));
                 connections_current_page.resize(window_frame_size);
@@ -625,7 +624,10 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     || !running
                     || skip_due_to_shrink)
                 {
-                    if (window_size_change || skip_due_to_shrink) {
+                    if (window_size_change ||
+                        (utils::getenv("ENABLE_CLEAR_ON_SHRINK") == "true" && skip_due_to_shrink
+                            && table_vals.size() <= window_frame_size))
+                    {
                         std::cout << setup_term->clear << std::flush;
                         window_size_change = false;
                     }
