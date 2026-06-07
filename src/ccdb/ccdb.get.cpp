@@ -494,22 +494,87 @@ void ccdb::ccdb::get_subinfo()
 {
     auto get_info = [&]
     {
-        if (clash_sublink.empty()) {
+        if (clash_sublink.empty() && external_puller_command.empty()) {
             print<is_error>("No subscription link defined in the configuration file.\n");
             print<is_error>("Define the link as follows:\n\n",
                 "[clash]\n"
                 "link = YOUR CLASH LINK\n\n",
+                "or, alternatively, use a command to pull info:\n"
+                "metricPullerCommand = YOUR COMMAND\n"
+                "\nTimeouts for both commands can be specified using\n"
+                "metricPullerCommandTimeOut = TIME OUT ms\n",
                 "In the configuration file ~/.ccdbrc\n");
             if (execute_and_no_interactive) throw std::runtime_error("");
         }
         else
         {
             try {
-                const auto [
-                    total_uploaded,
-                    total_downloaded,
-                    quota,
-                    expire_unix_timestamp] = pull_clash_subinfo(clash_sublink, 15);
+                subinfo_ball_t ball;
+                const auto result = detach_execute([&](const int fd)->bool
+                {
+                    auto [
+                        total_uploaded_,
+                        total_downloaded_,
+                        quota_,
+                        expire_unix_timestamp_] =
+                            external_puller_command.empty() ?
+                                pull_clash_subinfo(clash_sublink, 30) :
+                                [this]()->subinfo_t
+                                {
+                                    subinfo_t ball { };
+                                    if (const auto status = exec_command2("/bin/sh", external_puller_command);
+                                             status.exit_status == 0)
+                                    {
+                                        try {
+                                            json json = json::parse(status.fd_stdout);
+                                            ball.total_uploaded = json["total_uploaded"];
+                                            ball.total_downloaded = json["total_downloaded"];
+                                            ball.quota = json["quota"];
+                                            ball.expire_unix_timestamp = json["expire_unix_timestamp"];
+                                        } catch (std::exception & e)
+                                        {
+                                            std::cerr << e.what() << std::endl;
+                                        }
+                                    }
+                                    return ball;
+                                }();
+
+                    const subinfo_t ball_ = {
+                        .total_uploaded = total_uploaded_,
+                        .total_downloaded = total_downloaded_,
+                        .quota = quota_,
+                        .expire_unix_timestamp = expire_unix_timestamp_,
+                    };
+
+                    if (const ssize_t written = write(fd, &ball_, sizeof(ball_));
+                        written != sizeof(ball_))
+                    {
+                        _exit(1);
+                    }
+
+                    return true;
+                },
+                [&](const int fd)->bool
+                {
+                    std::vector<uint8_t> buffer(sizeof(subinfo_ball_t) + 1);
+                    const ssize_t n = read(fd, buffer.data(), buffer.size());
+                    if (n == sizeof(ball)) {
+                        std::memcpy(&ball, buffer.data(), sizeof(ball));
+                    } else {
+                        return false;
+                    }
+
+                    return true;
+                },
+                external_puller_command_time_out_ms);
+
+                if (!result)
+                {
+                    print<is_error>("Failed to pull info\n");
+                    return;
+                }
+
+                auto [ total_uploaded, total_downloaded, quota, expire_unix_timestamp] = ball;
                 std::string percentage_lit;
                 const auto percentage = static_cast<double>(total_uploaded + total_downloaded) / static_cast<double>(quota);
                 {

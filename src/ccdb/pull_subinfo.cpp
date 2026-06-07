@@ -33,9 +33,26 @@
 #include "ccdb.h"
 #include "ncursesw/ncurses.h"
 
+#define NUM_PIPES           3
+
+#define PARENT_WRITE_PIPE   0
+#define PARENT_READ_PIPE    1
+#define PARENT_ERR_PIPE     2
+
+#define READ_FD  0
+#define WRITE_FD 1
+
+#define PARENT_READ_FD   ( pipes[PARENT_READ_PIPE][READ_FD]   )
+#define PARENT_WRITE_FD  ( pipes[PARENT_WRITE_PIPE][WRITE_FD] )
+#define PARENT_ERR_FD    ( pipes[PARENT_ERR_PIPE][READ_FD]    )
+
+#define CHILD_READ_FD    ( pipes[PARENT_WRITE_PIPE][READ_FD]  )
+#define CHILD_WRITE_FD   ( pipes[PARENT_READ_PIPE][WRITE_FD]  )
+#define CHILD_ERR_FD     ( pipes[PARENT_ERR_PIPE][WRITE_FD]   )
+
 static std::mutex mutex; // TODO: BUG inside OpenSSL, SSL has concurrency issues: https://github.com/openssl/openssl/issues/29212
 
-ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url, int timeout, const std::string & ssl_cert)
+ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url, int timeout)
 {
     std::lock_guard<std::mutex> lock(mutex);
     std::string scheme, host, path, proxy_host;
@@ -120,7 +137,7 @@ using namespace ccdb::utils;
 std::string ccdb::ccdb::update_subinfo(atomic_subinfo_ball_t & atomic_subinfo_ball,
     std::vector < std::pair < std::unique_ptr<std::atomic_bool>, std::thread > > & thread_pool) const
 {
-    if (clash_sublink.empty()) return "";
+    if (clash_sublink.empty() && external_puller_command.empty()) return "";
     auto [total_uploaded, total_downloaded, quota, last_subinfo_pulling_time] = atomic_subinfo_ball->get();
     auto return_subinfo = [&]->std::string
     {
@@ -135,19 +152,7 @@ std::string ccdb::ccdb::update_subinfo(atomic_subinfo_ball_t & atomic_subinfo_ba
 
     const auto now = std::chrono::high_resolution_clock::now();
     const std::chrono::system_clock::time_point tp{std::chrono::milliseconds(last_subinfo_pulling_time)};
-    if (std::chrono::duration_cast<
-#ifndef __DEBUG__
-    std::chrono::seconds
-#else
-    std::chrono::milliseconds
-#endif //__DEBUG__
-        >(now - tp).count() <
-#ifndef __DEBUG__
-        5 * 60
-#else
-        30000
-#endif //__DEBUG__
-        ) {
+    if (std::chrono::duration_cast<std::chrono::milliseconds>(now - tp).count() < external_puller_command_time_out_ms) {
         return return_subinfo();
     }
 
@@ -172,7 +177,27 @@ std::string ccdb::ccdb::update_subinfo(atomic_subinfo_ball_t & atomic_subinfo_ba
                         total_uploaded_,
                         total_downloaded_,
                         quota_,
-                        expire_unix_timestamp_] = pull_clash_subinfo(clash_sublink, 30);
+                        expire_unix_timestamp_] =
+                            external_puller_command.empty() ?
+                                pull_clash_subinfo(clash_sublink, 30) :
+                                [this]()->subinfo_t
+                                {
+                                    subinfo_t ball { };
+                                    if (const auto status = exec_command2("/bin/sh", external_puller_command);
+                                             status.exit_status == 0)
+                                    {
+                                        try {
+                                            json json = json::parse(status.fd_stdout);
+                                            ball.total_uploaded = json["total_uploaded"];
+                                            ball.total_downloaded = json["total_downloaded"];
+                                            ball.quota = json["quota"];
+                                            ball.expire_unix_timestamp = json["expire_unix_timestamp"];
+                                        } catch (std::exception & /* e */) {
+                                            // std::cerr << e.what() << std::endl;
+                                        }
+                                    }
+                                    return ball;
+                                }();
 
                     const subinfo_ball_t ball_ = {
                         .total_uploaded = total_uploaded_,
@@ -203,7 +228,7 @@ std::string ccdb::ccdb::update_subinfo(atomic_subinfo_ball_t & atomic_subinfo_ba
 
                     return true;
                 },
-                5000);
+                external_puller_command_time_out_ms);
 
                 if (result) atomic_subinfo_ball_->set(ball);
                 *finished_ptr = true;

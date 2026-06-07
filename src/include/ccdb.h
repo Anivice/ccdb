@@ -77,6 +77,8 @@ namespace ccdb
         std::atomic_int screen_refresh_interval_in_ms = 500;
         tsl::hopscotch_map < std::string, std::string > alias_list;
         std::atomic_int & max_log_size = backend_instance.max_log_size;
+        std::string external_puller_command;
+        int external_puller_command_time_out_ms = 10000;
 
         bool execute_and_no_interactive = false;
         std::atomic_bool reverse_mouse;
@@ -375,32 +377,24 @@ namespace ccdb
         fds.events = POLLIN;
 
         std::atomic_bool running = true;
-        auto sig_status = watcher.make_status_watcher();
+        const auto sig_status = watcher.make_status_watcher();
 
         std::thread T([&]
         {
             while (running)
             {
                 if (sig_status) {
+                    close(pipefd[0]);
                     (void)kill(pid, SIGKILL);
+                    break;
                 }
 
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
-
-            // // for some reason, SIGINT will cause poll() to end early
-            // std::this_thread::sleep_for(std::chrono::milliseconds(100)); // update interval for SIGINT status is 10ms
-            // // so we sleep enough time and check the status again, if SIGINT is present, kill the process
-            // if (sig_status) {
-            //     (void)kill(pid, SIGKILL);
-            // }
         });
 
-        const int ret = poll(&fds, 1, timeout_ms);
-        if (ret == -1) {
-            // Fall through to clean up
+        if (const int ret = poll(&fds, 1, timeout_ms); ret == -1) {
         } else if (ret == 0) {
-            // Timeout: child did not write within 1 second
             (void)kill(pid, SIGKILL);
         } else {
             // Data is available (or EOF if child closed pipe)

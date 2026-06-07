@@ -23,6 +23,13 @@ link = http://MY SUBSCRIPTION LINK
 log = %HOME%/.cache/ccdb/mihomo.log
 sslCert = /etc/ssl/cert.pem
 sslVerify = on          # This will override DISABLE_SERVER_CERTIFICATE_VERIFICATION=true, but only for subscription links
+metricPullerCommand = %HOME%/.local/bin/serverinfo.sh
+# the above command should output info in JSON in the format of:
+# { "total_uploaded": NUM, "total_downloaded": NUM, "quota": NUM, "expire_unix_timestamp": NUM }
+# total_uploaded, total_downloaded, quota are all bytes (and obviously, as numbers)
+# expire_unix_timestamp is your server's expiration date, if it has one, in seconds since 1970-01-01:00:00:00, again, as a number
+# e.g.: { "total_uploaded": 126164664320, "total_downloaded": 126164664320, "quota": 1073741824000, "expire_unix_timestamp": 1781884800 }
+metricPullerCommandTimeOut = 120000 # Time out for either clash link puller, or your custom command, in ms
 
 [Shortcut]
 KillConn = k

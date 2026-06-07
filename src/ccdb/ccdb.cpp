@@ -305,7 +305,9 @@ void ccdb::ccdb::init()
         }
     };
 
-    auto int_helper = [&](const std::string & flag_definition, auto & val, const auto & sanity_check)
+    auto int_helper = [&]<typename IntType>(const std::string & flag_definition, IntType & val,
+        const std::function<bool(int64_t)> & sanity_check = [&](const int64_t val_)->bool { return val_ > 0; }
+    )
     {
         if (ccdb_config && ccdb_config->config_signal_hash_map.contains(flag_definition))
         {
@@ -319,7 +321,8 @@ void ccdb::ccdb::init()
         }
     };
 
-    auto string_helper = [&](const std::string & flag_definition, auto & val, const auto & sanity_check)
+    auto string_helper = [&](const std::string & flag_definition, auto & val,
+        const std::function<bool(const std::string&)> & sanity_check = [](const std::string&)->bool { return true; })
     {
         if (ccdb_config && ccdb_config->config_signal_hash_map.contains(flag_definition))
         {
@@ -349,7 +352,7 @@ void ccdb::ccdb::init()
     auto kbd_shortcut_helper = [&](const std::string & kbd_shortcut_name, const std::string & default_value)
     {
         std::string shortcut;
-        string_helper("Shortcut::" + kbd_shortcut_name, shortcut, [](const std::string &){ return true; });
+        string_helper("Shortcut::" + kbd_shortcut_name, shortcut);
         if (!shortcut.empty()) {
 #ifdef __DEBUG__
             std::cout << "Remapped keyboard shortcut " << kbd_shortcut_name << " to " << shortcut << std::endl;
@@ -387,19 +390,12 @@ void ccdb::ccdb::init()
     flag_helper("Global::ReverseMouse", reverse_mouse);
     if (utils::getenv("REVERSE_MOUSE") == "true") reverse_mouse = true;
     else if (utils::getenv("REVERSE_MOUSE") == "false") reverse_mouse = false;
-    int_helper("Global::SortBy", sort_by, [&](const long int val) {
+    int_helper("Global::SortBy", sort_by, [&](const int64_t val) {
         return (0 <= val && val < get_conn_titles.size());
     });
 
-    int_helper("Global::RefreshIntervalMS", screen_refresh_interval_in_ms,
-    [&](const long int val) {
-        return (val > 0);
-    });
-
-    int_helper("Global::logSize", max_log_size,
-    [&](const long int val) {
-        return (val > 0);
-    });
+    int_helper("Global::RefreshIntervalMS", screen_refresh_interval_in_ms);
+    int_helper("Global::logSize", max_log_size);
 
     filter_helper("Filter::Host", 0);
     filter_helper("Filter::Process", 1);
@@ -410,8 +406,8 @@ void ccdb::ccdb::init()
     filter_helper("Filter::Chains", 11);
     filter_helper("Filter::logLevel", 12);
     filter_helper("Filter::logContent", 13);
-    string_helper("clash::link", clash_sublink, [](const std::string &){ return true; });
-    string_helper("clash::log", log_loc, [](const std::string &){ return true; });
+    string_helper("clash::link", clash_sublink);
+    string_helper("clash::log", log_loc);
     std::string CCDB_POSSIBLE_SSL_CERTIFICATE;
     string_helper("clash::sslCert", CCDB_POSSIBLE_SSL_CERTIFICATE, [](const std::string & path)
     {
@@ -422,6 +418,9 @@ void ccdb::ccdb::init()
 
         return false;
     });
+
+    string_helper("clash::metricPullerCommand", external_puller_command);
+    int_helper("clash::metricPullerCommandTimeOut", external_puller_command_time_out_ms);
 
     bool sslVerify = true;
     flag_helper("clash::sslVerify", sslVerify);

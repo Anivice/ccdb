@@ -566,8 +566,7 @@ void ccdb::ccdb::nload(
         update_window_spaces();
     }
 
-    print("\n\n", "Wait...\n");
-    sysint_pressed = true;
+    print("\n\n", "Wait...\n", "Press Ctrl+C (^C) to end immediately.\n");
     if (input_watcher.joinable()) input_watcher.join();
     std::ranges::for_each(threads, [](auto & T) { if (T.second.joinable()) T.second.join(); });
     std::ranges::for_each(local_workers, [](auto & T) { if (T.joinable()) T.join(); });

@@ -898,5 +898,10 @@
     "en"    : " closed, removed",
     "en_US" : " closed, removed",
     "zh_CN" : "已关闭"
+  },
+  {
+    "en"    : "or, alternatively, use a command to pull info:\nmetricPullerCommand = YOUR COMMAND\n\nTimeouts for both commands can be specified using\nmetricPullerCommandTimeOut = TIME OUT ms\n",
+    "en_US" : "or, alternatively, use a command to pull info:\nmetricPullerCommand = YOUR COMMAND\n\nTimeouts for both commands can be specified using\nmetricPullerCommandTimeOut = TIME OUT ms\n",
+    "zh_CN" : "或者，也可以使用命令来拉取信息：\nmetricPullerCommand = 您的命令\n\n两个命令的超时时间可以通过以下方式指定\n\nmetricPullerCommandTimeOut = 超时时间(毫秒)\n"
   }
 ]

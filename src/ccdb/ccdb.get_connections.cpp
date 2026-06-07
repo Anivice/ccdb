@@ -655,8 +655,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     }
 
     running = false;
-    print("\n\n", "Wait...\n");
-    sysint_pressed = true;
+    print("\n\n", "Wait...\n", "Press Ctrl+C (^C) to end immediately.\n");
     if (input_getc_worker.joinable()) input_getc_worker.join();
     wait_thread(child_workers);
     std::ranges::for_each(threads, [](auto & T) { if (T.second.joinable()) T.second.join(); });
