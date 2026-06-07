@@ -306,7 +306,7 @@ void ccdb::ccdb::init()
     };
 
     auto int_helper = [&]<typename IntType>(const std::string & flag_definition, IntType & val,
-        const std::function<bool(int64_t)> & sanity_check = [&](const int64_t val_)->bool { return val_ > 0; }
+        const std::function<bool(int64_t)> & sanity_check = [](const int64_t val_)->bool { return val_ > 0; }
     )
     {
         if (ccdb_config && ccdb_config->config_signal_hash_map.contains(flag_definition))
