@@ -109,6 +109,7 @@
     < mapProxyChain (Map out current proxy chain): [NONE] >,
     < ccdbrc (Print an example version of the ~/.ccdbrc): [NONE] >,
     < [ALIAS]: [ALIAS_ARGUMENT...] >,
+    < clearLogs (Clear logs in the cache): [NONE] >,
 }
 
 # $ ssh me@localhost
