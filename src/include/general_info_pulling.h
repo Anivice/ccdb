@@ -163,6 +163,7 @@ public:
     [[nodiscard]] std::vector < connection_t > get_active_connections();
     [[nodiscard]] std::vector < std::vector < std::string > > get_logs();
     [[nodiscard]] proxy_info_summary_t get_proxies_and_latencies_as_pair();
+    void clearLogs() { std::lock_guard lock(logs_mutex); logs.clear(); }
 
     void stop_continuous_updates();
     void start_continuous_updates();

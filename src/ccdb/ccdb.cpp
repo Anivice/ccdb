@@ -528,6 +528,9 @@ void ccdb::ccdb::init()
             else if (command_vector.front() == "ccdbrc") {
                 ccdbrc();
             }
+            else if (command_vector.front() == "clearLogs") {
+                backend_instance.clearLogs();
+            }
             else if ((command_vector.front() == "help") || (command_vector.front() == "?"))  {
                 help();
             }
