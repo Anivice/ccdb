@@ -346,7 +346,7 @@ void general_info_pulling::start_continuous_updates()
 
 void general_info_pulling::update_proxy_list()
 {
-    const std::vector<std::string> ignored_proxies = { "COMPATIBLE", "PASS", "REJECT", "REJECT-DROP" };
+    const std::vector<std::string> ignored_proxies = { "COMPATIBLE", "PASS", "REJECT", "REJECT-DROP", "PASS-RULE" };
     backend_client.get_info_no_instance("proxies", [&](const std::string& proxies)
     {
         try
