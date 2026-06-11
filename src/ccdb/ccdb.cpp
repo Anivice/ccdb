@@ -262,7 +262,11 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
         }
 
         if (T0.joinable()) T0.join();
-        exec_command("/bin/sh", status.fd_stdout, "-c", command_ss.str());
+        if (status.fd_stderr.empty()) {
+            exec_command("/bin/sh", status.fd_stdout, "-c", command_ss.str());
+        } else {
+            print<is_error>(status.fd_stderr, (!status.fd_stderr.empty() && status.fd_stderr.back() == '\n') ? "" : "\n");
+        }
     }
 }
 
@@ -270,7 +274,7 @@ namespace fs = std::filesystem;
 static bool is_executable(const fs::path& p)
 {
     std::error_code ec;
-    auto status = fs::status(p, ec);
+    const auto status = fs::status(p, ec);
     if (ec || !fs::is_regular_file(status)) {
         return false;
     }
