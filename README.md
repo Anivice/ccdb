@@ -3,6 +3,13 @@
 [![CI](https://github.com/Anivice/ccdb/actions/workflows/LinuxStaticBuildAction.yml/badge.svg?branch=main)](https://github.com/Anivice/ccdb/actions/workflows/LinuxStaticBuildAction.yml)
 
 > [!WARNING]
+> ***CCDB HAS POOR CHINESE LANGUAGE SUPPORT***
+>
+> The translation is incomplete and existing translations are a mess.
+> Texts lacking Chinese corresponding translations are shown in English.
+> Missing texts will be shown in `~/.config/ccdb/MISSING-TRANSLATIONS.json`
+
+> [!WARNING]
 > ***CCDB DOES NOT SUPPORT 32BIT, BUT BINARIES ARE STILL PROVIDED***
 > 
 > As noted by HTTPLIB:

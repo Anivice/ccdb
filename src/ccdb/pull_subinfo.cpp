@@ -52,7 +52,7 @@
 
 static std::mutex mutex; // TODO: BUG inside OpenSSL, SSL has concurrency issues: https://github.com/openssl/openssl/issues/29212
 
-ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url, int timeout)
+ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url, int timeout, const std::string & header)
 {
     std::lock_guard<std::mutex> lock(mutex);
     std::string scheme, host, path, proxy_host;
@@ -87,7 +87,7 @@ ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url, int timeout)
         cli.set_proxy(proxy_host, proxy_port);
     }
 
-    const httplib::Headers hdrs = {{"User-Agent", "clash-verge/2.1.0"}}; // dummy header
+    const httplib::Headers hdrs = { { "User-Agent", header } };
     httplib::Result res;
     std::atomic_bool finished = false;
     std::thread T([&]{ res = cli.Head(path, hdrs); finished = true; });

@@ -47,6 +47,8 @@ utils::PreDefinedArgumentType::PreDefinedArgument MainArgument = {
     { .short_name = 'l', .long_name = "latency_url",.argument_required = true,  .description = utils::get_text("Latency URL") },
     { .short_name = -1,  .long_name = "subinfo",    .argument_required = false, .description = utils::get_text("Get subinfo") },
     { .short_name = -1,  .long_name = "subinfo_url",.argument_required = true,  .description = utils::get_text("Specify subscription URL (only for --subinfo)") },
+    { .short_name = -1,  .long_name = "subinfo_timeout",.argument_required = true,  .description = utils::get_text("Timeout of subinfo puller (in seconds, only for --subinfo, default is 15s)") },
+    { .short_name = -1,  .long_name = "subinfo_user-agent",.argument_required = true,  .description = utils::get_text("User agent of subinfo puller (only for --subinfo, default is `clash-verge/2.1.0`)") },
     { .short_name = -1,  .long_name = "report-issue",.argument_required = false,.description = utils::get_text("File a BUG report") },
     { .short_name = -1,  .long_name = "no-fast-quit",  .argument_required = false, .description = utils::get_text("No fast quit when Readline finishes") },
 };
@@ -95,6 +97,8 @@ int main(int argc, char ** argv)
         std::string backend;
         std::string latency_url = "https://www.google.com/generate_204/";
         std::string sub_url;
+        std::string header = "clash-verge/2.1.0";
+        int timeout = 15;
         const utils::PreDefinedArgumentType PreDefinedArguments(MainArgument);
         utils::ArgumentParser ArgumentParser(argc, argv, PreDefinedArguments);
         const auto parsed = ArgumentParser.parse();
@@ -135,6 +139,14 @@ int main(int argc, char ** argv)
             return EXIT_SUCCESS;
         }
 
+        if (parsed.contains("subinfo_timeout")) {
+            timeout = static_cast<int>(std::strtoul(parsed.at("subinfo_timeout").c_str(), nullptr, 10));
+        }
+
+        if (parsed.contains("subinfo_user-agent")) {
+            header = parsed.at("subinfo_user-agent");
+        }
+
         auto add_arg = [&](const std::string & name, std::string & arg) {
             if (parsed.contains(name)) {
                 arg = parsed.at(name);
@@ -169,7 +181,7 @@ int main(int argc, char ** argv)
                 total_uploaded,
                 total_downloaded,
                 quota,
-                expire_unix_timestamp] = ccdb::pull_clash_subinfo(sub_url, 15);
+                expire_unix_timestamp] = ccdb::pull_clash_subinfo(sub_url, timeout, header);
             std::string percentage_lit; {
                 const auto percentage = static_cast<double>(total_uploaded + total_downloaded) / static_cast<double>(quota);
                 std::stringstream ss;

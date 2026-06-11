@@ -167,7 +167,7 @@ static std::mutex text_translator_mtx;
 
 std::string ccdb::utils::get_text(const std::string &text)
 {
-    using json = nlohmann::json;
+        using json = nlohmann::json;
 
     std::lock_guard lock(text_translator_mtx);
     if (text_translator == nullptr) {
@@ -209,6 +209,36 @@ std::string ccdb::utils::get_text(const std::string &text)
         return text_translator->at(text_en).at(lang);
     }
 
+    if (!std::filesystem::exists(getenv("HOME") + "/.config/ccdb/")) {
+        std::filesystem::create_directories(getenv("HOME") + "/.config/ccdb/");
+    }
+
+    if (!std::filesystem::exists(getenv("HOME") + "/.config/ccdb/MISSING-TRANSLATIONS.json")) {
+        (void)open((getenv("HOME") + "/.config/ccdb/MISSING-TRANSLATIONS.json").c_str(), O_CREAT | O_RDWR | O_TRUNC, 0600);
+    }
+
+    if (std::ifstream file(getenv("HOME") + "/.config/ccdb/MISSING-TRANSLATIONS.json"); file)
+    {
+        std::string json_raw;
+        while (file)
+        {
+            std::vector<char> data(512);
+            file.read(data.data(), data.size());
+            data.resize(file.gcount());
+            json_raw.insert(json_raw.end(), data.begin(), data.end());
+        }
+        file.close();
+        json MISSING_TRANSLATIONS_json = !json_raw.empty() ? json::parse(json_raw) : json::array();
+        if (std::find(MISSING_TRANSLATIONS_json.begin(), MISSING_TRANSLATIONS_json.end(), text) == MISSING_TRANSLATIONS_json.end()) {
+            MISSING_TRANSLATIONS_json.emplace_back(text);
+        }
+        if (std::ofstream ofile(getenv("HOME") + "/.config/ccdb/MISSING-TRANSLATIONS.json", std::ios::trunc); ofile)
+        {
+            const std::string dump = MISSING_TRANSLATIONS_json.dump();
+            ofile.write(dump.data(), dump.size());
+            ofile.close();
+        }
+    }
     return text;
 }
 
@@ -613,16 +643,116 @@ static std::string regex_replace_callback(
     return result;
 }
 
+static
+#ifdef __DEBUG__
+ std::map
+#else
+ tsl::hopscotch_map
+#endif
+    < std::string, std::string > regex_replace_cache;
+struct status_t {
+    std::vector < std::chrono::time_point<std::chrono::high_resolution_clock> > access_times;
+};
+static
+#ifdef __DEBUG__
+ std::map
+#else
+ tsl::hopscotch_map
+#endif
+    < std::string, status_t > regex_replace_cache_freq;
 static std::mutex mtx;
 std::string ccdb::utils::regex_replace_all(std::string &original, const std::string &pattern,
     const std::function<std::string(const std::smatch& match)> &replacement)
 {
     std::lock_guard<std::mutex> lock(mtx);
+    const std::string hash = original + "::" + pattern;
+#ifdef __DEBUG__
+    static uint64_t access_count = 0, hit_count = 0;
+    access_count++;
+#endif
+    if (const auto it = regex_replace_cache.find(hash); it != regex_replace_cache.end()) {
+        auto & access = regex_replace_cache_freq[hash].access_times;
+        const auto now = std::chrono::high_resolution_clock::now();
+        if (!access.empty() && std::chrono::duration_cast<std::chrono::seconds>(now - access.front()).count() > 30)
+        {
+            auto access_ = access;
+            std::ranges::reverse(access_);
+            while (!access_.empty() &&
+                std::chrono::duration_cast<std::chrono::seconds>(now - access_.back()).count() > 30)
+            {
+                access_.pop_back();
+            }
+            std::ranges::reverse(access_);
+            access = access_;
+        }
+        access.emplace_back(now);
+#ifdef __DEBUG__
+        hit_count++;
+#endif
+        return it->second;
+    }
+
     const std::regex r(pattern);
     original = regex_replace_callback(original, r,
         [&replacement](const std::smatch& match) -> std::string {
             return replacement(match);
         });
+    regex_replace_cache[hash] = original;
+    constexpr int sizeLimit =
+#ifdef __DEBUG__
+        4096
+#else
+        81920
+#endif
+    ;
+    if (regex_replace_cache.size() > sizeLimit)
+    {
+        if (!regex_replace_cache_freq.empty())
+        {
+            std::vector < std::pair < std::string, status_t > > linearized_freq {
+                regex_replace_cache_freq.begin(), regex_replace_cache_freq.end() };
+            std::ranges::sort(linearized_freq, [](auto a, auto b)->bool {
+                std::ranges::reverse(a.second.access_times);
+                std::ranges::reverse(b.second.access_times);
+                const auto now = std::chrono::high_resolution_clock::now();
+                uint64_t aC = 0, bC = 0;
+                auto count = [&now](const auto & list, uint64_t & counter)
+                {
+                    for (auto it = list.begin(); it != list.end(); ++it)
+                    {
+                        if (std::chrono::duration_cast<std::chrono::seconds>(now - *it).count() < 30) {
+                            counter++;
+                        } else {
+                            break;
+                        }
+                    }
+                };
+
+                count(a.second.access_times, aC);
+                count(b.second.access_times, bC);
+                return aC < bC;
+            });
+
+            // first, remove older lists
+            linearized_freq = { linearized_freq.begin(),
+                linearized_freq.end() - std::min(static_cast<uint64_t>(linearized_freq.size()), static_cast<uint64_t>(sizeLimit)) };
+            std::ranges::for_each(linearized_freq, [](const auto & p)
+            {
+                regex_replace_cache.erase(p.first);
+                regex_replace_cache_freq.erase(p.first);
+            });
+
+            // second, remove unaccessed hashes
+            for (auto it = regex_replace_cache.begin(); it != regex_replace_cache.end();)
+            {
+                if (!regex_replace_cache_freq.contains(it->first)) {
+                    regex_replace_cache.erase(it++);
+                } else {
+                    ++it;
+                }
+            }
+        }
+    }
     return original;
 }
 
