@@ -83,7 +83,8 @@ static std::string highlight(std::string & str, const std::string & pattern, con
             }
     
             return mat_str;
-        });
+        },
+        false /* no cache */ );
 }
 
 namespace ccdb {

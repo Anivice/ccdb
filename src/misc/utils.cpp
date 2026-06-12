@@ -51,6 +51,23 @@
 #include "readline/history.h"
 #include "tar.h"
 
+#ifdef __DEBUG__
+# include <typeinfo>
+# include <cxxabi.h>
+
+template <typename T>
+std::string demangle()
+{
+    int status = 0;
+    const std::unique_ptr<char, decltype(&std::free)> result(
+        abi::__cxa_demangle(typeid(T).name(), nullptr, nullptr, &status),
+        &std::free
+    );
+    return (status == 0) ? result.get() : typeid(T).name();
+}
+
+#endif
+
 #ifndef __NR_memfd_create
 # if defined(__x86_64__)
 #  define __NR_memfd_create 319
@@ -81,6 +98,190 @@ void ccdb::utils::printImg()
 }
 
 #endif //__USE_IMG__
+
+template < typename Key, typename Value >
+class cache_w_freq_table_t
+{
+private:
+    std::mutex mtx_;
+    using mapType =
+#ifdef __DEBUG__
+        std::unordered_map
+#else
+        tsl::hopscotch_map
+#endif
+        < Key, Value >;
+    using timePointType =
+#ifdef __DEBUG__
+        std::unordered_map
+#else
+        tsl::hopscotch_map
+#endif
+        < Key, std::vector < std::chrono::time_point<std::chrono::high_resolution_clock> > >;
+    mapType caches_;
+    timePointType cache_hits_;
+    static constexpr uint64_t cache_size_ =
+#ifdef __DEBUG__
+        64
+#else
+        4096
+#endif
+        ;
+    static constexpr int live_time_seconds_ =
+#ifdef __DEBUG__
+        30
+#else
+        60
+#endif
+        ;
+#ifdef __DEBUG__
+    uint64_t access_ = 0, hit_ = 0;
+#endif
+
+    const bool do_i_use_cache = ccdb::utils::getenv("DISABLE_CACHE_BEHAVIOR") != "true";
+public:
+#ifdef __DEBUG__
+    ~cache_w_freq_table_t() {
+        ccdb::utils::print(
+            "Cache type of < ", demangle<Key>(), ", ", demangle<Value>(), " >: "
+            "Access ", access_, " time(s), hit ", hit_, " time(s), rate ",
+            std::setprecision(2), static_cast<double>(hit_) / static_cast<double>(access_) * 100.00,
+            "%.\n");
+    }
+#endif
+
+    const Value * get_cache(const Key & key)
+    {
+        if (!do_i_use_cache) return nullptr;
+        std::lock_guard<std::mutex> lock_guard(mtx_);
+#ifdef __DEBUG__
+        ++access_;
+#endif
+        if (const auto it = caches_.find(key); it != caches_.end())
+        {
+            auto & cache_times = cache_hits_[it->first];
+            const auto now = std::chrono::high_resolution_clock::now();
+            if (!cache_times.empty() &&
+                std::chrono::duration_cast<std::chrono::seconds>(now - cache_times.front()).count() > live_time_seconds_)
+            {
+                std::ranges::reverse(cache_times);
+                while (!cache_times.empty() &&
+                    std::chrono::duration_cast<std::chrono::seconds>(now - cache_times.back()).count() > live_time_seconds_)
+                {
+                    cache_times.pop_back();
+                }
+                std::ranges::reverse(cache_times);
+            }
+            cache_times.emplace_back(now);
+#ifdef __DEBUG__
+            ++hit_;
+#endif
+            const Value & val = it->second;
+            return &val;
+        }
+
+        return nullptr;
+    }
+
+    void emplace_cache(const Key & key, const Value & value)
+    {
+        if (!do_i_use_cache) return;
+        std::lock_guard<std::mutex> lock_guard(mtx_);
+        if (
+#ifdef __DEBUG__
+            cache_hits_.size() > cache_size_ * 1.5
+#else
+            caches_.size() > cache_size_
+#endif
+            )
+        {
+            std::vector < std::pair < Key,
+                std::vector < std::chrono::time_point<std::chrono::high_resolution_clock> >
+            > > cache_hits_linearized;
+
+            std::ranges::for_each(cache_hits_, [&cache_hits_linearized](const auto & p) {
+                cache_hits_linearized.emplace_back(p);
+            });
+
+            auto clean = [](auto & cache_times)
+            {
+                const auto now = std::chrono::high_resolution_clock::now();
+                if (!cache_times.empty() &&
+                    std::chrono::duration_cast<std::chrono::seconds>(now - cache_times.front()).count() > live_time_seconds_)
+                {
+                    std::ranges::reverse(cache_times);
+                    while (!cache_times.empty() &&
+                        std::chrono::duration_cast<std::chrono::seconds>(now - cache_times.back()).count() > live_time_seconds_)
+                    {
+                        cache_times.pop_back();
+                    }
+                    std::ranges::reverse(cache_times);
+                }
+            };
+
+            std::ranges::sort(cache_hits_linearized, [&clean](auto & a, auto & b)->bool
+            {
+                clean(a.second);
+                clean(b.second);
+                return a.second.size() < b.second.size();
+            });
+
+            cache_hits_linearized = { cache_hits_linearized.begin(),
+                cache_hits_linearized.end() - std::min(cache_size_, static_cast<uint64_t>(cache_hits_linearized.size())) };
+            std::ranges::for_each(cache_hits_linearized | std::views::keys, [&](const auto & key_) {
+                caches_.erase(key_);
+            });
+
+            // not even hit
+            std::vector < Key > to_del;
+            to_del.reserve(caches_.size());
+            std::ranges::for_each(caches_ | std::views::keys, [&](const Key & k_) {
+                if (!cache_hits_.contains(k_)) {
+                    to_del.push_back(k_);
+                }
+            });
+            std::ranges::for_each(to_del, [this](const Key & k_) {
+                caches_.erase(k_);
+            });
+            cache_hits_.clear();
+        }
+
+        caches_.emplace(key, value);
+    }
+};
+
+namespace ccdb
+{
+    using namespace utils;
+    bool is_highlight_match(const std::vector < std::string > & line, const std::string & search_content)
+    {
+        if (search_content.empty()) return false;
+        static cache_w_freq_table_t < std::string, bool > cache;
+
+        std::stringstream hash;
+        std::ranges::for_each(line, [&hash](const auto & s) { hash << s; });
+        hash << search_content;
+        const auto h = hash.str();
+        if (const auto it = cache.get_cache(h); it != nullptr) {
+            return *it;
+        }
+
+        std::stringstream ss;
+        std::ranges::for_each(line, [&ss](const auto & l){ ss << l; });
+        std::string str = ss.str();
+        const std::string bak = str;
+        const auto result = bak != regex_replace_all(str, search_content,
+        [&](const std::smatch & mat)->std::string
+            {
+                const auto & mat_str = mat[0].str();
+                if ((mat_str.size() == 1 && std::isprint(mat_str.front())) || mat_str.size() > 1)
+                { return "<match>" + mat[0].str() + "</match>"; }
+            return mat_str;
+        });
+        cache.emplace_cache(h, result);
+        return result;
+    }
+}
 
 bool ccdb::utils::parse_url(const std::string& url, std::string& scheme, std::string& host, std::string& path)
 {
@@ -167,7 +368,7 @@ static std::mutex text_translator_mtx;
 
 std::string ccdb::utils::get_text(const std::string &text)
 {
-        using json = nlohmann::json;
+    using json = nlohmann::json;
 
     std::lock_guard lock(text_translator_mtx);
     if (text_translator == nullptr) {
@@ -209,36 +410,72 @@ std::string ccdb::utils::get_text(const std::string &text)
         return text_translator->at(text_en).at(lang);
     }
 
-    if (!std::filesystem::exists(getenv("HOME") + "/.config/ccdb/")) {
-        std::filesystem::create_directories(getenv("HOME") + "/.config/ccdb/");
-    }
-
-    if (!std::filesystem::exists(getenv("HOME") + "/.config/ccdb/MISSING-TRANSLATIONS.json")) {
-        (void)open((getenv("HOME") + "/.config/ccdb/MISSING-TRANSLATIONS.json").c_str(), O_CREAT | O_RDWR | O_TRUNC, 0600);
-    }
-
-    if (std::ifstream file(getenv("HOME") + "/.config/ccdb/MISSING-TRANSLATIONS.json"); file)
+    static std::atomic_bool fs_check_completed = false;
+    if (!fs_check_completed)
     {
-        std::string json_raw;
-        while (file)
-        {
-            std::vector<char> data(512);
-            file.read(data.data(), data.size());
-            data.resize(file.gcount());
-            json_raw.insert(json_raw.end(), data.begin(), data.end());
+        if (!std::filesystem::exists(getenv("HOME") + "/.config/ccdb/")) {
+            std::filesystem::create_directories(getenv("HOME") + "/.config/ccdb/");
         }
-        file.close();
+
+        if (!std::filesystem::exists(getenv("HOME") + "/.config/ccdb/MISSING-TRANSLATIONS.json")) {
+            (void)open((getenv("HOME") + "/.config/ccdb/MISSING-TRANSLATIONS.json").c_str(), O_CREAT | O_RDWR | O_TRUNC, 0600);
+        }
+
+        fs_check_completed = true;
+    }
+
+    if (const int fd = open((getenv("HOME") + "/.config/ccdb/MISSING-TRANSLATIONS.json").c_str(), O_RDWR);
+        fd > 0)
+    [&]->void
+    {
+        class fd__
+        {
+        public:
+            int fd_ = -1;
+            explicit fd__(const int fd) : fd_(fd) { }
+            ~fd__() { close(fd_); }
+        } fd__(fd);
+
+        std::string json_raw;
+
+        flock fl { };
+        fl.l_type   = F_WRLCK;
+        fl.l_whence = SEEK_SET;
+        fl.l_start  = 0;
+        fl.l_len    = 0;
+        fl.l_pid    = getpid();
+
+        struct stat st = { };
+        if (fstat(fd, &st) == -1) {
+            return;
+        }
+
+        if (fcntl(fd, F_SETLKW, &fl) == -1) {
+            return;
+        }
+
+        if (st.st_size > 0)
+        {
+            const auto data_ = static_cast<char*>(mmap(nullptr, st.st_size,
+                PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0));
+            if (data_ == MAP_FAILED) {
+                return;
+            }
+
+            json_raw.insert(json_raw.end(), data_, data_ + st.st_size);
+            munmap(data_, st.st_size);
+        }
+
         json MISSING_TRANSLATIONS_json = !json_raw.empty() ? json::parse(json_raw) : json::array();
         if (std::find(MISSING_TRANSLATIONS_json.begin(), MISSING_TRANSLATIONS_json.end(), text) == MISSING_TRANSLATIONS_json.end()) {
             MISSING_TRANSLATIONS_json.emplace_back(text);
         }
-        if (std::ofstream ofile(getenv("HOME") + "/.config/ccdb/MISSING-TRANSLATIONS.json", std::ios::trunc); ofile)
-        {
-            const std::string dump = MISSING_TRANSLATIONS_json.dump();
-            ofile.write(dump.data(), dump.size());
-            ofile.close();
-        }
-    }
+        if (ftruncate(fd, 0) == -1) return;
+        const std::string dump = MISSING_TRANSLATIONS_json.dump();
+        (void)write(fd, dump.c_str(), dump.size());
+        fl.l_type = F_UNLCK;
+        (void)fcntl(fd, F_SETLK, &fl);
+    }();
     return text;
 }
 
@@ -643,53 +880,16 @@ static std::string regex_replace_callback(
     return result;
 }
 
-static
-#ifdef __DEBUG__
- std::map
-#else
- tsl::hopscotch_map
-#endif
-    < std::string, std::string > regex_replace_cache;
-struct status_t {
-    std::vector < std::chrono::time_point<std::chrono::high_resolution_clock> > access_times;
-};
-static
-#ifdef __DEBUG__
- std::map
-#else
- tsl::hopscotch_map
-#endif
-    < std::string, status_t > regex_replace_cache_freq;
-static std::mutex mtx;
 std::string ccdb::utils::regex_replace_all(std::string &original, const std::string &pattern,
-    const std::function<std::string(const std::smatch& match)> &replacement)
+    const std::function<std::string(const std::smatch& match)> &replacement, const bool use_cache)
 {
-    std::lock_guard<std::mutex> lock(mtx);
-    const std::string hash = original + "::" + pattern;
-#ifdef __DEBUG__
-    static uint64_t access_count = 0, hit_count = 0;
-    access_count++;
-#endif
-    if (const auto it = regex_replace_cache.find(hash); it != regex_replace_cache.end()) {
-        auto & access = regex_replace_cache_freq[hash].access_times;
-        const auto now = std::chrono::high_resolution_clock::now();
-        if (!access.empty() && std::chrono::duration_cast<std::chrono::seconds>(now - access.front()).count() > 30)
-        {
-            auto access_ = access;
-            std::ranges::reverse(access_);
-            while (!access_.empty() &&
-                std::chrono::duration_cast<std::chrono::seconds>(now - access_.back()).count() > 30)
-            {
-                access_.pop_back();
-            }
-            std::ranges::reverse(access_);
-            access = access_;
+    static cache_w_freq_table_t < std::string, std::string > cache;
+    std::string hash;
+    if (use_cache) {
+        hash = original + pattern;
+        if (const auto it = cache.get_cache(hash); it !=  nullptr) {
+            return *it;
         }
-        access.emplace_back(now);
-#ifdef __DEBUG__
-        hit_count++;
-#endif
-        return it->second;
     }
 
     const std::regex r(pattern);
@@ -697,62 +897,11 @@ std::string ccdb::utils::regex_replace_all(std::string &original, const std::str
         [&replacement](const std::smatch& match) -> std::string {
             return replacement(match);
         });
-    regex_replace_cache[hash] = original;
-    constexpr int sizeLimit =
-#ifdef __DEBUG__
-        4096
-#else
-        81920
-#endif
-    ;
-    if (regex_replace_cache.size() > sizeLimit)
-    {
-        if (!regex_replace_cache_freq.empty())
-        {
-            std::vector < std::pair < std::string, status_t > > linearized_freq {
-                regex_replace_cache_freq.begin(), regex_replace_cache_freq.end() };
-            std::ranges::sort(linearized_freq, [](auto a, auto b)->bool {
-                std::ranges::reverse(a.second.access_times);
-                std::ranges::reverse(b.second.access_times);
-                const auto now = std::chrono::high_resolution_clock::now();
-                uint64_t aC = 0, bC = 0;
-                auto count = [&now](const auto & list, uint64_t & counter)
-                {
-                    for (auto it = list.begin(); it != list.end(); ++it)
-                    {
-                        if (std::chrono::duration_cast<std::chrono::seconds>(now - *it).count() < 30) {
-                            counter++;
-                        } else {
-                            break;
-                        }
-                    }
-                };
 
-                count(a.second.access_times, aC);
-                count(b.second.access_times, bC);
-                return aC < bC;
-            });
-
-            // first, remove older lists
-            linearized_freq = { linearized_freq.begin(),
-                linearized_freq.end() - std::min(static_cast<uint64_t>(linearized_freq.size()), static_cast<uint64_t>(sizeLimit)) };
-            std::ranges::for_each(linearized_freq, [](const auto & p)
-            {
-                regex_replace_cache.erase(p.first);
-                regex_replace_cache_freq.erase(p.first);
-            });
-
-            // second, remove unaccessed hashes
-            for (auto it = regex_replace_cache.begin(); it != regex_replace_cache.end();)
-            {
-                if (!regex_replace_cache_freq.contains(it->first)) {
-                    regex_replace_cache.erase(it++);
-                } else {
-                    ++it;
-                }
-            }
-        }
+    if (use_cache) {
+        cache.emplace_cache(hash, original);
     }
+
     return original;
 }
 
@@ -919,8 +1068,14 @@ std::string ccdb::utils::second_to_human_readable(unsigned long long value)
 
 std::u32string ccdb::utils::utf8_to_u32(const std::string &s)
 {
+    static cache_w_freq_table_t <std::string, std::u32string > cache;
+    if (const auto it = cache.get_cache(s); it != nullptr) {
+        return *it;
+    }
+
     std::u32string result;
     utf8::utf8to32(s.begin(), s.end(), std::back_inserter(result));
+    cache.emplace_cache(s, result);
     return result;
 }
 
@@ -935,6 +1090,11 @@ int ccdb::utils::UnicodeDisplayWidth::get_width_utf8(const std::string &utf8_str
 
 int ccdb::utils::UnicodeDisplayWidth::get_width_utf32(const std::u32string &utf32_str)
 {
+    static cache_w_freq_table_t < std::u32string, int > cache;
+    if (const auto it = cache.get_cache(utf32_str); it != nullptr) {
+        return *it;
+    }
+
     int width = 0;
 
     for (size_t i = 0; i < utf32_str.length(); i++)
@@ -970,6 +1130,7 @@ int ccdb::utils::UnicodeDisplayWidth::get_width_utf32(const std::u32string &utf3
         width += get_char_width(c);
     }
 
+    cache.emplace_cache(utf32_str, width);
     return width;
 }
 
@@ -1079,8 +1240,7 @@ void move_home()
 {
     const char* cup = capstr("cup"); // cursor position
     if (!cup) return;
-    char* seq = tparm(const_cast<char*>(cup), 0, 0);
-    if (seq) put_cap(seq);
+    if (const char* seq = tparm(const_cast<char*>(cup), 0, 0)) put_cap(seq);
 }
 
 #if !((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)

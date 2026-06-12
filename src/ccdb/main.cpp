@@ -210,7 +210,7 @@ int main(int argc, char ** argv)
         }
 
         if (backend.empty()) {
-            utils::print(argv[0], " [Arguments [OPTIONS...]...]\n");
+            utils::print(argv[0], " [OPTIONS [Arguments...]...]\n");
             std::cout << PreDefinedArguments.print_help();
             return EXIT_FAILURE;
         }

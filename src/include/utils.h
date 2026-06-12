@@ -82,11 +82,13 @@ namespace ccdb::utils {
     /// @param original Original string
     /// @param pattern Match pattern
     /// @param replacement Replacement when matched std::string (replacement string) (const std::string & matched_string, int group_index)
+    /// @param use_cache Whether regex_replace_all cache results
     /// @return Replaced string. Original string will be modified as well
     std::string regex_replace_all(
         std::string & original,
         const std::string & pattern,
-        const std::function<std::string(const std::smatch&)>& replacement);
+        const std::function<std::string(const std::smatch&)>& replacement,
+        bool use_cache = false);
 
     /// Get Row and Column size from terminal
     /// @return Pair in [Col (x), Row (y)], or 80x25 if all possible attempt failed

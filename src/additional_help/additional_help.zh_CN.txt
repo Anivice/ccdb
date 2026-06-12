@@ -16,6 +16,9 @@
                                    COLOR=n实际上将输出变为单色输出。
                                    如果你想完全禁用色彩码，设置NO_HIGHLIGHTER_LINE_COLOR_CODE为true。
                                    禁用色彩码将导致高亮行将无法显示
+   DISABLE_CACHE_BEHAVIOR: Disable cache behavior inside `ccdb`.
+                           If you notice any memory leaks or huge memory uses, you can disable im-memory caches for utilities.
+                           This will cost more CPU time, with reduced memory use.
 键盘快捷键:
   `get connections`: 拉取活跃连接有多个键盘快捷键:
         鼠标单击/Ctrl+UP/Ctrl+DOWN: 移动高亮 (鼠标单击对于`get log`同样有效)

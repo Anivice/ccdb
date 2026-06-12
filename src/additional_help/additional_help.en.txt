@@ -18,6 +18,9 @@ Environment:
                                    If you want to disable color codes completely, including highlight lines,
                                     set NO_HIGHLIGHTER_LINE_COLOR_CODE to true.
                                    Note that this will make highlighted lines invisible.
+   DISABLE_CACHE_BEHAVIOR: Disable cache behavior inside `ccdb`.
+                           If you notice any memory leaks or huge memory uses, you can disable im-memory caches for utilities.
+                           This will cost more CPU time, with reduced memory use.
 Keyboard Shortcuts:
   `get connections`: Get connections has multiple keyboard shortcuts:
      Mouse Click/Ctrl+UP/Ctrl+DOWN: Move highlight (Mouse click applies to `get log` as well)
