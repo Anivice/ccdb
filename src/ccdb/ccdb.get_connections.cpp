@@ -32,6 +32,7 @@ using namespace ccdb::utils;
 
 void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 {
+    bool lock_to_max = false;
     std::atomic_int leading_spaces = 0;
     std::atomic_int max_leading_spaces = get_col_size() / 4;
     std::atomic_int max_skip_lines = 0;
@@ -545,6 +546,13 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
             const bool skip_due_to_shrink = (vector_size_last_time > table_vals.size());
             vector_size_last_time = static_cast<int>(table_vals.size());
+            if (leading_spaces == max_leading_spaces) {
+                lock_to_max = true;
+            }
+
+            if (lock_to_max) {
+                leading_spaces = max_leading_spaces.load();
+            }
 
             print_table(title_this_session,
                 table_vals,
@@ -585,6 +593,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             const bool local_show_search = show_search;
             const int local_search_focus_move = search_focus_move;
             const int local_atm_focus = atm_focus;
+            const bool skip_due_to_lock = lock_to_max && (leading_spaces < max_leading_spaces);
 
             for (int i = 0; i < screen_refresh_interval_in_ms / 10; i++)
             {
@@ -602,7 +611,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     || local_search_focus_move != search_focus_move
                     || local_atm_focus != atm_focus
                     || !running
-                    || skip_due_to_shrink)
+                    || skip_due_to_shrink
+                    || skip_due_to_lock)
                 {
                     if (window_size_change ||
                         (utils::getenv("ENABLE_CLEAR_ON_SHRINK") == "true" && skip_due_to_shrink
@@ -610,6 +620,10 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     {
                         std::cout << setup_term->clear << std::flush;
                         window_size_change = false;
+                    }
+
+                    if (leading_spaces != local_leading_spaces && leading_spaces < max_leading_spaces) {
+                        lock_to_max = false;
                     }
 
                     break;
