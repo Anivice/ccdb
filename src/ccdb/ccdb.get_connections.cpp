@@ -534,7 +534,6 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 conn_show_detail = false;
             }
 
-            setup_term->move_home();
 
             if (!search_content_buffer.get().empty() && search_content_buffer.get().back() == '\n')
             {
@@ -554,32 +553,38 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 leading_spaces = max_leading_spaces.load();
             }
 
-            print_table(title_this_session,
-                table_vals,
-                false,
-                true,
-                do_col_hide,
-                leading_spaces,
-                &max_leading_spaces,
-                false,
-                title_line,
-                current_skip_lines,
-                &max_skip_lines,
-                false,
-                {},
-                focus_line,
-                nullptr,
-                &show_search,
-                &search_content_buffer,
-                &cursor_position,
-                search_content,
-                // hard coded alignment justification: 0 left, 1: right, 2 center
-                {
-                    0 /* host */, 2 /* process */, 1 /* DL */, 1 /* UP */, 1 /* DL Speed */, 1 /* UP Speed */,
-                    0 /* Rules */, 1 /* Time */, 1 /* Src IP */, 1 /* Dest IP */, 2 /* Type */, 0 /* Chains */
-                });
+            const bool skip_due_to_lock = lock_to_max && (leading_spaces < max_leading_spaces);
+            if (const bool i_dont_print = (skip_due_to_lock || skip_due_to_shrink); !i_dont_print)
+            {
+                setup_term->move_home();
 
-            setup_term->ed_clear();
+                print_table(title_this_session,
+                    table_vals,
+                    false,
+                    true,
+                    do_col_hide,
+                    leading_spaces,
+                    &max_leading_spaces,
+                    false,
+                    title_line,
+                    current_skip_lines,
+                    &max_skip_lines,
+                    false,
+                    {},
+                    focus_line,
+                    nullptr,
+                    &show_search,
+                    &search_content_buffer,
+                    &cursor_position,
+                    search_content,
+                    // hard coded alignment justification: 0 left, 1: right, 2 center
+                    {
+                        0 /* host */, 2 /* process */, 1 /* DL */, 1 /* UP */, 1 /* DL Speed */, 1 /* UP Speed */,
+                        0 /* Rules */, 1 /* Time */, 1 /* Src IP */, 1 /* Dest IP */, 2 /* Type */, 0 /* Chains */
+                    });
+
+                setup_term->ed_clear();
+            }
 
             int local_leading_spaces = leading_spaces;
             int local_skip_lines = current_skip_lines;
@@ -593,7 +598,6 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             const bool local_show_search = show_search;
             const int local_search_focus_move = search_focus_move;
             const int local_atm_focus = atm_focus;
-            const bool skip_due_to_lock = lock_to_max && (leading_spaces < max_leading_spaces);
 
             for (int i = 0; i < screen_refresh_interval_in_ms / 10; i++)
             {

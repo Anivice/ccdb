@@ -51,6 +51,7 @@ void ccdb::ccdb::get_log()
     std::string last_checked_log;
     std::atomic_bool refocus = false;
     std::atomic < search_move_t > search_focus_move;
+    bool lock_to_max = false;
 
     auto input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
         &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
@@ -262,9 +263,8 @@ void ccdb::ccdb::get_log()
         }
 
         /// print
+        const bool skip_due_to_lock = lock_to_max && (leading_spaces < max_leading_spaces);
         {
-            term.move_home();
-
             if (!search_content_buffer.get().empty() && search_content_buffer.get().back() == '\n')
             {
                 search_content = utf8::utf32to8(search_content_buffer.get());
@@ -275,28 +275,33 @@ void ccdb::ccdb::get_log()
                 std::cout << term.clear;
             }
 
-            print_table(log_titles,
-                lines,
-                false,
-                true,
-                do_col_hide,
-                leading_spaces,
-                &max_leading_spaces,
-                false,
-                "",
-                current_skip_lines,
-                &max_skip_lines,
-                false,
-                line_color_overrides,
-                focus_line,
-                nullptr,
-                &show_search,
-                &search_content_buffer,
-                &cursor_position,
-                search_content,
-                { 0, 2, 0 });
+            if (const bool i_dont_print = skip_due_to_lock; !i_dont_print)
+            {
+                term.move_home();
 
-            term.ed_clear();
+                print_table(log_titles,
+                    lines,
+                    false,
+                    true,
+                    do_col_hide,
+                    leading_spaces,
+                    &max_leading_spaces,
+                    false,
+                    "",
+                    current_skip_lines,
+                    &max_skip_lines,
+                    false,
+                    line_color_overrides,
+                    focus_line,
+                    nullptr,
+                    &show_search,
+                    &search_content_buffer,
+                    &cursor_position,
+                    search_content,
+                    { 0, 2, 0 });
+
+                term.ed_clear();
+            }
         }
 
         /// wait
@@ -320,12 +325,20 @@ void ccdb::ccdb::get_log()
                     || local_show_search != show_search
                     || local_refocus != refocus
                     || local_search_focus_move != search_focus_move
-                    || window_size_change)
+                    || window_size_change
+                    || skip_due_to_lock)
                 {
                     if (window_size_change) {
                         std::cout << term.clear << std::flush;
                         window_size_change = false;
                     }
+
+                    if (leading_spaces != local_leading_spaces
+                        && leading_spaces < max_leading_spaces)
+                    {
+                        lock_to_max = false;
+                    }
+
                     break;
                 }
 

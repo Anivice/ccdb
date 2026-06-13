@@ -264,9 +264,23 @@ void general_info_pulling::pull_continuous_updates()
         auto run_logs = [&](const std::atomic_bool * _log_running)
         {
             ccdb::utils::set_thread_name("/logs");
+#ifdef __DEBUG__
+            std::thread T0;
+#endif
             if (force_quit) return;
             try
             {
+#ifdef __DEBUG__
+                T0 = std::thread([&]
+                {
+                    ccdb::utils::set_thread_name("/logs:noise");
+                    while (*_log_running)
+                    {
+                        update_from_logs(R"({"type":"info","payload":"[TCP] [REDACTED]:[REDACTED]([REDACTED], uid=[REDACTED]) --\u003e [REDACTED]:[REDACTED] match [REDACTED] using [REDACTED]"})");
+                        std::this_thread::sleep_for(std::chrono::milliseconds(500l));
+                    }
+                });
+#endif //__DEBUG__
                 backend_client.get_stream_info("logs",
                     _log_running,
                     this,
@@ -277,6 +291,10 @@ void general_info_pulling::pull_continuous_updates()
                 // ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
                 force_quit = true;
             }
+
+#ifdef __DEBUG__
+            if (T0.joinable()) T0.join();
+#endif
         };
         std::atomic_bool * ptr = log_running.get();
         thread_pool.emplace_back(std::move(log_running), std::thread(run_logs, ptr));
@@ -287,7 +305,7 @@ void general_info_pulling::pull_continuous_updates()
     make_logs();
 
     while (keep_pull_continuous_updates.load() && !force_quit) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100l));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10l));
     }
 
     clear_and_stop_all_threads();
