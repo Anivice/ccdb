@@ -105,6 +105,7 @@ namespace ccdb {
         const wchar_t cursor_ = utils::getenv("CURSOR").empty() ? L'█' : utils::getenv("CURSOR").front();
         const int & matches_;
         const std::string & highlight_str_;
+        const bool dry_run_;
 
         [[nodiscard]] std::u32string print_search_box() const
         {
@@ -195,7 +196,8 @@ namespace ccdb {
             std::atomic_int * cursor_position_in_search_box,
             const std::string & color_line_hl,
             const int & matches,
-            const std::string & highlight_str
+            const std::string & highlight_str,
+            const bool dry_run
         )
         :
             frame_(frame),
@@ -210,12 +212,14 @@ namespace ccdb {
             cursor_position_in_search_box_(cursor_position_in_search_box),
             color_line_hl_(color_line_hl.empty() ? "" : "\033[01;05;07m"),
             matches_(matches),
-            highlight_str_(highlight_str)
+            highlight_str_(highlight_str),
+            dry_run_(dry_run)
         {
         }
 
         ~auto_print_t()
         {
+            if (dry_run_) return;
             if (const auto output = less_output_redirect_.str(); !output.empty())
             {
                 if (out_) {
@@ -276,7 +280,8 @@ void ccdb::ccdb::print_table(
     ccdb_atomic_t < std::u32string > * search_line_boxContent,
     std::atomic_int * cursor_position_in_search_box,
     const std::string & highlight_str,
-    const std::vector < int > & column_alignment
+    const std::vector < int > & column_alignment,
+    const bool dry_run
 )
 {
     std::ostringstream frame;
@@ -301,7 +306,8 @@ void ccdb::ccdb::print_table(
         cursor_position_in_search_box,
         color_line_hl,
         matches,
-        highlight_str
+        highlight_str,
+        dry_run
     );
 
     const auto col = get_col_size() - 1;

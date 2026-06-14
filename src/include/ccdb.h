@@ -155,7 +155,8 @@ namespace ccdb
             ccdb_atomic_t < std::u32string > * search_line_boxContent = nullptr,
             std::atomic_int * cursor_position_in_search_box = nullptr,
             const std::string & highlight_str = "",
-            const std::vector < int > & column_alignment = { }
+            const std::vector < int > & column_alignment = { },
+            bool dry_run = false
         );
 
         void simple_print_table(

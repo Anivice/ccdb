@@ -553,11 +553,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 leading_spaces = max_leading_spaces.load();
             }
 
-            const bool skip_due_to_lock = lock_to_max && (leading_spaces < max_leading_spaces);
-            if (const bool i_dont_print = (skip_due_to_lock || skip_due_to_shrink); !i_dont_print)
+            auto print = [&](const bool dry_run)
             {
-                setup_term->move_home();
-
                 print_table(title_this_session,
                     table_vals,
                     false,
@@ -581,8 +578,16 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     {
                         0 /* host */, 2 /* process */, 1 /* DL */, 1 /* UP */, 1 /* DL Speed */, 1 /* UP Speed */,
                         0 /* Rules */, 1 /* Time */, 1 /* Src IP */, 1 /* Dest IP */, 2 /* Type */, 0 /* Chains */
-                    });
+                    },
+                    dry_run);
+            };
 
+            print(true);
+            const bool skip_due_to_lock = lock_to_max && (leading_spaces < max_leading_spaces);
+            if (const bool i_dont_print = (skip_due_to_lock || skip_due_to_shrink); !i_dont_print)
+            {
+                setup_term->move_home();
+                print(false);
                 setup_term->ed_clear();
             }
 

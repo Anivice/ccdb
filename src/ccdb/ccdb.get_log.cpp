@@ -263,7 +263,7 @@ void ccdb::ccdb::get_log()
         }
 
         /// print
-        const bool skip_due_to_lock = lock_to_max && (leading_spaces < max_leading_spaces);
+        bool skip_due_to_lock = false;
         {
             if (!search_content_buffer.get().empty() && search_content_buffer.get().back() == '\n')
             {
@@ -275,10 +275,8 @@ void ccdb::ccdb::get_log()
                 std::cout << term.clear;
             }
 
-            if (const bool i_dont_print = skip_due_to_lock; !i_dont_print)
+            auto print = [&](const bool dry_run)
             {
-                term.move_home();
-
                 print_table(log_titles,
                     lines,
                     false,
@@ -298,8 +296,16 @@ void ccdb::ccdb::get_log()
                     &search_content_buffer,
                     &cursor_position,
                     search_content,
-                    { 0, 2, 0 });
+                    { 0, 2, 0 },
+                    dry_run);
+            };
 
+            print(true);
+            skip_due_to_lock = lock_to_max && (leading_spaces < max_leading_spaces);
+            if (const bool i_dont_print = skip_due_to_lock; !i_dont_print)
+            {
+                term.move_home();
+                print(false);
                 term.ed_clear();
             }
         }
