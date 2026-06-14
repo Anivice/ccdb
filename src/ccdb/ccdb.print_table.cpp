@@ -646,9 +646,14 @@ void ccdb::ccdb::print_table(
                 const auto blue = sim::sim_blue_curve(sim::Span * ratio_ref + sim::Begin);
                 color_line = color::bg_color24(static_cast<int>(std::round(red)),
                     static_cast<int>(std::round(green)), static_cast<int>(std::round(blue)));
-                if (green > 255 / 3 * 2) {
+                if (constexpr double gate = static_cast<double>(255) / 3 * 2;
+                    green > gate)
+                {
                     color_line += color::color(0,0,0);
                 }
+                // else if (blue > gate && red > gate) {
+                //     color_line += color::color(0,5,5);
+                // }
             }
         } else {
             color_line = color::bg_color(0,0,0) + color_code_overrides.at(current_line_index);
