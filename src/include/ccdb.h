@@ -79,6 +79,10 @@ namespace ccdb
         std::atomic_int & max_log_size = backend_instance.max_log_size;
         std::string external_puller_command;
         int external_puller_command_time_out_ms = 10000;
+        std::vector<std::vector<std::string>> logLocalReversed;
+        std::vector < std::vector < std::string > > logLines;
+        enum log_level_t : uint8_t { ERROR = 1, DEBUG, WARNING, };
+        // tsl::hopscotch_map < std::string, log_level_t > logStatusSignsCache;
 
         bool execute_and_no_interactive = false;
         std::atomic_bool reverse_mouse;
@@ -417,7 +421,7 @@ namespace ccdb
     }
 
     template < typename vecType >
-    std::vector<vecType> make_screen_vector_frame(std::vector<vecType> & vec,
+    std::vector<vecType> make_screen_vector_frame(const std::vector<vecType> & vec,
         const int current_skip_lines, const int get_line_size, const int start_line)
     {
         auto frame_size = get_line_size - start_line - 1 /* search line is always empty*/;

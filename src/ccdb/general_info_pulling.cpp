@@ -274,9 +274,29 @@ void general_info_pulling::pull_continuous_updates()
                 T0 = std::thread([&]
                 {
                     ccdb::utils::set_thread_name("/logs:noise");
+                    std::random_device dev;
+                    std::mt19937 rng(dev());
+                    constexpr int seeding = 1000;
+                    std::uniform_int_distribution<std::mt19937::result_type> dist6(1, seeding);
+
                     while (*_log_running)
                     {
-                        update_from_logs(R"({"type":"info","payload":"[TCP] [REDACTED]:[REDACTED]([REDACTED], uid=[REDACTED]) --\u003e [REDACTED]:[REDACTED] match [REDACTED] using [REDACTED]"})");
+                        if (dist6(rng) < seeding / 3)
+                        {
+                            if (dist6(rng) < seeding / 4)
+                            {
+                                if (dist6(rng) < seeding / 2) {
+                                    update_from_logs(R"({"type":"debug","payload":"[TCP] [REDACTED]:[REDACTED]([REDACTED], uid=[REDACTED]) --\u003e [REDACTED]:[REDACTED] match [REDACTED] using [REDACTED]"})");
+                                } else {
+                                    update_from_logs(R"({"type":"error","payload":"[TCP] [REDACTED]:[REDACTED]([REDACTED], uid=[REDACTED]) --\u003e [REDACTED]:[REDACTED] match [REDACTED] using [REDACTED]"})");
+                                }
+                            } else {
+                                update_from_logs(R"({"type":"warning","payload":"[TCP] [REDACTED]:[REDACTED]([REDACTED], uid=[REDACTED]) --\u003e [REDACTED]:[REDACTED] match [REDACTED] using [REDACTED]"})");
+                            }
+                        } else {
+                            update_from_logs(R"({"type":"info","payload":"[TCP] [REDACTED]:[REDACTED]([REDACTED], uid=[REDACTED]) --\u003e [REDACTED]:[REDACTED] match [REDACTED] using [REDACTED]"})");
+                        }
+
                         std::this_thread::sleep_for(std::chrono::milliseconds(500l));
                     }
                 });

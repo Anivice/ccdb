@@ -534,6 +534,9 @@ void ccdb::ccdb::init()
             }
             else if (command_vector.front() == "clearLogs") {
                 backend_instance.clearLogs();
+                logLocalReversed.clear();
+                logLines.clear();
+                // logStatusSignsCache.clear();
             }
             else if ((command_vector.front() == "help") || (command_vector.front() == "?"))  {
                 help();

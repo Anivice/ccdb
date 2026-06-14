@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <chrono>
 #include <utility>
+#include <span>
 #include "print.h"
 #include "ccdb.h"
 #include "utils.h"
@@ -52,10 +53,12 @@ void ccdb::ccdb::get_log()
     std::atomic_bool refocus = false;
     std::atomic < search_move_t > search_focus_move;
     bool lock_to_max = false;
+    std::atomic_bool pause = false;
+    decltype(logLines) & lines = logLines;
 
     auto input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
         &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
-        &mouse_x, &mouse_y, nullptr, &refocus, nullptr, nullptr, nullptr, nullptr,
+        &mouse_x, &mouse_y, nullptr, &refocus, &pause, nullptr, nullptr, nullptr,
         &show_search, &search_content_buffer, &cursor_position, &search_focus_move);
 
     std::string log_level_filter, log_content_filter;
@@ -97,37 +100,85 @@ void ccdb::ccdb::get_log()
         }
     };
 
+    bool pause_log_update = false;
     while (running)
     {
-        auto current_vector = backend_instance.get_logs();
-        check_log_search(current_vector); // do this BEFORE reverse
-        std::ranges::reverse(current_vector);
-        std::vector < std::vector < std::string > > lines;
-        tsl::hopscotch_map<uint64_t, std::string> line_color_overrides;
-        uint64_t line_off = 0;
-        for (const auto & log_ : current_vector)
+        const decltype(backend_instance.get_logs()) & current_vector = logLocalReversed;
+        if (pause)
         {
-            const auto & level = log_[1];
-            const auto & time = log_[0];
-            const auto & log = log_[2];
+            pause_log_update = !pause_log_update;
+            pause = false;
+        }
 
-            bool skip = false;
-            if (!log_level_filter.empty()) skip |= if_filter_out(level, log_level_filter);
-            if (!log_content_filter.empty()) skip |= if_filter_out(log, log_content_filter);
-            if (skip) continue;
+        if (!pause_log_update)
+        {
+            auto new_logs = backend_instance.get_logs();
+            backend_instance.clearLogs();
 
-            lines.emplace_back(std::vector{ time, level, log });
-            auto upper_case_level = level;
-            auto toupper = [](const char c) -> char { return static_cast<char>(std::toupper(c)); };
-            std::ranges::transform(upper_case_level, upper_case_level.begin(), toupper);
-            if (upper_case_level == "ERROR") {
-                line_color_overrides[line_off] = color::color(5,0,0);
-            } else if (upper_case_level == "DEBUG") {
-                line_color_overrides[line_off] = color::color(0,5,0);
-            } else if (upper_case_level == "WARNING") {
-                line_color_overrides[line_off] = color::color(5,5,0);
+            logLocalReversed.reserve(logLocalReversed.size() + new_logs.size());
+            lines.reserve(lines.size() + new_logs.size());
+
+            // append to reversed stack (last in first out)
+            std::ranges::reverse(logLocalReversed);
+#           if ((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
+            logLocalReversed.append_range(new_logs);
+#           else
+            logLocalReversed.insert(logLocalReversed.end(), new_logs.begin(), new_logs.end()); // append range
+#           endif
+
+            check_log_search(logLocalReversed);
+            std::ranges::reverse(logLocalReversed);
+
+            std::ranges::reverse(lines);
+            for (const std::span viewer { logLocalReversed.begin(), logLocalReversed.begin() + new_logs.size() };
+                const auto & log_ : viewer)
+            {
+                const auto & level = log_[1];
+                const auto & time = log_[0];
+                const auto & log = log_[2];
+
+                bool skip = false;
+                if (!log_level_filter.empty()) skip |= if_filter_out(level, log_level_filter);
+                if (!log_content_filter.empty()) skip |= if_filter_out(log, log_content_filter);
+                if (skip) continue;
+
+                lines.emplace_back(std::vector{ time, level, log });
             }
-            line_off++;
+            std::ranges::reverse(lines);
+        }
+
+        tsl::hopscotch_map < uint64_t, std::string > line_color_overrides;
+        {
+            uint64_t line_off = 0;
+            for (auto it = current_vector.begin(); it < current_vector.end(); ++it)
+            {
+                // if (const auto s = logStatusSignsCache.find(it->back()); s != logStatusSignsCache.end())
+                // {
+                    // switch (s->second)
+                    // {
+                    // case ERROR: // ERROR
+                        // line_color_overrides[line_off] = color::color(5,0,0);
+                        // break;
+                    // case DEBUG: // DEBUG
+                        // line_color_overrides[line_off] = color::color(0,5,0);
+                        // break;
+                    // case WARNING: // WARNING
+                        // line_color_overrides[line_off] = color::color(5,5,0);
+                        // break;
+                    // }
+                // }
+                /*else */ if (const auto & level = (*it)[1]; level == "ERROR") {
+                    line_color_overrides[line_off] = color::color(5,0,0);
+                    // logStatusSignsCache.emplace(it->back(), ERROR);
+                } else if (level == "DEBUG") {
+                    line_color_overrides[line_off] = color::color(0,5,0);
+                    // logStatusSignsCache.emplace(it->back(), DEBUG);
+                } else if (level == "WARNING") {
+                    line_color_overrides[line_off] = color::color(5,5,0);
+                    // logStatusSignsCache.emplace(it->back(), WARNING);
+                }
+                line_off++;
+            }
         }
 
         switch (search_focus_move.load())
