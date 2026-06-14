@@ -22,6 +22,7 @@
 #include <chrono>
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <string>
 #include "print.h"
 #include "ncursesw/ncurses.h"
@@ -640,7 +641,8 @@ void ccdb::ccdb::print_table(
             {
                 const double ratio_ref = static_cast<double>(current_line_index - skip_lines) /
                     static_cast<double>(std::min(static_cast<uint64_t>(lines - 7
-                       /* - (table_values.size() > (lines - 7) ? 1 : 0) */), table_values.size()));
+                       /* - (table_values.size() > (lines - 7) ? 1 : 0) */), static_cast<uint64_t>(table_values.size()) )
+                       );
                 const auto red = sim::sim_red_curve(sim::Span * ratio_ref + sim::Begin);
                 const auto green = sim::sim_green_curve(sim::Span * ratio_ref + sim::Begin);
                 const auto blue = sim::sim_blue_curve(sim::Span * ratio_ref + sim::Begin);
