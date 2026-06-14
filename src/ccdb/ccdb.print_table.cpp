@@ -150,6 +150,8 @@ namespace ccdb {
         const int & matches_;
         const std::string & highlight_str_;
         const bool dry_run_;
+        const std::string color_scheme_ = USE_OLD_COLOR_SCHEME ?
+            color::color(5,5,5,0,0,5) : color::color24(255,255,255,120,0,255);
 
         [[nodiscard]] std::u32string print_search_box() const
         {
@@ -161,11 +163,12 @@ namespace ccdb {
                 if (position < 0) return {};
                 const auto col_size = get_col_size();
                 auto before = content.substr(0, position);
-                if (before.empty() && content.empty()) {
+                if (before.empty() && content.empty())
+                {
                     return
-                        utf8_to_u32(color_line_hl_ + color::color(5,5,5,0,0,5)) +
+                        utf8_to_u32(color_line_hl_ + color_scheme_) +
                              std::u32string(1, cursor_) +
-                        utf8_to_u32(color::no_color() + color::color(5,5,5,0,0,5)) +
+                        utf8_to_u32(color::no_color() + color_scheme_) +
                             std::u32string(get_col_size() - 1, ' ') +
                         utf8_to_u32(color::no_color());
                 }
@@ -187,10 +190,10 @@ namespace ccdb {
 
                 int bf_len = UnicodeDisplayWidth::get_width_utf32(before) + 1;
                 before =
-                    utf8_to_u32(color::color(5,5,5,0,0,5)) + before +
+                    utf8_to_u32(color_scheme_) + before +
                     utf8_to_u32(color_line_hl_) +
                     std::u32string(1, highlight > 0 ? static_cast<wchar_t>(highlight) : cursor_) +
-                    utf8_to_u32(color::no_color()) + utf8_to_u32(color::color(5,5,5,0,0,5));
+                    utf8_to_u32(color::no_color()) + utf8_to_u32(color_scheme_);
 
                 while (!after.empty())
                 {
@@ -220,7 +223,7 @@ namespace ccdb {
                 }
 
                 str += std::string(std::max(get_col_size() - UnicodeDisplayWidth::get_width_utf8(str), 0), ' ');
-                return utf8_to_u32(sprint(color::color(5,5,5,0,0,5), str, color::no_color()));
+                return utf8_to_u32(sprint(color_scheme_, str, color::no_color()));
             }
 
             return { static_cast<std::u32string::size_type>(get_col_size()), ' ', std::u32string::allocator_type() };

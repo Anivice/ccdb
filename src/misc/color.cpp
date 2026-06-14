@@ -144,7 +144,7 @@ std::string ccdb::color::color24(const int r, const int g, const int b, const in
         return "";
     }
 
-    return color(r, g, b) + bg_color(br, bg, bb);
+    return color24(r, g, b) + bg_color24(br, bg, bb);
 }
 
 std::string ccdb::color::color(int r, int g, int b) noexcept
