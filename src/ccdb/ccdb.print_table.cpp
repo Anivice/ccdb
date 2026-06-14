@@ -29,6 +29,50 @@
 
 // --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;
+bool USE_OLD_COLOR_SCHEME = false;
+
+namespace sim
+{
+    using Num = long double;
+    constexpr Num high_point = 255 / 2;
+    constexpr Num Length = 1;
+
+    constexpr Num N = -2;
+    constexpr Num K1 = -1;
+    constexpr Num K2 = 6;
+    const Num Begin = std::pow(std::numbers::pi / 2 + N * std::numbers::pi, 2) / Length;
+    const Num End = std::pow(std::numbers::pi / 2 + (N + 5) * std::numbers::pi, 2) / Length;
+
+    const Num Span = End - Begin; // Color span
+
+    const Num MK = std::pow(2 * std::numbers::pi * K1, 2) / Begin;
+    const Num M2 = std::pow(std::numbers::pi / 2 * K2, 2) / End;
+
+    const Num red_curve_start = Begin;
+    const Num red_curve_end = End;
+    const Num green_curve_start = Begin;
+    const Num green_curve_end = std::pow(std::numbers::pi / 2 * 8, 2) / MK;
+    const Num blue_curve_start = std::pow(std::numbers::pi / 2 * 4, 2) / M2;
+    const Num blue_curve_end = End;
+
+    Num sim_red_curve(const Num x) {
+        if (x < red_curve_start || x > red_curve_end) return 0;
+        // if (x > green_curve_start) {
+            // return (-1 * high_point * std::sin(std::sqrt(x * Length)) + high_point) / 2;
+        // }
+        return -1 * high_point * std::sin(std::sqrt(x * Length)) + high_point;
+    }
+
+    Num sim_green_curve(const Num x) {
+        if (x < green_curve_start || x > green_curve_end) return 0;
+        return -1 * high_point * std::cos(std::sqrt(x * MK)) + high_point;
+    }
+
+    Num sim_blue_curve(const Num x) {
+        if (x < blue_curve_start || x > blue_curve_end) return 0;
+        return -1 * high_point * std::cos(std::sqrt(x * M2)) + high_point;
+    }
+}
 
 static std::string generate_linear_handle(
     const int content_total,
@@ -581,9 +625,28 @@ void ccdb::ccdb::print_table(
         }
 
         std::string color_line;
-        if (color_code_overrides.empty() || !color_code_overrides.contains(current_line_index)) {
-            if (current_line_index & 0x01) color_line = color::color(5,5,5,0,0,0);
-            else color_line = color::color(5,5,5,0,0,5);
+        if (color_code_overrides.empty() || !color_code_overrides.contains(current_line_index))
+        {
+            // blue and black
+            if (USE_OLD_COLOR_SCHEME)
+            {
+                if (current_line_index & 0x01) color_line = color::color(5,5,5,0,0,0);
+                else color_line = color::color(5,5,5,0,0,5);
+            }
+            else
+            {
+                const double ratio_ref = static_cast<double>(current_line_index - skip_lines) /
+                    static_cast<double>(std::min(static_cast<uint64_t>(lines - 7
+                       /* - (table_values.size() > (lines - 7) ? 1 : 0) */), table_values.size()));
+                const auto red = sim::sim_red_curve(sim::Span * ratio_ref + sim::Begin);
+                const auto green = sim::sim_green_curve(sim::Span * ratio_ref + sim::Begin);
+                const auto blue = sim::sim_blue_curve(sim::Span * ratio_ref + sim::Begin);
+                color_line = color::bg_color24(static_cast<int>(std::round(red)),
+                    static_cast<int>(std::round(green)), static_cast<int>(std::round(blue)));
+                if (green > 255 / 3 * 2) {
+                    color_line += color::color(0,0,0);
+                }
+            }
         } else {
             color_line = color::bg_color(0,0,0) + color_code_overrides.at(current_line_index);
         }

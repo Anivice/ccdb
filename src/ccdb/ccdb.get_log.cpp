@@ -149,35 +149,16 @@ void ccdb::ccdb::get_log()
 
         tsl::hopscotch_map < uint64_t, std::string > line_color_overrides;
         {
-            uint64_t line_off = 0;
-            for (auto it = current_vector.begin(); it < current_vector.end(); ++it)
+            const auto begin = lines.begin();
+            for (auto it = lines.begin(); it < lines.end(); ++it)
             {
-                // if (const auto s = logStatusSignsCache.find(it->back()); s != logStatusSignsCache.end())
-                // {
-                    // switch (s->second)
-                    // {
-                    // case ERROR: // ERROR
-                        // line_color_overrides[line_off] = color::color(5,0,0);
-                        // break;
-                    // case DEBUG: // DEBUG
-                        // line_color_overrides[line_off] = color::color(0,5,0);
-                        // break;
-                    // case WARNING: // WARNING
-                        // line_color_overrides[line_off] = color::color(5,5,0);
-                        // break;
-                    // }
-                // }
-                /*else */ if (const auto & level = (*it)[1]; level == "ERROR") {
-                    line_color_overrides[line_off] = color::color(5,0,0);
-                    // logStatusSignsCache.emplace(it->back(), ERROR);
+                if (const auto & level = (*it)[1]; level == "ERROR") {
+                    line_color_overrides[it - begin] = color::color(5,0,0);
                 } else if (level == "DEBUG") {
-                    line_color_overrides[line_off] = color::color(0,5,0);
-                    // logStatusSignsCache.emplace(it->back(), DEBUG);
+                    line_color_overrides[it - begin] = color::color(0,5,0);
                 } else if (level == "WARNING") {
-                    line_color_overrides[line_off] = color::color(5,5,0);
-                    // logStatusSignsCache.emplace(it->back(), WARNING);
+                    line_color_overrides[it - begin] = color::color(5,5,0);
                 }
-                line_off++;
             }
         }
 

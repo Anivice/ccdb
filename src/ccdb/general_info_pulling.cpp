@@ -270,7 +270,7 @@ void general_info_pulling::pull_continuous_updates()
             if (force_quit) return;
             try
             {
-#ifdef __DEBUG__
+#if defined(__DEBUG__) // && defined(__WITH_LOG_NOISE__)
                 T0 = std::thread([&]
                 {
                     ccdb::utils::set_thread_name("/logs:noise");

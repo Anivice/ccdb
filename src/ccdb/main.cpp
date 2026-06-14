@@ -36,6 +36,7 @@
 #include "LICENSE.h"
 
 namespace utils = ccdb::utils;
+extern bool USE_OLD_COLOR_SCHEME;
 
 utils::PreDefinedArgumentType::PreDefinedArgument MainArgument = {
     { .short_name = 'h', .long_name = "help",       .argument_required = false, .description = utils::get_text("Show help") },
@@ -51,6 +52,7 @@ utils::PreDefinedArgumentType::PreDefinedArgument MainArgument = {
     { .short_name = -1,  .long_name = "subinfo_user-agent",.argument_required = true,  .description = utils::get_text("User agent of subinfo puller (only for --subinfo, default is `clash-verge/2.1.0`)") },
     { .short_name = -1,  .long_name = "report-issue",.argument_required = false,.description = utils::get_text("File a BUG report") },
     { .short_name = -1,  .long_name = "no-fast-quit",  .argument_required = false, .description = utils::get_text("No fast quit when Readline finishes") },
+    { .short_name = -1,  .long_name = "use-old-color-scheme", .argument_required = false, .description = utils::get_text("Use the old blue-white color scheme") },
 };
 
 extern "C" const char *
@@ -146,6 +148,8 @@ int main(int argc, char ** argv)
         if (parsed.contains("subinfo_user-agent")) {
             header = parsed.at("subinfo_user-agent");
         }
+
+        USE_OLD_COLOR_SCHEME = parsed.contains("use-old-color-scheme");
 
         auto add_arg = [&](const std::string & name, std::string & arg) {
             if (parsed.contains(name)) {
