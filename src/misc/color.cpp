@@ -30,8 +30,143 @@
 
 std::atomic_int ccdb::color::g_color_status_override = -1;
 
-static inline int clamp_rgb(int v)
+namespace sim
 {
+    constexpr Num high_point = static_cast<Num>(255) / 2;
+    constexpr Num Length = 1;
+
+    constexpr Num N = -2;
+    constexpr Num K1 = -1;
+    constexpr Num K2 = 6;
+    const Num Begin = std::pow(std::numbers::pi / 2 + N * std::numbers::pi, 2) / Length;
+    const Num End = std::pow(std::numbers::pi / 2 + (N + 5) * std::numbers::pi, 2) / Length;
+
+    const Num Span = End - Begin; // Color span
+
+    const Num MK = std::pow(2 * std::numbers::pi * K1, 2) / Begin;
+    const Num M2 = std::pow(std::numbers::pi / 2 * K2, 2) / End;
+
+    const Num red_curve_start = Begin;
+    const Num red_curve_end = End;
+    const Num green_curve_start = Begin;
+    const Num green_curve_end = std::pow(std::numbers::pi / 2 * 8, 2) / MK;
+    const Num blue_curve_start = std::pow(std::numbers::pi / 2 * 4, 2) / M2;
+    const Num blue_curve_end = End;
+
+    Num r1 (const Num x) {
+        return -1 * high_point * std::sin(std::sqrt(x * Length)) + high_point;
+    }
+
+    Num r2 (const Num x) {
+        return r1(green_curve_end) / std::log(green_curve_end / blue_curve_start) * std::log(x / blue_curve_start);
+    }
+
+    class Solver_
+    {
+    private:
+        static constexpr Num r1(const Num x, const Num K, const Num L) {
+            return -K * std::sin(std::sqrt(L * x)) + K;
+        }
+
+        // r2(x) = r1(G) * log(x/B) / log(G/B)
+        static constexpr Num r2(const Num x, const Num B, const Num G, const Num r1_G) {
+            return r1_G * std::log(x / B) / std::log(G / B);
+        }
+
+        // Derivative of r1(x)
+        static constexpr Num dr1(const Num x, const Num K, const Num L) {
+            if (x <= 0.0) return 0.0; // avoid division by zero
+            const Num u = std::sqrt(L * x);
+            return -(K * L * std::cos(u)) / (2.0 * u);
+        }
+
+        // Derivative of r2(x)
+        static constexpr Num dr2(const Num x, const Num B, const Num G, const Num r1_G) {
+            return r1_G / (x * std::log(G / B));
+        }
+
+        // f(x) = r1(x) - r2(x)
+        static constexpr Num f(const Num x, const Num K, const Num L, const Num B, const Num G, const Num r1_G) {
+            return r1(x, K, L) - r2(x, B, G, r1_G);
+        }
+
+        // Derivative f'(x)
+        static constexpr Num df(const Num x, const Num K, const Num L, const Num B, const Num G, const Num r1_G) {
+            return dr1(x, K, L) - dr2(x, B, G, r1_G);
+        }
+
+        // Newton iteration to find the second root (x != G)
+        static constexpr Num find_second_intersection(
+            const Num K, const Num L, const Num B, const Num G,
+            const Num tol = 1e-12, const int max_iter = 100)
+        {
+            const Num r1_G = r1(G, K, L);
+            Num x = B;               // initial guess (near where r2 = 0)
+
+            for (int iter = 0; iter < max_iter; ++iter) {
+                const Num fx = f(x, K, L, B, G, r1_G);
+                if (std::fabs(fx) < tol) {
+                    return x;
+                }
+
+                const Num dfx = df(x, K, L, B, G, r1_G);
+                if (std::fabs(dfx) < 1e-15) {
+                    return x;
+                }
+
+                Num x_new = x - fx / dfx;
+
+                // Avoid stepping onto the known root G
+                if (std::fabs(x_new - G) < 1e-12) {
+                    x_new = (x_new + B) / 2.0; // perturb
+                }
+
+                // Domain check: x must be > 0 for logarithms and sqrt
+                if (x_new <= 0.0) {
+                    x_new = 1e-6;
+                }
+
+                x = x_new;
+            }
+
+            return x;
+        }
+
+
+    public:
+        const Num InterSectXVal;
+        Solver_() : InterSectXVal(find_second_intersection(3.0, 1.0,
+            blue_curve_start, green_curve_end)) { }
+    } Solver_;
+
+    Num sim_red_curve(const Num x)
+    {
+        static bool scheme_prefers_intense_red_in_the_middle =
+            ccdb::utils::getenv("__SCHEME_PREFERS_INTENSE_RED_IN_THE_MIDDLE__") == "true";
+        if (x < red_curve_start || x > red_curve_end) return 0;
+        if (scheme_prefers_intense_red_in_the_middle ?
+            (x > Solver_.InterSectXVal && x < green_curve_end) :
+            (x > green_curve_end)
+        )
+        {
+            return r2(x);
+        }
+
+        return r1(x);
+    }
+
+    Num sim_green_curve(const Num x) {
+        if (x < green_curve_start || x > green_curve_end) return 0;
+        return -1 * high_point * std::cos(std::sqrt(x * MK)) + high_point;
+    }
+
+    Num sim_blue_curve(const Num x) {
+        if (x < blue_curve_start || x > blue_curve_end) return 0;
+        return -1 * high_point * std::cos(std::sqrt(x * M2)) + high_point;
+    }
+}
+
+static int clamp_rgb(const int v) {
     return std::clamp(v, 0, 255);
 }
 

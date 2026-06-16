@@ -30,7 +30,7 @@
 
 // --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;
-
+extern bool USE_OLD_COLOR_SCHEME;
 void ccdb::ccdb::nload(
     const std::atomic<uint64_t> *total_upload, const std::atomic<uint64_t> *total_download,
     const std::atomic<uint64_t> *upload_speed, const std::atomic<uint64_t> *download_speed,
@@ -120,7 +120,8 @@ void ccdb::ccdb::nload(
         const std::chrono::time_point<std::chrono::high_resolution_clock> start_time_point,
         const uint64_t total_bytes_since_started,
         const uint64_t windows_space_local,
-        std::ostringstream & frame)
+        std::ostringstream & frame,
+        const std::string& info_col_color_codes)
     {
         const auto now = std::chrono::high_resolution_clock::now();
         const auto time_escalated = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time_point).count();
@@ -147,11 +148,11 @@ void ccdb::ccdb::nload(
             return str + std::string(max_pre_slash_content_len - str.length(), ' ');
         };
 
-        info_list.push_back(sprint("    Cur (P): ") + utils::value_to_speed(*speed));
+        info_list.push_back(sprint("    Cur (P): ") + value_to_speed(*speed));
         info_list.push_back(sprint("    Min (P): ") + min_speed_on_page_str);
         info_list.push_back(sprint("  Max (P/O): ") + generate_padding(max_speed_on_page_str) + " / " + max_speed_overall_str);
         info_list.push_back(sprint("  Avg (P/O): ") + generate_padding(avg_speed_on_page_str) + " / " + avg_speed_overall_str);
-        info_list.push_back(sprint("    Ttl (O): ") + utils::value_to_size(*total));
+        info_list.push_back(sprint("    Ttl (O): ") + value_to_size(*total));
 
         std::vector<uint64_t> size_list;
         for (const auto & str : info_list) {
@@ -178,6 +179,16 @@ void ccdb::ccdb::nload(
             for (auto j = start; j < (col - info_space_size); ++j)
             {
                 const auto index = j - start; // starts from 0
+                if (!USE_OLD_COLOR_SCHEME)
+                {
+                    const sim::Num span_ratio_ref = index / static_cast<sim::Num>(col - info_space_size - start);
+                    const auto red = sim::sim_red_curve(sim::Span * span_ratio_ref + sim::Begin);
+                    const auto green = sim::sim_green_curve(sim::Span * span_ratio_ref + sim::Begin);
+                    const auto blue = sim::sim_blue_curve(sim::Span * span_ratio_ref + sim::Begin);
+                    const auto color_line = color::color24(static_cast<int>(std::round(red)),
+                        static_cast<int>(std::round(green)), static_cast<int>(std::round(blue)));
+                    frame << color_line;
+                }
                 const auto [full_blocks, partial_block_percentage] = metric_list[index];
                 const auto actual_content_height = full_blocks + (partial_block_percentage > 0 ? 1 : 0);
                 if (actual_content_height == current_height_on_screen) // see partial
@@ -205,6 +216,7 @@ void ccdb::ccdb::nload(
 
             if (current_height_on_screen <= info_list.size())
             {
+                frame << info_col_color_codes;
                 const auto index = info_list.size() - current_height_on_screen;
                 frame << info_list[index] << std::string(info_space_size - UnicodeDisplayWidth::get_width_utf8(info_list[index]), ' ');
             }
@@ -339,7 +351,8 @@ void ccdb::ccdb::nload(
                           now,
                           total_download_since_start,
                           window_space,
-                          screen_str_frame);
+                          screen_str_frame,
+                          color::color(0,5,1));
             }
             screen_str_frame << color::no_color();
             screen_str_frame << sprint("Outgoing:") << std::endl;
@@ -357,7 +370,8 @@ void ccdb::ccdb::nload(
                           now,
                           total_upload_since_start,
                           height,
-                          screen_str_frame);
+                          screen_str_frame,
+                          color::color(5,1,0));
             }
             screen_str_frame << color::no_color();
 

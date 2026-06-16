@@ -88,4 +88,15 @@ namespace ccdb::color
     extern std::atomic_int g_color_status_override;
 }
 
+namespace sim
+{
+    using Num = long double;
+    Num sim_red_curve(Num x);
+    Num sim_green_curve(Num x);
+    Num sim_blue_curve(Num x);
+    const extern Num Begin;
+    const extern Num End;
+    const extern Num Span;
+}
+
 #endif //CFS_COLORS_H
