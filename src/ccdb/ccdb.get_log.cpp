@@ -147,6 +147,9 @@ void ccdb::ccdb::get_log()
             std::ranges::reverse(lines);
         }
 
+        if (logLocalReversed.size() > max_log_size) logLocalReversed.resize(max_log_size);
+        if (lines.size() > max_log_size) lines.resize(max_log_size);
+
         tsl::hopscotch_map < uint64_t, std::string > line_color_overrides;
         {
             const auto begin = lines.begin();
