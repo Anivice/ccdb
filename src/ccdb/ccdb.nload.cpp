@@ -38,7 +38,7 @@ void ccdb::ccdb::nload(
     std::vector<std::string> &top_3_connections_using_most_speed,
     std::mutex *top_3_connections_using_most_speed_mtx)
 {
-    set_thread_name("nload");
+    set_thread_name("nload:/show");
     constexpr int reserved_lines = 4 + 3;
     std::atomic_int row = 0, col = 0;
     int window_space = 0;

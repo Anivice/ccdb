@@ -422,8 +422,9 @@ class cache_w_freq_table_t
         ~cache_w_freq_table_t() {
             std::cout <<
                 "Cache type of < " << demangle<Key>() << ", " << demangle<Value>() << " >: "
-                "Access " << access_ << " time(s), hit " << hit_ << " time(s), rate " <<
-                std::setprecision(2) << static_cast<double>(hit_) / static_cast<double>(access_) * 100.00 <<
+                "Cache size " << caches_.size() << ", "
+                "access " << access_ << " time(s), hit " << hit_ << " time(s), rate " <<
+                std::setprecision(4) << static_cast<double>(hit_) / static_cast<double>(access_) * 100.00 <<
                 "%.\n";
         }
 #endif
