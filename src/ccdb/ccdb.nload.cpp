@@ -53,6 +53,8 @@ void ccdb::ccdb::nload(
     constexpr char l_41_to_80 = '|';
     constexpr char l_81_to_100 = '#';
 
+    tsl::hopscotch_map < uint64_t /* span */, std::vector < std::string > > color_cache;
+
     auto generate_from_metric = [](const std::vector <float> & list, const int height)->std::vector < std::pair < int, int > >
     {
         std::vector <float> image;
@@ -111,7 +113,7 @@ void ccdb::ccdb::nload(
     };
 
     std::atomic_int info_space_size = 20;
-    auto print_win = [&max_in_vec, &min_in_vec, &avg_in_vec, &info_space_size, &col](
+    auto print_win = [&max_in_vec, &min_in_vec, &avg_in_vec, &info_space_size, &col, &color_cache](
         const std::atomic<uint64_t> * speed,
         const std::atomic<uint64_t> * total,
         const std::vector<uint64_t> & list,
@@ -176,18 +178,34 @@ void ccdb::ccdb::nload(
             }
 
             frame << std::string(start, ' ');
+            std::vector < std::string > * color_cached_line = nullptr;
             for (auto j = start; j < (col - info_space_size); ++j)
             {
                 const auto index = j - start; // starts from 0
                 if (!USE_OLD_COLOR_SCHEME)
                 {
-                    const sim::Num span_ratio_ref = index / static_cast<sim::Num>(col - info_space_size - start);
-                    const auto red = sim::sim_red_curve(sim::Span * span_ratio_ref + sim::Begin);
-                    const auto green = sim::sim_green_curve(sim::Span * span_ratio_ref + sim::Begin);
-                    const auto blue = sim::sim_blue_curve(sim::Span * span_ratio_ref + sim::Begin);
-                    const auto color_line = color::color24(static_cast<int>(std::round(red)),
-                        static_cast<int>(std::round(green)), static_cast<int>(std::round(blue)));
-                    frame << color_line;
+                    const auto span = col - info_space_size - start;
+                    if (color_cached_line == nullptr) {
+                        color_cached_line = &color_cache[span];
+                    }
+
+                    // invalid cache
+                    if (j == start && !color_cached_line->empty() && color_cached_line->size() != span) {
+                        color_cached_line->clear();
+                    }
+
+                    if (color_cached_line->size() == span) {
+                        frame << color_cached_line->at(index);
+                    } else {
+                        const sim::Num span_ratio_ref = index / static_cast<sim::Num>(span);
+                        const auto red = sim::sim_red_curve(sim::Span * span_ratio_ref + sim::Begin);
+                        const auto green = sim::sim_green_curve(sim::Span * span_ratio_ref + sim::Begin);
+                        const auto blue = sim::sim_blue_curve(sim::Span * span_ratio_ref + sim::Begin);
+                        const auto color_line = color::color24(static_cast<int>(std::round(red)),
+                            static_cast<int>(std::round(green)), static_cast<int>(std::round(blue)));
+                        color_cached_line->emplace_back(color_line);
+                        frame << color_line;
+                    }
                 }
                 const auto [full_blocks, partial_block_percentage] = metric_list[index];
                 const auto actual_content_height = full_blocks + (partial_block_percentage > 0 ? 1 : 0);
