@@ -394,7 +394,7 @@ else ()
     endif ()
     add_dependencies(ccdb READLINE NCURSES)
     target_compile_definitions(ccdb PRIVATE NCURSES_STATIC USE_TSL_HOPSCOTCH_MAP)
-    target_compile_options(ccdb PRIVATE -O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2)
+    target_compile_options(ccdb PRIVATE -O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2 -fno-rtti)
     target_link_options(ccdb PRIVATE -O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2)
 endif ()
 
