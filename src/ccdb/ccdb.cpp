@@ -374,13 +374,13 @@ void ccdb::ccdb::init()
             for (const auto & [ alias, cmd ] : ccdb_config->config.at("Alias"))
             {
                 alias_list.emplace(alias, cmd);
-                if (const std::string alias_hash = "Alias::" + alias; ccdb_config->config_comment_hash_map.contains(alias_hash))
+                if (const std::string alias_hash = "Alias::" + alias;
+                    ccdb_config->config_comment_hash_map.contains(alias_hash)
+                    && !ccdb_config->config_comment_hash_map.at(alias_hash).empty())
                 {
-                    if (const auto & result = ccdb_config->config_comment_hash_map.at(alias_hash);
-                        !result.empty())
-                    {
-                        Readline::g_extra_help_map.emplace(alias, result);
-                    }
+                    Readline::g_extra_help_map.emplace(alias, ccdb_config->config_comment_hash_map.at(alias_hash));
+                } else {
+                    Readline::g_extra_help_map.emplace(alias, cmd);
                 }
             }
         }

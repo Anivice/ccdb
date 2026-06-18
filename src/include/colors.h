@@ -90,10 +90,17 @@ namespace ccdb::color
 
 namespace sim
 {
+    enum color_scheme_t : int { RAINBOW_DISTINCT, RAINBOW_CONTINUOUS };
+    extern color_scheme_t color_scheme;
     using Num = long double;
-    Num sim_red_curve(Num x);
-    Num sim_green_curve(Num x);
-    Num sim_blue_curve(Num x);
+    struct NumPack_t
+    {
+        Num R;
+        Num G;
+        Num B;
+    };
+
+    NumPack_t simulation_rainbow(Num x);
     const extern Num Begin;
     const extern Num End;
     const extern Num Span;

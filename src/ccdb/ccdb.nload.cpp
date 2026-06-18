@@ -198,9 +198,8 @@ void ccdb::ccdb::nload(
                         frame << color_cached_line->at(index);
                     } else {
                         const sim::Num span_ratio_ref = index / static_cast<sim::Num>(span);
-                        const auto red = sim::sim_red_curve(sim::Span * span_ratio_ref + sim::Begin);
-                        const auto green = sim::sim_green_curve(sim::Span * span_ratio_ref + sim::Begin);
-                        const auto blue = sim::sim_blue_curve(sim::Span * span_ratio_ref + sim::Begin);
+                        const auto [red, green, blue] =
+                            sim::simulation_rainbow(sim::Span * span_ratio_ref + sim::Begin);
                         const auto color_line = color::color24(static_cast<int>(std::round(red)),
                             static_cast<int>(std::round(green)), static_cast<int>(std::round(blue)));
                         color_cached_line->emplace_back(color_line);

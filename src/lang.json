@@ -2,7 +2,7 @@
   {
     "en"    : "C++ Clash Dashboard Version ",
     "en_US" : "C++ Clash Dashboard Version ",
-    "zh_CN" : "C++ Clash监控板，版本 "
+    "zh_CN" : "C++ Clash监控板, 版本 "
   },
   {
     "en"    : "Connecting to",
@@ -27,7 +27,7 @@
   {
     "en"    : "Set NO_0xFE0F_EXPAND_EMOJI to true since ",
     "en_US" : "Set NO_0xFE0F_EXPAND_EMOJI to true since ",
-    "zh_CN" : "NO_0xFE0F_EXPAND_EMOJI被设置为true，因为"
+    "zh_CN" : "NO_0xFE0F_EXPAND_EMOJI被设置为true, 因为"
   },
   {
     "en"    : " doesn't support Unicode expansion.\n",
@@ -37,7 +37,7 @@
   {
     "en"    : "Connection broken, force quit\n",
     "en_US" : "Connection broken, force quit\n",
-    "zh_CN" : "连接断开，ccdb强制退出\n"
+    "zh_CN" : "连接断开, ccdb强制退出\n"
   },
   {
     "en"    : "Unknown exception\n",
@@ -162,7 +162,7 @@
   {
     "en"    : "Focused connection not present, deleted.",
     "en_US" : "Focused connection not present, deleted.",
-    "zh_CN" : "当前高亮的连接已经被关闭，取消高亮。"
+    "zh_CN" : "当前高亮的连接已经被关闭, 取消高亮。"
   },
   {
     "en"    : "Total uploads: ",
@@ -227,12 +227,12 @@
   {
     "en"    : "* P: On this page, O: Overall",
     "en_US" : "* P: On this page, O: Overall",
-    "zh_CN" : "* P: 当前页面，O: 监测到的总量"
+    "zh_CN" : "* P: 当前页面, O: 监测到的总量"
   },
   {
     "en"    : " exited with code ",
     "en_US" : " exited with code ",
-    "zh_CN" : "意外结束，退出码: "
+    "zh_CN" : "意外结束, 退出码: "
   },
   {
     "en"    : "TOO SMALL",
@@ -427,7 +427,7 @@
   {
     "en"    : "Get current backend config in JSON",
     "en_US" : "Get current backend config in JSON",
-    "zh_CN" : "拉取目前的后端配置，以JSON输出"
+    "zh_CN" : "拉取目前的后端配置, 以JSON输出"
   },
   {
     "en"    : "Active backend logs",
@@ -652,7 +652,7 @@
   {
     "en"    : "Child terminated by signal ",
     "en_US" : "Child terminated by signal ",
-    "zh_CN" : "子进程被信号终止，信号量: "
+    "zh_CN" : "子进程被信号终止, 信号量: "
   },
   {
     "en"    : "Child process ended abnormally.\n",
@@ -667,7 +667,7 @@
   {
     "en"    : "Child process exited with the code ",
     "en_US" : "Child process exited with the code ",
-    "zh_CN" : "子进程退出，退出码是"
+    "zh_CN" : "子进程退出, 退出码是"
   },
   {
     "en"    : "Show help",
@@ -797,7 +797,7 @@
   {
     "en"    : "Revert to monocolor scheme because the console appears to be in light mode.\n",
     "en_US" : "Revert to monocolor scheme because the console appears to be in light mode.\n",
-    "zh_CN" : "色彩码被设置为单色黑白模式，因为终端似乎使用亮色背景。\n"
+    "zh_CN" : "色彩码被设置为单色黑白模式, 因为终端似乎使用亮色背景。\n"
   },
   {
     "en"    : "Report issue here: ",
@@ -812,7 +812,7 @@
   {
     "en"    : "Backend url, usually http://localhost:9090",
     "en_US" : "Backend url, usually http://localhost:9090",
-    "zh_CN" : "后端地址，一般为http://localhost:9090"
+    "zh_CN" : "后端地址, 一般为http://localhost:9090"
   },
   {
     "en"    : "You can disable this by setting NOCOREDUMPCHECK to true.\n",
@@ -847,7 +847,7 @@
   {
     "en"    : "Failed to communicate with the backend, either this is not a Mihomo control port, or you have the wrong password.",
     "en_US" : "Failed to communicate with the backend, either this is not a Mihomo control port, or you have the wrong password.",
-    "zh_CN" : "无法和Mihomo后端连接，提供的Mihomo后端可能不存在，不是Mihomo后端，或者认证失败。"
+    "zh_CN" : "无法和Mihomo后端连接, 提供的Mihomo后端可能不存在, 不是Mihomo后端, 或者认证失败。"
   },
   {
     "en"    : "Argument '",
@@ -867,7 +867,7 @@
   {
     "en"    : "' requires a parameter but was never provided.",
     "en_US" : "' requires a parameter but was never provided.",
-    "zh_CN" : "' 需要子参数，但是没有提供。"
+    "zh_CN" : "' 需要子参数, 但是没有提供。"
   },
   {
     "en"    : "Cannot open config file ",
@@ -887,7 +887,7 @@
   {
     "en"    : "This command is deprecated, use `set vgroup` instead\n",
     "en_US" : "This command is deprecated, use `set vgroup` instead\n",
-    "zh_CN" : "该命令已被弃用，请使用`set vgroup`\n"
+    "zh_CN" : "该命令已被弃用, 请使用`set vgroup`\n"
   },
   {
     "en"    : "Print an example version of the ~/.ccdbrc",
@@ -902,6 +902,116 @@
   {
     "en"    : "or, alternatively, use a command to pull info:\nmetricPullerCommand = YOUR COMMAND\n\nTimeouts for both commands can be specified using\nmetricPullerCommandTimeOut = TIME OUT ms\n",
     "en_US" : "or, alternatively, use a command to pull info:\nmetricPullerCommand = YOUR COMMAND\n\nTimeouts for both commands can be specified using\nmetricPullerCommandTimeOut = TIME OUT ms\n",
-    "zh_CN" : "或者，也可以使用命令来拉取信息：\nmetricPullerCommand = 您的命令\n\n两个命令的超时时间可以通过以下方式指定\n\nmetricPullerCommandTimeOut = 超时时间(毫秒)\n"
+    "zh_CN" : "或者, 也可以使用命令来拉取信息：\nmetricPullerCommand = 您的命令\n\n两个命令的超时时间可以通过以下方式指定\n\nmetricPullerCommandTimeOut = 超时时间(毫秒)\n"
+  },
+  {
+    "en"    : "Timeout of subinfo puller (in seconds, only for --subinfo, default is 15s)",
+    "en_US" : "Timeout of subinfo puller (in seconds, only for --subinfo, default is 15s)",
+    "zh_CN" : "订阅信息拉取器的超时时间(秒, 仅用于 --subinfo, 默认为 15 秒)"
+  },
+  {
+    "en"    : "User agent of subinfo puller (only for --subinfo, default is `clash-verge/2.1.0`)",
+    "en_US" : "User agent of subinfo puller (only for --subinfo, default is `clash-verge/2.1.0`)",
+    "zh_CN" : "订阅信息拉取器的用户代理(仅用于 --subinfo, 默认为 `clash-verge/2.1.0`)"
+  },
+  {
+    "en"    : "No fast quit when Readline finishes",
+    "en_US" : "No fast quit when Readline finishes",
+    "zh_CN" : "当 Readline 完成时不快速退出"
+  },
+  {
+    "en"    : "Use the old blue-white color scheme",
+    "en_US" : "Use the old blue-white color scheme",
+    "zh_CN" : "使用旧的蓝白配色方案"
+  },
+  {
+    "en"    : "Press Ctrl+C (^C) to end immediately.\n",
+    "en_US" : "Press Ctrl+C (^C) to end immediately.\n",
+    "zh_CN" : "按 Ctrl+C（^C）立即结束。\n"
+  },
+  {
+    "en"    : "Wait...\n",
+    "en_US" : "Wait...\n",
+    "zh_CN" : "等待...\n"
+  },
+  {
+    "en"    : "Failed to read connection",
+    "en_US" : "Failed to read connection",
+    "zh_CN" : "读取连接失败"
+  },
+  {
+    "en"    : " [OPTIONS [Arguments...]...]\n",
+    "en_US" : " [OPTIONS [Arguments...]...]\n",
+    "zh_CN" : " [选项 [参数...]...]\n"
+  },
+  {
+    "en"    : "Clear logs in the cache",
+    "en_US" : "Clear logs in the cache",
+    "zh_CN" : "清除缓存中的日志"
+  },
+  {
+    "en"    : "Name",
+    "en_US" : "Name",
+    "zh_CN" : "名称"
+  },
+  {
+    "en"    : "Backend latency history",
+    "en_US" : "Backend latency history",
+    "zh_CN" : "后端延迟历史信息"
+  },
+  {
+    "en"    : "Log buffer size",
+    "en_US" : "Log buffer size",
+    "zh_CN" : "日志缓冲区域大小"
+  },
+  {
+    "en"    : "Filter reverse status",
+    "en_US" : "Filter reverse status",
+    "zh_CN" : "筛选器是否反向筛选"
+  },
+  {
+    "en"    : "Sorting reverse status",
+    "en_US" : "Sorting reverse status",
+    "zh_CN" : "是否反向排序"
+  },
+  {
+    "en"    : "Sorting column",
+    "en_US" : "Sorting column",
+    "zh_CN" : "排序列"
+  },
+  {
+    "en"    : "Expand `get connection`'s column 11 chain parser",
+    "en_US" : "Expand `get connection`'s column 11 chain parser",
+    "zh_CN" : "扩展`get connection`的第11列\"代理链\""
+  },
+  {
+    "en"    : "No expansion of `get connection`'s column 11 chain parser",
+    "en_US" : "No expansion of `get connection`'s column 11 chain parser",
+    "zh_CN" : "不扩展`get connection`的第11列\"代理链\""
+  },
+  {
+    "en"    : "reverse",
+    "en_US" : "reverse",
+    "zh_CN" : "反向"
+  },
+  {
+    "en"    : "no reverse",
+    "en_US" : "no reverse",
+    "zh_CN" : "正向"
+  },
+  {
+    "en"    : "Specify a color scheme: legacy, distinct, continuous. Default is `distinct`",
+    "en_US" : "Specify a color scheme: legacy, distinct, continuous. Default is `distinct`",
+    "zh_CN" : "选择配色方案: legacy, distinct, continuous。默认为`distinct`"
+  },
+  {
+    "en"    : "Unknown color scheme ",
+    "en_US" : "Unknown color scheme ",
+    "zh_CN" : "未知配色方案 "
+  },
+  {
+    "en"    : ", fall back to default.\n",
+    "en_US" : ", fall back to default.\n",
+    "zh_CN" : ", 回滚为默认配色\n"
   }
 ]

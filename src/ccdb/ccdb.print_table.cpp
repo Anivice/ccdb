@@ -600,9 +600,8 @@ void ccdb::ccdb::print_table(
                     static_cast<double>(std::min(static_cast<uint64_t>(lines - 7
                        /* - (table_values.size() > (lines - 7) ? 1 : 0) */), static_cast<uint64_t>(table_values.size()) )
                        );
-                const auto red = sim::sim_red_curve(sim::Span * ratio_ref + sim::Begin);
-                const auto green = sim::sim_green_curve(sim::Span * ratio_ref + sim::Begin);
-                const auto blue = sim::sim_blue_curve(sim::Span * ratio_ref + sim::Begin);
+                const auto [red, green, blue] =
+                    sim::simulation_rainbow(sim::Span * ratio_ref + sim::Begin);
                 color_line = color::bg_color24(static_cast<int>(std::round(red)),
                     static_cast<int>(std::round(green)), static_cast<int>(std::round(blue)));
                 if (constexpr double gate = static_cast<double>(255) / 3 * 2;

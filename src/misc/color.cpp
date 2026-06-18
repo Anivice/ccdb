@@ -25,10 +25,13 @@
 #include <algorithm>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <array>
 #include "colors.h"
 #include "utils.h"
+#include "nlohmann/json.hpp"
 
 std::atomic_int ccdb::color::g_color_status_override = -1;
+sim::color_scheme_t sim::color_scheme = RAINBOW_DISTINCT;
 
 namespace sim
 {
@@ -52,6 +55,16 @@ namespace sim
     const Num green_curve_end = std::pow(std::numbers::pi / 2 * 8, 2) / MK;
     const Num blue_curve_start = std::pow(std::numbers::pi / 2 * 4, 2) / M2;
     const Num blue_curve_end = End;
+    const Num hg_green_g1_curve_x = 3 * 3 * std::numbers::pi * std::numbers::pi / MK;
+
+    Num g1 (const Num x) {
+        return -1 * high_point * std::cos(std::sqrt(x * MK)) + high_point;
+    }
+
+    const Num hg_g2_curve_ratio_k = g1(hg_green_g1_curve_x) / std::pow(hg_green_g1_curve_x - Begin, 2);
+    Num g2 (const Num x) {
+        return hg_g2_curve_ratio_k * std::pow(x - Begin, 2);
+    }
 
     Num r1 (const Num x) {
         return -1 * high_point * std::sin(std::sqrt(x * Length)) + high_point;
@@ -139,6 +152,48 @@ namespace sim
             blue_curve_start, green_curve_end)) { }
     } Solver_;
 
+    struct RGB {
+        Num r, g, b;
+    };
+
+    static Num smootherstep(const Num u) {
+        return u * u * u * (u * (u * 6.0 - 15.0) + 10.0);
+    }
+
+    static Num lerp(const Num a, const Num b, const Num t) {
+        return a + (b - a) * t;
+    }
+
+    RGB rainbowRGB(const Num x, const Num X0, const Num X1)
+    {
+        Num t = (x - X0) / (X1 - X0);
+        t = std::clamp(t, static_cast<Num>(0.0), static_cast<Num>(1.0));
+
+        const std::array<RGB, 7> C = {{
+            {255.0,   0.0,   0.0},   // red
+            {255.0, 127.0,   0.0},   // orange
+            {255.0, 255.0,   0.0},   // yellow
+            {  0.0, 255.0,   0.0},   // green
+            {  0.0,   0.0, 255.0},   // blue
+            { 75.0,   0.0, 130.0},   // indigo
+            {148.0,   0.0, 211.0}    // violet
+        }};
+
+        const int i = std::min(static_cast<int>(std::floor(t * 6.0)), 5);
+        const Num u = t * 6.0 - i;
+        const Num s = smootherstep(u);
+
+        const auto [ar, ag, ab] = C[i];
+        const auto [br, bg, bb] = C[i + 1];
+
+        return
+        {
+            lerp(ar, br, s),
+            lerp(ag, bg, s),
+            lerp(ab, bb, s)
+        };
+    }
+
     Num sim_red_curve(const Num x)
     {
         static bool scheme_prefers_intense_red_in_the_middle =
@@ -155,14 +210,33 @@ namespace sim
         return r1(x);
     }
 
-    Num sim_green_curve(const Num x) {
+    Num sim_green_curve(const Num x)
+    {
         if (x < green_curve_start || x > green_curve_end) return 0;
-        return -1 * high_point * std::cos(std::sqrt(x * MK)) + high_point;
+        // return -1 * high_point * std::cos(std::sqrt(x * MK)) + high_point;
+        if (x < hg_green_g1_curve_x) return g2(x);
+        return g1(x);
     }
 
-    Num sim_blue_curve(const Num x) {
+    Num sim_blue_curve(const Num x)
+    {
         if (x < blue_curve_start || x > blue_curve_end) return 0;
         return -1 * high_point * std::cos(std::sqrt(x * M2)) + high_point;
+    }
+
+    NumPack_t simulation_rainbow(const Num x)
+    {
+        switch (color_scheme)
+        {
+            default:
+            case RAINBOW_CONTINUOUS:
+                return { .R = sim_red_curve(x), .G = sim_green_curve(x), .B = sim_blue_curve(x) };
+            case RAINBOW_DISTINCT:
+                {
+                    const auto [ R, G, B ] = rainbowRGB(x, Begin, End);
+                    return { R, G, B };
+                }
+        }
     }
 }
 

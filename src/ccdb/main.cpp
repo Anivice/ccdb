@@ -52,7 +52,7 @@ utils::PreDefinedArgumentType::PreDefinedArgument MainArgument = {
     { .short_name = -1,  .long_name = "subinfo_user-agent",.argument_required = true,  .description = utils::get_text("User agent of subinfo puller (only for --subinfo, default is `clash-verge/2.1.0`)") },
     { .short_name = -1,  .long_name = "report-issue",.argument_required = false,.description = utils::get_text("File a BUG report") },
     { .short_name = -1,  .long_name = "no-fast-quit",  .argument_required = false, .description = utils::get_text("No fast quit when Readline finishes") },
-    { .short_name = -1,  .long_name = "use-old-color-scheme", .argument_required = false, .description = utils::get_text("Use the old blue-white color scheme") },
+    { .short_name = -1,  .long_name = "use-color-scheme", .argument_required = true, .description = utils::get_text("Specify a color scheme: legacy, distinct, continuous. Default is `distinct`") },
 };
 
 extern "C" const char *
@@ -149,7 +149,18 @@ int main(int argc, char ** argv)
             header = parsed.at("subinfo_user-agent");
         }
 
-        USE_OLD_COLOR_SCHEME = parsed.contains("use-old-color-scheme");
+        if (parsed.contains("use-color-scheme"))
+        {
+            if (const auto scheme = parsed.at("use-color-scheme"); scheme == "legacy") {
+                USE_OLD_COLOR_SCHEME = true;
+            } else if (scheme == "distinct") {
+                sim::color_scheme = sim::RAINBOW_DISTINCT;
+            } else if (scheme == "continuous") {
+                sim::color_scheme = sim::RAINBOW_CONTINUOUS;
+            } else {
+                ccdb::utils::print<utils::is_error>("Unknown color scheme ", scheme, ", fall back to default.\n");
+            }
+        }
 
         auto add_arg = [&](const std::string & name, std::string & arg) {
             if (parsed.contains(name)) {
