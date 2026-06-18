@@ -102,7 +102,6 @@ namespace sim
 
     NumPack_t simulation_rainbow(Num x);
     const extern Num Begin;
-    const extern Num End;
     const extern Num Span;
 }
 

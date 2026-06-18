@@ -44,8 +44,6 @@ namespace sim
     const Num Begin = std::pow(std::numbers::pi / 2 + N * std::numbers::pi, 2) / Length;
     const Num End = std::pow(std::numbers::pi / 2 + (N + 5) * std::numbers::pi, 2) / Length;
 
-    const Num Span = End - Begin; // Color span
-
     const Num MK = std::pow(2 * std::numbers::pi * K1, 2) / Begin;
     const Num M2 = std::pow(std::numbers::pi / 2 * K2, 2) / End;
 
@@ -194,25 +192,24 @@ namespace sim
         };
     }
 
+    const Num ContinuousEnd = std::pow(std::numbers::pi / 2 * 8, 2) / M2;
+    const Num Span = ContinuousEnd - Begin; // Color span
     Num sim_red_curve(const Num x)
     {
-        static bool scheme_prefers_intense_red_in_the_middle =
-            ccdb::utils::getenv("__SCHEME_PREFERS_INTENSE_RED_IN_THE_MIDDLE__") == "true";
-        if (x < red_curve_start || x > red_curve_end) return 0;
-        if (scheme_prefers_intense_red_in_the_middle ?
-            (x > Solver_.InterSectXVal && x < green_curve_end) :
-            (x > green_curve_end)
-        )
-        {
-            return r2(x);
+        if (x < red_curve_start || x > ContinuousEnd) return 0;
+        if (x > Solver_.InterSectXVal) {
+            const auto result = r2(x);
+            if (result > 255) return 255;
+            return result;
         }
 
         return r1(x);
     }
 
+    const Num green_curve_continuous_end = std::pow(std::numbers::pi / 2 * 12, 2) / MK;
     Num sim_green_curve(const Num x)
     {
-        if (x < green_curve_start || x > green_curve_end) return 0;
+        if (x < green_curve_start || x > green_curve_continuous_end) return 0;
         // return -1 * high_point * std::cos(std::sqrt(x * MK)) + high_point;
         if (x < hg_green_g1_curve_x) return g2(x);
         return g1(x);
@@ -220,7 +217,7 @@ namespace sim
 
     Num sim_blue_curve(const Num x)
     {
-        if (x < blue_curve_start || x > blue_curve_end) return 0;
+        if (x < blue_curve_start || x > ContinuousEnd) return 0;
         return -1 * high_point * std::cos(std::sqrt(x * M2)) + high_point;
     }
 
@@ -233,7 +230,7 @@ namespace sim
                 return { .R = sim_red_curve(x), .G = sim_green_curve(x), .B = sim_blue_curve(x) };
             case RAINBOW_DISTINCT:
                 {
-                    const auto [ R, G, B ] = rainbowRGB(x, Begin, End);
+                    const auto [ R, G, B ] = rainbowRGB(x, Begin, ContinuousEnd);
                     return { R, G, B };
                 }
         }

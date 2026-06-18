@@ -54,6 +54,8 @@ void ccdb::ccdb::nload(
     constexpr char l_81_to_100 = '#';
 
     tsl::hopscotch_map < uint64_t /* span */, std::vector < std::string > > color_cache;
+    tsl::hopscotch_map < uint64_t /* span */, uint64_t > color_scheme_rainbow_flow;
+    std::chrono::time_point<std::chrono::high_resolution_clock> last_refresh_time;
 
     auto generate_from_metric = [](const std::vector <float> & list, const int height)->std::vector < std::pair < int, int > >
     {
@@ -113,7 +115,15 @@ void ccdb::ccdb::nload(
     };
 
     std::atomic_int info_space_size = 20;
-    auto print_win = [&max_in_vec, &min_in_vec, &avg_in_vec, &info_space_size, &col, &color_cache](
+    auto print_win = [&max_in_vec,
+        &min_in_vec,
+        &avg_in_vec,
+        &info_space_size,
+        &col,
+        &color_cache,
+        &color_scheme_rainbow_flow,
+        &last_refresh_time]
+    (
         const std::atomic<uint64_t> * speed,
         const std::atomic<uint64_t> * total,
         const std::vector<uint64_t> & list,
@@ -167,9 +177,16 @@ void ccdb::ccdb::nload(
             return;
         }
 
+        uint64_t * context = nullptr;
+        const int start = col - info_space_size - static_cast<int>(metric_list.size());
+        const uint64_t span = col - info_space_size - start;
+        if (!USE_OLD_COLOR_SCHEME) {
+            context = &color_scheme_rainbow_flow[span];
+        }
+        const uint64_t hash = span << 32 | (context ? *context : 0);
+
         for (int i = 0; i < windows_space_local; ++i)
         {
-            const int start = col - info_space_size - static_cast<int>(metric_list.size());
             const auto current_height_on_screen = windows_space_local - i; // starting from 1
 
             if (start < 0) {
@@ -184,9 +201,8 @@ void ccdb::ccdb::nload(
                 const auto index = j - start; // starts from 0
                 if (!USE_OLD_COLOR_SCHEME)
                 {
-                    const auto span = col - info_space_size - start;
                     if (color_cached_line == nullptr) {
-                        color_cached_line = &color_cache[span];
+                        color_cached_line = &color_cache[hash];
                     }
 
                     // invalid cache
@@ -197,7 +213,12 @@ void ccdb::ccdb::nload(
                     if (color_cached_line->size() == span) {
                         frame << color_cached_line->at(index);
                     } else {
-                        const sim::Num span_ratio_ref = index / static_cast<sim::Num>(span);
+                        sim::Num span_ratio_ref;
+                        if (*context != 0 && index + *context > span) {
+                            span_ratio_ref = (index + *context - span) / static_cast<sim::Num>(span);
+                        } else {
+                            span_ratio_ref = (index + *context) / static_cast<sim::Num>(span);
+                        }
                         const auto [red, green, blue] =
                             sim::simulation_rainbow(sim::Span * span_ratio_ref + sim::Begin);
                         const auto color_line = color::color24(static_cast<int>(std::round(red)),
@@ -239,6 +260,18 @@ void ccdb::ccdb::nload(
             }
 
             frame << std::endl;
+        }
+
+        if (context)
+        {
+            // only activate on stable window
+            if (start == 0 &&
+                std::chrono::duration_cast<std::chrono::milliseconds>(now - last_refresh_time).count() > 50)
+            {
+                last_refresh_time = now;
+                if ((*context + 1) < span) ++*context;
+                else *context = 0;
+            }
         }
     };
 
