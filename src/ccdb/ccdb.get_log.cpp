@@ -127,10 +127,9 @@ void ccdb::ccdb::get_log()
 #           endif
 
             check_log_search(logLocalReversed);
-            std::ranges::reverse(logLocalReversed);
 
             std::ranges::reverse(lines);
-            for (const std::span viewer { logLocalReversed.begin(), logLocalReversed.begin() + new_logs.size() };
+            for (const std::span viewer { logLocalReversed.end() - new_logs.size(), logLocalReversed.end() };
                 const auto & log_ : viewer)
             {
                 const auto & level = log_[1];
@@ -144,6 +143,8 @@ void ccdb::ccdb::get_log()
 
                 lines.emplace_back(std::vector{ time, level, log });
             }
+
+            std::ranges::reverse(logLocalReversed);
             std::ranges::reverse(lines);
         }
 
