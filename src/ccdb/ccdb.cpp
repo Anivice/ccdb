@@ -935,7 +935,8 @@ ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::stri
         || terminal_name == "ptyxis"
         || terminal_name == "xterm"
         || terminal_name == "VTE-based terminal"
-        || terminal_name == "wezterm")
+        || terminal_name == "wezterm"
+        || terminal_name == "cool-retro-term")
         {
             print<is_error>("Set NO_0xFE0F_EXPAND_EMOJI to true since ", terminal_name, " doesn't support Unicode expansion.\n");
             setenv("NO_0xFE0F_EXPAND_EMOJI", "true");

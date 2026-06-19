@@ -26,12 +26,11 @@
 #include <cmath>
 #include <string>
 #include "additional_help.h"
-#include "BUILD_DATE.h"
-#include "GIT_HASH.h"
 #include "Readline.h"
 #include "print.h"
 #include "ncursesw/ncurses.h"
 #include "ccdb.h"
+#include "versions.h"
 
 ccdb::sigint_watcher_ ccdb::watcher;
 std::atomic_bool ccdb::window_size_change = false;
@@ -217,9 +216,7 @@ void ccdb::ccdb::help()
     }
 
     std::stringstream oss;
-    oss << sprint("C++ Clash Dashboard Version ") << CCDB_VERSION " (commit " << ccdb_utils_unpack_string(GIT_HASH)
-        << ", build on " << ccdb_utils_unpack_string(BUILD_DATE) << ")" << std::endl
-        << str << g_help_additional << std::endl;
+    oss << g_version_string << str << g_help_additional << std::endl;
     pager(oss.str());
     std::cout << oss.str() << std::flush;
 }

@@ -30,10 +30,9 @@
 #include "print.h"
 #include "args.h"
 #include "utils.h"
-#include "BUILD_DATE.h"
-#include "GIT_HASH.h"
 #include "pull_subinfo.h"
 #include "LICENSE.h"
+#include "versions.h"
 
 namespace utils = ccdb::utils;
 extern bool USE_OLD_COLOR_SCHEME;
@@ -112,15 +111,11 @@ int main(int argc, char ** argv)
 
         if (parsed.contains("version") || parsed.contains("version-license"))
         {
-            const std::string version = utils::sprint("C++ Clash Dashboard Version ", CCDB_VERSION, " (commit ",
-                ccdb_utils_unpack_string(GIT_HASH), ", built on ",
-                ccdb_utils_unpack_string(BUILD_DATE), ")\n");
-
             if (!parsed.contains("version-license")) {
-                utils::print(version);
+                utils::print(g_version_string);
             }
             else {
-                const std::string content = version + ccdb_utils_unpack_string(LICENSE);
+                const std::string content = g_version_string + ccdb_utils_unpack_string(LICENSE);
                 const auto result = utils::exec_command("/bin/sh", content, "-c",
                     (utils::getenv("PAGER").empty() ? "sh -c less 2>/dev/null"
                         : "sh -c \"" + utils::getenv("PAGER") + "\" 2>/dev/null"));
@@ -231,8 +226,7 @@ int main(int argc, char ** argv)
         }
 
         ////////////////////////////////////////////////////////////////////////////////////////
-        if (!parsed.contains("execute")) utils::print("C++ Clash Dashboard Version ", CCDB_VERSION, " (commit ",
-            utils::unpack_string(GIT_HASH, GIT_HASH_len), ", build on ", utils::unpack_string(BUILD_DATE, BUILD_DATE_len), ")\n");
+        if (!parsed.contains("execute")) utils::print(g_version_string);
         if (!parsed.contains("execute")) utils::print("Connecting to", " ", backend, "\n");
         ////////////////////////////////////////////////////////////////////////////////////////
         std::stringstream ss;

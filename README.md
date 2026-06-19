@@ -45,12 +45,17 @@ CCDB depends on the following open-source libraries:
  - [GNU Readline 8.3](https://ftp.gnu.org/gnu/readline/) (Embedded)
  - [GNU Ncurses 6.6](https://ftp.gnu.org/gnu/ncurses/) (Embedded)
  - [TSL Hopscotch-Hashing Map v2.4.0](https://github.com/Tessil/hopscotch-map) (Embedded)
- - [UTF8-CPP 4.0.9](https://github.com/nemtrif/utfcpp) (Embedded)
+ - [UTF8-CPP 4.1.1](https://github.com/nemtrif/utfcpp) (Embedded)
  - [JSON for Modern C++ 3.12.0](https://github.com/nlohmann/json) (Embedded)
  - [Perl 5.42.0](https://www.perl.org/) (Not embedded, required by OpenSSL)
  - [OpenSSL 3.6.2](https://github.com/openssl/openssl) (Embedded)
  - [GNU Tar 1.35](https://www.gnu.org/software/tar) (Embedded)
  - [XXD, from VIM](https://github.com/vim/vim/) (Not embedded, required by the build system)
+ - zlib 1.3.2 (embedded)
+ - libpng 1.6.58 (embedded)
+ - [stb_image - v2.30 - public domain image loader](http://nothings.org/stb)
+ - CImg 3.7.5 (embedded)
+ - libtiv - Copyright © 2017-2023, Stefan Haustein, Aaron Liu (embedded)
 
 ## Features
 

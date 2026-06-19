@@ -323,6 +323,7 @@ add_executable(ccdb
         ccdb/general_info_pulling.cpp   include/general_info_pulling.h
         ccdb/mihomo.cpp                 include/mihomo.h
         ccdb/pull_subinfo.cpp           include/pull_subinfo.h
+        versions.cpp                    include/versions.h
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
 target_compile_definitions(ccdb PRIVATE CCDB_VERSION="${CCDB_VERSION}" CPPHTTPLIB_OPENSSL_SUPPORT)
@@ -334,7 +335,7 @@ target_compile_options(ccdb PRIVATE -fno-omit-frame-pointer -g3 -gdwarf-4 -fstac
 
 find_program(GIT_EXEC NAMES git REQUIRED)
 find_program(HEAD_EXEC NAMES head REQUIRED)
-find_program(DATE_EXEC NAMES date REQUIRED)
+#find_program(DATE_EXEC NAMES date REQUIRED)
 
 add_custom_command(
         OUTPUT ${CMAKE_BINARY_DIR}/GIT_HASH
@@ -342,15 +343,15 @@ add_custom_command(
         VERBATIM
 )
 
-add_custom_command(
-        OUTPUT ${CMAKE_BINARY_DIR}/BUILD_DATE
-        COMMAND /bin/sh -c "echo -n $(date '+%Y-%m-%d %H:%M:%S%Z')" > ${CMAKE_BINARY_DIR}/BUILD_DATE
-        VERBATIM
-)
+#add_custom_command(
+#        OUTPUT ${CMAKE_BINARY_DIR}/BUILD_DATE
+#        COMMAND /bin/sh -c "echo -n $(date '+%Y-%m-%d %H:%M:%S%Z')" > ${CMAKE_BINARY_DIR}/BUILD_DATE
+#        VERBATIM
+#)
 
 generate_from_resource_file(libGIT_HASH "${CMAKE_BINARY_DIR}/GIT_HASH" GIT_HASH.cpp GIT_HASH.h GIT_HASH)
-generate_from_resource_file(libBUILD_DATE "${CMAKE_BINARY_DIR}/BUILD_DATE" BUILD_DATE.cpp BUILD_DATE.h BUILD_DATE)
-target_link_libraries(ccdb PRIVATE libGIT_HASH libBUILD_DATE)
+#generate_from_resource_file(libBUILD_DATE "${CMAKE_BINARY_DIR}/BUILD_DATE" BUILD_DATE.cpp BUILD_DATE.h BUILD_DATE)
+target_link_libraries(ccdb PRIVATE libGIT_HASH) # libBUILD_DATE)
 
 if ("X${GIT_HASH}" STREQUAL "X")
     set(GIT_HASH "Unknown")

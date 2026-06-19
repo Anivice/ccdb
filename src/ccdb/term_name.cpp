@@ -84,6 +84,7 @@ static const char * detect_terminal_emulator()
             if (cmd.find("xterm") != std::string::npos) return "xterm"; // true
             if (cmd.find("kitty") != std::string::npos) return "kitty"; // false
             if (cmd.find("wezterm") != std::string::npos) return "wezterm"; // true
+            if (cmd.find("cool-retro-term") != std::string::npos) return "cool-retro-term"; // false
         }
         pid = ppid;
     }
@@ -100,7 +101,6 @@ static const char * detect_terminal_emulator()
 
 std::string get_terminal_emulator_name()
 {
-    using namespace ccdb;
     return detect_terminal_emulator();
 }
 
