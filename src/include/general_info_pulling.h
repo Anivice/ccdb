@@ -129,7 +129,6 @@ private:
     std::vector < std::vector < std::string > > logs;
     std::mutex logs_mutex;
     std::thread pull_continuous_updates_worker;
-    std::atomic_int log_warning_count = 0;
     std::mutex proxy_list_mtx;
     tsl::hopscotch_map < std::string /* group name */, std::pair < std::vector < std::string > /* proxies */, std::string /* current */ > > proxy_groups;
     std::unordered_map < std::string /* proxy name */, std::atomic_int /* latency in ms */ > proxy_latency;

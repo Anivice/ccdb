@@ -295,6 +295,7 @@ namespace ccdb
             std::ranges::for_each(child_workers, [](std::thread & T) { if (T.joinable()) T.join(); });
         }
 
+        const std::string history_file_loc = utils::getenv("HOME") + "/.cache/ccdb/ccdb_history";
     public:
         ccdb(const std::string & backend, const std::string & token, std::string latency_url_, bool fast_shutdown);
         ccdb(const std::string & backend, const std::string & token, std::string latency_url_, const std::vector<std::string> & cmd);

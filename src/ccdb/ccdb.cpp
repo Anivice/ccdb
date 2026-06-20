@@ -467,8 +467,7 @@ void ccdb::ccdb::init()
         jq = "jq";
     }
 
-    const auto pager = utils::getenv("PAGER");
-    if (is_less_available() || !pager.empty())
+    if (const auto pager = utils::getenv("PAGER"); is_less_available() || !pager.empty())
     {
         if (pager.empty()) {
             less = color::is_no_color() ? "less" : R"(less -SR -S --rscroll='>')";
@@ -968,6 +967,20 @@ ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::stri
         }
 
         init();
+        if (const auto dir = utils::getenv("HOME") + "/.cache/ccdb/";
+            !std::filesystem::exists(dir))
+        {
+            std::filesystem::create_directories(dir);
+        }
+
+        Readline::history_file = history_file_loc.c_str();
+        if (!std::filesystem::exists(history_file_loc))
+        {
+            if (open(history_file_loc.c_str(), O_CREAT | O_TRUNC | O_WRONLY | O_CLOEXEC, 0600) == -1) {
+                Readline::history_file = nullptr;
+            }
+        }
+
         Readline::read_command(handler, auto_completion, "ccdb> ", fast_shutdown);
         backend_instance.stop_continuous_updates();
 

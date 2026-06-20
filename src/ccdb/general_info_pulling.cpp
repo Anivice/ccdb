@@ -29,6 +29,8 @@
 #include <fstream>
 #include "print.h"
 #include "general_info_pulling.h"
+
+#include "Readline.h"
 #include "utils.h"
 
 void general_info_pulling::update_from_traffic(const std::string& info)
@@ -121,30 +123,9 @@ void general_info_pulling::update_from_logs(const std::string& info)
 {
     try
     {
-        json data;
-        data = json::parse(info);
+        json data = json::parse(info);
         std::string type = data["type"], payload = data["payload"];
         std::ranges::transform(type, type.begin(), ::toupper);
-
-        if (const std::string log_location = mihomo_output_log_location.get();
-            !log_location.empty() && log_warning_count < 3)
-        {
-            // 1. dirname of the path
-            // 2. check if dir exists, if not we create them
-            if (const std::string dirname = log_location.substr(0, log_location.find_last_of('/'));
-                !std::filesystem::exists(dirname))
-            {
-                std::filesystem::create_directories(dirname);
-            }
-
-            // 3. open file, append log
-            if (std::ofstream file(log_location, std::ios::app); !file) {
-                ccdb::utils::print<ccdb::utils::is_error>("Failed to write to log file!", "\n");
-                ++log_warning_count;
-            } else {
-                file << type << ": " << payload << std::endl;
-            }
-        }
 
         std::lock_guard lock(logs_mutex);
         while (logs.size() >= max_log_size) {
@@ -174,6 +155,26 @@ void general_info_pulling::update_from_logs(const std::string& info)
             type,
             payload
         };
+
+        if (const std::string log_location = mihomo_output_log_location.get();
+            !log_location.empty())
+        {
+            // 1. dirname of the path
+            // 2. check if dir exists, if not we create them
+            if (const std::string dirname = log_location.substr(0, log_location.find_last_of('/'));
+                !std::filesystem::exists(dirname))
+            {
+                std::filesystem::create_directories(dirname);
+            }
+
+            // 3. open file, append log
+            if (!std::filesystem::exists(log_location)) {
+                (void)open(log_location.c_str(), O_CREAT | O_WRONLY | O_TRUNC, 0600);
+            }
+
+            const auto content = line.front() + ":" + type + " " + payload + "\n";
+            Readline::blocked_append_file(log_location, content.c_str(), content.length());
+        }
 
         const auto hash_checksum = get_checksum(line);
         line.emplace_back(hash_checksum);

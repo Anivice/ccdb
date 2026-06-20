@@ -1013,5 +1013,10 @@
     "en"    : ", fall back to default.\n",
     "en_US" : ", fall back to default.\n",
     "zh_CN" : ", 回滚为默认配色\n"
+  },
+  {
+    "en"    : "No banner or version info on start",
+    "en_US" : "No banner or version info on start",
+    "zh_CN" : "启动时不输出版本信息"
   }
 ]

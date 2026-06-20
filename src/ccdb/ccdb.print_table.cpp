@@ -492,27 +492,23 @@ void ccdb::ccdb::print_table(
         } else {
             std::string utf8_str;
             utf8::utf32to8(line.begin(), line.end(), std::back_inserter(utf8_str));
-            const bool use_line_highlighter = ((printed_lines + 1) == highlight_screen_line);
+            if (/* const auto use_line_highlighter = */ printed_lines + 1 == highlight_screen_line) {
+                frame << color_line_hl;
+            }
+
             if (!utf8_str.empty() && utf8_str.front() == '<') // add color code for '<' at the beginning
             {
                 utf8_str.erase(utf8_str.begin());
-                utf8_str = ((use_line_highlighter ? "" : color::color(5,5,5,0,0,0)) + "<")
-                    + (use_line_highlighter ? "" : color::no_color() + color)
-                    + utf8_str;
+                utf8_str = color::color(5,5,5,0,0,0) + "<" + color + utf8_str;
             } else {
-                utf8_str = (use_line_highlighter ? "" : color) + utf8_str;
-            }
-
-            if (use_line_highlighter)
-            {
-                frame << color_line_hl;
+                utf8_str = color + utf8_str;
             }
 
             if (utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true") {
                 color::g_color_status_override = 0;
             }
 
-            frame << highlight(utf8_str, highlight_str, use_line_highlighter ? color_line_hl : color, matches)
+            frame << highlight(utf8_str, highlight_str, color, matches)
                   << color::no_color();
             color::g_color_status_override = -1;
             if (endl) frame << std::endl;
@@ -605,7 +601,7 @@ void ccdb::ccdb::print_table(
                 color_line = color::bg_color24(static_cast<int>(std::round(red)),
                     static_cast<int>(std::round(green)), static_cast<int>(std::round(blue)));
                 if (constexpr double gate = static_cast<double>(255) / 3 * 2;
-                    green > gate)
+                    green > gate || (blue > gate && red > gate))
                 {
                     color_line += color::color(0,0,0);
                 }

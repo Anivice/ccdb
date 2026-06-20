@@ -52,6 +52,7 @@ utils::PreDefinedArgumentType::PreDefinedArgument MainArgument = {
     { .short_name = -1,  .long_name = "report-issue",.argument_required = false,.description = utils::get_text("File a BUG report") },
     { .short_name = -1,  .long_name = "no-fast-quit",  .argument_required = false, .description = utils::get_text("No fast quit when Readline finishes") },
     { .short_name = -1,  .long_name = "use-color-scheme", .argument_required = true, .description = utils::get_text("Specify a color scheme: legacy, distinct, continuous. Default is `distinct`") },
+    { .short_name = 'Q', .long_name = "quiet", .argument_required = false, .description = utils::get_text("No banner or version info on start") },
 };
 
 extern "C" const char *
@@ -75,8 +76,8 @@ int main(int argc, char ** argv)
                 infile >> time_dat >> time_date >> time_hour >> time_zone >> pid; // systemd coredump
                 std::string time = time_date + "T" + time_hour + ".000000000" + (time_zone.size() == 1 ? "0" + time_zone : time_zone) + ":00";
                 const auto unix_time = utils::get_time(time);
-                const auto now = utils::get_timestamp();
-                if (!std::filesystem::exists(utils::getenv("HOME") + "/.cache/ccdb/" + pid + ".tracer")
+                if (const auto now = utils::get_timestamp();
+                    !std::filesystem::exists(utils::getenv("HOME") + "/.cache/ccdb/" + pid + ".tracer")
                     && (now - unix_time) < 120)
                 {
                     utils::print("CCDB crashed! Dumping tracer..."); std::cout.flush();
@@ -225,9 +226,10 @@ int main(int argc, char ** argv)
             return EXIT_FAILURE;
         }
 
+        const bool quiet = parsed.contains("quiet");
         ////////////////////////////////////////////////////////////////////////////////////////
-        if (!parsed.contains("execute")) utils::print(g_version_string);
-        if (!parsed.contains("execute")) utils::print("Connecting to", " ", backend, "\n");
+        if (!quiet && !parsed.contains("execute")) utils::print(g_version_string);
+        if (!quiet && !parsed.contains("execute")) utils::print("Connecting to", " ", backend, "\n");
         ////////////////////////////////////////////////////////////////////////////////////////
         std::stringstream ss;
         for (int i = 0; i < argc; i++) {
@@ -267,7 +269,7 @@ int main(int argc, char ** argv)
             const auto port = json["port"]; // check for correctness
         } catch (std::exception & e) {
             std::cerr << e.what() << std::endl;
-            utils::print<ccdb::utils::is_error>("Failed to communicate with the backend, either this is not a Mihomo control port, or you have the wrong password.", "\n");
+            utils::print<utils::is_error>("Failed to communicate with the backend, either this is not a Mihomo control port, or you have the wrong password.", "\n");
             return EXIT_FAILURE;
         }
 

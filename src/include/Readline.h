@@ -178,6 +178,9 @@ namespace Readline
     extern std::function<bool(const std::vector < std::string > &)> g_cmd_handler;
     void on_line(char * line);
     void handle_sigint_event();
+    std::string blocked_read_file(const std::string &);
+    void blocked_append_file(const std::string &, const char *, uint64_t);
+    extern const char * history_file;
 
     template < CommandHandler handler, SpecialArgumentCandidatePointer spc_gen>
     void read_command(handler handler_, spc_gen spc_gen_, const std::string & prompt, const bool fast_shutdown = false)
@@ -199,6 +202,18 @@ namespace Readline
         rl_variable_bind("colored-stats", "on");
         using_history();
         rl_callback_handler_install(prompt.c_str(), on_line);
+
+        if (history_file)
+        {
+            const auto buf = blocked_read_file(history_file);
+            std::istringstream ss (buf);
+            std::string str;
+            while (std::getline(ss, str)) {
+                add_history(str.c_str());
+            }
+
+            history_set_pos(history_length);
+        }
 
         pollfd fds[2];
         fds[0].fd = STDIN_FILENO;

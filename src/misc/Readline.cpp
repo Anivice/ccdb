@@ -675,6 +675,88 @@ namespace Readline
         tcflush(STDOUT_FILENO, TCIFLUSH);
     }
 
+    std::string blocked_read_file(const std::string& filename)
+    {
+        std::string ret;
+        if (const int fd = open(filename.c_str(), O_RDWR | O_APPEND); fd > 0)
+        [&]->void
+        {
+            class fd_
+            {
+            public:
+                int ifd_ = -1;
+                explicit fd_(const int fd) : ifd_(fd) { }
+                ~fd_() { close(ifd_); }
+            } fd_(fd);
+
+            flock fl { };
+            fl.l_type   = F_WRLCK;
+            fl.l_whence = SEEK_SET;
+            fl.l_start  = 0;
+            fl.l_len    = 0;
+            fl.l_pid    = getpid();
+
+            struct stat st = { };
+            if (fstat(fd, &st) == -1) {
+                return;
+            }
+
+            if (fcntl(fd, F_SETLKW, &fl) == -1) {
+                return;
+            }
+
+            if (st.st_size > 0)
+            {
+                const auto data_ = static_cast<char*>(mmap(nullptr, st.st_size,
+                    PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0));
+                if (data_ == MAP_FAILED) {
+                    return;
+                }
+
+                ret = { data_, data_ + st.st_size };
+                munmap(data_, st.st_size);
+            }
+
+            fl.l_type = F_UNLCK;
+            (void)fcntl(fd, F_SETLK, &fl);
+        }();
+
+        return ret;
+    }
+
+    const char * history_file = nullptr;
+
+    void blocked_append_file(const std::string & filename, const char * buffer, const uint64_t buffer_length)
+    {
+        if (const int fd = open(filename.c_str(), O_RDWR); fd > 0)
+        [&]->void
+        {
+            class fd_
+            {
+            public:
+                int ifd_ = -1;
+                explicit fd_(const int fd) : ifd_(fd) { }
+                ~fd_() { close(ifd_); }
+            } fd_(fd);
+
+            flock fl { };
+            fl.l_type   = F_WRLCK;
+            fl.l_whence = SEEK_SET;
+            fl.l_start  = 0;
+            fl.l_len    = 0;
+            fl.l_pid    = getpid();
+
+            if (fcntl(fd, F_SETLKW, &fl) == -1) {
+                return;
+            }
+
+            (void)lseek(fd, 0, SEEK_END);
+            (void)write(fd, buffer, buffer_length);
+            fl.l_type = F_UNLCK;
+            (void)fcntl(fd, F_SETLK, &fl);
+        }();
+    }
+
     void on_line(char * line)
     {
         try
@@ -695,6 +777,12 @@ namespace Readline
                 const auto presented_history = remove_leading_and_tailing_spaces(cmd);
                 if (presented_history != last_line) {
                     add_history(presented_history.c_str());
+                    if (history_file)
+                    {
+                        const auto history = presented_history + "\n";
+                        blocked_append_file(history_file,
+                            history.c_str(), history.length());
+                    }
                 }
 
                 if (!presented_history.empty()) last_line = presented_history;
