@@ -230,7 +230,7 @@ namespace sim
                 return { .R = sim_red_curve(x), .G = sim_green_curve(x), .B = sim_blue_curve(x) };
             case RAINBOW_DISTINCT:
                 {
-                    const auto tail = (ContinuousEnd - Begin) / 7;
+                    const auto tail = (ContinuousEnd - Begin) / 8;
                     if (const auto redGlow = ContinuousEnd - tail; x < redGlow)
                     {
                         const auto [ R, G, B ] = rainbowRGB(x, Begin, redGlow);
