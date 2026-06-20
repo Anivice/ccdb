@@ -29,7 +29,6 @@
 #include <fstream>
 #include "print.h"
 #include "general_info_pulling.h"
-
 #include "Readline.h"
 #include "utils.h"
 

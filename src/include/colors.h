@@ -23,6 +23,7 @@
 #define CFS_COLORS_H
 
 #include <string>
+#include <atomic>
 
 /// ANSI color codes
 namespace ccdb::color

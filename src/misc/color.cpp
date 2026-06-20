@@ -162,7 +162,7 @@ namespace sim
         return a + (b - a) * t;
     }
 
-    RGB rainbowRGB(const Num x, const Num X0, const Num X1)
+    RGB rainbowRGB(const Num x, const Num X0, const Num X1, const int l0 = -1, const int l1 = -1)
     {
         Num t = (x - X0) / (X1 - X0);
         t = std::clamp(t, static_cast<Num>(0.0), static_cast<Num>(1.0));
@@ -181,8 +181,8 @@ namespace sim
         const Num u = t * 6.0 - i;
         const Num s = smootherstep(u);
 
-        const auto [ar, ag, ab] = C[i];
-        const auto [br, bg, bb] = C[i + 1];
+        const auto [ar, ag, ab] = C[l0 == -1 ? i : l0];
+        const auto [br, bg, bb] = C[l1 == -1 ? i + 1 : l1];
 
         return
         {
@@ -230,8 +230,18 @@ namespace sim
                 return { .R = sim_red_curve(x), .G = sim_green_curve(x), .B = sim_blue_curve(x) };
             case RAINBOW_DISTINCT:
                 {
-                    const auto [ R, G, B ] = rainbowRGB(x, Begin, ContinuousEnd);
-                    return { R, G, B };
+                    const auto tail = (ContinuousEnd - Begin) / 7;
+                    if (const auto redGlow = ContinuousEnd - tail; x < redGlow)
+                    {
+                        const auto [ R, G, B ] = rainbowRGB(x, Begin, redGlow);
+                        return { R, G, B };
+                    }
+                    else
+                    {
+                        const auto [ R, G, B ] = rainbowRGB(x, Begin, ContinuousEnd,
+                            6, 0);
+                        return { R, G, B };
+                    }
                 }
         }
     }
