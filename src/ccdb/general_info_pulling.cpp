@@ -71,11 +71,20 @@ void general_info_pulling::update_from_connections(const std::string& info)
             conn.downloadSpeed = 0;
             conn.totalUploadedBytes = connection["upload"];
             conn.totalDownloadedBytes = connection["download"];
-            conn.chainName = parseChains(connection["chains"]);
+            // conn.chainName = parseChains(connection["chains"]);
             conn.ruleName = std::string(connection["rule"]) +
                 (std::string(connection["rulePayload"]).empty() ? "" : ("(" + std::string(connection["rulePayload"]) + ")"));
+            const auto specialProxy = std::string(connection["metadata"]["specialProxy"]);
+            const auto providerChains_vec = connection["providerChains"];
+            std::vector < std::string > providerChains = { providerChains_vec.begin(), providerChains_vec.end() };
+            std::vector < std::string > chains = connection["chains"];
+            int off = 0;
+            if (providerChains.size() != chains.size()) throw std::runtime_error("Backend BUG");
+            std::ranges::for_each(providerChains, [&](const std::string & c) { if (!c.empty()) chains[off] = chains[off] + "(" + c + ")"; ++off; });
+            conn.chainName = parseChains(chains);
+            if (conn.ruleName.empty()) conn.ruleName = specialProxy.empty() ? "" : "SpecialProxy(" + specialProxy + ")";
             conn.networkType = std::string(connection["metadata"]["type"]) +
-                (network_type.empty() ? std::string("") : "(" + network_type + ")");
+                (network_type.empty() ? "" : "(" + network_type + ")");
             const auto cur_time_sec = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
             const auto timepoint_established_str = std::string(connection["start"]);
             const auto timepoint_established_sec = ccdb::utils::get_time(timepoint_established_str);
