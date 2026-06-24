@@ -13,12 +13,14 @@ set(MAKE_CC_EXEC "${CMAKE_C_COMPILER}")
 set(MAKE_CXX_EXEC "${CMAKE_CXX_COMPILER}")
 set(PerlEnv "env CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" LD= ")
 find_program(CCACHE_PROGRAM ccache)
-if(NOT (("${CCACHE_PROGRAM}" STREQUAL "CCACHE_PROGRAM-NOTFOUND") OR (NOT "${CCACHE_PROGRAM}" STREQUAL "NOTFOUND")))
+# message(STATUS ${CCACHE_PROGRAM})
+if (   ( (NOT "${CCACHE_PROGRAM}" STREQUAL "CCACHE_PROGRAM-NOTFOUND") OR (NOT "${CCACHE_PROGRAM}" STREQUAL "NOTFOUND") ) AND ( "${DO_NOT_USE_CCACHE}" STREQUAL "" OR (NOT "${DO_NOT_USE_CCACHE}" STREQUAL "True") )   )
     set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
     set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
     message(STATUS "Using ccache: ${CCACHE_PROGRAM}")
     set(MAKE_CC_EXEC "${CCACHE_PROGRAM} ${CMAKE_C_COMPILER}")
     set(MAKE_CXX_EXEC "${CCACHE_PROGRAM} ${CMAKE_CXX_COMPILER}")
+    set(PerlEnv "env CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" LD= ")
 else ()
     set(PerlEnv "env CC= CXX= LD= ")
 endif()
@@ -38,7 +40,7 @@ ExternalProject_Add(PERL
         SOURCE_DIR          ${CMAKE_CURRENT_BINARY_DIR}/NonCMake/perl-5.42.0
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/perl/install
         CONFIGURE_COMMAND   rm -rf <SOURCE_DIR> && cp -r ${CMAKE_SOURCE_DIR}/NonCMake/perl-5.42.0 <SOURCE_DIR> && cd <SOURCE_DIR> && sh -c "${PerlEnv} <SOURCE_DIR>/configure.gnu --prefix=<INSTALL_DIR> ${PERL_CONFIGURE_ADDITIONAL_FLAGS}"
-        BUILD_COMMAND       sh -c "cd <SOURCE_DIR> && ${MAKE_EXECUTABLE} ${PERL_MAKE_ADDITIONAL_FLAGS}"
+	BUILD_COMMAND       sh -c "cd <SOURCE_DIR> && ${PerlEnv} ${MAKE_EXECUTABLE} ${PERL_MAKE_ADDITIONAL_FLAGS} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\""
         INSTALL_COMMAND     sh -c "cd <SOURCE_DIR> && ${MAKE_EXECUTABLE} install ${PERL_MAKE_INSTALL_ADDITIONAL_FLAGS}"
         TEST_COMMAND        ""
         INACTIVITY_TIMEOUT  15
@@ -103,8 +105,8 @@ ExternalProject_Add(NCURSES
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/ncurses
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/ncurses-6.6
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/ncurses/install
-        CONFIGURE_COMMAND   <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --without-shared ${NCURSES_CONFIGURE_ADDITIONAL_FLAGS}
-        BUILD_COMMAND       /bin/sh -c "${NCURSES_MAKE_ENTIRE}"
+        CONFIGURE_COMMAND   <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --without-shared --without-tests --without-cxx-binding ${NCURSES_CONFIGURE_ADDITIONAL_FLAGS}
+	BUILD_COMMAND       /bin/sh -c "${NCURSES_MAKE_ENTIRE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\""
         INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${NCURSES_MAKE_INSTALL_ADDITIONAL_FLAGS}
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libncursesw.a
         TEST_COMMAND        ""
@@ -281,14 +283,16 @@ endif ()
 
 set(TAR_MAKE_ENTIRE "${MAKE_EXECUTABLE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" ${TAR_MAKE_ADDITIONAL_FLAGS}")
 message(STATUS "TAR: ${TAR_MAKE_ENTIRE}")
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/NonCMake/tar-1.35/p)
+set(tar_dest "${CMAKE_CURRENT_BINARY_DIR}/NonCMake/tar-1.35/")
 ExternalProject_Add(TAR
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/tar
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/tar-1.35
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/tar/install
-        CONFIGURE_COMMAND   /bin/sh -c "MAKEINFO=true CC=${CMAKE_C_COMPILER} LD=${CMAKE_LINKER} CFLAGS=\"${TAR_C_FLAGS}\" LDFLAGS=\"${TAR_LD_FLAGS}\" <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --without-gzip --without-bzip2 --without-xz --without-zstd --without-lzip --without-lzma --without-lzop --without-compress --disable-nls ${TAR_CONFIGURE_ADDITIONAL_FLAGS}"
-        BUILD_COMMAND       /bin/sh -c "${TAR_MAKE_ENTIRE} CFLAGS=\"${TAR_C_FLAGS}\" LDFLAGS=\"${TAR_LD_FLAGS}\""
-        INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${TAR_MAKE_INSTALL_ADDITIONAL_FLAGS} && STRIP=${CMAKE_STRIP} ${CMAKE_SOURCE_DIR}/script/strip.sh "<INSTALL_DIR>/bin/tar"
-        TEST_COMMAND        ""
+        CONFIGURE_COMMAND   /bin/sh -c "cp -r <SOURCE_DIR>/* \"${tar_dest}\" && cd \"${tar_dest}\" && autoreconf -f && env MAKEINFO=true CC=\"${CMAKE_C_COMPILER}\" LD=\"${CMAKE_LINKER}\" CFLAGS=\"${TAR_C_FLAGS}\" LDFLAGS=\"${TAR_LD_FLAGS}\" \"${tar_dest}\"/configure --prefix=<INSTALL_DIR> --without-gzip --without-bzip2 --without-xz --without-zstd --without-lzip --without-lzma --without-lzop --without-compress --disable-nls ${TAR_CONFIGURE_ADDITIONAL_FLAGS}"
+        BUILD_COMMAND       /bin/sh -c "cd \"${tar_dest}\" && ${TAR_MAKE_ENTIRE} CFLAGS=\"${TAR_C_FLAGS}\" LDFLAGS=\"${TAR_LD_FLAGS}\""
+        INSTALL_COMMAND     /bin/sh -c "cd \"${tar_dest}\" && ${MAKE_EXECUTABLE} install ${TAR_MAKE_INSTALL_ADDITIONAL_FLAGS} && STRIP=${CMAKE_STRIP} ${CMAKE_SOURCE_DIR}/script/strip.sh \"<INSTALL_DIR>/bin/tar\""
+        TEST_COMMAND        <INSTALL_DIR>/bin/tar --version
         INACTIVITY_TIMEOUT  15
         CONFIGURE_HANDLED_BY_BUILD ON
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/bin/tar
