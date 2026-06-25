@@ -12,6 +12,7 @@ include(ExternalProject)
 set(MAKE_CC_EXEC "${CMAKE_C_COMPILER}")
 set(MAKE_CXX_EXEC "${CMAKE_CXX_COMPILER}")
 set(PerlEnv "env CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" LD= ")
+set(PerlTail "")
 find_program(CCACHE_PROGRAM ccache)
 # message(STATUS ${CCACHE_PROGRAM})
 if (   (NOT "${CCACHE_PROGRAM}" STREQUAL "CCACHE_PROGRAM-NOTFOUND") AND (NOT "${CCACHE_PROGRAM}" STREQUAL "NOTFOUND") AND ("${DO_NOT_USE_CCACHE}" STREQUAL "" OR (NOT "${DO_NOT_USE_CCACHE}" STREQUAL "True"))   )
@@ -21,6 +22,7 @@ if (   (NOT "${CCACHE_PROGRAM}" STREQUAL "CCACHE_PROGRAM-NOTFOUND") AND (NOT "${
     set(MAKE_CC_EXEC "${CCACHE_PROGRAM} ${CMAKE_C_COMPILER}")
     set(MAKE_CXX_EXEC "${CCACHE_PROGRAM} ${CMAKE_CXX_COMPILER}")
     set(PerlEnv "env CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" LD= ")
+    set(PerlTail "CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\"")
 else ()
     set(PerlEnv "env CC= CXX= LD= ")
 endif()
@@ -40,7 +42,7 @@ ExternalProject_Add(PERL
         SOURCE_DIR          ${CMAKE_CURRENT_BINARY_DIR}/NonCMake/perl-5.42.0
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/perl/install
         CONFIGURE_COMMAND   rm -rf <SOURCE_DIR> && cp -r ${CMAKE_SOURCE_DIR}/NonCMake/perl-5.42.0 <SOURCE_DIR> && cd <SOURCE_DIR> && sh -c "${PerlEnv} <SOURCE_DIR>/configure.gnu --prefix=<INSTALL_DIR> ${PERL_CONFIGURE_ADDITIONAL_FLAGS}"
-	BUILD_COMMAND       sh -c "cd <SOURCE_DIR> && ${PerlEnv} ${MAKE_EXECUTABLE} ${PERL_MAKE_ADDITIONAL_FLAGS} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\""
+	BUILD_COMMAND       sh -c "cd <SOURCE_DIR> && ${PerlEnv} ${MAKE_EXECUTABLE} ${PERL_MAKE_ADDITIONAL_FLAGS} ${PerlTail}"
         INSTALL_COMMAND     sh -c "cd <SOURCE_DIR> && ${MAKE_EXECUTABLE} install ${PERL_MAKE_INSTALL_ADDITIONAL_FLAGS}"
         TEST_COMMAND        ""
         INACTIVITY_TIMEOUT  15
