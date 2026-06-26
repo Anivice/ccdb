@@ -70,7 +70,11 @@ static std::string generate_linear_handle(
     return ret;
 }
 
-static std::string highlight(std::string & str, const std::string & pattern, const std::string & original_color, int & matches)
+static std::string highlight(std::string & str,
+    const std::string & pattern,
+    const std::string & original_color,
+    int & matches,
+    const std::string & highlight_color_str)
 {
     if (pattern.empty()) return str;
     std::string ret = strip_color(str);
@@ -81,7 +85,7 @@ static std::string highlight(std::string & str, const std::string & pattern, con
             if ((mat_str.size() == 1 && std::isprint(mat_str.front())) || mat_str.size() > 1)
             {
                 matches += 1;
-                return ::ccdb::color::color(0,0,0,5,5,0) + mat[0].str() + ccdb::color::no_color() + original_color;
+                return highlight_color_str + mat[0].str() + ccdb::color::no_color() + original_color;
             }
     
             return mat_str;
@@ -492,7 +496,8 @@ void ccdb::ccdb::print_table(
         } else {
             std::string utf8_str;
             utf8::utf32to8(line.begin(), line.end(), std::back_inserter(utf8_str));
-            if (/* const auto use_line_highlighter = */ printed_lines + 1 == highlight_screen_line) {
+            const auto use_line_highlighter = printed_lines + 1 == highlight_screen_line;
+            if (use_line_highlighter) {
                 frame << color_line_hl;
             }
 
@@ -508,7 +513,12 @@ void ccdb::ccdb::print_table(
                 color::g_color_status_override = 0;
             }
 
-            frame << highlight(utf8_str, highlight_str, color, matches)
+            frame << highlight(
+                utf8_str,
+                highlight_str,
+                color + (use_line_highlighter ? color_line_hl : ""),
+                matches,
+                utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true" ? "\033[01;05;07m" : "")
                   << color::no_color();
             color::g_color_status_override = -1;
             if (endl) frame << std::endl;
