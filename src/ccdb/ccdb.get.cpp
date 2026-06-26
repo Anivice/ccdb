@@ -172,7 +172,7 @@ void ccdb::ccdb::get_latency()
             }
 
             return true;
-        } catch (std::exception & e) {
+        } catch (std::exception & /* e */) {
             // print<is_error>(e.what(), "\n");
             return false;
         }
@@ -701,7 +701,7 @@ void ccdb::ccdb::map_proxy_chain()
     // print the map
     std::vector<std::vector<std::string>> table;
     const std::vector<std::string> title = { sprint("Name"), sprint("Chains") };
-    get_vgroups();
+    (void)get_vgroups();
     tsl::hopscotch_map < std::string, uint64_t > reverse_search_map;
     std::ranges::for_each(index_to_proxy_name_list, [&](const std::pair < uint64_t, std::string> & pair) {
         reverse_search_map.emplace(pair.second, pair.first);

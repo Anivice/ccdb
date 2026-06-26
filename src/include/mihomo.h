@@ -44,13 +44,13 @@ public:
         : token_(std::move(token)), backend_address_(std::move(direct_url)) { }
     ~mihomo() = default;
 
-    bool change_proxy(const std::string & group_name, const std::string & proxy_name) const;
+    [[nodiscard]] bool change_proxy(const std::string & group_name, const std::string & proxy_name) const;
     void abort() { info_streaming_pulling_ = false; }
     void get_info_no_instance(const std::string & endpoint_name, const std::function < void(const std::string&) > & method) const;
-    bool change_config(const std::string& json) const;
-    bool change_proxy_mode(const std::string & mode) const { return change_config( R"({"mode": ")" + mode +  "\"}"); }
-    bool close_all_connections() const;
-    bool close_connection(const std::string & id) const;
+    [[nodiscard]] bool change_config(const std::string& json) const;
+    [[nodiscard]] bool change_proxy_mode(const std::string & mode) const { return change_config( R"({"mode": ")" + mode +  "\"}"); }
+    [[nodiscard]] bool close_all_connections() const;
+    [[nodiscard]] bool close_connection(const std::string & id) const;
 
     template < typename InstanceType >
     void get_info(const std::string & endpoint_name, InstanceType* instance, void (InstanceType::*method)(const std::string&))

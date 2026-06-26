@@ -183,13 +183,13 @@ namespace ccdb
         bool is_connection_valid(const general_info_pulling::connection_t & conn);
 
         /// get proxy groups
-        std::vector<std::string> get_groups();
+        [[nodiscard]] std::vector<std::string> get_groups();
         /// get proxy endpoint by group name
-        std::vector<std::string> get_endpoints(const std::string & group);
+        [[nodiscard]] std::vector<std::string> get_endpoints(const std::string & group);
         /// get vector proxy groups
-        std::vector<std::string> get_vgroups();
+        [[nodiscard]] std::vector<std::string> get_vgroups();
         /// get vector proxy group endpoints
-        std::vector<std::string> get_vendpoints(const std::string & group);
+        [[nodiscard]] std::vector<std::string> get_vendpoints(const std::string & group);
         void interactive_verification() const;
 
     protected:
@@ -347,7 +347,7 @@ namespace ccdb
         typename ChildFunc = std::function<bool(int, ArgsForFetcherChild...)>,
         typename ParentFunc = std::function<bool(int, ArgsForFetcherParent...)>
     >
-    bool detach_execute(
+    [[nodiscard]] bool detach_execute(
         const ChildFunc & child_func, ArgsForFetcherChild... args_for_fetcher_child,
         const ParentFunc & parent_func, ArgsForFetcherParent... args_for_fetcher_parent,
         const int timeout_ms)
