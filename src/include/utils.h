@@ -498,12 +498,10 @@ class cache_w_freq_table_t
                     }
                 };
 
-                std::ranges::sort(cache_hits_linearized, [&clean](auto & a, auto & b)->bool
-                {
-                    clean(a.second);
-                    clean(b.second);
-                    return a.second.size() < b.second.size();
-                });
+                std::ranges::sort(cache_hits_linearized, [](const auto & a, const auto & b)->bool
+                    { return a.second.size() < b.second.size(); });
+                std::ranges::for_each(cache_hits_linearized, [&](auto & p)
+                    { clean(p.second); });
 
                 cache_hits_linearized = { cache_hits_linearized.begin(),
                     cache_hits_linearized.end() - std::min(cache_size_, static_cast<uint64_t>(cache_hits_linearized.size())) };

@@ -72,8 +72,8 @@ void ccdb::ccdb::set_vgroup(const std::vector<std::string> & command_vector)
         clean(group);
         clean(proxy);
 
-        const uint64_t group_vec = std::strtol(group.c_str(), nullptr, 10);
-        const uint64_t proxy_vec = std::strtol(proxy.c_str(), nullptr, 10);
+        const uint64_t group_vec = std::strtoul(group.c_str(), nullptr, 10);
+        const uint64_t proxy_vec = std::strtoul(proxy.c_str(), nullptr, 10);
         const auto & group_name = index_to_proxy_name_list.at(group_vec);
         const auto & proxy_name = index_to_proxy_name_list.at(proxy_vec);
         print("Changing `", group_name, "` proxy endpoint to `", proxy_name, "`\n");

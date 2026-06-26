@@ -344,8 +344,8 @@ namespace ccdb
 
     template <
         typename... ArgsForFetcherChild, typename... ArgsForFetcherParent,
-        typename ChildFunc = std::function<bool(const int, ArgsForFetcherChild...)>,
-        typename ParentFunc = std::function<bool(const int[2], ArgsForFetcherParent...)>
+        typename ChildFunc = std::function<bool(int, ArgsForFetcherChild...)>,
+        typename ParentFunc = std::function<bool(int, ArgsForFetcherParent...)>
     >
     bool detach_execute(
         const ChildFunc & child_func, ArgsForFetcherChild... args_for_fetcher_child,
@@ -426,6 +426,7 @@ namespace ccdb
     std::vector<vecType> make_screen_vector_frame(const std::vector<vecType> & vec,
         const int current_skip_lines, const int get_line_size, const int start_line)
     {
+        if (current_skip_lines > vec.size()) throw std::logic_error("Internal BUG");
         auto frame_size = get_line_size - start_line - 1 /* search line is always empty*/;
         if (vec.size() > frame_size) {
             frame_size -= 1;

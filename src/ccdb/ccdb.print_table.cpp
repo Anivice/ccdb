@@ -176,7 +176,7 @@ namespace ccdb {
             if (matches_ != 0)
             {
                 std::string str = "/" + highlight_str_ + ": " + std::to_string(matches_);
-                while (str.empty() && UnicodeDisplayWidth::get_width_utf8(str)) {
+                while (str.empty() && UnicodeDisplayWidth::get_width_utf8(str) > get_col_size()) {
                     str.erase(str.begin());
                 }
 
@@ -558,7 +558,8 @@ void ccdb::ccdb::print_table(
             color::g_color_status_override = -1;
         }
 
-        frame << color::no_color() << std::string(col - ssa_str.length(), ' ');
+        const auto lZ = col - static_cast<int>(ssa_str.length());
+        frame << color::no_color() << std::string(lZ > 0 ? lZ : 0, ' ');
     };
 
     /// content

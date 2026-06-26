@@ -666,6 +666,7 @@ void ccdb::ccdb::nload(const std::vector<std::string> & vec)
 
     auto if_filter_out = [&](const std::string & line, const std::string & pattern)->bool
     {
+        if (pattern.empty()) return false;
         const auto ret = std::regex_match(line, std::regex(pattern));
         if (reverse_filter_list) return !ret;
         return ret;

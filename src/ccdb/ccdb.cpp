@@ -942,14 +942,14 @@ ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::stri
         || terminal_name == "cool-retro-term")
         {
             print<is_error>("Set NO_0xFE0F_EXPAND_EMOJI to true since ", terminal_name, " doesn't support Unicode expansion.\n");
-            setenv("NO_0xFE0F_EXPAND_EMOJI", "true");
+            setenv("NO_0xFE0F_EXPAND_EMOJI", "true", 0);
         }
         else if (terminal_name == "konsole" || terminal_name == "kitty") {
-            setenv("NO_0xFE0F_EXPAND_EMOJI", "false");
+            setenv("NO_0xFE0F_EXPAND_EMOJI", "false", 0);
         }
 
         if (terminal_name == "android-termux") {
-            setenv("CURSOR", " ");
+            setenv("CURSOR", " ", 0);
         }
 
         if (const auto color_fgbg = utils::getenv("COLORFGBG"); !color_fgbg.empty())

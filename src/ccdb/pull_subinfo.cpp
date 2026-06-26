@@ -54,6 +54,7 @@ static std::mutex mutex; // TODO: BUG inside OpenSSL, SSL has concurrency issues
 
 ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url, int timeout, const std::string & header)
 {
+    if (timeout <= 0) throw std::logic_error("Internal BUG");
     std::lock_guard<std::mutex> lock(mutex);
     std::string scheme, host, path, proxy_host;
     if (!utils::parse_url(url, scheme, host, path)) {

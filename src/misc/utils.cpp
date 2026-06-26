@@ -386,7 +386,7 @@ int execute_within_page(char** argv, const std::string & to_write, const std::st
         CASSERT(fchmod(fd, 0700) == 0);
         fexecve(fd, argv, environ);
         perror("fexecve");
-        close(fd);
+        // close(fd);
 
         errno = 0;
         char path [64] { };

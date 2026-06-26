@@ -252,7 +252,7 @@ namespace Readline
         uint64_t max_command_length = 0;
         for_each([&](const NodeType& node, int depth)
         {
-            if (node.name_.front() != '[')
+            if (!node.name_.empty() && node.name_.front() != '[')
             {
                 std::ostringstream oss;
                 if (depth & 0x01) depth++; // argument alignment
@@ -292,7 +292,7 @@ namespace Readline
     {
         std::vector<std::string> arg2_verbs = current_verbs;
         arg2_verbs.emplace_back("");
-        static int index, len;
+        static std::atomic_int index, len;
         const char *name;
         if (!state) { index = 0; len = static_cast<int>(strlen(text)); }
         while (((name = arg2_verbs[index++].c_str())) && strlen(name) > 0)
@@ -430,7 +430,8 @@ namespace Readline
 
         find_max(true);
         const int col = ccdb::utils::get_col_size();
-        const int proper_list_size = col / max_in_candidate_list;
+        int proper_list_size = max_in_candidate_list == 0 ? 1 : col / max_in_candidate_list;
+        if (proper_list_size == 0) proper_list_size = 1;
         int index = 0;
         bool endl = false;
         std::cout << std::endl;
@@ -678,7 +679,7 @@ namespace Readline
     std::string blocked_read_file(const std::string& filename)
     {
         std::string ret;
-        if (const int fd = open(filename.c_str(), O_RDWR | O_APPEND); fd > 0)
+        if (const int fd = open(filename.c_str(), O_RDONLY); fd > 0)
         [&]->void
         {
             class fd_
@@ -689,19 +690,8 @@ namespace Readline
                 ~fd_() { close(ifd_); }
             } fd_(fd);
 
-            flock fl { };
-            fl.l_type   = F_WRLCK;
-            fl.l_whence = SEEK_SET;
-            fl.l_start  = 0;
-            fl.l_len    = 0;
-            fl.l_pid    = getpid();
-
             struct stat st = { };
             if (fstat(fd, &st) == -1) {
-                return;
-            }
-
-            if (fcntl(fd, F_SETLKW, &fl) == -1) {
                 return;
             }
 
@@ -716,9 +706,6 @@ namespace Readline
                 ret = { data_, data_ + st.st_size };
                 munmap(data_, st.st_size);
             }
-
-            fl.l_type = F_UNLCK;
-            (void)fcntl(fd, F_SETLK, &fl);
         }();
 
         return ret;

@@ -97,12 +97,12 @@ target_link_libraries(openssl::openssl INTERFACE
         openssl::libcrypto
 )
 
-add_dependencies(openssl::openssl OPENSSL)
+#add_dependencies(openssl::openssl OPENSSL)
 
 # Ncurses
 
 set(NCURSES_MAKE_ENTIRE "${MAKE_EXECUTABLE} ${NCURSES_MAKE_ADDITIONAL_FLAGS}")
-message(STATUS "NCRUSES: ${NCURSES_MAKE_ENTIRE}")
+message(STATUS "NCURSES: ${NCURSES_MAKE_ENTIRE}")
 ExternalProject_Add(NCURSES
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/ncurses
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/ncurses-6.6
@@ -132,7 +132,7 @@ set_target_properties(ncurses::ncursesw PROPERTIES
 add_library(ncurses::ncurses INTERFACE IMPORTED GLOBAL)
 target_link_libraries(ncurses::ncurses INTERFACE ncurses::ncursesw)
 
-add_dependencies(ncurses::ncurses NCURSES)
+#add_dependencies(ncurses::ncurses NCURSES)
 include_directories("${NCURSES_INCLUDE_DIR}/ncursesw")
 include_directories("${NCURSES_INCLUDE_DIR}")
 
@@ -150,10 +150,11 @@ ExternalProject_Add(READLINE
                                 <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --with-curses ${READLINE_CONFIGURE_ADDITIONAL_FLAGS}"
         BUILD_COMMAND       /bin/sh -c "${READLINE_MAKE_ENTIRE}"
         INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${READLINE_MAKE_INSTALL_ADDITIONAL_FLAGS}
-        INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libhistory.a <INSTALL_DIR>/lib/libreadline.a <INSTALL_DIR>/lib/libreadline.so <INSTALL_DIR>/lib/libhistory.so
+        INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libhistory.a <INSTALL_DIR>/lib/libreadline.a # <INSTALL_DIR>/lib/libreadline.so <INSTALL_DIR>/lib/libhistory.so
         TEST_COMMAND        ""
         INACTIVITY_TIMEOUT  15
         CONFIGURE_HANDLED_BY_BUILD ON
+        DEPENDS NCURSES
 )
 
 ExternalProject_Get_Property(READLINE INSTALL_DIR)
@@ -181,8 +182,8 @@ target_link_libraries(readline::readline INTERFACE
         readline::libhistory
 )
 
-add_dependencies(readline::readline READLINE)
-add_dependencies(READLINE NCURSES)
+#add_dependencies(readline::readline READLINE)
+#add_dependencies(READLINE NCURSES)
 include_directories("${READLINE_INCLUDE_DIR}/readline")
 include_directories("${READLINE_INCLUDE_DIR}")
 
@@ -256,7 +257,7 @@ function(generate_from_resource_dir NAME RES OUT_CPP OUT_H XXD_NAME)
 
     add_custom_command(
             OUTPUT  "${_in}.tar"
-            COMMAND cp -r ${_in} terminfo/ && ${TAR_EXEC} cf "${_in}.tar" "terminfo/"
+            COMMAND /bin/sh -c "TMP=$(mktemp -d) && cp -r ${_in} $TMP && ${TAR_EXEC} -cf ${_in}.tar -C $TMP $(basename ${_in})/ && rm -rf $TMP"
             DEPENDS NCURSES
             VERBATIM
     )
@@ -359,9 +360,9 @@ generate_from_resource_file(libGIT_HASH "${CMAKE_BINARY_DIR}/GIT_HASH" GIT_HASH.
 #generate_from_resource_file(libBUILD_DATE "${CMAKE_BINARY_DIR}/BUILD_DATE" BUILD_DATE.cpp BUILD_DATE.h BUILD_DATE)
 target_link_libraries(ccdb PRIVATE libGIT_HASH) # libBUILD_DATE)
 
-if ("X${GIT_HASH}" STREQUAL "X")
-    set(GIT_HASH "Unknown")
-endif ()
+#if ("X${GIT_HASH}" STREQUAL "X")
+#    set(GIT_HASH "Unknown")
+#endif ()
 
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     if ("${CMAKE_SANITIZER_TYPE}" STREQUAL "address")

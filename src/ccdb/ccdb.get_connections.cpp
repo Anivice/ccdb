@@ -49,7 +49,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::atomic_bool conn_show_detail = false;
     std::atomic_int sort_by_from_watcher = -1;
     std::string focused_connection_id;
-    int focused_index = -1;
+    int64_t focused_index = -1;
     std::vector < std::pair < std::string, std::chrono::time_point<std::chrono::high_resolution_clock> > > g_title_lines;
     std::vector < std::thread > child_workers;
     std::vector <std::string> title_this_session;
@@ -367,7 +367,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     }
                 }
 
-                if (!found && focused_index < connections_filtered.size()) {
+                if (!found && focused_index < static_cast<decltype(focused_index)>(connections_filtered.size())) {
                     focused_connection_id = connections_filtered.at(focused_index).metadata.connectionID;
                 }
             }
@@ -495,8 +495,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 if (focus_line != -1)
                 {
                     show_info(sprint("Closing ", focused_connection_info, "..."), "INFO");
-                    auto worker_finished = std::make_unique<std::atomic_bool>(false);
-                    child_workers.emplace_back([&] {
+                    // auto worker_finished = std::make_unique<std::atomic_bool>(false);
+                    child_workers.emplace_back([this, show_info, focused_connection_id, focused_connection_info] {
                         if (!backend_instance.close_connection(focused_connection_id)) {
                             show_info(sprint("Closing ", focused_connection_info, " failed"), "WARNING");
                         }
