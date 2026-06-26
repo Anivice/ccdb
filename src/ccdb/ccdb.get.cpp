@@ -211,12 +211,10 @@ void ccdb::ccdb::get_latency()
     }
 
     update_providers();
-    auto str = simple_print_table_to_std_string(titles_lat, table_vals);
-    str = strip_color(str);
-    if (get_col_size() < str.find_first_of('\n'))
-        simple_print_table_w_pager(titles_lat, table_vals);
-    std::cout << "\n" << std::endl;
-    simple_print_table(titles_lat, table_vals);
+    const auto str = simple_print_table_to_std_string(titles_lat, table_vals);
+    if (const auto NonColorStr = strip_color(str); get_col_size() < NonColorStr.find_first_of('\n'))
+        pager(str);
+    std::cout << "\n" << str << std::endl;
 }
 
 void ccdb::ccdb::get_proxy()
@@ -727,7 +725,8 @@ void ccdb::ccdb::map_proxy_chain()
     });
 
     const auto str = simple_print_table_to_std_string(title, table);
-    if (const auto line_len = UnicodeDisplayWidth::get_width_utf8(str.substr(0, str.find_first_of('\n')));
+    const auto nonColored = strip_color(str);
+    if (const auto line_len = UnicodeDisplayWidth::get_width_utf8(nonColored.substr(0, nonColored.find_first_of('\n')));
         line_len > get_col_size())
     {
         pager(str);
