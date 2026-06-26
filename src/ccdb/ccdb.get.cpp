@@ -211,7 +211,10 @@ void ccdb::ccdb::get_latency()
     }
 
     update_providers();
-    simple_print_table_w_pager(titles_lat, table_vals);
+    auto str = simple_print_table_to_std_string(titles_lat, table_vals);
+    str = strip_color(str);
+    if (get_col_size() < str.find_first_of('\n'))
+        simple_print_table_w_pager(titles_lat, table_vals);
     std::cout << "\n" << std::endl;
     simple_print_table(titles_lat, table_vals);
 }

@@ -507,8 +507,9 @@ void ccdb::ccdb::init()
                     command_ss << c << " ";
                 });
 
-                const auto status = exec_command("/bin/sh", "", "-c", command_ss.str()).exit_status;
-                print<is_error>("Child process exited with the code ", status, "\n");
+                if (const auto status = exec_command("/bin/sh", "", "-c", command_ss.str()).exit_status;
+                    status != 0)
+                    print<is_error>("Child process exited with the code ", status, "\n");
                 return true;
             }
 
