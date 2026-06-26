@@ -461,8 +461,10 @@ void general_info_pulling::latency_test(const std::string & url)
         });
     }
 
+    std::atomic_int progress_counter = 0;
     std::vector < std::thread > thread_pool;
-    std::ranges::for_each(proxy_latency_local | std::views::keys, [&](const std::string & proxy)
+    const auto proxies = proxy_latency_local | std::views::keys;
+    std::ranges::for_each(proxies, [&](const std::string & proxy)
     {
         *proxy_latency_local[proxy] = -1;
         auto * ptr = proxy_latency_local[proxy];
@@ -478,7 +480,7 @@ void general_info_pulling::latency_test(const std::string & url)
             ccdb::utils::replace_all(proxy_, " ", "%20");
             try
             {
-                backend_client.get_info_no_instance("proxies/" + proxy_ + "/delay?url=" + url_ +"&timeout=5000",
+                backend_client.get_info_no_instance("proxies/" + proxy_ + "/delay?url=" + url_ +"&timeout=15000",
                     [&ptr_, &proxy_bk](const std::string& result)
                     {
                         if (const json data = json::parse(result);
@@ -494,11 +496,23 @@ void general_info_pulling::latency_test(const std::string & url)
                 *ptr_ = -1;
             }
 
-            std::cerr << "." << std::flush;
+            ++progress_counter;
         };
 
         thread_pool.emplace_back(worker, proxy, url, ptr);
     });
+
+    while (progress_counter < proxies.size())
+    {
+        const auto ratio = static_cast<double>(progress_counter.load()) / static_cast<double>(proxies.size());
+        const auto percentage = ratio * 100;
+        const auto progress = static_cast<int>(std::round(percentage));
+        ccdb::utils::set_progress_bar(ccdb::utils::SET_PROGRESS, progress);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    ccdb::utils::set_progress_bar(ccdb::utils::SET_PROGRESS, 100);
+    ccdb::utils::set_progress_bar(ccdb::utils::CLEAR_PROGRESS_BAR, 0);
 
     for (auto & thread : thread_pool) {
         if (thread.joinable()) thread.join();

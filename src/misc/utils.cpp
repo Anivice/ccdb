@@ -1273,6 +1273,35 @@ std::string ccdb::utils::strip_color(std::string str_)
     return str_;
 }
 
+void ccdb::utils::set_progress_bar(const progress_bar_state_t state, const int percentages)
+{
+    std::stringstream ss;
+    ss << "\033]9;4;" << state << ";" << percentages << "\033\\";
+    const std::string & str = ss.str();
+    if (const int fd = open("/dev/stdout", O_WRONLY); fd > 0)
+    {
+        (void)write(fd, str.c_str(), str.length());
+
+        if (state == SET_PROGRESS)
+        {
+            const auto col_size = get_col_size();
+            std::stringstream ss2; ss2 << "] (" << percentages << "%)";
+            const auto str_p = ss2.str();
+            if (const auto len = col_size - 1 - str_p.length(); len > 0)
+            {
+                const auto p = static_cast<int>(static_cast<double>(len) * static_cast<double>(percentages) / 100.00);
+                const auto l = static_cast<int>(len - p);
+                std::stringstream ss3;
+                ss3 << "\r" << "[" << std::string(p, '=') << std::string(l, ' ') << str_p;
+                const auto str3 = ss3.str();
+                write(fd, str3.c_str(), str3.length());
+            }
+        }
+
+        close(fd);
+    }
+}
+
 #define BT_BUF_SIZE 100
 #ifdef __GLIBC__
 # include <execinfo.h>

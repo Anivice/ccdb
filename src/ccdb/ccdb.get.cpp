@@ -128,7 +128,7 @@ void ccdb::ccdb::get_latency()
     const auto result = detach_execute([&](const int fd)->bool
     {
         backend_instance.latency_test(latency_url);
-        auto latency_list = backend_instance.get_proxies_and_latencies_as_pair();
+        auto lat = backend_instance.get_proxies_and_latencies_as_pair().second;
         auto write_ = [&](const void * data, const uint64_t len)->void
         {
             if (write(fd, data, len) != len) {
@@ -136,9 +136,9 @@ void ccdb::ccdb::get_latency()
             }
         };
 
-        const uint64_t unordered_len = latency_list.second.size();
+        const uint64_t unordered_len = lat.size();
         write_(&unordered_len, sizeof(unordered_len));
-        for (const auto & [proxy, latency] : latency_list.second) {
+        for (const auto & [proxy, latency] : lat) {
             uint64_t str_len = proxy.size();
             write_(&str_len, sizeof(str_len));
             write_(proxy.data(), str_len);
@@ -173,7 +173,7 @@ void ccdb::ccdb::get_latency()
 
             return true;
         } catch (std::exception & e) {
-            print<is_error>(e.what(), "\n");
+            // print<is_error>(e.what(), "\n");
             return false;
         }
     },
