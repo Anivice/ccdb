@@ -293,6 +293,7 @@ void ccdb::ccdb::print_table(
     const bool dry_run
 )
 {
+    const auto white_strip = color::color(5,5,5,0,0,0);
     std::ostringstream frame;
     std::ostringstream less_output_redirect;
     int current_line_index = 0;
@@ -481,7 +482,7 @@ void ccdb::ccdb::print_table(
                     }
 
                     line = line.substr(0, offset) + utf8_to_u32(padding) +
-                           utf8_to_u32(color::color(5,5,5,0,0,0) + ">" + color::no_color());
+                           utf8_to_u32(white_strip + ">" + color::no_color());
                 }
                 else
                 {
@@ -504,7 +505,7 @@ void ccdb::ccdb::print_table(
             if (!utf8_str.empty() && utf8_str.front() == '<') // add color code for '<' at the beginning
             {
                 utf8_str.erase(utf8_str.begin());
-                utf8_str = color::color(5,5,5,0,0,0) + "<" + color + utf8_str;
+                utf8_str = white_strip + "<" + color + utf8_str;
             } else {
                 utf8_str = color + utf8_str;
             }
@@ -532,14 +533,14 @@ void ccdb::ccdb::print_table(
                 std::max(static_cast<int>(col + leading_offset - UnicodeDisplayWidth::get_width_utf8(additional_info_before_table)), 0),
             ' ');
 
-        print_line(additional_info_before_table, color::color(5,5,5,0,0,0));
+        print_line(additional_info_before_table, white_strip);
     }
 
-    print_line(separation_line, color::color(5,5,5,0,0,0));
-    print_line(header_line, color::color(5,5,5,0,0,0));
-    print_line(separation_line, color::color(5,5,5,0,0,0));
-    print_line(title_line, color::color(5,5,5,0,0,0));
-    print_line(separation_line, color::color(5,5,5,0,0,0));
+    print_line(separation_line, white_strip);
+    print_line(header_line, white_strip);
+    print_line(separation_line, white_strip);
+    print_line(title_line, white_strip);
+    print_line(separation_line, white_strip);
 
     const int max_skip_lines = std::max(static_cast<int>(table_values.size()) - (lines - 2 - printed_lines), 0);
     if (max_skip_lines_ptr) *max_skip_lines_ptr = max_skip_lines;
@@ -555,7 +556,7 @@ void ccdb::ccdb::print_table(
 
         if (color::is_no_color() && utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true") {
             color::g_color_status_override = 0;
-            frame << color::color(5,5,5,0,0,0);
+            frame << white_strip;
             color::g_color_status_override = -1;
         }
 
@@ -598,7 +599,7 @@ void ccdb::ccdb::print_table(
             // blue and black
             if (USE_OLD_COLOR_SCHEME)
             {
-                if (current_line_index & 0x01) color_line = color::color(5,5,5,0,0,0);
+                if (current_line_index & 0x01) color_line = white_strip;
                 else color_line = color::color(5,5,5,0,0,5);
             }
             else
@@ -687,7 +688,7 @@ void ccdb::ccdb::print_table(
 
     /// tailings
     if (skip_lines == 0) {
-        print_line(separation_line, color::color(5,5,5,0,0,0), false);
+        print_line(separation_line, white_strip, false);
         if (printed_lines < lines) {
            for (int i = 0; i < lines - printed_lines; i++) {
                frame << std::string(col, ' ');
@@ -698,7 +699,7 @@ void ccdb::ccdb::print_table(
         const auto line_sz = lines;
         if (/* (col_sz > 2) && */ (printed_lines <= (line_sz - 2) && get_string_screen_length(separation_line) > 2))
         {
-            frame       << color::color(5,5,5,0,0,0)
+            frame       << white_strip
                         << "+" << std::string(std::min(static_cast<long long>(col_sz - 2ul),
                             static_cast<long long>(get_string_screen_length(separation_line) - 2)), '-')
                         << "+" << std::endl;
