@@ -401,3 +401,9 @@ void ccdb::ccdb::get_log()
     running = false;
     if (input_getc_worker.joinable()) input_getc_worker.join();
 }
+
+void ccdb::ccdb::get_logLevel() const
+{
+    const auto json = json::parse(backend_instance.get_config());
+    std::cout << static_cast<std::string>(json["log-level"]) << std::endl;
+}

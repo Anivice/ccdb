@@ -199,6 +199,7 @@ namespace ccdb
         void get_connections(const std::vector<std::string>& command_vector);
         void get_latency();
         void get_log();
+        void get_logLevel() const;
         void get_proxy();
         void get_latencyHistory(std::vector<std::string> command_vector);
         void get_vecGroupProxy(bool show_vgroups = true);

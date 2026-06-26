@@ -1018,5 +1018,10 @@
     "en"    : "No banner or version info on start",
     "en_US" : "No banner or version info on start",
     "zh_CN" : "启动时不输出版本信息"
+  },
+  {
+    "en"    : "Backend log level",
+    "en_US" : "Backend log level",
+    "zh_CN" : "后端日志等级"
   }
 ]

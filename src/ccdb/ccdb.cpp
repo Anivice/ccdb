@@ -573,6 +573,8 @@ void ccdb::ccdb::init()
                     get_latencyHistory(command_vector);
                 } else if (command_vector[1] == "logSize") {
                     get_log_size();
+                } else if (command_vector[1] == "loglevel") {
+                    get_logLevel();
                 } else {
                     print<is_error>("Unknown command `", command_vector[1], "`\n");
                     if (execute_and_no_interactive) throw std::runtime_error("");
@@ -682,14 +684,15 @@ void ccdb::ccdb::init()
 
         try {
             if (special_filler == "[GROUP]") {
-                return escape(get_groups());
+                return {}; // escape(get_groups());
             }
             else if (special_filler == "[PROXY]") {
-                std::string group;
-                if (args.size() >= 3) {
-                    group = args[2];
-                }
-                return escape(get_endpoints(group));
+                return {};
+                // std::string group;
+                // if (args.size() >= 3) {
+                //     group = args[2];
+                // }
+                // return escape(get_endpoints(group));
             }
             else if (special_filler == "[VGROUP]") {
                 return escape(get_vgroups());
