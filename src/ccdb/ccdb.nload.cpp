@@ -352,7 +352,10 @@ void ccdb::ccdb::nload(
 
             {
                 std::lock_guard<std::mutex> lock(state_lock);
-                frame = frame_self;
+                frame.up_speed_list = frame_self.up_speed_list;
+                frame.down_speed_list = frame_self.down_speed_list;
+                frame.up_list = frame_self.up_list;
+                frame.down_list = frame_self.down_list;
             }
 
             std::this_thread::sleep_for(std::chrono::milliseconds(screen_refresh_interval_in_ms));
@@ -372,15 +375,15 @@ void ccdb::ccdb::nload(
             uint64_t max_up_speed, min_up_speed, max_down_speed, min_down_speed;
 
             {
+                max_up_speed = frame.max_up_speed;
+                min_up_speed = frame.min_up_speed;
+                max_down_speed = frame.max_down_speed;
+                min_down_speed = frame.min_down_speed;
                 std::lock_guard<std::mutex> lock(state_lock);
                 up_speed_list = frame.up_speed_list;
                 down_speed_list = frame.down_speed_list;
                 up_list = frame.up_list;
                 down_list = frame.down_list;
-                max_up_speed = frame.max_up_speed;
-                min_up_speed = frame.min_up_speed;
-                max_down_speed = frame.max_down_speed;
-                min_down_speed = frame.min_down_speed;
             }
 
             std::string title = sprint("C++ Clash Dashboard:");
@@ -403,6 +406,8 @@ void ccdb::ccdb::nload(
                           window_space,
                           screen_str_frame,
                           color::color(0,5,1));
+                frame.max_down_speed = max_down_speed;
+                frame.min_down_speed = min_down_speed;
             }
             screen_str_frame << color::no_color();
             screen_str_frame << sprint("Outgoing:") << std::endl;
@@ -422,6 +427,8 @@ void ccdb::ccdb::nload(
                           height,
                           screen_str_frame,
                           color::color(5,1,0));
+                frame.max_up_speed = max_up_speed;
+                frame.min_up_speed = min_up_speed;
             }
             screen_str_frame << color::no_color();
 
