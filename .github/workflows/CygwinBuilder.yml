@@ -34,7 +34,7 @@ jobs:
         run: |
           cd /cygdrive/d/a/ccdb/ccdb
           git config --global --add safe.directory /cygdrive/d/a/ccdb/ccdb
-          cmake -S src -DCMAKE_MAKE_PROGRAM=/usr/bin/make -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DNCURSES_MAKE_ADDITIONAL_FLAGS=-j$(nproc) -DREADLINE_MAKE_ADDITIONAL_FLAGS=-j$(nproc) -DOPENSSL_TARGET="Cygwin-x86_64"
+          cmake -S src -DCMAKE_MAKE_PROGRAM=/usr/bin/make -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DNCURSES_MAKE_ADDITIONAL_FLAGS=-j$(nproc) -DREADLINE_MAKE_ADDITIONAL_FLAGS=-j$(nproc) -DOPENSSL_TARGET="Cygwin-x86_64" -DDO_NOT_USE_CCACHE=True
 
       - name: Build (Cygwin)
         shell: C:\tools\cygwin\bin\bash.exe --login --norc -eo pipefail -o igncr '{0}'
