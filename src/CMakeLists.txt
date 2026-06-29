@@ -434,3 +434,7 @@ if ("${CCDB_COMPILE_WITH_IMG}" STREQUAL "True")
     target_link_libraries(ccdb PRIVATE tiv)
     target_compile_definitions(ccdb PRIVATE __USE_IMG__)
 endif ()
+
+if ("${USE_CYGWIN}" STREQUAL "True")
+    target_compile_definitions(ccdb USE_CYGWIN=1)
+endif ()
