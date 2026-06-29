@@ -257,7 +257,7 @@ function(generate_from_resource_dir NAME RES OUT_CPP OUT_H XXD_NAME)
 
     add_custom_command(
             OUTPUT  "${_in}.tar"
-            COMMAND /bin/sh -c "TMP=$(mktemp -d) && cp -r ${_in} $TMP && ${TAR_EXEC} -cf ${_in}.tar -C $TMP $(basename ${_in})/ && rm -rf $TMP"
+            COMMAND /bin/sh -c "TMP=$(mktemp -d) && if command -v fsutil.exe; then fsutil.exe file setCaseSensitiveInfo $TMP enable || true; fi && cp -r ${_in} $TMP && ${TAR_EXEC} -cf ${_in}.tar -C $TMP $(basename ${_in})/ && rm -rf $TMP"
             DEPENDS NCURSES
             VERBATIM
     )
