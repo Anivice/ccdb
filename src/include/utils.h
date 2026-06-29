@@ -239,7 +239,9 @@ namespace ccdb::utils
 
     /// Set current thread's name
     inline void set_thread_name(const std::string & name) {
+#if defined(_PTHREAD_H) || defined(__USE_POSIX199506) || defined(__USE_POSIX__) || defined(PTHREAD_H)
         pthread_setname_np(pthread_self(), name.c_str());
+#endif
     }
 
 #ifdef __USE_IMG__
