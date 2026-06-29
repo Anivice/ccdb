@@ -166,7 +166,7 @@ ccdb::utils::cmd_status ccdb::utils::exec_command_2(const std::string &cmd,
         }
 
         // Function to read all data from a file descriptor
-        auto read_all = [&](int fd, std::string &output) -> bool
+        auto read_all = [&](const int fd, std::string &output) -> bool
         {
             char buffer[4096];
             ssize_t count;

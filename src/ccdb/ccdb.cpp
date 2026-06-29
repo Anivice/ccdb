@@ -992,7 +992,10 @@ ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::stri
         if (const auto dir = utils::getenv("HOME") + "/.cache/ccdb/";
             !std::filesystem::exists(dir))
         {
-            std::filesystem::create_directories(dir);
+            try
+            {
+                std::filesystem::create_directories(dir);
+            } catch (std::exception &) {}
         }
 
         Readline::history_file = history_file_loc.c_str();

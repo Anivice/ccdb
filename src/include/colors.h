@@ -100,6 +100,10 @@ namespace sim
         Num R;
         Num G;
         Num B;
+
+        bool operator ==(NumPack_t const& rhs) const noexcept {
+            return R == rhs.R && G == rhs.G && B == rhs.B;
+        }
     };
 
     NumPack_t simulation_rainbow(Num x);

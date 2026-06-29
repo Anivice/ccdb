@@ -32,6 +32,10 @@ metricPullerCommand = %HOME%/.local/bin/serverinfo.sh
 metricPullerCommandTimeOut = 120000 # Time out for either clash link puller, or your custom command, in ms
 
 [ColorScheme]
+# offset span will be supplied to $1 as `{ "offset": double }`;
+# script/executable must output `{ "Begin": double, "End": double, "R": double, "G": double, "B": double }`
+# if offset == -1, or out of bound, R/G/B=0, Begin and End should be a static span.
+# offset slides in the span, and the scheme tool should provide corresponding RGB for the specific offset
 Scheme1 = %HOME%/.config/ccdb/scheme1.sh
 Scheme2 = %HOME%/.config/ccdb/scheme2.sh
 

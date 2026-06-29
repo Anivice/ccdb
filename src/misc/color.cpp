@@ -300,16 +300,30 @@ namespace sim
         static std::vector < std::pair < Num, NumPack_t > > local_color_cache;
         if (!init_cache_)
         {
+            bool skip = false;
             const auto color_cache = ccdb::utils::getenv("HOME") + "/.cache/ccdb/color-schemes";
             if (std::filesystem::exists(color_cache) && !std::filesystem::is_directory(color_cache)) {
-                std::filesystem::remove_all(color_cache);
+                try
+                {
+                    std::filesystem::remove_all(color_cache);
+                }
+                catch (std::exception&)
+                {
+                    skip = true;
+                }
             }
 
             if (!std::filesystem::exists(color_cache)) {
-                std::filesystem::create_directories(color_cache);
+                try
+                {
+                    std::filesystem::create_directories(color_cache);
+                } catch (std::exception&)
+                {
+                    skip = true;
+                }
             }
 
-            if (color_scheme == CUSTOMIZED)
+            if (!skip && color_scheme == CUSTOMIZED)
             {
                 std::string scheme_hash;
                 if (const int fd = open(customized_color_command_calc.c_str(), O_RDONLY); fd > 0)
@@ -357,24 +371,68 @@ namespace sim
                         // generate scheme cache
                         constexpr long default_cache_size = 32;
                         long cache_fraction = default_cache_size;
+                        long thread_count = std::thread::hardware_concurrency();
                         try {
                             const auto str = ccdb::utils::getenv("SCHEME_CACHE_SIZE");
+                            const auto tStr = ccdb::utils::getenv("SCHEME_CACHE_THREAD_COUNT");
                             if (!str.empty()) cache_fraction = std::strtol(str.c_str(), nullptr, 10);
+                            if (!tStr.empty()) thread_count = std::strtol(tStr.c_str(), nullptr, 10);
                         } catch (const std::exception&) { }
                         if (cache_fraction < 0) cache_fraction = default_cache_size;
-                        local_color_cache.reserve((1 + cache_fraction) * cache_fraction / 2);
-                        ccdb::utils::print("Creating caching...\n");
+                        if (thread_count < 0) thread_count = std::thread::hardware_concurrency();
+                        const auto estimated_capacity = (1 + cache_fraction) * cache_fraction / 2;
+                        std::atomic_int offset = 0;
+                        local_color_cache.reserve(estimated_capacity);
+                        ccdb::utils::print("You have specified a customized color scheme. All "
+                            "customized color schemes require local color cache. Generating using ",
+                            thread_count,  " thread(s)...\n");
+                        struct results
+                        {
+                            std::atomic_int flag { };
+                            Num key { };
+                            NumPack_t pack { };
+                        };
+
+                        using result_box_t = std::unique_ptr<results>;
+                        std::vector <std::pair<std::thread, result_box_t>> workers;
                         for (int i = 1; i <= cache_fraction; i++) {
                             for (int j = 1; j < i; j++) {
-                                const auto ratio = static_cast<double>(j) / static_cast<double>(i);
-                                const auto key = ratio * Span + Begin;
-                                local_color_cache.emplace_back(key, simulation_rainbow_(key));
-                            }
+                                auto results_ = std::make_unique<results>();
+                                results * flag_ptr = results_.get();
+                                workers.emplace_back(std::thread([&](results * flag_)
+                                {
+                                    const auto ratio = static_cast<double>(j) / static_cast<double>(i);
+                                    const auto key = ratio * Span + Begin;
+                                    flag_->key = key;
+                                    flag_->pack = simulation_rainbow_(key);
+                                    flag_->flag = 1;
+                                    ccdb::utils::set_progress_bar(ccdb::utils::SET_PROGRESS,
+                                        static_cast<int>(std::round(static_cast<double>(offset++) / static_cast<double>(estimated_capacity) * 100)));
+                                }, flag_ptr), std::move(results_));
 
-                            ccdb::utils::set_progress_bar(ccdb::utils::SET_PROGRESS,
-                                static_cast<int>(std::round(static_cast<double>(i) / static_cast<double>(cache_fraction) * 100)));
+                                if (workers.size() > thread_count)
+                                {
+                                    std::ranges::for_each(workers, [](std::pair<std::thread, result_box_t> & T) {
+                                        if (T.first.joinable()) T.first.join();
+                                    });
+
+                                    const auto span = workers | std::views::values;
+                                    std::ranges::for_each(span, [](const result_box_t & r) {
+                                        local_color_cache.emplace_back(r->key, r->pack);
+                                    });
+                                    workers.clear();
+                                }
+                            }
                         }
 
+                        std::ranges::for_each(workers, [](std::pair<std::thread, result_box_t> & T) {
+                            if (T.first.joinable()) T.first.join();
+                        });
+
+                        const auto span = workers | std::views::values;
+                        std::ranges::for_each(span, [](const result_box_t & r) {
+                            local_color_cache.emplace_back(r->key, r->pack);
+                        });
                         local_color_cache.emplace_back(0 * Span + Begin, simulation_rainbow_(0 * Span + Begin));
                         local_color_cache.emplace_back(1 * Span + Begin, simulation_rainbow_(1 * Span + Begin));
 
@@ -386,6 +444,9 @@ namespace sim
                             {
                                 return a.first < b.first;
                             });
+
+                        const auto [u_beg, u_end ] = std::ranges::unique(local_color_cache);
+                        local_color_cache.erase(u_beg, u_end);
 
                         if (const int fd_out = open(cache_loc.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600); fd_out > 0)
                         {
@@ -453,7 +514,7 @@ namespace sim
             init_cache_ = true;
         }
 
-        if (color_scheme == CUSTOMIZED) // estimate color based on the cache
+        if (color_scheme == CUSTOMIZED && !local_color_cache.empty()) // estimate color based on the cache
         {
             auto ratio = (x - Begin) / Span;
             if (ratio > 1.00) ratio = 1.00;

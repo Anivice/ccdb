@@ -1023,5 +1023,15 @@
     "en"    : "Backend log level",
     "en_US" : "Backend log level",
     "zh_CN" : "后端日志等级"
+  },
+  {
+    "en"    : "You have specified a customized color scheme. All customized color schemes require local color cache. Generating using ",
+    "en_US" : "You have specified a customized color scheme. All customized color schemes require local color cache. Generating using ",
+    "zh_CN" : "一个外源配色方案已被指定。所有的外源配色方案都需要本地着色器缓存。缓存以"
+  },
+  {
+    "en"    : " thread(s)...\n",
+    "en_US" : " thread(s)...\n",
+    "zh_CN" : "个线程生成。\n"
   }
 ]

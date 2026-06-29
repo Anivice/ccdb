@@ -251,7 +251,8 @@ std::string ccdb::utils::get_text(const std::string &text)
     if (!fs_check_completed)
     {
         if (!std::filesystem::exists(getenv("HOME") + "/.config/ccdb/")) {
-            std::filesystem::create_directories(getenv("HOME") + "/.config/ccdb/");
+            try { std::filesystem::create_directories(getenv("HOME") + "/.config/ccdb/");
+            } catch (const std::exception&) { }
         }
 
         if (!std::filesystem::exists(getenv("HOME") + "/.config/ccdb/MISSING-TRANSLATIONS.json")) {
@@ -471,60 +472,62 @@ class init_term_t
 public:
     init_term_t()
     {
-        // setup terminfo
-        const auto cache = ccdb::utils::getenv("HOME") + "/.cache";
-        if (!std::filesystem::exists(cache)) {
-            std::filesystem::create_directory(cache);
-        }
-
-        if (ccdb::utils::getenv("TERMINFO").empty())
+        try
         {
-            const auto target = cache + "/terminfo";
-            if (!std::filesystem::exists(target))
+            // setup terminfo
+            const auto cache = ccdb::utils::getenv("HOME") + "/.cache";
+            if (!std::filesystem::exists(cache)) {
+                std::filesystem::create_directories(cache);
+            }
+
+            if (ccdb::utils::getenv("TERMINFO").empty())
             {
-                std::filesystem::create_directory(target);
-                std::vector<uint8_t> compressed_terminfo(terminfotar_len);
-                std::memcpy(compressed_terminfo.data(), terminfotar, terminfotar_len);
-                const auto decompressed_terminfo = ccdb::utils::decompress(compressed_terminfo);
-                std::string decompressed_terminfo_string;
-                decompressed_terminfo_string.resize(decompressed_terminfo.size());
-                std::memcpy(decompressed_terminfo_string.data(), decompressed_terminfo.data(), decompressed_terminfo.size());
-                const char * argv[] = { "/proc/self/exe", "-x", "", nullptr };
-                const std::string argv_string = "--directory=" + cache;
-                argv[2] = argv_string.c_str();
-                const std::string tar_exec = ccdb::utils::getenv("HOME") + "/.cache/tar";
-                class auto_remove {
-                public:
-                    std::string name_;
-                    explicit auto_remove(std::string  name) : name_(std::move(name)) {
-                        if (std::filesystem::exists(name_)) {
-                            std::filesystem::remove_all(name_);
-                        }
-                    }
-
-                    ~auto_remove() {
-                        if (std::filesystem::exists(name_)) {
-                            std::filesystem::remove_all(name_);
-                        }
-                    }
-                } auto_remove_(tar_exec);
-
-                if (const int result = execute_within_page(const_cast<char **>(argv), decompressed_terminfo_string,
-                    tar_exec, tar_exe_len, tar_exe);
-                    result != 0)
+                const auto target = cache + "/terminfo";
+                if (!std::filesystem::exists(target))
                 {
-                    throw std::runtime_error("Failed to uncompress terminfo");
+                    std::filesystem::create_directories(target);
+                    std::vector<uint8_t> compressed_terminfo(terminfotar_len);
+                    std::memcpy(compressed_terminfo.data(), terminfotar, terminfotar_len);
+                    const auto decompressed_terminfo = ccdb::utils::decompress(compressed_terminfo);
+                    std::string decompressed_terminfo_string;
+                    decompressed_terminfo_string.resize(decompressed_terminfo.size());
+                    std::memcpy(decompressed_terminfo_string.data(), decompressed_terminfo.data(), decompressed_terminfo.size());
+                    const char * argv[] = { "/proc/self/exe", "-x", "", nullptr };
+                    const std::string argv_string = "--directory=" + cache;
+                    argv[2] = argv_string.c_str();
+                    const std::string tar_exec = ccdb::utils::getenv("HOME") + "/.cache/tar";
+                    class auto_remove {
+                    public:
+                        std::string name_;
+                        explicit auto_remove(std::string  name) : name_(std::move(name)) {
+                            if (std::filesystem::exists(name_)) {
+                                std::filesystem::remove_all(name_);
+                            }
+                        }
+
+                        ~auto_remove() {
+                            if (std::filesystem::exists(name_)) {
+                                std::filesystem::remove_all(name_);
+                            }
+                        }
+                    } auto_remove_(tar_exec);
+
+                    if (const int result = execute_within_page(const_cast<char **>(argv), decompressed_terminfo_string,
+                        tar_exec, tar_exe_len, tar_exe);
+                        result != 0)
+                    {
+                        throw std::runtime_error("Failed to uncompress terminfo");
+                    }
+                }
+
+                setenv("TERMINFO", target.c_str(), 1);
+                int err = 0;
+                if (setupterm(nullptr, fileno(stdout), &err) != OK || err <= 0) {
+                    ccdb::utils::print<ccdb::utils::is_error>("setupterm failed: ", err, ", ", std::strerror(errno), "\n");
+                    return;
                 }
             }
-
-            setenv("TERMINFO", target.c_str(), 1);
-            int err = 0;
-            if (setupterm(nullptr, fileno(stdout), &err) != OK || err <= 0) {
-                ccdb::utils::print<ccdb::utils::is_error>("setupterm failed: ", err, ", ", std::strerror(errno), "\n");
-                return;
-            }
-        }
-
+        } catch (std::exception&) { }
         term_inited = true;
     }
 } init_term;
