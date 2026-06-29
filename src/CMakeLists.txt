@@ -436,5 +436,5 @@ if ("${CCDB_COMPILE_WITH_IMG}" STREQUAL "True")
 endif ()
 
 if ("${USE_CYGWIN}" STREQUAL "True")
-    target_compile_definitions(ccdb USE_CYGWIN=1)
+    target_compile_definitions(ccdb PRIVATE USE_CYGWIN=1)
 endif ()
