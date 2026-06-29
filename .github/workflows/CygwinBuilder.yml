@@ -24,17 +24,17 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      - name: Set up Cygwin (git, cmake, make, gcc/g++, xxd)
+      - name: Set up Cygwin (git & build utilities)
         uses: egor-tensin/setup-cygwin@v4
         with:
-          packages: cmake make gcc-g++ xxd git
+          packages: cmake make gcc-g++ git automake autoconf
 
       - name: Configure (Cygwin)
         shell: C:\tools\cygwin\bin\bash.exe --login --norc -eo pipefail -o igncr '{0}'
         run: |
           cd /cygdrive/d/a/ccdb/ccdb
           git config --global --add safe.directory /cygdrive/d/a/ccdb/ccdb
-          cmake -S src -DCMAKE_MAKE_PROGRAM=/usr/bin/make -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DNCURSES_MAKE_ADDITIONAL_FLAGS=-j$(nproc) -DREADLINE_MAKE_ADDITIONAL_FLAGS=-j$(nproc)
+          cmake -S src -DCMAKE_MAKE_PROGRAM=/usr/bin/make -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DNCURSES_MAKE_ADDITIONAL_FLAGS=-j$(nproc) -DREADLINE_MAKE_ADDITIONAL_FLAGS=-j$(nproc) -DOPENSSL_TARGET="Cygwin-x86_64"
 
       - name: Build (Cygwin)
         shell: C:\tools\cygwin\bin\bash.exe --login --norc -eo pipefail -o igncr '{0}'
