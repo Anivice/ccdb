@@ -84,7 +84,8 @@ env PATH="$MUSL_SYSROOT"/bin/:"$PATH" cmake -B "$BUILD_DIR" -S "$script_dir" \
             -DOPENSSL_TARGET="$OPENSSL_TARGET" \
             -DOPENSSL_LIBP="$OPENSSL_LIB_EXPORT_PREFIX" \
             -DCCDB_COMPILE_WITH_IMG="True" \
-            -DCMAKE_BUILD_STATIC="True"
+            -DCMAKE_BUILD_STATIC="True" \
+	          -DDO_NOT_USE_CCACHE="True"
 pushd "$PWD"
 cd "$BUILD_DIR"
 env PATH="$MUSL_SYSROOT"/bin/:"$PATH" make CFLAGS="$CMAKE_CFLAGS" CXXFLAGS="$CMAKE_CFLAGS" -j"$(nproc)"

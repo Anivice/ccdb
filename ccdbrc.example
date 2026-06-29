@@ -31,6 +31,10 @@ metricPullerCommand = %HOME%/.local/bin/serverinfo.sh
 # e.g.: { "total_uploaded": 126164664320, "total_downloaded": 126164664320, "quota": 1073741824000, "expire_unix_timestamp": 1781884800 }
 metricPullerCommandTimeOut = 120000 # Time out for either clash link puller, or your custom command, in ms
 
+[ColorScheme]
+Scheme1 = %HOME%/.config/ccdb/scheme1.sh
+Scheme2 = %HOME%/.config/ccdb/scheme2.sh
+
 [Shortcut]
 KillConn = k
 ShowDetail = p

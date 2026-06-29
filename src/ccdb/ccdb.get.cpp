@@ -121,7 +121,7 @@ std::vector<std::string> ccdb::ccdb::get_vendpoints(const std::string & group)
 
 void ccdb::ccdb::get_latency()
 {
-    print<is_error>("Testing latency with the url ", latency_url,  " ...\n");
+    utils::print<is_error>("Testing latency with the url ", latency_url,  " ...\n");
     backend_instance.update_proxy_list(); // update the proxy first
     std::vector < std::pair<std::string, int >> list_unordered;
 
@@ -180,7 +180,7 @@ void ccdb::ccdb::get_latency()
     30 * 1000); // 30s
 
     if (!result) {
-        print<is_error>("Failed to pull all the latency!\n");
+        utils::print<is_error>("Failed to pull all the latency!\n");
         return;
     }
 
@@ -406,10 +406,10 @@ void ccdb::ccdb::get_latencyHistory(std::vector<std::string> command_vector)
         const auto metadata = backend_instance.get_proxy_metadata(proxyName);
         if (const auto json = json::parse(metadata); json.contains("extra"))
         {
-            print(color::color(0,0,5,5,5,5), proxyName, color::no_color(), "\n");
+            utils::print(color::color(0,0,5,5,5,5), proxyName, color::no_color(), "\n");
             for (const auto & [ url, latency_history ] : json["extra"].items())
             {
-                print("  ", color::color(2,1,5), (color::is_no_color() ? "" :  "\033[04m"),
+                utils::print("  ", color::color(2,1,5), (color::is_no_color() ? "" :  "\033[04m"),
                     url, color::no_color(), ", alive: ", latency_history["alive"], "\n");
                 if (latency_history.contains("history"))
                 {
@@ -418,14 +418,14 @@ void ccdb::ccdb::get_latencyHistory(std::vector<std::string> command_vector)
                     {
                         std::string time = history["time"];
                         const int delay = history["delay"];
-                        print("    ", replace_all(time, "\"", ""), ": ",
+                        utils::print("    ", replace_all(time, "\"", ""), ": ",
                             color_coding(delay), delay, color::no_color(), "\n");
                         latency_history_vec.emplace_back(get_time(time), delay);
                     }
 
                     const auto typical = iqr_filtered_latency(latency_history_vec);
                     const auto avg = iqr_filtered_latency(latency_history_vec, false);
-                    print("  ", color::color(2,4,5), "IQR", color::no_color(),
+                    utils::print("  ", color::color(2,4,5), "IQR", color::no_color(),
                         ": typical=", color_coding(typical), typical, color::no_color(),
                         ", avg=", color_coding(avg), avg, color::no_color(), "\n");
                 }
@@ -496,8 +496,8 @@ void ccdb::ccdb::get_subinfo()
     auto get_info = [&]
     {
         if (clash_sublink.empty() && external_puller_command.empty()) {
-            print<is_error>("No subscription link defined in the configuration file.\n");
-            print<is_error>("Define the link as follows:\n\n",
+            utils::print<is_error>("No subscription link defined in the configuration file.\n");
+            utils::print<is_error>("Define the link as follows:\n\n",
                 "[clash]\n"
                 "link = YOUR CLASH LINK\n\n",
                 "or, alternatively, use a command to pull info:\n"
@@ -571,7 +571,7 @@ void ccdb::ccdb::get_subinfo()
 
                 if (!result)
                 {
-                    print<is_error>("Failed to pull info\n");
+                    utils::print<is_error>("Failed to pull info\n");
                     return;
                 }
 
@@ -643,19 +643,19 @@ void ccdb::ccdb::get_config() const
 }
 
 void ccdb::ccdb::get_log_size() const {
-    print("Log size:", max_log_size.load(), "\n");
+    utils::print("Log size:", max_log_size.load(), "\n");
 }
 
 void ccdb::ccdb::get_filter_reverse() const {
-    print(reverse_filter_list ? "on" : "off", "\n");
+    utils::print(reverse_filter_list ? "on" : "off", "\n");
 }
 
 void ccdb::ccdb::get_sort_reverse() const {
-    print(sort_reverse ? "on" : "off", "\n");
+    utils::print(sort_reverse ? "on" : "off", "\n");
 }
 
 void ccdb::ccdb::get_sort_by() const {
-    print(sort_by, "\n");
+    utils::print(sort_by, "\n");
 }
 
 void ccdb::ccdb::map_proxy_chain()

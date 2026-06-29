@@ -59,6 +59,10 @@
 # include <cxxabi.h>
 #endif
 
+#ifdef __FreeBSD__
+extern char * const * environ;
+#endif
+
 /// Utilities
 namespace ccdb::utils
 {

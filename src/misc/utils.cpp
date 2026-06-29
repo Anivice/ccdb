@@ -25,7 +25,6 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
-#include "utils.h"
 #include <utility>
 #include <vector>
 #include <string>
@@ -50,6 +49,7 @@
 #include "tsl/hopscotch_map.h"
 #include "readline/history.h"
 #include "tar.h"
+#include "utils.h"
 
 #ifndef __NR_memfd_create
 # if defined(__x86_64__)
@@ -276,7 +276,7 @@ std::string ccdb::utils::get_text(const std::string &text)
 
             std::string json_raw;
 
-            flock fl { };
+            struct flock fl { };
             fl.l_type   = F_WRLCK;
             fl.l_whence = SEEK_SET;
             fl.l_start  = 0;
@@ -1290,7 +1290,7 @@ void ccdb::utils::set_progress_bar(const progress_bar_state_t state, const int p
             if (const auto len = col_size - 1 - str_p.length(); len > 0)
             {
                 const auto p = static_cast<int>(static_cast<double>(len) * static_cast<double>(percentages) / 100.00);
-                const auto l = static_cast<int>(len - p);
+                const auto l = len > p ? static_cast<int>(len - p) : 0;
                 std::stringstream ss3;
                 ss3 << "\r" << "[" << std::string(p, '=') << std::string(l, ' ') << str_p;
                 const auto str3 = ss3.str();

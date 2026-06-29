@@ -459,6 +459,24 @@ void ccdb::ccdb::init()
     kbd_shortcut_helper("HighlightDown", "^[[1;5B");
     alias_helper();
 
+    if (ccdb_config && sim::color_scheme == sim::CUSTOMIZED)
+    {
+        if (ccdb_config->config.contains("ColorScheme"))
+        {
+            if (const auto & map = ccdb_config->config.at("ColorScheme");
+                map.contains(sim::customized_color_command_calc))
+            {
+                sim::customized_color_command_calc = map.at(sim::customized_color_command_calc);
+            }
+            else
+            {
+                ::ccdb::utils::print<is_error>("Unknown color scheme ",
+                    sim::customized_color_command_calc, ", fall back to default.\n");
+                sim::color_scheme = sim::RAINBOW_DISTINCT;
+            }
+        }
+    }
+
     const auto ret = exec_command("/bin/sh", "jq --version >/dev/null 2>/dev/null\n");
     if (!utils::getenv("JQ").empty()) {
         jq = utils::getenv("JQ");
@@ -477,7 +495,7 @@ void ccdb::ccdb::init()
         }
     }
 
-    set_thread_name("readline");
+    set_thread_name("Readline:" + utils::getenv("CCDB"));
     backend_instance.start_continuous_updates();
     get_vecGroupProxy(false);
 

@@ -726,7 +726,7 @@ namespace Readline
                 ~fd_() { close(ifd_); }
             } fd_(fd);
 
-            flock fl { };
+            struct flock fl { };
             fl.l_type   = F_WRLCK;
             fl.l_whence = SEEK_SET;
             fl.l_start  = 0;

@@ -154,7 +154,8 @@ int main(int argc, char ** argv)
             } else if (scheme == "continuous") {
                 sim::color_scheme = sim::RAINBOW_CONTINUOUS;
             } else {
-                ccdb::utils::print<utils::is_error>("Unknown color scheme ", scheme, ", fall back to default.\n");
+                sim::color_scheme = sim::CUSTOMIZED;
+                sim::customized_color_command_calc = scheme;
             }
         }
 

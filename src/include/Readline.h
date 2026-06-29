@@ -185,7 +185,7 @@ namespace Readline
     template < CommandHandler handler, SpecialArgumentCandidatePointer spc_gen>
     void read_command(handler handler_, spc_gen spc_gen_, const std::string & prompt, const bool fast_shutdown = false)
     {
-        ccdb::utils::set_thread_name("readline");
+        // ccdb::utils::set_thread_name("readline");
         if (pipe(sig_pipe) == -1) {
             perror("pipe");
             throw std::runtime_error("pipe");
