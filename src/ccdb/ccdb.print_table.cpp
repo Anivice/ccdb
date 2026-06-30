@@ -616,6 +616,8 @@ void ccdb::ccdb::print_table(
                     green > gate || (blue > gate && red > gate))
                 {
                     color_line += color::color(0,0,0);
+                } else {
+                    color_line += color::color(5,5,5);
                 }
                 // else if (blue > gate && red > gate) {
                 //     color_line += color::color(0,5,5);
