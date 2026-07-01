@@ -51,11 +51,11 @@ CCDB depends on the following open-source libraries:
  - [OpenSSL 3.6.2](https://github.com/openssl/openssl) (Embedded)
  - [GNU Tar 1.35](https://www.gnu.org/software/tar) (Embedded)
  - [XXD, from VIM](https://github.com/vim/vim/) (Not embedded, required by the build system)
- - zlib 1.3.2 (embedded)
- - libpng 1.6.58 (embedded)
+ - zlib 1.3.2 (Embedded)
+ - libpng 1.6.58 (Embedded)
  - [stb_image - v2.30 - public domain image loader](http://nothings.org/stb)
- - CImg 3.7.5 (embedded)
- - libtiv - Copyright © 2017-2023, Stefan Haustein, Aaron Liu (embedded)
+ - CImg 3.7.5 (Embedded)
+ - libtiv - Copyright © 2017-2023, Stefan Haustein, Aaron Liu (Embedded)
 
 ## Features
 
