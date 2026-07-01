@@ -272,8 +272,9 @@ namespace sim
 
                     // normalize
                     const auto renormalized = (x - Begin) / Span * range + begin;
+                    std::stringstream rn_ss; rn_ss << std::fixed << std::setprecision(16) << renormalized;
                     const auto status = ::ccdb::utils::exec_command2(customized_color_command_calc,
-                            "", R"({ "offset": )" + std::to_string(renormalized) + "}");
+                            "", R"({ "offset": )" + rn_ss.str() + "}");
                     if (status.exit_status == 0)
                     {
                         try
