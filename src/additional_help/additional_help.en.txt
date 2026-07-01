@@ -21,6 +21,11 @@ Environment:
    DISABLE_CACHE_BEHAVIOR: Disable cache behavior inside `ccdb`.
                            If you notice any memory leaks or huge memory uses, you can disable im-memory caches for utilities.
                            This will cost more CPU time, with reduced memory use.
+                                                                                            SCHEME_CACHE_SIZE
+                SCHEME_CACHE_SIZE: Cache size of the color scheme. The estimated size is          ∑ (i)
+                                                                                                  i=1
+        SCHEME_CACHE_THREAD_COUNT: Cache generation thread. Should concurrancy be an issue, set this to 1.
+   SCHEME_CACHE_DECIMAL_PRECISION: Decimal precision for each step. Default is 16.
 Keyboard Shortcuts:
   `get connections`: Get connections has multiple keyboard shortcuts:
      Mouse Click/Ctrl+UP/Ctrl+DOWN: Move highlight

@@ -6,9 +6,6 @@ LC_ALL=C
 BEGIN="0.0"
 END="100.0"
 
-# Decimal precision
-SCALE=8
-
 die() {
     echo "error: $*" >&2
     exit 1
@@ -16,10 +13,6 @@ die() {
 
 command -v jq >/dev/null 2>&1 || die "jq is required"
 command -v bc >/dev/null 2>&1 || die "bc is required"
-
-bc_eval() {
-    printf 'scale=%s; %s\n' "$SCALE" "$1" | bc -l
-}
 
 json_number() {
     local value="$1"
@@ -49,22 +42,29 @@ clamp_rgb() {
     fi
 }
 
-[[ "$(bc_eval "$END <= $BEGIN")" != "1" ]] ||
-    die "END must be greater than BEGIN"
-
-input="$1"
-
-offset="$(
-    printf '%s' "$input" | jq -er '
+parse_json()
+{
+    printf '%s' "$1" | jq -er '
         if type != "object" then
             error("input must be a JSON object")
-        elif (.offset | type) != "number" then
+        elif (.'"$2"' | type) != "number" then
             error("offset must be a JSON number")
         else
-            .offset
+            .'"$2"'
         end
     '
-)" || die 'expected JSON like: {"offset": 42.5}'
+}
+
+offset="$(parse_json "$1" "offset")" || die 'expected JSON'
+SCALE="$(parse_json "$1" "precision")" || die 'expected JSON'
+offset=$(printf "%.${SCALE}f" "$offset")
+
+bc_eval() {
+    printf 'scale=%s; %s\n' "$SCALE" "$1" | BC_LINE_LENGTH=0 bc -l | sed -e :1 -e '/\\$/{N;s/\\\n//;b1' -e '}'
+}
+
+[[ "$(bc_eval "$END <= $BEGIN")" != "1" ]] ||
+    die "END must be greater than BEGIN"
 
 is_sentinel="$(bc_eval "$offset == -1")"
 is_before_begin="$(bc_eval "$offset < $BEGIN")"
@@ -77,6 +77,7 @@ if [[ "$is_sentinel" == "1" ||
     printf '{"Begin": %s, "End": %s, "R": 0, "G": 0, "B": 0}\n' \
         "$(json_number "$BEGIN")" \
         "$(json_number "$END")"
+    echo "Faulty: $is_sentinel, $is_before_begin, $is_after_end, $1" >&2
     exit 0
 fi
 

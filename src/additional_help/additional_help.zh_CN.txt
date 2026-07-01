@@ -19,6 +19,11 @@
    DISABLE_CACHE_BEHAVIOR: 禁用`ccdb`内置的缓存器。
                            如果有任何内存泄漏或高内存使用，使用本环境变量可以禁用内置缓存。
                            禁用缓存会降低内存使用，但可能导致CPU时间消耗增多
+                                                                      SCHEME_CACHE_SIZE
+                SCHEME_CACHE_SIZE: 着色器缓存大小。 预计最大缓存大小为          ∑ (i)
+                                                                           i=1
+        SCHEME_CACHE_THREAD_COUNT: 着色器缓存线程数量。如果存在数据竞态关系，设置该环境变量为1。
+   SCHEME_CACHE_DECIMAL_PRECISION: 着色器数据精确度。默认为16。
 键盘快捷键:
   `get connections`: 拉取活跃连接有多个键盘快捷键:
         鼠标单击/Ctrl+UP/Ctrl+DOWN: 移动高亮

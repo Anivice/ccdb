@@ -225,7 +225,7 @@ namespace sim
         return -1 * high_point * std::cos(std::sqrt(x * M2)) + high_point;
     }
 
-    NumPack_t simulation_rainbow_(const Num x)
+    NumPack_t simulation_rainbow_(const Num x, const int precision = 16)
     {
         switch (color_scheme)
         {
@@ -256,11 +256,11 @@ namespace sim
 
                     static std::atomic<Num> range = -1;
                     static std::atomic<Num> begin = -1;
-                    if (range < 0)
+                    while (range < 0)
                     {
                         const auto status = ::ccdb::utils::exec_command2(
                             customized_color_command_calc,
-                            "", R"({ "offset": -1 })");
+                            "", R"({ "offset": -1, "precision": 0 })");
                         if (status.exit_status == 0) {
                             const auto json = json::parse(status.fd_stdout);
                             const auto End_ = static_cast<Num>(json["End"]);
@@ -272,25 +272,29 @@ namespace sim
 
                     // normalize
                     const auto renormalized = (x - Begin) / Span * range + begin;
-                    std::stringstream rn_ss; rn_ss << std::fixed << std::setprecision(16) << renormalized;
-                    const auto status = ::ccdb::utils::exec_command2(customized_color_command_calc,
-                            "", R"({ "offset": )" + rn_ss.str() + "}");
-                    if (status.exit_status == 0)
+                    std::stringstream rn_ss; rn_ss << std::fixed << std::setprecision(precision) << renormalized;
+                    const auto str = rn_ss.str();
+                    ccdb::utils::cmd_status status;
+                    while (true)
                     {
-                        try
-                        {
-                            const auto json = json::parse(status.fd_stdout);
-                            const NumPack_t ret {
-                                static_cast<Num>(json["R"]),
-                                static_cast<Num>(json["G"]),
-                                static_cast<Num>(json["B"])
-                            };
-                            local_color_cache.emplace_cache(x, ret);
-                            return ret;
-                        } catch (const std::exception&) {  }
+                        status = ::ccdb::utils::exec_command2(customized_color_command_calc,
+                               "", R"({ "offset": )" + str + R"(, "precision": )" + std::to_string(precision) + " }");
+                        if (status.exit_status == 0) break;
                     }
 
-                    return { .R = sim_red_curve(x), .G = sim_green_curve(x), .B = sim_blue_curve(x) };
+                    try
+                    {
+                        const auto json = json::parse(status.fd_stdout);
+                        const NumPack_t ret {
+                            static_cast<Num>(json["R"]),
+                            static_cast<Num>(json["G"]),
+                            static_cast<Num>(json["B"])
+                        };
+                        local_color_cache.emplace_cache(x, ret);
+                        return ret;
+                    } catch (const std::exception&) {
+                        return { .R = sim_red_curve(x), .G = sim_green_curve(x), .B = sim_blue_curve(x) };
+                    }
                 }
         }
     }
@@ -357,8 +361,14 @@ namespace sim
                             return {};
                         }
 
+                        auto str = ccdb::utils::getenv("SCHEME_CACHE_SIZE"); if (str.empty()) str = "32";
+                        auto pStr = ccdb::utils::getenv("SCHEME_CACHE_DECIMAL_PRECISION"); if (pStr.empty()) pStr = "16";
+
                         ccdb::utils::CRC64 hash;
                         hash.update(reinterpret_cast<const uint8_t*>(fd_w.data_), st.st_size);
+                        hash.update(reinterpret_cast<const uint8_t*>(customized_color_command_calc.data()), customized_color_command_calc.size());
+                        hash.update(reinterpret_cast<const uint8_t*>(str.data()), str.size());
+                        hash.update(reinterpret_cast<const uint8_t*>(pStr.data()), pStr.size());
                         return hash.get_checksum_str();
                     }();
 
@@ -373,14 +383,18 @@ namespace sim
                         constexpr long default_cache_size = 32;
                         long cache_fraction = default_cache_size;
                         long thread_count = std::thread::hardware_concurrency();
+                        long precision = 16;
                         try {
                             const auto str = ccdb::utils::getenv("SCHEME_CACHE_SIZE");
                             const auto tStr = ccdb::utils::getenv("SCHEME_CACHE_THREAD_COUNT");
+                            const auto pStr = ccdb::utils::getenv("SCHEME_CACHE_DECIMAL_PRECISION");
                             if (!str.empty()) cache_fraction = std::strtol(str.c_str(), nullptr, 10);
                             if (!tStr.empty()) thread_count = std::strtol(tStr.c_str(), nullptr, 10);
+                            if (!pStr.empty()) precision = std::strtol(pStr.c_str(), nullptr, 10);
                         } catch (const std::exception&) { }
                         if (cache_fraction < 0) cache_fraction = default_cache_size;
                         if (thread_count < 0) thread_count = std::thread::hardware_concurrency();
+                        if (precision < 0) precision = 16;
                         const auto estimated_capacity = (1 + cache_fraction) * cache_fraction / 2;
                         std::atomic_int offset = 0;
                         local_color_cache.reserve(estimated_capacity);
@@ -405,7 +419,7 @@ namespace sim
                                     const auto ratio = static_cast<double>(j) / static_cast<double>(i);
                                     const auto key = ratio * Span + Begin;
                                     flag_->key = key;
-                                    flag_->pack = simulation_rainbow_(key);
+                                    flag_->pack = simulation_rainbow_(key, static_cast<int>(precision));
                                     flag_->flag = 1;
                                     ccdb::utils::set_progress_bar(ccdb::utils::SET_PROGRESS,
                                         static_cast<int>(std::round(static_cast<double>(offset++) / static_cast<double>(estimated_capacity) * 100)));
