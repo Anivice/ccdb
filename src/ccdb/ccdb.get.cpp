@@ -423,6 +423,15 @@ void ccdb::ccdb::get_latencyHistory(std::vector<std::string> command_vector)
                         latency_history_vec.emplace_back(get_time(time), delay);
                     }
 
+                    for (auto it = latency_history_vec.begin(); it != latency_history_vec.end();)
+                    {
+                        if (it->second == 0) {
+                            latency_history_vec.erase(it);
+                        } else {
+                            ++it;
+                        }
+                    }
+
                     const auto typical = iqr_filtered_latency(latency_history_vec);
                     const auto avg = iqr_filtered_latency(latency_history_vec, false);
                     utils::print("  ", color::color(2,4,5), "IQR", color::no_color(),
