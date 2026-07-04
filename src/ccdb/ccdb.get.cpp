@@ -432,8 +432,8 @@ void ccdb::ccdb::get_latencyHistory(std::vector<std::string> command_vector)
                         }
                     }
 
-                    const auto typical = iqr_filtered_latency(latency_history_vec);
-                    const auto avg = iqr_filtered_latency(latency_history_vec, false);
+                    const auto typical = latency_history_vec.empty() ? UINT64_MAX : iqr_filtered_latency(latency_history_vec);
+                    const auto avg = latency_history_vec.empty() ? UINT64_MAX : iqr_filtered_latency(latency_history_vec, false);
                     utils::print("  ", color::color(2,4,5), "IQR", color::no_color(),
                         ": typical=", color_coding(typical), typical, color::no_color(),
                         ", avg=", color_coding(avg), avg, color::no_color(), "\n");
