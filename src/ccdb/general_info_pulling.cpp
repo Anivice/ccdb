@@ -39,7 +39,7 @@ void general_info_pulling::update_from_traffic(const std::string& info)
         current_upload_speed = static_cast<uint64_t>(data["up"]);
         current_download_speed = static_cast<uint64_t>(data["down"]);
     } catch (std::exception &) {
-        force_quit = true;
+        // force_quit = true;
     }
 }
 
@@ -114,7 +114,7 @@ void general_info_pulling::update_from_connections(const std::string& info)
 
         connection_map = new_connection_map; // update and discard previous
     } catch (std::exception &) {
-        force_quit = true;
+        // force_quit = true;
     }
 }
 
@@ -188,7 +188,7 @@ void general_info_pulling::update_from_logs(const std::string& info)
         line.emplace_back(hash_checksum);
         logs.emplace_back(line);
     } catch (const std::exception &) {
-        force_quit = true;
+        // force_quit = true;
     }
 }
 
@@ -221,17 +221,20 @@ void general_info_pulling::pull_continuous_updates()
         {
             ccdb::utils::set_thread_name("/traffic");
             if (force_quit) return;
-            try
+            while (*_traffic_running && !force_quit)
             {
-                backend_client.get_stream_info("traffic",
-                    _traffic_running,
-                    this,
-                    &general_info_pulling::update_from_traffic);
-            }
-            catch (std::exception &)
-            {
-                // ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
-                force_quit = true;
+                try
+                {
+                    backend_client.get_stream_info("traffic",
+                        _traffic_running,
+                        this,
+                        &general_info_pulling::update_from_traffic);
+                }
+                catch (std::exception &)
+                {
+                    // ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
+                    // force_quit = true;
+                }
             }
         };
         std::atomic_bool * ptr = traffic_running.get();
@@ -257,7 +260,7 @@ void general_info_pulling::pull_continuous_updates()
                 catch (std::exception &)
                 {
                     // ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
-                    force_quit = true;
+                    // force_quit = true;
                 }
             }
         };
@@ -276,49 +279,51 @@ void general_info_pulling::pull_continuous_updates()
 #ifdef __DEBUG__
             std::thread T0;
 #endif
-            if (force_quit) return;
-            try
+            while (*_log_running && !force_quit)
             {
-#if defined(__DEBUG__) // && defined(__WITH_LOG_NOISE__)
-                T0 = std::thread([&]
+                try
                 {
-                    ccdb::utils::set_thread_name("/logs:noise");
-                    std::random_device dev;
-                    std::mt19937 rng(dev());
-                    constexpr int seeding = 1000;
-                    std::uniform_int_distribution<std::mt19937::result_type> dist6(1, seeding);
-
-                    while (*_log_running)
+#if defined(__DEBUG__) // && defined(__WITH_LOG_NOISE__)
+                    T0 = std::thread([&]
                     {
-                        if (dist6(rng) < seeding / 3)
+                        ccdb::utils::set_thread_name("/logs:noise");
+                        std::random_device dev;
+                        std::mt19937 rng(dev());
+                        constexpr int seeding = 1000;
+                        std::uniform_int_distribution<std::mt19937::result_type> dist6(1, seeding);
+
+                        while (*_log_running)
                         {
-                            if (dist6(rng) < seeding / 4)
+                            if (dist6(rng) < seeding / 3)
                             {
-                                if (dist6(rng) < seeding / 2) {
-                                    update_from_logs(R"({"type":"debug","payload":"[TCP] [REDACTED]:[REDACTED]([REDACTED], uid=[REDACTED]) --\u003e [REDACTED]:[REDACTED] match [REDACTED] using [REDACTED]"})");
+                                if (dist6(rng) < seeding / 4)
+                                {
+                                    if (dist6(rng) < seeding / 2) {
+                                        update_from_logs(R"({"type":"debug","payload":"[TCP] [REDACTED]:[REDACTED]([REDACTED], uid=[REDACTED]) --\u003e [REDACTED]:[REDACTED] match [REDACTED] using [REDACTED]"})");
+                                    } else {
+                                        update_from_logs(R"({"type":"error","payload":"[TCP] [REDACTED]:[REDACTED]([REDACTED], uid=[REDACTED]) --\u003e [REDACTED]:[REDACTED] match [REDACTED] using [REDACTED]"})");
+                                    }
                                 } else {
-                                    update_from_logs(R"({"type":"error","payload":"[TCP] [REDACTED]:[REDACTED]([REDACTED], uid=[REDACTED]) --\u003e [REDACTED]:[REDACTED] match [REDACTED] using [REDACTED]"})");
+                                    update_from_logs(R"({"type":"warning","payload":"[TCP] [REDACTED]:[REDACTED]([REDACTED], uid=[REDACTED]) --\u003e [REDACTED]:[REDACTED] match [REDACTED] using [REDACTED]"})");
                                 }
                             } else {
-                                update_from_logs(R"({"type":"warning","payload":"[TCP] [REDACTED]:[REDACTED]([REDACTED], uid=[REDACTED]) --\u003e [REDACTED]:[REDACTED] match [REDACTED] using [REDACTED]"})");
+                                update_from_logs(R"({"type":"info","payload":"[TCP] [REDACTED]:[REDACTED]([REDACTED], uid=[REDACTED]) --\u003e [REDACTED]:[REDACTED] match [REDACTED] using [REDACTED]"})");
                             }
-                        } else {
-                            update_from_logs(R"({"type":"info","payload":"[TCP] [REDACTED]:[REDACTED]([REDACTED], uid=[REDACTED]) --\u003e [REDACTED]:[REDACTED] match [REDACTED] using [REDACTED]"})");
-                        }
 
-                        std::this_thread::sleep_for(std::chrono::milliseconds(500l));
-                    }
-                });
+                            std::this_thread::sleep_for(std::chrono::milliseconds(500l));
+                        }
+                    });
 #endif //__DEBUG__
-                backend_client.get_stream_info("logs",
-                    _log_running,
-                    this,
-                    &general_info_pulling::update_from_logs);
-            }
-            catch (std::exception &)
-            {
-                // ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
-                force_quit = true;
+                    backend_client.get_stream_info("logs",
+                        _log_running,
+                        this,
+                        &general_info_pulling::update_from_logs);
+                }
+                catch (std::exception &)
+                {
+                    // ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
+                    // force_quit = true;
+                }
             }
 
 #ifdef __DEBUG__
@@ -388,7 +393,7 @@ void general_info_pulling::start_continuous_updates()
             // ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
         }
     });
-    std::this_thread::sleep_for(std::chrono::milliseconds(100l));
+    // std::this_thread::sleep_for(std::chrono::milliseconds(100l));
 }
 
 void general_info_pulling::update_proxy_list()
