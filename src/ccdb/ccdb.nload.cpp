@@ -114,7 +114,8 @@ void ccdb::ccdb::nload(
         return static_cast<double>(sum) / static_cast<double>(list.size());
     };
 
-    std::atomic_int info_space_size = 20;
+    std::atomic_int info_space_size = -1;
+    std::atomic_bool info_space_size_require_reset_on_next_frame = false;
     auto print_win = [&max_in_vec,
         &min_in_vec,
         &avg_in_vec,
@@ -122,7 +123,8 @@ void ccdb::ccdb::nload(
         &col,
         &color_cache,
         &color_scheme_rainbow_flow,
-        &last_refresh_time]
+        &last_refresh_time,
+        &info_space_size_require_reset_on_next_frame]
     (
         const std::atomic<uint64_t> * speed,
         const std::atomic<uint64_t> * total,
@@ -175,13 +177,13 @@ void ccdb::ccdb::nload(
             }
 
             metric_inf_list.emplace_back(color_line + ((i & 0x01) ?
-                " -" : value_to_speed(current_value_)));
+                " -" : " " + value_to_speed(current_value_)));
         }
 
         int max_in_inf_list = 0;
         std::ranges::for_each(metric_inf_list, [&](const auto & i)
         {
-            const auto len = UnicodeDisplayWidth::get_width_utf8(i);
+            const auto len = UnicodeDisplayWidth::get_width_utf8(strip_color(i));
             if (max_in_inf_list < len) {
                 max_in_inf_list = len;
             }
@@ -189,7 +191,7 @@ void ccdb::ccdb::nload(
 
         std::ranges::for_each(metric_inf_list, [&](auto & i)
         {
-            const auto len = UnicodeDisplayWidth::get_width_utf8(i);
+            const auto len = UnicodeDisplayWidth::get_width_utf8(strip_color(i));
             i = i + std::string(max_in_inf_list - len, ' ');
         });
 
@@ -202,25 +204,32 @@ void ccdb::ccdb::nload(
         info_list.push_back(metric_inf_list[offset+3] + sprint("  Avg (P/O): ") + generate_padding(avg_speed_on_page_str) + " / " + avg_speed_overall_str);
         info_list.push_back(metric_inf_list[offset+4] + sprint("    Ttl (O): ") + value_to_size(*total));
 
+        std::ranges::reverse(info_list);
+        for (int i = pre_info_list_size; i > 0; --i) {
+            info_list.emplace_back(metric_inf_list[i]);
+        }
+        std::ranges::reverse(info_list);
+
         std::vector<uint64_t> size_list;
         for (const auto & str : info_list) {
-            size_list.push_back(UnicodeDisplayWidth::get_width_utf8(str));
+            size_list.push_back(UnicodeDisplayWidth::get_width_utf8(strip_color(str)));
         }
 
-        info_space_size = std::max(static_cast<int>(max_in_vec(size_list)), info_space_size.load());
+        const auto new_max_size = static_cast<int>(max_in_vec(size_list));
         if (col < info_space_size) {
             frame << color::color(0,0,0,5,0,0) << sprint("TOO SMALL") << std::endl;
             return;
         }
 
-        std::ranges::reverse(info_list);
-        for (int i = pre_info_list_size; i > 0; --i) {
-            const std::string & metric_val_inf = metric_inf_list[i];
-            const auto len_ = (info_space_size - UnicodeDisplayWidth::get_width_utf8(metric_val_inf));
-            const auto padding_1 = (len_ > 0 ? std::string(len_, ' ') : "");
-            info_list.emplace_back(metric_val_inf + padding_1);
+        if ((info_space_size_require_reset_on_next_frame
+            && info_space_size > new_max_size
+            && new_max_size - info_space_size > 2)
+            || info_space_size < new_max_size)
+        {
+            info_space_size = new_max_size;
         }
-        std::ranges::reverse(info_list);
+
+        info_space_size_require_reset_on_next_frame = false;
 
         uint64_t * context = nullptr;
         const int start = col - info_space_size - static_cast<int>(metric_list.size());
@@ -301,7 +310,9 @@ void ccdb::ccdb::nload(
             {
                 frame << info_col_color_codes;
                 const auto index = info_list.size() - current_height_on_screen;
-                frame << info_list[index] << std::string(info_space_size - UnicodeDisplayWidth::get_width_utf8(info_list[index]), ' ');
+                const auto padding_space = info_space_size - UnicodeDisplayWidth::get_width_utf8(strip_color(info_list[index]));
+                info_space_size_require_reset_on_next_frame = info_space_size_require_reset_on_next_frame || padding_space == 0;
+                frame << info_list[index] << std::string(padding_space, ' ');
             }
 
             frame << std::endl;
