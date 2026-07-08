@@ -51,6 +51,7 @@ CCDB depends on the following open-source libraries:
  - [OpenSSL 3.6.2](https://github.com/openssl/openssl) (Embedded)
  - [GNU Tar 1.35](https://www.gnu.org/software/tar) (Embedded)
  - [XXD, from VIM](https://github.com/vim/vim/) (Not embedded, required by the build system)
+ - [libpsl, 0.22.0](https://github.com/rockdaboot/libpsl/) (Embedded)
  - zlib 1.3.2 (Embedded)
  - libpng 1.6.58 (Embedded)
  - [stb_image - v2.30 - public domain image loader](http://nothings.org/stb)
