@@ -102,14 +102,15 @@ target_link_libraries(openssl::openssl INTERFACE
 # libpsl
 
 set(LIBPSL_MAKE_ENTIRE "${MAKE_EXECUTABLE} ${LIBPSL_MAKE_ADDITIONAL_FLAGS}")
+set(PSL_SRC_DEST ${CMAKE_CURRENT_BINARY_DIR}/libpsl/src)
 message(STATUS "LIBPSL: ${LIBPSL_MAKE_ENTIRE}")
 ExternalProject_Add(LIBPSL
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/libpsl
-        SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/libpsl-0.22.0
+	SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/libpsl-0.22.0
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/libpsl/install
-        CONFIGURE_COMMAND   <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> ${LIBPSL_CONFIGURE_ADDITIONAL_FLAGS}
-	BUILD_COMMAND       /bin/sh -c "${LIBPSL_MAKE_ENTIRE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\""
-        INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${LIBPSL_MAKE_INSTALL_ADDITIONAL_FLAGS}
+	CONFIGURE_COMMAND   /bin/sh -c "cp -r <SOURCE_DIR>/* ${PSL_SRC_DEST} && cd ${PSL_SRC_DEST} && autoreconf -f && ${PSL_SRC_DEST}/configure --prefix=<INSTALL_DIR> ${LIBPSL_CONFIGURE_ADDITIONAL_FLAGS}"
+	BUILD_COMMAND       /bin/sh -c "cd ${PSL_SRC_DEST} && ${LIBPSL_MAKE_ENTIRE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\""
+	INSTALL_COMMAND     /bin/sh -c "cd ${PSL_SRC_DEST} && ${MAKE_EXECUTABLE} install ${LIBPSL_MAKE_INSTALL_ADDITIONAL_FLAGS}"
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libpsl.a
         TEST_COMMAND        ""
         INACTIVITY_TIMEOUT  15
