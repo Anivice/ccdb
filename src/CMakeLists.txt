@@ -99,6 +99,37 @@ target_link_libraries(openssl::openssl INTERFACE
 
 #add_dependencies(openssl::openssl OPENSSL)
 
+# libpsl
+
+set(LIBPSL_MAKE_ENTIRE "${MAKE_EXECUTABLE} ${LIBPSL_MAKE_ADDITIONAL_FLAGS}")
+message(STATUS "LIBPSL: ${LIBPSL_MAKE_ENTIRE}")
+ExternalProject_Add(LIBPSL
+        PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/libpsl
+        SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/libpsl-0.22.0
+        INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/libpsl/install
+        CONFIGURE_COMMAND   <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> ${LIBPSL_CONFIGURE_ADDITIONAL_FLAGS}
+	BUILD_COMMAND       /bin/sh -c "${LIBPSL_MAKE_ENTIRE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\""
+        INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${LIBPSL_MAKE_INSTALL_ADDITIONAL_FLAGS}
+        INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libpsl.a
+        TEST_COMMAND        ""
+        INACTIVITY_TIMEOUT  15
+        CONFIGURE_HANDLED_BY_BUILD ON
+)
+
+ExternalProject_Get_Property(LIBPSL INSTALL_DIR)
+set(LIBPSL_INCLUDE_DIR "${INSTALL_DIR}/include")
+set(LIBPSL_LIB_DIR     "${INSTALL_DIR}/lib")
+file(MAKE_DIRECTORY "${LIBPSL_INCLUDE_DIR}" "${LIBPSL_LIB_DIR}")
+
+# Export to CMake
+add_library(libpsl::libpsl STATIC IMPORTED GLOBAL)
+set_target_properties(libpsl::libpsl PROPERTIES
+        IMPORTED_LOCATION             "${LIBPSL_LIB_DIR}/libpsl.a"
+        INTERFACE_INCLUDE_DIRECTORIES "${LIBPSL_INCLUDE_DIR}"
+)
+
+include_directories("${LIBPSL_INCLUDE_DIR}")
+
 # Ncurses
 
 set(NCURSES_MAKE_ENTIRE "${MAKE_EXECUTABLE} ${NCURSES_MAKE_ADDITIONAL_FLAGS}")
@@ -313,6 +344,7 @@ add_executable(ccdb
         misc/execute.cpp
         misc/config.cpp                 include/config.h
         misc/args.cpp                   include/args.h
+        misc/sort.cpp
 
         include/print.h
 
@@ -336,7 +368,7 @@ target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAK
 target_compile_definitions(ccdb PRIVATE CCDB_VERSION="${CCDB_VERSION}" CPPHTTPLIB_OPENSSL_SUPPORT)
 target_link_libraries(ccdb PRIVATE
         AddiHelp langJSON commandReadline LICENSE Zterminfotar tar.exe ccdbrc
-        openssl::openssl)
+        openssl::openssl libpsl::libpsl)
 add_dependencies(ccdb OPENSSL compress)
 target_compile_options(ccdb PRIVATE -fno-omit-frame-pointer -g3 -gdwarf-4 -fstack-protector-all)
 

@@ -249,6 +249,16 @@ namespace ccdb::utils
     void printImg();
 #endif
 
+    // Comparator semantics:
+    //
+    // 1. If both strings match the requested URL-like shape,
+    //    compare by suffix first, then prefix.
+    // 2. If exactly one matches, matching strings sort before non-matching strings.
+    // 3. If neither matches, fall back to plain lexical string comparison.
+    //
+    // This produces a deterministic strict weak ordering suitable for std::sort.
+    bool sort_url_if_fit(const std::string& a, const std::string& b);
+
     /// Parse URL
     /// @param url URL
     /// @param scheme Return value, either http/https

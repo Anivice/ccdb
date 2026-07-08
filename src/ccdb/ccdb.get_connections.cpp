@@ -29,6 +29,33 @@
 
 // --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;
+#define pad_string(NAME)                                                                        \
+static void pad_##NAME(std::vector < general_info_pulling::connection_t > & conns)              \
+{                                                                                               \
+    int max = -1;                                                                               \
+    std::ranges::for_each(conns, [&](const general_info_pulling::connection_t & t)              \
+    {                                                                                           \
+        if (const auto pos = t.NAME.find_last_of(':'); pos != std::string::npos)                \
+        {                                                                                       \
+            if (const auto len = t.NAME.size() - pos; len > 0) {                                \
+                if (max < static_cast<int>(len)) max = len;                                     \
+            }                                                                                   \
+        }                                                                                       \
+    });                                                                                         \
+                                                                                                \
+    std::ranges::for_each(conns, [&max](general_info_pulling::connection_t & t)                 \
+    {                                                                                           \
+        if (const auto pos = t.NAME.find_last_of(':'); pos != std::string::npos)                \
+        {                                                                                       \
+            if (const auto len = t.NAME.size() - pos; len > 0) {                                \
+                t.NAME += std::string(((max - len) > 0) ? (max - len) : 0, ' ');                \
+            }                                                                                   \
+        }                                                                                       \
+    });                                                                                         \
+}
+
+pad_string(host)
+pad_string(src)
 
 void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 {
@@ -164,7 +191,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                               switch (sort_by_final)
                               {
                                   case 0:
-                                      return a.host > b.host;
+                                      return sort_url_if_fit(a.host, b.host);
                                   case 1:
                                       return a.processName > b.processName;
                                   case 2:
@@ -192,6 +219,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                                       return (a.downloadSpeed + a.uploadSpeed) > (b.downloadSpeed + b.uploadSpeed);
                                   }
                               });
+        pad_host(connections);
+        pad_src(connections);
         if (sort_reverse) std::ranges::reverse(connections);
         for (const auto & connection : connections)
         {
@@ -576,8 +605,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     search_content,
                     // hard coded alignment justification: 0 left, 1: right, 2 center
                     {
-                        0 /* host */, 2 /* process */, 1 /* DL */, 1 /* UP */, 1 /* DL Speed */, 1 /* UP Speed */,
-                        0 /* Rules */, 1 /* Time */, 1 /* Src IP */, 1 /* Dest IP */, 2 /* Type */, 0 /* Chains */
+                        1 /* host */, 2 /* process */, 1 /* DL */, 1 /* UP */, 1 /* DL Speed */, 1 /* UP Speed */,
+                        0 /* Rules */, 1 /* Time */, 1 /* Src IP */, 0 /* Dest IP */, 2 /* Type */, 0 /* Chains */
                     },
                     dry_run);
             };

@@ -39,6 +39,7 @@
 #include <cstdlib>
 #include <sys/syscall.h>
 #include <stdexcept>
+#include <tuple>
 #include "lzw6.h"
 #include "json.hpp"
 #include "lang.json.h"
@@ -50,6 +51,7 @@
 #include "readline/history.h"
 #include "tar.h"
 #include "utils.h"
+#include "sort.h"
 
 #ifndef __NR_memfd_create
 # if defined(__x86_64__)
@@ -113,6 +115,10 @@ namespace ccdb
         cache.emplace_cache(h, result);
         return result;
     }
+}
+
+bool ccdb::utils::sort_url_if_fit(const std::string& a, const std::string& b)  {
+    return url_sort::sort_url_if_fit(a, b);
 }
 
 bool ccdb::utils::parse_url(const std::string& url, std::string& scheme, std::string& host, std::string& path)
