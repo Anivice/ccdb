@@ -418,9 +418,11 @@ static std::optional<std::string> registrable_domain_from_psl(std::string_view h
         return std::nullopt;
     }
 
-    // ASCII/punycode path. For full UTF-8 IDN support, normalize first with
-    // psl_str_to_utf8lower().
     std::string host_copy(host);
+    if (const auto normalized_host = normalize_host_with_libpsl(host); normalized_host) {
+        host_copy = *normalized_host;
+    }
+
     const char* reg = psl_registrable_domain(psl, host_copy.c_str());
     if (reg == nullptr) {
         return std::nullopt;
