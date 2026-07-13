@@ -56,6 +56,7 @@
         sort_by             (Sorting column),
         < latencyHistory    (Backend latency history): [ENDPOINTS...] >,
         loglevel            (Backend log level),
+        rules               (Backend rule list),
     >,
     < set (Set parameters): < mode          (Proxy mode):           global (Global mode), rule (Rule mode), direct (Direct mode) >,
                           # < group         (Switch proxy group):   [GROUP] (Group name), [PROXY] (Proxy endpoint name) >,

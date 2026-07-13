@@ -370,7 +370,7 @@ target_compile_definitions(ccdb PRIVATE CCDB_VERSION="${CCDB_VERSION}" CPPHTTPLI
 target_link_libraries(ccdb PRIVATE
         AddiHelp langJSON commandReadline LICENSE Zterminfotar tar.exe ccdbrc
         openssl::openssl libpsl::libpsl)
-add_dependencies(ccdb OPENSSL compress)
+add_dependencies(ccdb OPENSSL compress LIBPSL)
 target_compile_options(ccdb PRIVATE -fno-omit-frame-pointer -g3 -gdwarf-4 -fstack-protector-all)
 
 find_program(GIT_EXEC NAMES git REQUIRED)

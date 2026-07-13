@@ -272,6 +272,36 @@ void ccdb::ccdb::get_proxy()
     simple_print_table_w_pager(table_titles, table_vals);
 }
 
+void ccdb::ccdb::get_rules()
+{
+    const auto json = backend_instance.get_rules();
+    try
+    {
+        const auto data = json::parse(json);
+        const std::vector<std::string> table_titles = {
+            sprint("Type"), sprint("Payload"), sprint("Proxy")
+        };
+
+        std::vector<std::vector<std::string>> table_vals;
+        std::ranges::for_each(data, [&table_vals](const auto & entry)
+        {
+            for (const auto & rule : entry)
+            {
+                const auto type = std::string(rule["type"]);
+                const auto payload = std::string(rule["payload"]);
+                const auto proxy = std::string(rule["proxy"]);
+                table_vals.emplace_back(std::vector{type, payload, proxy});
+            }
+        });
+
+        simple_print_table_w_pager(table_titles, table_vals);
+    }
+    catch (const std::exception & e)
+    {
+        print<is_error>("Failed to get rules: ", e.what(), "\n");
+    }
+}
+
 /**
  * Compute the median of a sorted sub‑range of integers.
  * Returns a double to avoid unwanted integer truncation.

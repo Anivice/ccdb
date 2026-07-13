@@ -1033,5 +1033,25 @@
     "en"    : " thread(s)...\n",
     "en_US" : " thread(s)...\n",
     "zh_CN" : "个线程生成。\n"
+  },
+  {
+    "en"    : "Failed to get rules: ",
+    "en_US" : "Failed to get rules: ",
+    "zh_CN" : "无法获取分流信息: "
+  },
+  {
+    "en"    : "Type",
+    "en_US" : "Type",
+    "zh_CN" : "类型"
+  },
+  {
+    "en"    : "Payload",
+    "en_US" : "Payload",
+    "zh_CN" : "配置"
+  },
+  {
+    "en"    : "Proxy",
+    "en_US" : "Proxy",
+    "zh_CN" : "分流节点"
   }
 ]

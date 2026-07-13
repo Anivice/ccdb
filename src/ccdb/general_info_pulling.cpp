@@ -584,3 +584,10 @@ std::string general_info_pulling::get_proxy_metadata(const std::string& proxy_na
         return { };
     }
 }
+
+std::string general_info_pulling::get_rules() const
+{
+    std::string ret;
+    backend_client.get_info_no_instance("rules", [&](const std::string & r){ ret = r; });
+    return ret;
+}
