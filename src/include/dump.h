@@ -89,8 +89,23 @@ constexpr bool contains_duplicates(
 	return false;
 }
 
+#if ((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
+template <typename T1, typename  T2>
+using PairType = std::pair <T1, T2>;
+#else
+template <typename T1, typename T2>
+struct PairType_
+{
+	T1 first;
+	T2 second;
+};
+
+template <typename T1, typename  T2>
+using PairType = PairType_ <T1, T2>;
+#endif
+
 [[nodiscard]]
-static constexpr std::pair<int, int> find_encoding_block(
+static constexpr PairType<int, int> find_encoding_block(
 	const std::uint64_t alphabet_size,
 	const long double minimum_efficiency = 0.95L,
 	const std::size_t maximum_bytes = 4096)
