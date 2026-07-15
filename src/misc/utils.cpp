@@ -52,6 +52,7 @@
 #include "tar.h"
 #include "utils.h"
 #include "sort.h"
+#include "dump.h"
 
 #ifndef __NR_memfd_create
 # if defined(__x86_64__)
@@ -1359,4 +1360,80 @@ std::string ccdb::utils::backtracer()
 #else
     return { };
 #endif
+}
+
+static void encode_dump94(input_stream_t & in, output_stream_t & out)
+{
+    using namespace ccdb::utils;
+	try {
+		std::stringstream oss;
+		out << dump_start_signature << std::endl;
+		out << header << encode<CharacterDictionary.size()>(in, oss, CharacterDictionary) << std::endl;
+		const auto line_size = std::strlen(dump_start_signature);
+		std::vector < char > buff(line_size, 0);
+		while (oss)
+		{
+			oss.read(buff.data(), line_size);
+			const std::streamsize bytes_read = oss.gcount();
+			if (bytes_read <= 0) break;
+			out.write(buff.data(), bytes_read);
+			out << std::endl;
+		}
+		out << dump_end_signature << std::endl;
+	} catch (std::exception & e) {
+		throw std::runtime_error(e.what());
+	}
+}
+
+static void decode_dump94(input_stream_t & in, output_stream_t & out)
+{
+    using namespace ccdb::utils;
+	std::stringstream iss;
+	std::string line;
+	while (std::getline(in, line)) {
+		while (!line.empty() && (line.front() <= 20 || line.front() >= 0x7F)) line.erase(line.begin());
+		while (!line.empty() && (line.back() <= 20 || line.back() >= 0x7F)) line.pop_back();
+		if (line == dump_start_signature) break;
+	}
+
+	uint64_t size = 0;
+	bool first_line = true;
+	while (std::getline(in, line))
+	{
+		while (!line.empty() && (line.front() <= 20 || line.front() >= 0x7F)) line.erase(line.begin());
+		while (!line.empty() && (line.back() <= 20 || line.back() >= 0x7F)) line.pop_back();
+		if (line == dump_end_signature) break;
+		if (first_line)
+		{
+			first_line = false;
+			if (line.size() <= std::strlen(header) || line.substr(0, std::strlen(header)) != header) {
+				throw std::runtime_error("Invalid encoded data format: missing size header");
+			}
+
+			line = line.substr(std::strlen(header));
+			size = std::strtoull(line.c_str(), nullptr, 10);
+			continue;
+		}
+
+		iss << line;
+	}
+
+	decode<CharacterDictionary.size()>(iss, out, CharacterDictionary, size);
+}
+
+void ccdb::utils::exportBinary(const std::vector<uint8_t>& data, std::basic_ostream<char>& out)
+{
+    const std::string binaryStream { reinterpret_cast<const char*>(data.data()),
+        reinterpret_cast<const char*>(data.data()) + data.size() };
+    std::istringstream iss { binaryStream };
+    encode_dump94(iss, out);
+}
+
+std::vector<uint8_t> ccdb::utils::importBinary(std::basic_istream<char>& in)
+{
+    std::ostringstream oss;
+    decode_dump94(in, oss);
+    const auto & data = oss.str();
+    return { reinterpret_cast<const uint8_t*>(data.data()),
+        reinterpret_cast<const uint8_t*>(data.data()) + data.size() };
 }

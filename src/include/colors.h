@@ -24,6 +24,7 @@
 
 #include <string>
 #include <atomic>
+#include <vector>
 
 /// ANSI color codes
 namespace ccdb::color
@@ -109,6 +110,11 @@ namespace sim
     NumPack_t simulation_rainbow(Num x);
     const extern Num Begin;
     const extern Num Span;
+}
+
+namespace ccdb::color {
+    using ColorSchemeCacheType = std::vector < std::pair < sim::Num, sim::NumPack_t > >;
+    extern ColorSchemeCacheType local_color_cache;
 }
 
 #endif //CFS_COLORS_H

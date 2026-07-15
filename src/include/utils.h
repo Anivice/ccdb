@@ -546,6 +546,22 @@ class cache_w_freq_table_t
     enum progress_bar_state_t : int { CLEAR_PROGRESS_BAR = 0, SET_PROGRESS = 1,
         /* unused */ ERROR_STATE = 2, UNDEFINED_BEHAVIOR = 3, WARNING_OR_PAUSED = 4 };
     void set_progress_bar(progress_bar_state_t, int percentages /* 0 - 100 */);
+    void exportBinary(const std::vector<uint8_t> &, std::basic_ostream<char> &);
+    std::vector<uint8_t> importBinary(std::basic_istream<char> &);
+    constexpr char dump_start_signature[] = "----------------- START OF THE DATA STRUCTURE -----------------";
+    constexpr char dump_end_signature[] =   "------------------ END OF THE DATA STRUCTURE ------------------";
+
+    constexpr std::array CharacterDictionary
+    {
+        'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h',
+        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
+        '0', '1', '2', '3', '4', '6', '7', '8', '9', 'Z', '5', 'Q', 'R', 'S', 'T', 'U',
+        'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'V', 'W', 'X', 'Y',
+        '~', '`', '!', '@', '#', '$', '%', '^',  '*', '(', ')', '-', '_', '=', '+',
+        '[', '{', ']', '}', '\\', '|', ';', ':', ',','<', '.', '>', '/', '?', '"', '\'', '&',
+    };
+
+    constexpr char header[] = "DATA SET SIZE: ";
 }
 
 /// Automatic unpack from xxd with xxd naming convention

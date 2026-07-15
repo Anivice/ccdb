@@ -36,9 +36,13 @@
 std::atomic_int ccdb::color::g_color_status_override = -1;
 sim::color_scheme_t sim::color_scheme = RAINBOW_DISTINCT;
 std::string sim::customized_color_command_calc;
+namespace ccdb::color {
+    ColorSchemeCacheType local_color_cache;
+}
 
 namespace sim
 {
+    using namespace ccdb;
     constexpr Num high_point = static_cast<Num>(255) / 2;
     constexpr Num Length = 1;
 
@@ -247,298 +251,329 @@ namespace sim
                         return { R, G, B };
                     }
                 }
-            case CUSTOMIZED:
+        case CUSTOMIZED:
+            {
+                static ccdb::utils::cache_w_freq_table_t<Num, NumPack_t> local_color_cache;
+                if (const auto it = local_color_cache.get_cache(x); it != nullptr) {
+                    return *it;
+                }
+
+                static std::atomic<Num> range = -1;
+                static std::atomic<Num> begin = -1;
+                while (range < 0)
                 {
-                    static ccdb::utils::cache_w_freq_table_t<Num, NumPack_t> local_color_cache;
-                    if (const auto it = local_color_cache.get_cache(x); it != nullptr) {
-                        return *it;
-                    }
-
-                    static std::atomic<Num> range = -1;
-                    static std::atomic<Num> begin = -1;
-                    while (range < 0)
-                    {
-                        const auto status = ::ccdb::utils::exec_command2(
-                            customized_color_command_calc,
-                            "", R"({ "offset": -1, "precision": 0 })");
-                        if (status.exit_status == 0) {
-                            const auto json = json::parse(status.fd_stdout);
-                            const auto End_ = static_cast<Num>(json["End"]);
-                            const auto Begin_ = static_cast<Num>(json["Begin"]);
-                            begin = Begin_;
-                            range = End_ - Begin_;
-                        }
-                    }
-
-                    // normalize
-                    const auto renormalized = (x - Begin) / Span * range + begin;
-                    std::stringstream rn_ss; rn_ss << std::fixed << std::setprecision(precision) << renormalized;
-                    const auto str = rn_ss.str();
-                    ccdb::utils::cmd_status status;
-                    while (true)
-                    {
-                        status = ::ccdb::utils::exec_command2(customized_color_command_calc,
-                               "", R"({ "offset": )" + str + R"(, "precision": )" + std::to_string(precision) + " }");
-                        if (status.exit_status == 0) break;
-                    }
-
-                    try
-                    {
+                    const auto status = ::ccdb::utils::exec_command2(
+                        customized_color_command_calc,
+                        "", R"({ "offset": -1, "precision": 0 })");
+                    if (status.exit_status == 0) {
                         const auto json = json::parse(status.fd_stdout);
-                        const NumPack_t ret {
-                            static_cast<Num>(json["R"]),
-                            static_cast<Num>(json["G"]),
-                            static_cast<Num>(json["B"])
-                        };
-                        local_color_cache.emplace_cache(x, ret);
-                        return ret;
-                    } catch (const std::exception&) {
-                        return { .R = sim_red_curve(x), .G = sim_green_curve(x), .B = sim_blue_curve(x) };
+                        const auto End_ = static_cast<Num>(json["End"]);
+                        const auto Begin_ = static_cast<Num>(json["Begin"]);
+                        begin = Begin_;
+                        range = End_ - Begin_;
                     }
                 }
+
+                // normalize
+                const auto renormalized = (x - Begin) / Span * range + begin;
+                std::stringstream rn_ss; rn_ss << std::fixed << std::setprecision(precision) << renormalized;
+                const auto str = rn_ss.str();
+                ccdb::utils::cmd_status status;
+                while (true)
+                {
+                    status = ::ccdb::utils::exec_command2(customized_color_command_calc,
+                           "", R"({ "offset": )" + str + R"(, "precision": )" + std::to_string(precision) + " }");
+                    if (status.exit_status == 0) break;
+                }
+
+                try
+                {
+                    const auto json = json::parse(status.fd_stdout);
+                    const NumPack_t ret {
+                        static_cast<Num>(json["R"]),
+                        static_cast<Num>(json["G"]),
+                        static_cast<Num>(json["B"])
+                    };
+                    local_color_cache.emplace_cache(x, ret);
+                    return ret;
+                } catch (const std::exception&) {
+                    return { .R = sim_red_curve(x), .G = sim_green_curve(x), .B = sim_blue_curve(x) };
+                }
+            }
         }
     }
 
     NumPack_t simulation_rainbow(const Num x)
     {
         static bool init_cache_ = false;
-        static std::vector < std::pair < Num, NumPack_t > > local_color_cache;
+        constexpr uint64_t NumSize = sizeof(Num);
+        constexpr uint64_t NumPackSize = sizeof(NumPack_t);
         if (!init_cache_)
         {
-            bool skip = false;
-            const auto color_cache = ccdb::utils::getenv("HOME") + "/.cache/ccdb/color-schemes";
-            if (std::filesystem::exists(color_cache) && !std::filesystem::is_directory(color_cache)) {
-                try
-                {
-                    std::filesystem::remove_all(color_cache);
-                }
-                catch (std::exception&)
-                {
-                    skip = true;
-                }
-            }
-
-            if (!std::filesystem::exists(color_cache)) {
-                try
-                {
-                    std::filesystem::create_directories(color_cache);
-                } catch (std::exception&)
-                {
-                    skip = true;
-                }
-            }
-
-            if (!skip && color_scheme == CUSTOMIZED)
+            if (customized_color_command_calc.find(utils::dump_start_signature) == std::string::npos)
             {
-                std::string scheme_hash;
-                if (const int fd = open(customized_color_command_calc.c_str(), O_RDONLY); fd > 0)
-                    scheme_hash = [&]->std::string
+                bool skip = false;
+                const auto color_cache = ccdb::utils::getenv("HOME") + "/.cache/ccdb/color-schemes";
+                if (std::filesystem::exists(color_cache) && !std::filesystem::is_directory(color_cache)) {
+                    try
                     {
-                        class fd_t_
-                        {
-                        public:
-                            int fd_;
-                            char* data_ = nullptr;
-                            uint64_t size_ = 0;
-
-                            explicit fd_t_(const int fd) : fd_(fd) {}
-                            ~fd_t_()
-                            {
-                                if (data_ != nullptr)  munmap(data_, size_);
-                                if (fd_ > 0) close(fd_);
-                            }
-                        } fd_w(fd);
-
-                        struct stat st = { };
-                        if (fstat(fd, &st) == -1) {
-                            return {};
-                        }
-
-                        fd_w.data_ = static_cast<char*>(mmap(nullptr, st.st_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0));
-                        fd_w.size_ = st.st_size;
-                        if (fd_w.data_ == MAP_FAILED) {
-                            fd_w.data_ = nullptr;
-                            return {};
-                        }
-
-                        auto str = ccdb::utils::getenv("SCHEME_CACHE_SIZE"); if (str.empty()) str = "32";
-                        auto pStr = ccdb::utils::getenv("SCHEME_CACHE_DECIMAL_PRECISION"); if (pStr.empty()) pStr = "16";
-
-                        ccdb::utils::CRC64 hash;
-                        hash.update(reinterpret_cast<const uint8_t*>(fd_w.data_), st.st_size);
-                        hash.update(reinterpret_cast<const uint8_t*>(customized_color_command_calc.data()), customized_color_command_calc.size());
-                        hash.update(reinterpret_cast<const uint8_t*>(str.data()), str.size());
-                        hash.update(reinterpret_cast<const uint8_t*>(pStr.data()), pStr.size());
-                        return hash.get_checksum_str();
-                    }();
-
-                constexpr uint64_t NumSize = sizeof(Num);
-                constexpr uint64_t NumPackSize = sizeof(NumPack_t);
-                if (!scheme_hash.empty())
-                {
-                    if (const auto cache_loc = color_cache + "/" + scheme_hash + ".vtb";
-                        !std::filesystem::exists(cache_loc))
-                    {
-                        // generate scheme cache
-                        constexpr long default_cache_size = 32;
-                        long cache_fraction = default_cache_size;
-                        long thread_count = std::thread::hardware_concurrency();
-                        long precision = 16;
-                        try {
-                            const auto str = ccdb::utils::getenv("SCHEME_CACHE_SIZE");
-                            const auto tStr = ccdb::utils::getenv("SCHEME_CACHE_THREAD_COUNT");
-                            const auto pStr = ccdb::utils::getenv("SCHEME_CACHE_DECIMAL_PRECISION");
-                            if (!str.empty()) cache_fraction = std::strtol(str.c_str(), nullptr, 10);
-                            if (!tStr.empty()) thread_count = std::strtol(tStr.c_str(), nullptr, 10);
-                            if (!pStr.empty()) precision = std::strtol(pStr.c_str(), nullptr, 10);
-                        } catch (const std::exception&) { }
-                        if (cache_fraction < 0) cache_fraction = default_cache_size;
-                        if (thread_count < 0) thread_count = std::thread::hardware_concurrency();
-                        if (precision < 0) precision = 16;
-                        const auto estimated_capacity = (1 + cache_fraction) * cache_fraction / 2;
-                        std::atomic_int offset = 0;
-                        local_color_cache.reserve(estimated_capacity);
-                        ccdb::utils::print("You have specified a customized color scheme. All "
-                            "customized color schemes require local color cache. Generating using ",
-                            thread_count,  " thread(s)...\n");
-                        struct results
-                        {
-                            std::atomic_int flag { };
-                            Num key { };
-                            NumPack_t pack { };
-                        };
-
-                        using result_box_t = std::unique_ptr<results>;
-                        std::vector <std::pair<std::thread, result_box_t>> workers;
-                        for (int i = 1; i <= cache_fraction; i++) {
-                            for (int j = 1; j < i; j++) {
-                                auto results_ = std::make_unique<results>();
-                                results * flag_ptr = results_.get();
-                                workers.emplace_back(std::thread([&](results * flag_)
-                                {
-                                    const auto ratio = static_cast<double>(j) / static_cast<double>(i);
-                                    const auto key = ratio * Span + Begin;
-                                    flag_->key = key;
-                                    flag_->pack = simulation_rainbow_(key, static_cast<int>(precision));
-                                    flag_->flag = 1;
-                                    ccdb::utils::set_progress_bar(ccdb::utils::SET_PROGRESS,
-                                        static_cast<int>(std::round(static_cast<double>(offset++) / static_cast<double>(estimated_capacity) * 100)));
-                                }, flag_ptr), std::move(results_));
-
-                                if (workers.size() > thread_count)
-                                {
-                                    std::ranges::for_each(workers, [](std::pair<std::thread, result_box_t> & T) {
-                                        if (T.first.joinable()) T.first.join();
-                                    });
-
-                                    const auto span = workers | std::views::values;
-                                    std::ranges::for_each(span, [](const result_box_t & r) {
-                                        local_color_cache.emplace_back(r->key, r->pack);
-                                    });
-                                    workers.clear();
-                                }
-                            }
-                        }
-
-                        std::ranges::for_each(workers, [](std::pair<std::thread, result_box_t> & T) {
-                            if (T.first.joinable()) T.first.join();
-                        });
-
-                        const auto span = workers | std::views::values;
-                        std::ranges::for_each(span, [](const result_box_t & r) {
-                            local_color_cache.emplace_back(r->key, r->pack);
-                        });
-                        local_color_cache.emplace_back(0 * Span + Begin, simulation_rainbow_(0 * Span + Begin));
-                        local_color_cache.emplace_back(1 * Span + Begin, simulation_rainbow_(1 * Span + Begin));
-
-                        ccdb::utils::set_progress_bar(ccdb::utils::SET_PROGRESS, 100);
-                        ccdb::utils::set_progress_bar(ccdb::utils::CLEAR_PROGRESS_BAR, 0);
-                        std::ranges::sort(local_color_cache,
-                            [](const std::pair <Num, NumPack_t> & a,
-                                const std::pair <Num, NumPack_t> & b)->bool
-                            {
-                                return a.first < b.first;
-                            });
-
-                        const auto [u_beg, u_end ] = std::ranges::unique(local_color_cache);
-                        local_color_cache.erase(u_beg, u_end);
-
-                        if (const int fd_out = open(cache_loc.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600); fd_out > 0)
-                        {
-                            const auto size = static_cast<uint64_t>(local_color_cache.size());
-
-                            write(fd_out, &NumSize, sizeof(NumSize));
-                            write(fd_out, &NumPackSize, sizeof(NumPackSize));
-
-                            write(fd_out, &size, sizeof(size));
-                            std::ranges::for_each(local_color_cache, [&fd_out](const std::pair <Num, NumPack_t> & p)
-                            {
-                                const auto & [num, pack] = p;
-                                std::vector<uint8_t> NumData(sizeof(Num) + sizeof(pack), 0);
-                                std::memcpy(NumData.data(), &num, sizeof(num));
-                                std::memcpy(NumData.data() + sizeof(num), &pack, sizeof(pack));
-                                write(fd_out, NumData.data(), NumData.size());
-                            });
-                            close(fd_out);
-                        }
+                        std::filesystem::remove_all(color_cache);
                     }
-                    else if (const int fd_in = open(cache_loc.c_str(), O_RDONLY); fd_in > 0)
-                        if ([&]->bool
-                            {
-                                class fd_t_
-                                {
-                                public:
-                                    int fd_;
+                    catch (std::exception&)
+                    {
+                        skip = true;
+                    }
+                }
 
-                                    explicit fd_t_(const int fd) : fd_(fd) {}
-                                    ~fd_t_()
-                                    {
-                                        if (fd_ > 0) close(fd_);
-                                    }
-                                } fd_w(fd_in);
+                if (!std::filesystem::exists(color_cache)) {
+                    try
+                    {
+                        std::filesystem::create_directories(color_cache);
+                    } catch (std::exception&)
+                    {
+                        skip = true;
+                    }
+                }
 
-                                uint64_t NumSizeInCache, NumPackSizeInCache, ListSizeInCache;
-                                read(fd_in, &NumSizeInCache, sizeof(NumSizeInCache));
-                                read(fd_in, &NumPackSizeInCache, sizeof(NumPackSizeInCache));
-                                if (NumSizeInCache != NumSize || NumPackSizeInCache != NumPackSize) {
-                                    std::filesystem::remove_all(cache_loc);
-                                    return true;
-                                }
-
-                                read(fd_in, &ListSizeInCache, sizeof(ListSizeInCache));
-                                local_color_cache.reserve(ListSizeInCache);
-                                for (decltype(ListSizeInCache) i = 0; i < ListSizeInCache; i++)
-                                {
-                                    Num key { };
-                                    NumPack_t val { };
-                                    std::vector<uint8_t> NumData(sizeof(Num) + sizeof(NumPack_t), 0);
-                                    read(fd_in, NumData.data(), NumData.size());
-                                    std::memcpy(&key, NumData.data(), sizeof(key));
-                                    std::memcpy(&val, NumData.data() + sizeof(key), sizeof(val));
-                                    local_color_cache.emplace_back(key, val);
-                                }
-
-                                return false;
-                            }())
+                if (!skip && color_scheme == CUSTOMIZED)
+                {
+                    std::string scheme_hash;
+                    if (const int fd = open(customized_color_command_calc.c_str(), O_RDONLY); fd > 0)
+                        scheme_hash = [&]->std::string
                         {
-                            return simulation_rainbow(x);
+                            class fd_t_
+                            {
+                            public:
+                                int fd_;
+                                char* data_ = nullptr;
+                                uint64_t size_ = 0;
+
+                                explicit fd_t_(const int fd) : fd_(fd) {}
+                                ~fd_t_()
+                                {
+                                    if (data_ != nullptr)  munmap(data_, size_);
+                                    if (fd_ > 0) close(fd_);
+                                }
+                            } fd_w(fd);
+
+                            struct stat st = { };
+                            if (fstat(fd, &st) == -1) {
+                                return {};
+                            }
+
+                            fd_w.data_ = static_cast<char*>(mmap(nullptr, st.st_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0));
+                            fd_w.size_ = st.st_size;
+                            if (fd_w.data_ == MAP_FAILED) {
+                                fd_w.data_ = nullptr;
+                                return {};
+                            }
+
+                            auto str = ccdb::utils::getenv("SCHEME_CACHE_SIZE"); if (str.empty()) str = "32";
+                            auto pStr = ccdb::utils::getenv("SCHEME_CACHE_DECIMAL_PRECISION"); if (pStr.empty()) pStr = "16";
+
+                            ccdb::utils::CRC64 hash;
+                            hash.update(reinterpret_cast<const uint8_t*>(fd_w.data_), st.st_size);
+                            hash.update(reinterpret_cast<const uint8_t*>(customized_color_command_calc.data()), customized_color_command_calc.size());
+                            hash.update(reinterpret_cast<const uint8_t*>(str.data()), str.size());
+                            hash.update(reinterpret_cast<const uint8_t*>(pStr.data()), pStr.size());
+                            return hash.get_checksum_str();
+                        }();
+
+                    if (!scheme_hash.empty())
+                    {
+                        if (const auto cache_loc = color_cache + "/" + scheme_hash + ".vtb";
+                            !std::filesystem::exists(cache_loc))
+                        {
+                            // generate scheme cache
+                            constexpr long default_cache_size = 32;
+                            long cache_fraction = default_cache_size;
+                            long thread_count = std::thread::hardware_concurrency();
+                            long precision = 16;
+                            try {
+                                const auto str = ccdb::utils::getenv("SCHEME_CACHE_SIZE");
+                                const auto tStr = ccdb::utils::getenv("SCHEME_CACHE_THREAD_COUNT");
+                                const auto pStr = ccdb::utils::getenv("SCHEME_CACHE_DECIMAL_PRECISION");
+                                if (!str.empty()) cache_fraction = std::strtol(str.c_str(), nullptr, 10);
+                                if (!tStr.empty()) thread_count = std::strtol(tStr.c_str(), nullptr, 10);
+                                if (!pStr.empty()) precision = std::strtol(pStr.c_str(), nullptr, 10);
+                            } catch (const std::exception&) { }
+                            if (cache_fraction < 0) cache_fraction = default_cache_size;
+                            if (thread_count < 0) thread_count = std::thread::hardware_concurrency();
+                            if (precision < 0) precision = 16;
+                            const auto estimated_capacity = (1 + cache_fraction) * cache_fraction / 2;
+                            std::atomic_int offset = 0;
+                            color::local_color_cache.reserve(estimated_capacity);
+                            ccdb::utils::print("You have specified a customized color scheme. All "
+                                "customized color schemes require local color cache. Generating using ",
+                                thread_count,  " thread(s)...\n");
+                            struct results
+                            {
+                                std::atomic_int flag { };
+                                Num key { };
+                                NumPack_t pack { };
+                            };
+
+                            using result_box_t = std::unique_ptr<results>;
+                            std::vector <std::pair<std::thread, result_box_t>> workers;
+                            for (int i = 1; i <= cache_fraction; i++) {
+                                for (int j = 1; j < i; j++) {
+                                    auto results_ = std::make_unique<results>();
+                                    results * flag_ptr = results_.get();
+                                    workers.emplace_back(std::thread([&](results * flag_)
+                                    {
+                                        const auto ratio = static_cast<double>(j) / static_cast<double>(i);
+                                        const auto key = ratio * Span + Begin;
+                                        flag_->key = key;
+                                        flag_->pack = simulation_rainbow_(key, static_cast<int>(precision));
+                                        flag_->flag = 1;
+                                        ccdb::utils::set_progress_bar(ccdb::utils::SET_PROGRESS,
+                                            static_cast<int>(std::round(static_cast<double>(offset++) / static_cast<double>(estimated_capacity) * 100)));
+                                    }, flag_ptr), std::move(results_));
+
+                                    if (workers.size() > thread_count)
+                                    {
+                                        std::ranges::for_each(workers, [](std::pair<std::thread, result_box_t> & T) {
+                                            if (T.first.joinable()) T.first.join();
+                                        });
+
+                                        const auto span = workers | std::views::values;
+                                        std::ranges::for_each(span, [](const result_box_t & r) {
+                                            color::local_color_cache.emplace_back(r->key, r->pack);
+                                        });
+                                        workers.clear();
+                                    }
+                                }
+                            }
+
+                            std::ranges::for_each(workers, [](std::pair<std::thread, result_box_t> & T) {
+                                if (T.first.joinable()) T.first.join();
+                            });
+
+                            const auto span = workers | std::views::values;
+                            std::ranges::for_each(span, [](const result_box_t & r) {
+                                color::local_color_cache.emplace_back(r->key, r->pack);
+                            });
+                            color::local_color_cache.emplace_back(0 * Span + Begin, simulation_rainbow_(0 * Span + Begin));
+                            color::local_color_cache.emplace_back(1 * Span + Begin, simulation_rainbow_(1 * Span + Begin));
+
+                            ccdb::utils::set_progress_bar(ccdb::utils::SET_PROGRESS, 100);
+                            ccdb::utils::set_progress_bar(ccdb::utils::CLEAR_PROGRESS_BAR, 0);
+                            std::ranges::sort(color::local_color_cache,
+                                [](const std::pair <Num, NumPack_t> & a,
+                                    const std::pair <Num, NumPack_t> & b)->bool
+                                {
+                                    return a.first < b.first;
+                                });
+
+                            const auto [u_beg, u_end ] = std::ranges::unique(color::local_color_cache);
+                            color::local_color_cache.erase(u_beg, u_end);
+
+                            if (const int fd_out = open(cache_loc.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600); fd_out > 0)
+                            {
+                                const auto size = static_cast<uint64_t>(color::local_color_cache.size());
+
+                                write(fd_out, &NumSize, sizeof(NumSize));
+                                write(fd_out, &NumPackSize, sizeof(NumPackSize));
+
+                                write(fd_out, &size, sizeof(size));
+                                std::ranges::for_each(color::local_color_cache, [&fd_out](const std::pair <Num, NumPack_t> & p)
+                                {
+                                    const auto & [num, pack] = p;
+                                    std::vector<uint8_t> NumData(sizeof(Num) + sizeof(pack), 0);
+                                    std::memcpy(NumData.data(), &num, sizeof(num));
+                                    std::memcpy(NumData.data() + sizeof(num), &pack, sizeof(pack));
+                                    write(fd_out, NumData.data(), NumData.size());
+                                });
+                                close(fd_out);
+                            }
                         }
+                        else if (const int fd_in = open(cache_loc.c_str(), O_RDONLY); fd_in > 0)
+                            if ([&]->bool
+                                {
+                                    class fd_t_
+                                    {
+                                    public:
+                                        int fd_;
+
+                                        explicit fd_t_(const int fd) : fd_(fd) {}
+                                        ~fd_t_()
+                                        {
+                                            if (fd_ > 0) close(fd_);
+                                        }
+                                    } fd_w(fd_in);
+
+                                    uint64_t NumSizeInCache, NumPackSizeInCache, ListSizeInCache;
+                                    read(fd_in, &NumSizeInCache, sizeof(NumSizeInCache));
+                                    read(fd_in, &NumPackSizeInCache, sizeof(NumPackSizeInCache));
+                                    if (NumSizeInCache != NumSize || NumPackSizeInCache != NumPackSize) {
+                                        std::filesystem::remove_all(cache_loc);
+                                        return true;
+                                    }
+
+                                    read(fd_in, &ListSizeInCache, sizeof(ListSizeInCache));
+                                    color::local_color_cache.reserve(ListSizeInCache);
+                                    for (decltype(ListSizeInCache) i = 0; i < ListSizeInCache; i++)
+                                    {
+                                        Num key { };
+                                        NumPack_t val { };
+                                        read(fd_in, &key, sizeof(key));
+                                        read(fd_in, &val, sizeof(val));
+                                        color::local_color_cache.emplace_back(key, val);
+                                    }
+
+                                    return false;
+                                }())
+                            {
+                                return simulation_rainbow(x);
+                            }
+                    }
+                }
+            }
+            else
+            {
+                std::unique_ptr < std::istringstream > oss_ptr;
+                {
+                    std::istringstream oss { customized_color_command_calc };
+                    const auto binaryCache = utils::importBinary(oss);
+                    const auto decompressedCache = utils::decompress(binaryCache);
+                    const std::string ss_str {
+                        reinterpret_cast<const char*>(decompressedCache.data()),
+                        reinterpret_cast<const char*>(decompressedCache.data() + decompressedCache.size()) };
+                    oss_ptr = std::make_unique<std::istringstream>(ss_str);
+                }
+
+                uint64_t NumSizeInCache, NumPackSizeInCache, ListSizeInCache;
+                oss_ptr->read(reinterpret_cast<char*>(&NumSizeInCache), sizeof(NumSizeInCache));
+                oss_ptr->read(reinterpret_cast<char*>(&NumPackSizeInCache), sizeof(NumPackSizeInCache));
+                if (NumSizeInCache != NumSize || NumPackSizeInCache != NumPackSize) {
+                    throw std::runtime_error(utils::sprint("Invalid color cache"));
+                }
+
+                oss_ptr->read(reinterpret_cast<char*>(&ListSizeInCache), sizeof(ListSizeInCache));
+                color::local_color_cache.reserve(ListSizeInCache);
+                for (decltype(ListSizeInCache) i = 0; i < ListSizeInCache; i++)
+                {
+                    Num key { };
+                    NumPack_t val { };
+                    oss_ptr->read(reinterpret_cast<char*>(&key), sizeof(key));
+                    oss_ptr->read(reinterpret_cast<char*>(&val), sizeof(val));
+                    color::local_color_cache.emplace_back(key, val);
                 }
             }
 
             init_cache_ = true;
         }
 
-        if (color_scheme == CUSTOMIZED && !local_color_cache.empty()) // estimate color based on the cache
+        if (color_scheme == CUSTOMIZED && !color::local_color_cache.empty()) // estimate color based on the cache
         {
             auto ratio = (x - Begin) / Span;
             if (ratio > 1.00) ratio = 1.00;
-            const auto size = static_cast<int64_t>(local_color_cache.size());
+            const auto size = static_cast<int64_t>(color::local_color_cache.size());
             const auto pointer = static_cast<int64_t>(std::round(static_cast<Num>(size) * ratio));
-            const auto & [middle, middle_pack] = pointer < size ? local_color_cache[pointer] : local_color_cache.back();
-            const auto & [left, left_pack] = pointer > 0 ? local_color_cache[pointer - 1] : local_color_cache.front();
-            const auto & [right, right_pack] = pointer < size ? local_color_cache[pointer + 1] : local_color_cache.back();
-            decltype(local_color_cache) candidates;
+            const auto & [middle, middle_pack] = pointer < size ? color::local_color_cache[pointer] : color::local_color_cache.back();
+            const auto & [left, left_pack] = pointer > 0 ? color::local_color_cache[pointer - 1] : color::local_color_cache.front();
+            const auto & [right, right_pack] = pointer < size ? color::local_color_cache[pointer + 1] : color::local_color_cache.back();
+            decltype(color::local_color_cache) candidates;
             candidates.reserve(3);
             candidates.emplace_back(std::abs(x - middle), middle_pack);
             candidates.emplace_back(std::abs(x - left), left_pack);

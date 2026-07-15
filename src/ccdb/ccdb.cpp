@@ -459,14 +459,26 @@ void ccdb::ccdb::init()
     kbd_shortcut_helper("HighlightDown", "^[[1;5B");
     alias_helper();
 
-    if (ccdb_config && sim::color_scheme == sim::CUSTOMIZED)
+    if (ccdb_config)
     {
         if (ccdb_config->config.contains("ColorScheme"))
         {
             if (const auto & map = ccdb_config->config.at("ColorScheme");
-                map.contains(sim::customized_color_command_calc))
+                map.contains(sim::customized_color_command_calc) && sim::color_scheme == sim::CUSTOMIZED)
             {
                 sim::customized_color_command_calc = map.at(sim::customized_color_command_calc);
+            }
+            else if (map.contains("DefaultColorScheme"))
+            {
+                sim::color_scheme = sim::CUSTOMIZED;
+                try {
+                    const auto name = map.at("DefaultColorScheme");
+                    sim::customized_color_command_calc = map.at(name);
+                } catch (const std::out_of_range&) {
+                    ::ccdb::utils::print<is_error>("Unknown color scheme ",
+                        map.at("DefaultColorScheme"), ", fall back to default.\n");
+                    sim::color_scheme = sim::RAINBOW_DISTINCT;
+                }
             }
             else
             {
@@ -561,6 +573,31 @@ void ccdb::ccdb::init()
             }
             else if (command_vector.front() == "mapProxyChain")  {
                 map_proxy_chain();
+            }
+            else if (command_vector.front() == "exportColorScheme") {
+                if (color::local_color_cache.empty()) sim::simulation_rainbow(sim::Begin + sim::Span / 2);
+                if (!color::local_color_cache.empty())
+                {
+                    const auto size = static_cast<uint64_t>(color::local_color_cache.size());
+                    constexpr uint64_t NumSize = sizeof(sim::Num);
+                    constexpr uint64_t NumPackSize = sizeof(sim::NumPack_t);
+                    std::stringstream out;
+                    out.write(reinterpret_cast<const char*>(&NumSize), sizeof(NumSize));
+                    out.write(reinterpret_cast<const char*>(&NumPackSize), sizeof(NumPackSize));
+                    out.write(reinterpret_cast<const char*>(&size), sizeof(size));
+                    std::ranges::for_each(color::local_color_cache, [&out](const std::pair <sim::Num, sim::NumPack_t> & p)
+                    {
+                        const auto & [num, pack] = p;
+                        std::vector<uint8_t> NumData(sizeof(sim::Num) + sizeof(pack), 0);
+                        std::memcpy(NumData.data(), &num, sizeof(num));
+                        std::memcpy(NumData.data() + sizeof(num), &pack, sizeof(pack));
+                        out.write(reinterpret_cast<const char*>(NumData.data()), NumData.size());
+                    });
+                    const auto str = out.str();
+                    const std::vector<uint8_t> color_scheme { str.data(), str.data() + str.size() };
+                    const auto compressed_scheme = compress(color_scheme);
+                    exportBinary(compressed_scheme, std::cout);
+                }
             }
             else if (command_vector.front() == "get" && command_vector.size() >= 2)
             {

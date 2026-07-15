@@ -25,6 +25,8 @@
 #include "utils.h"
 #include "config.h"
 
+#include "nlohmann/json.hpp"
+
 namespace ccdb {
     std::string clean_line(const std::string& line) {
         return line.substr(0, line.find_first_of('#'));
@@ -90,6 +92,24 @@ namespace ccdb {
         std::string line;
         std::string section;
         int line_num = 0;
+
+
+        auto emplace = [&](const std::string& key, const std::string& value, const bool post_process = true)
+        {
+            if (!key.empty())
+            {
+                if (section.empty()) {
+                    throw error::invalid_configuration("Line: ", std::to_string(line_num), ": section head is empty");
+                }
+
+                const auto Value = post_process ? process_value(value) : value;
+                const auto Comment = post_process ? get_comments(line) : "";
+                config_[section][key] = Value;
+                config_signal_hash_map_.emplace(section + "::" + key, Value);
+                config_comment_hash_map_.emplace(section + "::" + key, Comment);
+            }
+        };
+
         while (std::getline(file, line))
         {
             line_num++;
@@ -99,20 +119,19 @@ namespace ccdb {
             {
                 section = section_tmp;
             }
-            else
+            else if (value == "```")
             {
-                if (!key.empty())
+                std::stringstream ss;
+                while (std::getline(file, line))
                 {
-                    if (section.empty()) {
-                        throw error::invalid_configuration("Line: ", std::to_string(line_num), ": section head is empty");
-                    }
-
-                    const auto Value = process_value(value);
-                    const auto Comment = get_comments(line);
-                    config_[section][key] = Value;
-                    config_signal_hash_map_.emplace(section + "::" + key, Value);
-                    config_comment_hash_map_.emplace(section + "::" + key, Comment);
+                    if (line == "```") break;
+                    ss << line << '\n';
                 }
+
+                emplace(key, ss.str(), false);
+            }
+            else {
+                emplace(key, value);
             }
         }
     }
