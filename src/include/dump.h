@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <sstream>
 #include <bit>
+#include <functional>
 
 using input_stream_t = std::basic_istream<char>;
 using output_stream_t = std::basic_ostream<char>;
@@ -187,6 +188,12 @@ constexpr auto size_metadata =
 	0.50L;
 #endif
 
+struct encode_result_t
+{
+	uint64_t original_stream_length;
+	uint64_t checksum;
+};
+
 template <
 	std::size_t CharacterSetSize,
 	CharacterSetType <CharacterSetSize> charSet_t,
@@ -196,7 +203,7 @@ template <
 	std::size_t BufferBlockSize = (4096 / (InputBlockSize * OutputBlockSize)) * InputBlockSize * OutputBlockSize
 >
 	requires (InputBlockSize > 0 && OutputBlockSize > 0 && InputBlockSize <= 8)
-uint64_t encode(input_stream_t& in, output_stream_t& out, const charSet_t& character_set)
+encode_result_t encode(input_stream_t& in, output_stream_t& out, const charSet_t& character_set, const std::function <void(const char*, const uint64_t, uint64_t &)> & update_checksum)
 {
 	if (contains_duplicates(character_set)) {
 		throw std::invalid_argument("Character set contains duplicate symbols");
@@ -204,6 +211,7 @@ uint64_t encode(input_stream_t& in, output_stream_t& out, const charSet_t& chara
 
 	//std::cerr << "Input buffer patch size: " << BufferBlockSize << ", encoded with (i:" << InputBlockSize << ", o:" << OutputBlockSize << ")" << std::endl;
 	uint64_t all_rd_size = 0;
+	uint64_t checksum;
 	std::vector<char> input_buffer(BufferBlockSize);
 	std::vector<std::uint64_t> digits(OutputBlockSize, 0);
 	// uint64_t current_encode_offset = 0;
@@ -213,6 +221,7 @@ uint64_t encode(input_stream_t& in, output_stream_t& out, const charSet_t& chara
 		std::streamsize bytes_read = in.gcount();
 		all_rd_size += bytes_read;
 		if (bytes_read <= 0) break;
+		update_checksum(input_buffer.data(), bytes_read, checksum);
 
 		for (std::streamsize i = 0; i < bytes_read / static_cast<std::streamsize>(InputBlockSize); ++i)
 		{
@@ -237,7 +246,7 @@ uint64_t encode(input_stream_t& in, output_stream_t& out, const charSet_t& chara
 
 			std::ranges::for_each(digits, [&out, &character_set](const uint64_t sym_) {
 				out.write(character_set.data() + sym_, 1);
-				});
+			});
 		}
 
 		auto tail = bytes_read % static_cast<std::streamsize>(InputBlockSize);
@@ -264,11 +273,11 @@ uint64_t encode(input_stream_t& in, output_stream_t& out, const charSet_t& chara
 
 			std::ranges::for_each(digits, [&out, &character_set](const uint64_t sym_) {
 				out.write(character_set.data() + sym_, 1);
-				});
+			});
 		}
 	}
 
-	return all_rd_size;
+	return { all_rd_size, checksum };
 }
 
 template <
@@ -367,8 +376,7 @@ void decode(
 
 	char extra = 0;
 	if (in.read(&extra, 1)) {
-		throw std::runtime_error(
-			"encoded stream contains trailing data after the expected payload");
+		throw std::runtime_error("encoded stream contains trailing data after the expected payload");
 	}
 }
 

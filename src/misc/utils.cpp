@@ -1366,9 +1366,14 @@ static void encode_dump94(input_stream_t & in, output_stream_t & out)
 {
     using namespace ccdb::utils;
 	try {
-		std::stringstream oss;
+        CRC64 crc64;
+        std::stringstream oss;
+        const auto [len, hash] = encode<CharacterDictionary.size()>(in, oss, CharacterDictionary, [&crc64](const char * data, const uint64_t len, uint64_t &){
+            crc64.update(reinterpret_cast<const uint8_t*>(data), len);
+        });
 		out << dump_start_signature << std::endl;
-		out << header << encode<CharacterDictionary.size()>(in, oss, CharacterDictionary) << std::endl;
+		out << header << len << std::endl;
+        out << hash_header << crc64.get_checksum_str() << std::endl;
 		const auto line_size = std::strlen(dump_start_signature);
 		std::vector < char > buff(line_size, 0);
 		while (oss)
@@ -1398,6 +1403,7 @@ static void decode_dump94(input_stream_t & in, output_stream_t & out)
 
 	uint64_t size = 0;
 	bool first_line = true;
+    std::string crc64_value;
 	while (std::getline(in, line))
 	{
 		while (!line.empty() && (line.front() <= 20 || line.front() >= 0x7F)) line.erase(line.begin());
@@ -1406,19 +1412,35 @@ static void decode_dump94(input_stream_t & in, output_stream_t & out)
 		if (first_line)
 		{
 			first_line = false;
-			if (line.size() <= std::strlen(header) || line.substr(0, std::strlen(header)) != header) {
-				throw std::runtime_error("Invalid encoded data format: missing size header");
-			}
+            auto read_header = [](const char * header_, std::string & line_)
+            {
+                if (line_.size() <= std::strlen(header_) || line_.substr(0, std::strlen(header_)) != header_) {
+                    throw std::runtime_error("Invalid encoded data format: missing size header");
+                }
 
-			line = line.substr(std::strlen(header));
+                line_ = line_.substr(std::strlen(header_));
+            };
+
+            read_header(header, line);
 			size = std::strtoull(line.c_str(), nullptr, 10);
+            std::getline(in, line);
+            read_header(hash_header, line);
+            crc64_value = line;
+            while (!crc64_value.empty() && crc64_value.front() <= ' ') crc64_value.erase(crc64_value.begin());
+            while (!crc64_value.empty() && crc64_value.back() <= ' ') crc64_value.pop_back();
 			continue;
 		}
 
 		iss << line;
 	}
 
-	decode<CharacterDictionary.size()>(iss, out, CharacterDictionary, size);
+    std::stringstream out_;
+	decode<CharacterDictionary.size()>(iss, out_, CharacterDictionary, size);
+    const auto & str = out_.str();
+    CRC64 crc64;
+    crc64.update(reinterpret_cast<const uint8_t*>(str.data()), str.size());
+    if (crc64.get_checksum_str() != crc64_value) throw std::runtime_error("Corrupted stream!");
+    out.write(str.data(), str.size());
 }
 
 void ccdb::utils::exportBinary(const std::vector<uint8_t>& data, std::basic_ostream<char>& out)

@@ -562,6 +562,7 @@ class cache_w_freq_table_t
     };
 
     constexpr char header[] = "DATA SET SIZE: ";
+    constexpr char hash_header[] = "CRC64: ";
 }
 
 /// Automatic unpack from xxd with xxd naming convention
