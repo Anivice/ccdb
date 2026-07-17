@@ -142,31 +142,31 @@ bool ccdb::ccdb::is_connection_valid(const general_info_pulling::connection_t &c
     try {
         bool result = false;
         if (filter_patterns.contains(0)) {
-            result |= std::regex_match(conn.host, std::regex(filter_patterns.at(0)));
+            result |= std::regex_search(conn.host, std::regex(filter_patterns.at(0)));
         }
 
         if (filter_patterns.contains(1)) {
-            result |= std::regex_match(conn.processName, std::regex(filter_patterns.at(1)));
+            result |= std::regex_search(conn.processName, std::regex(filter_patterns.at(1)));
         }
 
         if (filter_patterns.contains(6)) {
-            result |= std::regex_match(conn.ruleName, std::regex(filter_patterns.at(6)));
+            result |= std::regex_search(conn.ruleName, std::regex(filter_patterns.at(6)));
         }
 
         if (filter_patterns.contains(8)) {
-            result |= std::regex_match(conn.src, std::regex(filter_patterns.at(8)));
+            result |= std::regex_search(conn.src, std::regex(filter_patterns.at(8)));
         }
 
         if (filter_patterns.contains(9)) {
-            result |= std::regex_match(conn.destination, std::regex(filter_patterns.at(9)));
+            result |= std::regex_search(conn.destination, std::regex(filter_patterns.at(9)));
         }
 
         if (filter_patterns.contains(10)) {
-            result |= std::regex_match(conn.networkType, std::regex(filter_patterns.at(10)));
+            result |= std::regex_search(conn.networkType, std::regex(filter_patterns.at(10)));
         }
 
         if (filter_patterns.contains(11)) {
-            result |= std::regex_match(conn.chainName, std::regex(filter_patterns.at(11)));
+            result |= std::regex_search(conn.chainName, std::regex(filter_patterns.at(11)));
         }
 
         if (reverse_filter_list) return result;
@@ -339,7 +339,8 @@ void ccdb::ccdb::get_conn_input_watcher(
     std::atomic_bool * show_search,
     ccdb_atomic_t < std::u32string > * search_content_buffer,
     std::atomic_int * cursor_position,
-    std::atomic < search_move_t > * search_focus_move)
+    std::atomic < search_move_t > * search_focus_move,
+    std::atomic_int * tab_suggestion_requested)
 {
     set_thread_name("get/conn:input");
     interactive_verification();
@@ -589,7 +590,11 @@ void ccdb::ccdb::get_conn_input_watcher(
                 auto str = search_content_buffer->get();
                 std::ranges::for_each(ch_list, [&](const int c)
                 {
-                    if (std::isprint(c))
+                    if (c == '\t')
+                    {
+                        if (tab_suggestion_requested) *tab_suggestion_requested = 1;
+                    }
+                    else if (std::isprint(c))
                     {
                         if (*cursor_position < str.length()) {
                             str.insert(cursor_position->load(), 1, static_cast<std::u32string::value_type>(c));

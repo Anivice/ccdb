@@ -346,6 +346,7 @@ add_executable(ccdb
         misc/config.cpp                 include/config.h
         misc/args.cpp                   include/args.h
         misc/sort.cpp
+        misc/json.cpp                   include/json.hpp
 
         include/print.h
 

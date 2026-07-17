@@ -1093,5 +1093,10 @@
     "en"    : "Backend rule list",
     "en_US" : "Backend rule list",
     "zh_CN" : "后端代理规则"
+  },
+  {
+    "en"    : "Backend version",
+    "en_US" : "Backend version",
+    "zh_CN" : "后端版本"
   }
 ]

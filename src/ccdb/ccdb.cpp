@@ -579,29 +579,7 @@ void ccdb::ccdb::init()
                 map_proxy_chain();
             }
             else if (command_vector.front() == "exportColorScheme") {
-                if (color::local_color_cache.empty()) sim::simulation_rainbow(sim::Begin + sim::Span / 2);
-                if (!color::local_color_cache.empty())
-                {
-                    const auto size = static_cast<uint64_t>(color::local_color_cache.size());
-                    constexpr uint64_t NumSize = sizeof(sim::Num);
-                    constexpr uint64_t NumPackSize = sizeof(sim::NumPack_t);
-                    std::stringstream out;
-                    out.write(reinterpret_cast<const char*>(&NumSize), sizeof(NumSize));
-                    out.write(reinterpret_cast<const char*>(&NumPackSize), sizeof(NumPackSize));
-                    out.write(reinterpret_cast<const char*>(&size), sizeof(size));
-                    std::ranges::for_each(color::local_color_cache, [&out](const std::pair <sim::Num, sim::NumPack_t> & p)
-                    {
-                        const auto & [num, pack] = p;
-                        std::vector<uint8_t> NumData(sizeof(sim::Num) + sizeof(pack), 0);
-                        std::memcpy(NumData.data(), &num, sizeof(num));
-                        std::memcpy(NumData.data() + sizeof(num), &pack, sizeof(pack));
-                        out.write(reinterpret_cast<const char*>(NumData.data()), NumData.size());
-                    });
-                    const auto str = out.str();
-                    const std::vector<uint8_t> color_scheme { str.data(), str.data() + str.size() };
-                    const auto compressed_scheme = compress(color_scheme);
-                    exportBinary(compressed_scheme, std::cout);
-                }
+                color::export_color_scheme();
             }
             else if (command_vector.front() == "get" && command_vector.size() >= 2)
             {
@@ -617,6 +595,8 @@ void ccdb::ccdb::init()
                     get_proxy();
                 } else if (command_vector[1] == "vecGroupProxy") {
                     get_vecGroupProxy();
+                } else if (command_vector[1] == "version") {
+                    std::cout << std::string(json::parse(backend_instance.get_version())["version"]) << std::endl;
                 } else if (command_vector[1] == "filter") {
                     get_filter();
                 } else if (command_vector[1] == "subinfo") {
@@ -648,7 +628,8 @@ void ccdb::ccdb::init()
                 if (command_vector[1] == "geo")  {
                     const auto result = backend_instance.generic_post("/upgrade/geo");
                     try {
-                        const auto result_ = std::string(json::parse(result)["message"]);
+                        const auto json = json::parse(result);
+                        const auto result_ = std::string(json.contains("message") ? json["message"] : json["status"]);
                         print(result_, "\n");
                     } catch (...) {
                         if (!result.empty()) print(result, "\n");
@@ -656,7 +637,8 @@ void ccdb::ccdb::init()
                 } else if (command_vector[1] == "core") {
                     const auto result = backend_instance.generic_post("/upgrade");
                     try {
-                        const auto result_ = std::string(json::parse(result)["message"]);
+                        const auto json = json::parse(result);
+                        const auto result_ = std::string(json.contains("message") ? json["message"] : json["status"]);
                         print(result_, "\n");
                     } catch (...) {
                         if (!result.empty()) print(result, "\n");

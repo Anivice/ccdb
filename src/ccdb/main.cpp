@@ -267,7 +267,7 @@ int main(int argc, char ** argv)
             }
 
             const auto json = json::parse(buffer);
-            const auto port = json["port"]; // check for correctness
+            const auto & port = json["port"]; // check for correctness
         } catch (std::exception & e) {
             std::cerr << e.what() << std::endl;
             utils::print<utils::is_error>("Failed to communicate with the backend, either this is not a Mihomo control port, or you have the wrong password.", "\n");

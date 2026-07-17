@@ -60,6 +60,7 @@ public:
     std::atomic < bool > force_quit = false;
     ccdb_atomic_t < std::string > puller_logLevel;
     ccdb_atomic_t <std::string> mihomo_output_log_location;
+    std::atomic_int max_log_size = 4096;
 
     struct connection_t
     {
@@ -163,7 +164,12 @@ public:
     [[nodiscard]] std::vector < connection_t > get_active_connections();
     [[nodiscard]] std::vector < std::vector < std::string > > get_logs();
     [[nodiscard]] proxy_info_summary_t get_proxies_and_latencies_as_pair();
-    void clearLogs() { std::lock_guard lock(logs_mutex); logs.clear(); }
+    [[nodiscard]] std::string get_config() const;
+    [[nodiscard]] std::string get_proxy_metadata(const std::string & proxy_name) const;
+    [[nodiscard]] std::string get_rules() const;
+    [[nodiscard]] std::string generic_post(const std::string & tail) const;
+    [[nodiscard]] std::string get_version() const;
+    [[nodiscard]] std::string get_current_mode() const;
 
     void stop_continuous_updates();
     void start_continuous_updates();
@@ -174,14 +180,10 @@ public:
     bool change_proxy_mode(const std::string & mode) const { return backend_client.change_proxy_mode(mode); }
     bool close_all_connections() const { return backend_client.close_all_connections(); }
     bool close_connection(const std::string & id) const { return backend_client.close_connection(id); }
-    std::string get_current_mode() const;
     bool modify_config(const std::string & json) const { return backend_client.change_config(json); }
     bool modify_config_int(const std::string & entry, uint64_t val) const;
-    std::string get_config() const;
-    std::string get_proxy_metadata(const std::string & proxy_name) const;
-    std::string get_rules() const;
-    std::atomic_int max_log_size = 4096;
-    std::string generic_post(const std::string & tail);
+    void clearLogs() { std::lock_guard lock(logs_mutex); logs.clear(); }
+
 };
 
 #endif //SRC_GENERAL_INFO_PULLING_H

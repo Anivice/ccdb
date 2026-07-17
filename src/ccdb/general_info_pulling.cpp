@@ -595,9 +595,16 @@ std::string general_info_pulling::get_rules() const
     return ret;
 }
 
-std::string general_info_pulling::generic_post(const std::string & tail)
+std::string general_info_pulling::generic_post(const std::string & tail) const
 {
     std::string ret;
     backend_client.generic_post(tail, [&](const int, const std::string & r){ ret = r; });
+    return ret;
+}
+
+std::string general_info_pulling::get_version() const
+{
+    std::string ret;
+    backend_client.get_info_no_instance("version", [&](const std::string & r){ ret = r; });
     return ret;
 }

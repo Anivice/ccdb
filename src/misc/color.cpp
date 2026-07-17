@@ -543,20 +543,17 @@ namespace sim
                 }
 
                 uint64_t NumSizeInCache, NumPackSizeInCache, ListSizeInCache;
-                oss_ptr->read(reinterpret_cast<char*>(&NumSizeInCache), sizeof(NumSizeInCache));
-                oss_ptr->read(reinterpret_cast<char*>(&NumPackSizeInCache), sizeof(NumPackSizeInCache));
+                (*oss_ptr) >> NumSizeInCache >> NumPackSizeInCache >> ListSizeInCache;
                 if (NumSizeInCache != NumSize || NumPackSizeInCache != NumPackSize) {
                     throw std::runtime_error(utils::sprint("Invalid color cache"));
                 }
 
-                oss_ptr->read(reinterpret_cast<char*>(&ListSizeInCache), sizeof(ListSizeInCache));
                 color::local_color_cache.reserve(ListSizeInCache);
                 for (decltype(ListSizeInCache) i = 0; i < ListSizeInCache; i++)
                 {
                     Num key { };
                     NumPack_t val { };
-                    oss_ptr->read(reinterpret_cast<char*>(&key), sizeof(key));
-                    oss_ptr->read(reinterpret_cast<char*>(&val), sizeof(val));
+                    (*oss_ptr) >> key >> val.R >> val.G >> val.B;
                     color::local_color_cache.emplace_back(key, val);
                 }
             }
@@ -612,6 +609,28 @@ static std::string bgcolor(int r, int g, int b)
            std::to_string(r) + ";" +
            std::to_string(g) + ";" +
            std::to_string(b) + "m";
+}
+
+void ccdb::color::export_color_scheme()
+{
+    if (local_color_cache.empty()) sim::simulation_rainbow(sim::Begin + sim::Span / 2);
+    if (!local_color_cache.empty())
+    {
+        const auto size = static_cast<uint64_t>(local_color_cache.size());
+        constexpr uint64_t NumSize = sizeof(sim::Num);
+        constexpr uint64_t NumPackSize = sizeof(sim::NumPack_t);
+        std::stringstream out;
+        out << NumSize << " " << NumPackSize << " " << size << std::endl;
+        std::ranges::for_each(local_color_cache, [&out](const std::pair <sim::Num, sim::NumPack_t> & p)
+        {
+            const auto & [num, pack] = p;
+            out << std::fixed << std::setprecision(256) << num << " " << pack.R << " " << pack.G << " " << pack.B << std::endl;
+        });
+        const auto str = out.str();
+        const std::vector<uint8_t> color_scheme { str.data(), str.data() + str.size() };
+        const auto compressed_scheme = utils::compress(color_scheme);
+        utils::exportBinary(compressed_scheme, std::cout);
+    }
 }
 
 bool ccdb::color::is_no_color() noexcept

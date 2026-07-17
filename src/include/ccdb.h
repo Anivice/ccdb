@@ -254,12 +254,13 @@ namespace ccdb
         /// @param refocus Refocus, by pressing F
         /// @param show_detail Show full JSON raw output from backend by pressing P
         /// @param sort_by_ptr F1-F12
-        /// @param current_focus_ptr
+        /// @param focus_move
         /// @param pause
         /// @param show_search
         /// @param search_content_buffer
         /// @param cursor_position
         /// @param search_focus_move
+        /// @param tab_suggestion_requested
         void get_conn_input_watcher(
             std::atomic_bool * running_ptr,
             std::atomic_int * leading_spaces_ptr,
@@ -277,7 +278,8 @@ namespace ccdb
             std::atomic_bool * show_search,
             ccdb_atomic_t < std::u32string > * search_content_buffer,
             std::atomic_int * cursor_position,
-            std::atomic < search_move_t > * search_focus_move);
+            std::atomic < search_move_t > * search_focus_move,
+            std::atomic_int * tab_suggestion_requested);
 
         void init();
 

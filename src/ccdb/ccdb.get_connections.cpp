@@ -57,6 +57,25 @@ static void pad_##NAME(std::vector < general_info_pulling::connection_t > & conn
 pad_string(host)
 pad_string(src)
 
+bool match_logic(const std::string & s1, const std::string & s2) {
+    return (s1.size() > s2.size() && s1.find(s2) != std::string::npos);
+}
+
+std::vector<std::string> auto_complete(const std::string & command_arg,
+    const std::vector < std::string > & possible_args)
+{
+    std::vector<std::string> possible_matches;
+    std::ranges::for_each(possible_args, [&](const std::string & arg)
+    {
+        if (match_logic(arg, command_arg))
+        {
+            possible_matches.emplace_back(arg);
+        }
+    });
+
+    return possible_matches;
+}
+
 void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 {
     bool lock_to_max = false;
@@ -91,6 +110,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::string search_content;
     std::atomic < search_move_t > search_focus_move;
     std::vector < std::pair < std::string /* checksum */, bool /* if match ? */ > > search_matches;
+    std::atomic_int tab_suggestion_requested = 0; // 0, no, 1, fill, 2, show possible condidates
+    std::string search_content_prev_cmd;
     std::string focused_connection_info;
     constexpr int start_line = 6;
     int vector_size_last_time = -1;
@@ -143,13 +164,20 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
             &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
             &mouse_x, &mouse_y, &kill_connection, &focus_to_highlight, &conn_show_detail, &sort_by_from_watcher, &atm_focus,
-            &pause_input_watcher, &show_search, &search_content_buffer, &cursor_position, &search_focus_move);
+            &pause_input_watcher, &show_search, &search_content_buffer, &cursor_position, &search_focus_move,
+            &tab_suggestion_requested);
     }
 
     auto valid_check = [&](const general_info_pulling::connection_t & c)->bool {
         return is_connection_valid(c);
     };
 
+    decltype(backend_instance.get_active_connections()) connections;
+    bool pause_update = false;
+    int sort_by_local = sort_by;
+    int reverse_sort_local = sort_reverse;
+    int in_tab_suggestion = -1;
+    std::vector<std::string> tab_suggestions;
     while (running)
     {
         search_matches.clear();
@@ -182,10 +210,14 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
             index_title++;
         });
-        auto connections = backend_instance.get_active_connections();
+        if (!pause_update) {
+            connections = backend_instance.get_active_connections();
+        }
+
         decltype(connections) connections_filtered;
         std::vector<std::vector<std::string>> table_vals;
-        std::ranges::sort(connections,
+        if (!pause_update || (pause_update && (sort_by_local != sort_by || reverse_sort_local != sort_reverse)))
+            std::ranges::sort(connections,
                           [&](const general_info_pulling::connection_t & a, const general_info_pulling::connection_t & b)
                           {
                               switch (sort_by_final)
@@ -221,7 +253,16 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                               });
         pad_host(connections);
         pad_src(connections);
-        if (sort_reverse) std::ranges::reverse(connections);
+        if (!pause_update || (pause_update && (sort_by_local != sort_by || reverse_sort_local != sort_reverse)))
+        {
+            if (sort_reverse)
+            {
+                std::ranges::reverse(connections);
+                sort_by_local = sort_by;
+                reverse_sort_local = sort_reverse;
+            }
+        }
+
         for (const auto & connection : connections)
         {
             // determine if we need to filter out the result
@@ -564,12 +605,169 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             }
 
 
-            if (!search_content_buffer.get().empty() && search_content_buffer.get().back() == '\n')
+            if (!search_content_buffer.get().empty())
             {
                 search_content = utf8::utf32to8(search_content_buffer.get());
-                search_content.pop_back(); // pop '\n'
-                search_content_buffer.set({});
-                std::cout << setup_term->clear;
+                /// auto complition
+                static const std::vector<std::string> g_args = {
+                    "closeAll", "closeFiltered", "filterReverse", "clearFilters", "filter",
+                    "pause", "resume", "sort", "sortReverse"
+                };
+
+                if (!search_content.empty() && search_content.front() == ':')
+                {
+                    search_content.erase(search_content.begin());
+                    auto vec = split_via_history(search_content);
+                    if (tab_suggestion_requested > 0 && search_content_prev_cmd != search_content)
+                    {
+                        search_content_prev_cmd = search_content;
+                        if (vec.empty())
+                            tab_suggestions = g_args;
+                        else if (vec.size() == 1)
+                            tab_suggestions = auto_complete(vec.back(), g_args);
+
+                        if (tab_suggestions.size() == 1)
+                        {
+                            vec.back() = tab_suggestions.front();
+                            search_content = ":";
+                            std::ranges::for_each(vec, [&search_content](const std::string & s) {
+                                search_content += s + " ";
+                            });
+                            search_content.pop_back(); // remove tailing space
+                            search_content_buffer.set(utf8_to_u32(search_content));
+                            cursor_position = static_cast<int>(search_content_buffer.get().size());
+                        }
+
+                        in_tab_suggestion = 0;
+                        tab_suggestion_requested = 0;
+                    }
+                    else if (tab_suggestion_requested > 0 && search_content.empty())
+                    {
+                        tab_suggestions = g_args;
+                        in_tab_suggestion = 0;
+                        tab_suggestion_requested = 0;
+                    }
+
+                    if (tab_suggestions.size() > 1 && tab_suggestion_requested > 0)
+                    {
+                        tab_suggestion_requested = 0;
+                        if (in_tab_suggestion >= tab_suggestions.size()) in_tab_suggestion = 0;
+                        search_content = ":" + tab_suggestions[in_tab_suggestion];
+                        search_content_buffer.set(utf8_to_u32(search_content));
+                        search_content_prev_cmd = tab_suggestions[in_tab_suggestion];
+                        if (in_tab_suggestion < tab_suggestions.size()) ++in_tab_suggestion;
+                        else in_tab_suggestion = 0;
+                        cursor_position = static_cast<int>(search_content_buffer.get().size());
+                    }
+
+                    search_content.clear();
+                }
+
+                if (search_content_buffer.get().back() == '\n')
+                {
+                    search_content = utf8::utf32to8(search_content_buffer.get());
+                    const auto backup_search_content = search_content;
+                    search_content.pop_back(); // pop '\n'
+                    search_content_buffer.set({});
+                    std::cout << setup_term->clear;
+
+                    if (!search_content.empty() && search_content.front() == ':')
+                    {
+                        search_content.erase(search_content.begin());
+                        if (const auto vec = split_via_history(search_content); !vec.empty())
+                        {
+                            // tab_suggestion_requested = 0;
+                            // now we have commands
+                            if (vec.front() == "closeAll")
+                            {
+                                if (!backend_instance.close_all_connections()) {
+                                    show_info(sprint("Failed to close all connections"), "ERROR");
+                                }
+                            }
+                            ////////////////////////////////////////////////////////////////////////////////////////////////
+                            /**
+                             * Filter controls
+                             */
+                            else if (vec.front() == "closeFiltered")
+                            {
+                                for (const auto & conn : connections_filtered) {
+                                    if (!backend_instance.close_connection(conn.metadata.connectionID))
+                                    {
+                                        show_info(sprint("Failed to close connection", conn.host), "ERROR");
+                                    }
+                                }
+                            } else if (vec.front() == "filterReverse") {
+                                reverse_filter_list = !reverse_filter_list;
+                                show_info(sprint("Filter reversed, current mode: ", reverse_filter_list ? "reverse" : "normal"),
+                                    "INFO");
+                            } else if (vec.front() == "clearFilters") {
+                                clear_filter();
+                            }
+                            else if (vec.front() == "filter") {
+                                if (vec.size() == 3)
+                                {
+                                    try
+                                    {
+                                        const auto filter_id = std::strtoul(vec[1].c_str(), nullptr, 10);
+                                        if (filter_id > get_conn_titles.size()) throw std::invalid_argument(sprint("Invalid filter ID"));
+                                        std::regex r(vec[2]);
+                                        filter_patterns[filter_id] = vec[2];
+                                    }
+                                    catch (const std::exception & e)
+                                    {
+                                        show_info(sprint("Failed to parse filter pattern: ", e.what()), "ERROR");
+                                    }
+                                }
+                                else
+                                {
+                                    show_info(sprint("Invalid filter command"), "ERROR");
+                                }
+                            }
+                            /**
+                             * Filter controls ends
+                             */
+                            ////////////////////////////////////////////////////////////////////////////////////////////////
+                            else if (vec.front() == "pause") {
+                                show_info(sprint("Update paused"), "INFO");
+                                pause_update = true;
+                            } else if (vec.front() == "resume") {
+                                show_info(sprint("Update resumed"), "INFO");
+                                pause_update = false;
+                            }
+                            else if (vec.front() == "sort")
+                            {
+                                if (vec.size() == 2)
+                                {
+                                    try
+                                    {
+                                        const auto sort_id = std::strtoul(vec[1].c_str(), nullptr, 10);
+                                        if (sort_id > get_conn_titles.size()) throw std::invalid_argument(sprint("Invalid sort ID"));
+                                        sort_by = static_cast<int>(sort_id);
+                                    }
+                                    catch (const std::exception& e)
+                                    {
+                                        show_info(sprint("Invalid sort: ", e.what()), "ERROR");
+                                    }
+                                }
+                                else
+                                {
+                                    show_info(sprint("Invalid sort command"), "ERROR");
+                                }
+                            }
+                            else if (vec.front() == "sortReverse") {
+                                sort_reverse = !sort_reverse;
+                            }
+                            else {
+                                show_info(sprint("Unknown command"), "ERROR");
+                            }
+
+                            leading_spaces = 0;
+                            if (!backup_search_content.empty() && backup_search_content.front() != ':')
+                                search_content = backup_search_content;
+                            else search_content.clear();
+                        }
+                    }
+                }
             }
 
             const bool skip_due_to_shrink = (vector_size_last_time > table_vals.size());
@@ -632,6 +830,9 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             const bool local_show_search = show_search;
             const int local_search_focus_move = search_focus_move;
             const int local_atm_focus = atm_focus;
+            const int local_tab_suggestion = tab_suggestion_requested;
+            sort_by_local = sort_by;
+            reverse_sort_local = sort_reverse;
 
             for (int i = 0; i < screen_refresh_interval_in_ms / 10; i++)
             {
@@ -650,7 +851,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     || local_atm_focus != atm_focus
                     || !running
                     || skip_due_to_shrink
-                    || skip_due_to_lock)
+                    || skip_due_to_lock
+                    || local_tab_suggestion != tab_suggestion_requested)
                 {
                     if (window_size_change ||
                         (utils::getenv("ENABLE_CLEAR_ON_SHRINK") == "true" && skip_due_to_shrink
