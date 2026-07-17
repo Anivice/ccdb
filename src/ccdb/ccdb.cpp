@@ -470,6 +470,10 @@ void ccdb::ccdb::init()
             }
             else if (map.contains("DefaultColorScheme"))
             {
+                if (!map.contains(sim::customized_color_command_calc) && sim::color_scheme == sim::CUSTOMIZED) {
+                    ::ccdb::utils::print<is_error>("Unknown color scheme ", sim::customized_color_command_calc, ", fall back to default.\n");
+                }
+
                 sim::color_scheme = sim::CUSTOMIZED;
                 try {
                     const auto name = map.at("DefaultColorScheme");
