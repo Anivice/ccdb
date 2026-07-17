@@ -1415,7 +1415,7 @@ static void decode_dump94(input_stream_t & in, output_stream_t & out)
             auto read_header = [](const char * header_, std::string & line_)
             {
                 if (line_.size() <= std::strlen(header_) || line_.substr(0, std::strlen(header_)) != header_) {
-                    throw std::runtime_error("Invalid encoded data format: missing size header");
+                    throw std::runtime_error("Invalid encoded data format: missing header");
                 }
 
                 line_ = line_.substr(std::strlen(header_));
