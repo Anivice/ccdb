@@ -51,6 +51,7 @@ public:
     [[nodiscard]] bool change_proxy_mode(const std::string & mode) const { return change_config( R"({"mode": ")" + mode +  "\"}"); }
     [[nodiscard]] bool close_all_connections() const;
     [[nodiscard]] bool close_connection(const std::string & id) const;
+    [[nodiscard]] void generic_post(const std::string & path, const std::function < void(int, const std::string&) > & method) const;
 
     template < typename InstanceType >
     void get_info(const std::string & endpoint_name, InstanceType* instance, void (InstanceType::*method)(const std::string&))

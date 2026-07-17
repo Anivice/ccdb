@@ -642,6 +642,42 @@ void ccdb::ccdb::init()
                     if (execute_and_no_interactive) throw std::runtime_error("");
                 }
             }
+            else if (command_vector.front() == "upgrade" && command_vector.size() == 2)
+            {
+                // upgrade [...]
+                if (command_vector[1] == "geo")  {
+                    const auto result = backend_instance.generic_post("/upgrade/geo");
+                    try {
+                        const auto result_ = std::string(json::parse(result)["message"]);
+                        print(result_, "\n");
+                    } catch (...) {
+                        if (!result.empty()) print(result, "\n");
+                    }
+                } else if (command_vector[1] == "core") {
+                    const auto result = backend_instance.generic_post("/upgrade");
+                    try {
+                        const auto result_ = std::string(json::parse(result)["message"]);
+                        print(result_, "\n");
+                    } catch (...) {
+                        if (!result.empty()) print(result, "\n");
+                    }
+                } else {
+                    print<is_error>("Unknown command `", command_vector[1], "`\n");
+                    if (execute_and_no_interactive) throw std::runtime_error("");
+                }
+            }
+            else if (command_vector.front() == "restart" && command_vector.size() == 1) {
+                const auto result = backend_instance.generic_post("/restart");
+                try {
+                    print(std::string(json::parse(result)["status"]), "\n");
+                } catch (...) {
+                    print(result, "\n");
+                }
+            }
+            else if (command_vector.front() == "flush" && command_vector.size() == 1)
+            {
+                print(backend_instance.generic_post("/cache/fakeip/flush"), "\n");
+            }
             else if (command_vector.front() == "set")
             {
                 // set mode [MODE]
@@ -662,6 +698,8 @@ void ccdb::ccdb::init()
                 }
                 else if (command_vector.size() == 3 && command_vector[1] == "loglevel") { // set loglevel debug/info/warning/error
                     set_log_level(command_vector);
+                    backend_instance.stop_continuous_updates();
+                    backend_instance.start_continuous_updates();
                 }
                 else if (command_vector.size() == 3 && command_vector[1] == "sort_by") { // set sort_by [num]
                     set_sort_by(command_vector);
@@ -707,6 +745,10 @@ void ccdb::ccdb::init()
                 if (!backend_instance.close_all_connections()) {
                     if (execute_and_no_interactive) throw std::runtime_error(sprint("Failed to close all connections"));
                 }
+            }
+            else if (command_vector.front() == "restartContinuousUpdates") {
+                backend_instance.stop_continuous_updates();
+                backend_instance.start_continuous_updates();
             }
             else if (command_vector.front() == "clearFilter") {
                 clear_filter();

@@ -57,7 +57,8 @@ void general_info_pulling::update_from_connections(const std::string& info)
             const std::string id = connection["id"];
             const auto network_type = std::string(connection["metadata"]["network"])
                 + "/" + std::string(connection["metadata"]["dnsMode"]);
-            const auto host = std::string(connection["metadata"]["host"]);
+            const auto sniffHost = std::string(connection["metadata"]["sniffHost"]);
+            const auto host = sniffHost.empty() ? std::string(connection["metadata"]["host"]) : sniffHost;
             auto dest = std::string(connection["metadata"]["destinationIP"]);
             if (const auto remoteIP = std::string(connection["metadata"]["remoteDestination"]);
                 dest.empty() && remoteIP!= "127.0.0.1") { dest = remoteIP; }
@@ -272,6 +273,8 @@ void general_info_pulling::pull_continuous_updates()
     {
         // /logs puller
         // clear_and_stop_all_threads();
+        const auto configJSON = json::parse(get_config());
+        puller_logLevel.set(std::string(configJSON["log-level"]));
         auto log_running = std::make_shared<std::atomic_bool>(true);
         auto run_logs = [&](const std::atomic_bool * _log_running)
         {
@@ -314,7 +317,7 @@ void general_info_pulling::pull_continuous_updates()
                         }
                     });
 #endif //__DEBUG__
-                    backend_client.get_stream_info("logs",
+                    backend_client.get_stream_info("logs?&level=" + puller_logLevel.get(),
                         _log_running,
                         this,
                         &general_info_pulling::update_from_logs);
@@ -589,5 +592,12 @@ std::string general_info_pulling::get_rules() const
 {
     std::string ret;
     backend_client.get_info_no_instance("rules", [&](const std::string & r){ ret = r; });
+    return ret;
+}
+
+std::string general_info_pulling::generic_post(const std::string & tail)
+{
+    std::string ret;
+    backend_client.generic_post(tail, [&](const int, const std::string & r){ ret = r; });
     return ret;
 }

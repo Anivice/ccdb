@@ -150,3 +150,27 @@ bool mihomo::close_connection(const std::string &id) const
 
     return false;
 }
+
+void mihomo::generic_post(const std::string & path, const std::function < void(int, const std::string&) > & method) const
+{
+    httplib::Client http_cli(backend_address_);
+    ccdb::utils::set_ssl_automatically(http_cli, backend_address_);
+    http_cli.set_decompress(false);
+    http_cli.set_read_timeout(10, 0);
+    const httplib::Headers headers = {
+        {"Authorization", "Bearer " + token_},
+    };
+
+    httplib::Result res;
+    if (!token_.empty()) {
+        res = http_cli.Post(path, headers);
+    } else {
+        res = http_cli.Post(path);
+    }
+
+    if (!res) {
+        ccdb::utils::print<ccdb::utils::is_error>("Request failed: ", httplib::to_string(res.error()), "\n");
+    } else {
+        method(res->status, res->body);
+    }
+}

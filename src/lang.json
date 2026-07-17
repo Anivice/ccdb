@@ -1053,5 +1053,45 @@
     "en"    : "Proxy",
     "en_US" : "Proxy",
     "zh_CN" : "分流节点"
+  },
+  {
+    "en"    : "Upgrade core",
+    "en_US" : "Upgrade core",
+    "zh_CN" : "更新内核"
+  },
+  {
+    "en"    : "Upgrade geoip",
+    "en_US" : "Upgrade geoip",
+    "zh_CN" : "更新GeoIP"
+  },
+  {
+    "en"    : "Restart backend",
+    "en_US" : "Restart backend",
+    "zh_CN" : "重启内核"
+  },
+  {
+    "en"    : "Flush fake-ip cache",
+    "en_US" : "Flush fake-ip cache",
+    "zh_CN" : "清空fake-ip缓存"
+  },
+  {
+    "en"    : "Upgrade backend",
+    "en_US" : "Upgrade backend",
+    "zh_CN" : "更新后端"
+  },
+  {
+    "en"    : "Export the custom color scheme binary cache",
+    "en_US" : "Export the custom color scheme binary cache",
+    "zh_CN" : "导出配色方案着色器缓存为base94"
+  },
+  {
+    "en"    : "Restart background continuous update workers",
+    "en_US" : "Restart background continuous update workers",
+    "zh_CN" : "重启数据拉取线程"
+  },
+  {
+    "en"    : "Backend rule list",
+    "en_US" : "Backend rule list",
+    "zh_CN" : "后端代理规则"
   }
 ]

@@ -58,6 +58,7 @@ private:
 public:
     std::atomic < bool > parse_chains = true;
     std::atomic < bool > force_quit = false;
+    ccdb_atomic_t < std::string > puller_logLevel;
     ccdb_atomic_t <std::string> mihomo_output_log_location;
 
     struct connection_t
@@ -180,6 +181,7 @@ public:
     std::string get_proxy_metadata(const std::string & proxy_name) const;
     std::string get_rules() const;
     std::atomic_int max_log_size = 4096;
+    std::string generic_post(const std::string & tail);
 };
 
 #endif //SRC_GENERAL_INFO_PULLING_H

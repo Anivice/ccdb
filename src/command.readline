@@ -113,6 +113,10 @@
     < [ALIAS]: [ALIAS_ARGUMENT...] >,
     < clearLogs (Clear logs in the cache): [NONE] >,
     < exportColorScheme (Export the custom color scheme binary cache): [NONE] >,
+    < restartContinuousUpdates (Restart background continuous update workers): [NONE] >,
+    < upgrade (Upgrade backend): core (Upgrade core), geo (Upgrade geoip) >,
+    < restart (Restart backend): [NONE] >,
+    < flush (Flush fake-ip cache): [NONE] >,
 }
 
 # $ ssh me@localhost
