@@ -351,6 +351,7 @@ void ccdb::ccdb::get_conn_input_watcher(
     const std::atomic_int & max_skip_lines = *max_skip_lines_ptr;
     std::vector<std::thread> threads;
     const auto sigint_status = watcher.make_status_watcher();
+    int tab_request;
 
     // pull SIGINT every 50ms
     threads.emplace_back([&] { while (running) {
@@ -592,10 +593,11 @@ void ccdb::ccdb::get_conn_input_watcher(
                 {
                     if (c == '\t')
                     {
-                        if (tab_suggestion_requested) *tab_suggestion_requested = 1;
+                        tab_request++;
                     }
                     else if (std::isprint(c))
                     {
+                        tab_request = 0;
                         if (*cursor_position < str.length()) {
                             str.insert(cursor_position->load(), 1, static_cast<std::u32string::value_type>(c));
                             *cursor_position += 1;
@@ -606,11 +608,19 @@ void ccdb::ccdb::get_conn_input_watcher(
                     }
                 });
 
+                if (tab_suggestion_requested && tab_request == 1)
+                    *tab_suggestion_requested = 1;
+                else if (tab_suggestion_requested && tab_request >= 2)
+                    *tab_suggestion_requested = 2;
+                // else if (tab_suggestion_requested) *tab_suggestion_requested = 0;
+                tab_request = 0;
                 search_content_buffer->set(str);
                 ch_list.clear();
             }
 
             if (timeout_on_read) {
+                tab_request = 0;
+                // if (tab_suggestion_requested) *tab_suggestion_requested = 0;
                 ch_list.clear();
             }
 

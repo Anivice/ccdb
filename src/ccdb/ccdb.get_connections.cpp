@@ -58,7 +58,7 @@ pad_string(host)
 pad_string(src)
 
 bool match_logic(const std::string & s1, const std::string & s2) {
-    return (s1.size() > s2.size() && s1.find(s2) != std::string::npos);
+    return (s1.size() >= s2.size() && s1.find(s2) != std::string::npos);
 }
 
 std::vector<std::string> auto_complete(const std::string & command_arg,
@@ -610,7 +610,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 search_content = utf8::utf32to8(search_content_buffer.get());
                 /// auto complition
                 static const std::vector<std::string> g_args = {
-                    "closeAll", "closeFiltered", "filterReverse", "clearFilters", "filter",
+                    "closeAll", "closeFiltered", "filterReverse", "clearOnScreen", "filter",
                     "pause", "resume", "sort", "sortReverse"
                 };
 
@@ -641,7 +641,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                         in_tab_suggestion = 0;
                         tab_suggestion_requested = 0;
                     }
-                    else if (tab_suggestion_requested > 0 && search_content.empty())
+                    else if (tab_suggestion_requested > 0 && search_content.empty() && tab_suggestions.empty())
                     {
                         tab_suggestions = g_args;
                         in_tab_suggestion = 0;
@@ -688,7 +688,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                             /**
                              * Filter controls
                              */
-                            else if (vec.front() == "closeFiltered")
+                            else if (vec.front() == "clearOnScreen")
                             {
                                 for (const auto & conn : connections_filtered) {
                                     if (!backend_instance.close_connection(conn.metadata.connectionID))
