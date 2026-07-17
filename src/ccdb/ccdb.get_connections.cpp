@@ -610,7 +610,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 search_content = utf8::utf32to8(search_content_buffer.get());
                 /// auto complition
                 static const std::vector<std::string> g_args = {
-                    "closeAll", "closeFiltered", "filterReverse", "clearOnScreen", "filter",
+                    "closeAll", "clearFilters", "filterReverse", "closeOnScreen", "filter",
                     "pause", "resume", "sort", "sortReverse"
                 };
 
@@ -688,7 +688,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                             /**
                              * Filter controls
                              */
-                            else if (vec.front() == "clearOnScreen")
+                            else if (vec.front() == "closeOnScreen")
                             {
                                 for (const auto & conn : connections_filtered) {
                                     if (!backend_instance.close_connection(conn.metadata.connectionID))
