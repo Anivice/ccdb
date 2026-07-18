@@ -486,8 +486,9 @@ void ccdb::ccdb::init()
             }
             else
             {
-                ::ccdb::utils::print<is_error>("Unknown color scheme ",
-                    sim::customized_color_command_calc, ", fall back to default.\n");
+                if (sim::color_scheme == sim::CUSTOMIZED)
+                    ::ccdb::utils::print<is_error>("Unknown color scheme ",
+                        sim::customized_color_command_calc, ", fall back to default.\n");
                 sim::color_scheme = sim::RAINBOW_DISTINCT;
             }
         }

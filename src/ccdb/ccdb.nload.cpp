@@ -580,6 +580,7 @@ void ccdb::ccdb::nload(
                     replace_all(new_line, "WARNING", color::color(3,3,0) + "WARNING");
                     replace_all(new_line, "ERROR", color::color(3,0,0) + "ERROR");
                     replace_all(new_line, "INFO", color::color(0,3,0) + "INFO");
+                    replace_all(new_line, "DEBUG", color::color24(32,32,32) + "DEBUG");
 
                     screen_str_frame << color::no_color() << (color::is_no_color() ? "" : "\033[01;m")
                                      << new_line << color::no_color() << std::endl;
