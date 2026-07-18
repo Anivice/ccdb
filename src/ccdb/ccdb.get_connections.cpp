@@ -96,7 +96,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::atomic_int sort_by_from_watcher = -1;
     std::string focused_connection_id;
     int64_t focused_index = -1;
-    std::vector < std::pair < std::string, std::chrono::time_point<std::chrono::high_resolution_clock> > > g_title_lines;
+    std::vector < std::pair < std::string,
+        std::pair < int, std::chrono::time_point<std::chrono::high_resolution_clock> > > > g_title_lines;
     std::vector < std::thread > child_workers;
     std::vector <std::string> title_this_session;
     std::atomic_int atm_focus;
@@ -111,13 +112,15 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::atomic < search_move_t > search_focus_move;
     std::vector < std::pair < std::string /* checksum */, bool /* if match ? */ > > search_matches;
     std::atomic_int tab_suggestion_requested = 0; // 0, no, 1, fill, 2, show possible condidates
-    std::string search_content_prev_cmd;
+    std::string command_input_prev_cmd;
+    int cursor_position_prev = -1;
     std::string focused_connection_info;
     constexpr int start_line = 6;
     int vector_size_last_time = -1;
 
-    auto show_info = [&](const std::string & msg, const std::string & level) {
-        g_title_lines.emplace_back("[" + level + "]: " + msg, std::chrono::high_resolution_clock::now());
+    auto show_info = [&g_title_lines](const std::string & msg, const std::string & level, int timeout = -1) {
+        g_title_lines.emplace_back("[" + level + "]: " + msg,
+            std::pair { timeout, std::chrono::high_resolution_clock::now() });
     };
 
     if (command_vector.size() == 4)
@@ -178,6 +181,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     int reverse_sort_local = sort_reverse;
     int in_tab_suggestion = -1;
     std::vector<std::string> tab_suggestions;
+    bool on_display = false; // if banner has msg
     while (running)
     {
         search_matches.clear();
@@ -376,18 +380,21 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
         while (!g_title_lines.empty())
         {
-            if (const auto now = std::chrono::high_resolution_clock::now();
-                std::chrono::duration_cast<std::chrono::milliseconds>(now - g_title_lines.front().second).count() >=
-                (3000 / g_title_lines.size())) // transcendental display time
+            const auto now = std::chrono::high_resolution_clock::now();
+            if (const auto & [timeout, time] = g_title_lines.front().second;
+                std::chrono::duration_cast<std::chrono::milliseconds>(now - time).count() >=
+                (timeout <= 0 ? 3000 / g_title_lines.size() : timeout)) // transcendental display time
             {
                 g_title_lines.erase(g_title_lines.begin());
-                if (!g_title_lines.empty()) g_title_lines.front().second = now;
+                if (!g_title_lines.empty()) g_title_lines.front().second.second = now;
                 continue; // get next
             }
 
             g_title_line = &g_title_lines.front().first;
             break; // stop here
         }
+
+        on_display = g_title_line != nullptr;
 
         if (!g_title_line)
         {
@@ -605,76 +612,97 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             }
 
 
+            /// commands and search
             if (!search_content_buffer.get().empty())
             {
-                search_content = utf8::utf32to8(search_content_buffer.get());
                 /// auto complition
                 static const std::vector<std::string> g_args = {
                     "closeAll", "clearFilters", "filterReverse", "closeOnScreen", "filter",
                     "pause", "resume", "sort", "sortReverse"
                 };
 
-                if (!search_content.empty() && search_content.front() == ':')
+                /// is a command
+                if (auto command_input = utf8::utf32to8(search_content_buffer.get());
+                    !command_input.empty() && command_input.front() == ':')
                 {
-                    search_content.erase(search_content.begin());
-                    auto vec = split_via_history(search_content);
-                    if (tab_suggestion_requested > 0 && search_content_prev_cmd != search_content)
-                    {
-                        search_content_prev_cmd = search_content;
-                        if (vec.empty())
-                            tab_suggestions = g_args;
-                        else if (vec.size() == 1)
-                            tab_suggestions = auto_complete(vec.back(), g_args);
+                    command_input.erase(command_input.begin());
+                    auto vec = split_via_history(command_input);
 
+                    /// tab suggestions?
+                    if (tab_suggestion_requested > 0
+                        /// update candidates on content change
+                        && command_input_prev_cmd != command_input
+                        && cursor_position_prev != cursor_position)
+                    {
+                        // record last candidate state
+                        command_input_prev_cmd = command_input;
+                        cursor_position_prev = cursor_position;
+
+                        if (vec.empty())
+                            tab_suggestions = g_args; // no args, return all candidates
+                        else if (vec.size() == 1)
+                            tab_suggestions = auto_complete(vec.back(), g_args); // or, match the candidate in list
+
+                        // only one suggestion? immediately fill
                         if (tab_suggestions.size() == 1)
                         {
-                            vec.back() = tab_suggestions.front();
-                            search_content = ":";
-                            std::ranges::for_each(vec, [&search_content](const std::string & s) {
-                                search_content += s + " ";
-                            });
-                            search_content.pop_back(); // remove tailing space
-                            search_content_buffer.set(utf8_to_u32(search_content));
-                            cursor_position = static_cast<int>(search_content_buffer.get().size());
+                            search_content_buffer.set(utf8_to_u32(":" + tab_suggestions.front())); // set display
+                            cursor_position = static_cast<int>(search_content_buffer.get().size()); // move cursor to end
                         }
 
+                        // clear suggestion handler
                         in_tab_suggestion = 0;
                         tab_suggestion_requested = 0;
                     }
-                    else if (tab_suggestion_requested > 0 && search_content.empty() && tab_suggestions.empty())
+                    else if (tab_suggestion_requested > 0 && command_input.empty() && tab_suggestions.empty()) // no content?
                     {
+                        // return full list
                         tab_suggestions = g_args;
                         in_tab_suggestion = 0;
                         tab_suggestion_requested = 0;
                     }
 
+                    /// tab_suggestions not empty, cache not invalid so no tab_suggestions handled
                     if (tab_suggestions.size() > 1 && tab_suggestion_requested > 0)
                     {
-                        tab_suggestion_requested = 0;
-                        if (in_tab_suggestion >= tab_suggestions.size()) in_tab_suggestion = 0;
-                        search_content = ":" + tab_suggestions[in_tab_suggestion];
-                        search_content_buffer.set(utf8_to_u32(search_content));
-                        search_content_prev_cmd = tab_suggestions[in_tab_suggestion];
+                        tab_suggestion_requested = 0; // handle request
+                        if (in_tab_suggestion >= tab_suggestions.size()) in_tab_suggestion = 0; // out of bound? reset index to 0
+                        search_content_buffer.set(utf8_to_u32(":" + tab_suggestions[in_tab_suggestion])); // set display
+                        cursor_position = static_cast<int>(search_content_buffer.get().size()); // move cursor to the end
+
+                        // update cache, so it stays valid until it is changed outside in the get:/input thread
+                        command_input_prev_cmd = tab_suggestions[in_tab_suggestion];
+                        cursor_position_prev = cursor_position;
+
+                        /// display a notification, and clear notification queue so it goes immediately
+                        g_title_lines.clear();
+                        std::vector<std::string> sug { tab_suggestions.begin() + in_tab_suggestion, tab_suggestions.end() };
+                        sug.insert(sug.end(), tab_suggestions.begin(), tab_suggestions.begin() + in_tab_suggestion);
+                        std::stringstream sug_str;
+                        std::ranges::for_each(sug, [&sug_str](const std::string & s) { sug_str << s << " "; });
+                        show_info(sprint("(Tab suggestion: ") + sug_str.str() + ")", "INFO", 60000);
+                        on_display = false;
+
+                        // move to next, or cycle back
                         if (in_tab_suggestion < tab_suggestions.size()) ++in_tab_suggestion;
                         else in_tab_suggestion = 0;
-                        cursor_position = static_cast<int>(search_content_buffer.get().size());
                     }
-
-                    search_content.clear();
                 }
 
-                if (search_content_buffer.get().back() == '\n')
+                if (auto content = utf8::utf32to8(search_content_buffer.get()); content.back() == '\n')
                 {
-                    search_content = utf8::utf32to8(search_content_buffer.get());
-                    const auto backup_search_content = search_content;
-                    search_content.pop_back(); // pop '\n'
+                    // remove suggestion display
+                    while (!g_title_lines.empty() && g_title_lines.front().second.first > 0)
+                        g_title_lines.erase(g_title_lines.begin());
+                    content.pop_back(); // pop '\n'
                     search_content_buffer.set({});
                     std::cout << setup_term->clear;
 
-                    if (!search_content.empty() && search_content.front() == ':')
+                    // command block
+                    if (!content.empty() && content.front() == ':')
                     {
-                        search_content.erase(search_content.begin());
-                        if (const auto vec = split_via_history(search_content); !vec.empty())
+                        content.erase(content.begin());
+                        if (const auto vec = split_via_history(content); !vec.empty())
                         {
                             // tab_suggestion_requested = 0;
                             // now we have commands
@@ -709,7 +737,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                                     try
                                     {
                                         const auto filter_id = std::strtoul(vec[1].c_str(), nullptr, 10);
-                                        if (filter_id > get_conn_titles.size()) throw std::invalid_argument(sprint("Invalid filter ID"));
+                                        if (filter_id >= get_conn_titles.size()) throw std::invalid_argument(sprint("Invalid filter ID"));
                                         std::regex r(vec[2]);
                                         filter_patterns[filter_id] = vec[2];
                                     }
@@ -741,7 +769,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                                     try
                                     {
                                         const auto sort_id = std::strtoul(vec[1].c_str(), nullptr, 10);
-                                        if (sort_id > get_conn_titles.size()) throw std::invalid_argument(sprint("Invalid sort ID"));
+                                        if (sort_id >= get_conn_titles.size()) throw std::invalid_argument(sprint("Invalid sort ID"));
                                         sort_by = static_cast<int>(sort_id);
                                     }
                                     catch (const std::exception& e)
@@ -762,10 +790,11 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                             }
 
                             leading_spaces = 0;
-                            if (!backup_search_content.empty() && backup_search_content.front() != ':')
-                                search_content = backup_search_content;
-                            else search_content.clear();
                         }
+                    }
+                    else
+                    {
+                        search_content = content;
                     }
                 }
             }
@@ -852,7 +881,9 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     || !running
                     || skip_due_to_shrink
                     || skip_due_to_lock
-                    || local_tab_suggestion != tab_suggestion_requested)
+                    || local_tab_suggestion != tab_suggestion_requested
+                    || (!on_display && !g_title_lines.empty()) // not on display, and has notifications
+                )
                 {
                     if (window_size_change ||
                         (utils::getenv("ENABLE_CLEAR_ON_SHRINK") == "true" && skip_due_to_shrink
