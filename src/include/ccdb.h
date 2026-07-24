@@ -79,8 +79,7 @@ namespace ccdb
         std::atomic_int & max_log_size = backend_instance.max_log_size;
         std::string external_puller_command;
         int external_puller_command_time_out_ms = 10000;
-        std::vector<std::vector<std::string>> logLocalReversed;
-        std::vector < std::vector < std::string > > logLines;
+        std::vector<std::vector<std::string>> logPullerNoFilter;
         enum log_level_t : uint8_t { ERROR = 1, DEBUG, WARNING, };
         // tsl::hopscotch_map < std::string, log_level_t > logStatusSignsCache;
 

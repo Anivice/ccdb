@@ -54,7 +54,8 @@ void ccdb::ccdb::get_log()
     std::atomic < search_move_t > search_focus_move;
     bool lock_to_max = false;
     std::atomic_bool pause = false;
-    decltype(logLines) & lines = logLines;
+    decltype(logPullerNoFilter) lines_local_incrimination;
+    decltype(logPullerNoFilter) log_local_incrimination;
 
     auto input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
         &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
@@ -67,7 +68,7 @@ void ccdb::ccdb::get_log()
 
     auto if_filter_out = [&](const std::string & line, const std::string & pattern)->bool
     {
-        const auto ret = std::regex_match(line, std::regex(pattern));
+        const auto ret = std::regex_search(line, std::regex(pattern));
         if (reverse_filter_list) return !ret;
         return ret;
     };
@@ -100,10 +101,18 @@ void ccdb::ccdb::get_log()
         }
     };
 
+    auto if_skip = [&](const std::string & level, const std::string & log)->bool
+    {
+        bool skip = false;
+        if (!log_level_filter.empty()) skip |= if_filter_out(level, log_level_filter);
+        if (!log_content_filter.empty()) skip |= if_filter_out(log, log_content_filter);
+        return skip;
+    };
+
     bool pause_log_update = false;
     while (running)
     {
-        const decltype(backend_instance.get_logs()) & current_vector = logLocalReversed;
+        const decltype(backend_instance.get_logs()) & current_vector = log_local_incrimination;
         if (pause)
         {
             pause_log_update = !pause_log_update;
@@ -112,49 +121,65 @@ void ccdb::ccdb::get_log()
 
         if (!pause_log_update)
         {
+            if (lines_local_incrimination.empty() && !logPullerNoFilter.empty())
+            {
+                lines_local_incrimination.reserve(logPullerNoFilter.size());
+                log_local_incrimination.reserve(logPullerNoFilter.size());
+                std::ranges::for_each(logPullerNoFilter,
+                    [&](const std::vector<std::string> & line)
+                {
+
+                    if (!if_skip(line[1], line[2]))
+                    {
+                        lines_local_incrimination.emplace_back(std::vector {line[0], line[1], line[2]});
+                        log_local_incrimination.emplace_back(line);
+                    }
+                });
+            }
+
             auto new_logs = backend_instance.get_logs();
             backend_instance.clearLogs();
 
-            logLocalReversed.reserve(logLocalReversed.size() + new_logs.size());
-            lines.reserve(lines.size() + new_logs.size());
+            logPullerNoFilter.reserve(logPullerNoFilter.size() + new_logs.size());
 
             // append to reversed stack (last in first out)
-            std::ranges::reverse(logLocalReversed);
+            std::ranges::reverse(logPullerNoFilter);
 #           if ((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
-            logLocalReversed.append_range(new_logs);
+            logPullerNoFilter.append_range(new_logs);
 #           else
-            logLocalReversed.insert(logLocalReversed.end(), new_logs.begin(), new_logs.end()); // append range
+            logPullerNoFilter.insert(logPullerNoFilter.end(), new_logs.begin(), new_logs.end()); // append range
 #           endif
 
-            check_log_search(logLocalReversed);
-
-            std::ranges::reverse(lines);
-            for (const std::span viewer { logLocalReversed.end() - new_logs.size(), logLocalReversed.end() };
+            std::ranges::reverse(lines_local_incrimination);
+            std::ranges::reverse(log_local_incrimination);
+            for (const std::span viewer { logPullerNoFilter.end() - static_cast<std::vector<std::string>::difference_type>(new_logs.size()), logPullerNoFilter.end() };
                 const auto & log_ : viewer)
             {
                 const auto & level = log_[1];
                 const auto & time = log_[0];
                 const auto & log = log_[2];
 
-                bool skip = false;
-                if (!log_level_filter.empty()) skip |= if_filter_out(level, log_level_filter);
-                if (!log_content_filter.empty()) skip |= if_filter_out(log, log_content_filter);
-                if (skip) continue;
-
-                lines.emplace_back(std::vector{ time, level, log });
+                if (!if_skip(level, log)) {
+                    lines_local_incrimination.emplace_back(std::vector{ time, level, log });
+                    log_local_incrimination.emplace_back(log_);
+                }
             }
 
-            std::ranges::reverse(logLocalReversed);
-            std::ranges::reverse(lines);
-        }
+            check_log_search(log_local_incrimination);
 
-        if (logLocalReversed.size() > max_log_size) logLocalReversed.resize(max_log_size);
-        if (lines.size() > max_log_size) lines.resize(max_log_size);
+            std::ranges::reverse(logPullerNoFilter);
+            std::ranges::reverse(lines_local_incrimination);
+            std::ranges::reverse(log_local_incrimination);
+
+            if (logPullerNoFilter.size() > max_log_size) logPullerNoFilter.resize(max_log_size);
+            if (lines_local_incrimination.size() > max_log_size) lines_local_incrimination.resize(max_log_size);
+            if (log_local_incrimination.size() > max_log_size) log_local_incrimination.resize(max_log_size);
+        }
 
         tsl::hopscotch_map < uint64_t, std::string > line_color_overrides;
         {
-            const auto begin = lines.begin();
-            for (auto it = lines.begin(); it < lines.end(); ++it)
+            const auto begin = lines_local_incrimination.begin();
+            for (auto it = lines_local_incrimination.begin(); it < lines_local_incrimination.end(); ++it)
             {
                 if (const auto & level = (*it)[1]; level == "ERROR") {
                     line_color_overrides[it - begin] = color::color(5,0,0);
@@ -314,7 +339,7 @@ void ccdb::ccdb::get_log()
             auto print = [&](const bool dry_run)
             {
                 print_table(log_titles,
-                    lines,
+                    lines_local_incrimination,
                     false,
                     true,
                     do_col_hide,
