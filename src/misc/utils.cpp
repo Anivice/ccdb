@@ -823,56 +823,43 @@ timespec ccdb::utils::get_timespec() noexcept
     return ts;
 }
 
-std::string ccdb::utils::value_to_human(uint64_t value, const uint64_t p, const std::vector<std::string> &lvs)
+std::string ccdb::utils::value_to_human(
+    const uint64_t value,
+    const uint64_t p,
+    const std::vector<std::string>& lvs)
 {
-    std::stringstream ss;
     if (lvs.empty()) {
         throw std::runtime_error("lvs is empty");
     }
 
+    if (p < 2) {
+        throw std::invalid_argument("p must be greater than 1");
+    }
+
+    std::stringstream ss;
+
     if (value == 0) {
-        ss << 0 << " " << lvs.front();
+        ss << "0 " << lvs.front();
         return ss.str();
     }
 
-    std::vector<uint64_t> values;
-    while (value > 0)
-    {
-        values.push_back(value % p);
-        value /= p;
+    std::size_t level = 0;
+    uint64_t scale = 1;
+
+    while (level + 1 < lvs.size() && value / scale >= p) {
+        scale *= p;
+        ++level;
     }
 
-    if (values.size() > lvs.size())
-    {
-        uint64_t last = 0;
-        for (uint64_t i = lvs.size(); i < values.size(); i++) {
-            last += values[i] * static_cast<uint64_t>(std::pow(p, i));
-        }
+    const long double human_value =
+        static_cast<long double>(value) /
+        static_cast<long double>(scale);
 
-        values.resize(lvs.size());
-        values.back() += last;
-    }
-
-    const std::string & metric = lvs[values.size() - 1];
-    const auto metric_length = std::pow(p, values.size() - 1);
-
-    if (values.size() > 2)
-    {
-        uint64_t start = 0;
-        const uint64_t end = values.back();
-
-        for (uint64_t i = 0; i < values.size() - 1; i++) {
-            start += values[i] * static_cast<uint64_t>(std::pow(p, i));
-        }
-
-        values.resize(2);
-        values.front() = start;
-        values.back() = end;
-    }
-
-    ss  << std::fixed << std::setprecision(2)
-        << static_cast<double>(values.back()) + (static_cast<double>(values.front()) / metric_length)
-        << " " << metric;
+    ss << std::fixed
+       << std::setprecision(2)
+       << human_value
+       << " "
+       << lvs[level];
 
     return ss.str();
 }

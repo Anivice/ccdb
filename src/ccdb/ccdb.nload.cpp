@@ -166,8 +166,10 @@ void ccdb::ccdb::nload(
         const auto metric_list_size = static_cast<int>(windows_space_local);
         for (auto i = 0; i < metric_list_size; ++i)
         {
-            const double ratio_ = static_cast<double>(metric_list_size - i) / static_cast<double>(metric_list_size);
-            const auto current_value_ = static_cast<uint64_t>(std::round(static_cast<double>(max_speed) * ratio_));
+            using numeric_t = long double;
+            const numeric_t ratio_ = (i == 0) ? 1 :
+                static_cast<numeric_t>(metric_list_size - i - 1) / static_cast<numeric_t>(metric_list_size - 1);
+            const auto current_value_ = static_cast<uint64_t>(std::round(static_cast<numeric_t>(max_speed) * ratio_));
             std::string color_line;
             if (!USE_OLD_COLOR_SCHEME)
             {
@@ -176,8 +178,8 @@ void ccdb::ccdb::nload(
                     static_cast<int>(std::round(green)), static_cast<int>(std::round(blue)));
             }
 
-            metric_inf_list.emplace_back(color_line + ((i & 0x01) ?
-                " -" : " " + value_to_speed(current_value_)));
+            metric_inf_list.emplace_back(color_line + /* (!(i & 0x01) ? */
+                /* " -" : */ " - " + value_to_speed(current_value_));
         }
 
         int max_in_inf_list = 0;
@@ -197,7 +199,7 @@ void ccdb::ccdb::nload(
 
         info_list.reserve(metric_list.size());
         const int pre_info_list_size = metric_list_size >= 5 ? metric_list_size - 5 : 0;
-        const int offset = metric_list_size - 5 - 1;
+        const int offset = pre_info_list_size;
         info_list.push_back(metric_inf_list[offset+0] + sprint("    Cur (P): ") + value_to_speed(*speed));
         info_list.push_back(metric_inf_list[offset+1] + sprint("    Min (P): ") + min_speed_on_page_str);
         info_list.push_back(metric_inf_list[offset+2] + sprint("  Max (P/O): ") + generate_padding(max_speed_on_page_str) + " / " + max_speed_overall_str);
@@ -205,7 +207,7 @@ void ccdb::ccdb::nload(
         info_list.push_back(metric_inf_list[offset+4] + sprint("    Ttl (O): ") + value_to_size(*total));
 
         std::ranges::reverse(info_list);
-        for (int i = pre_info_list_size; i > 0; --i) {
+        for (int i = pre_info_list_size - 1; i >= 0; --i) {
             info_list.emplace_back(metric_inf_list[i]);
         }
         std::ranges::reverse(info_list);
