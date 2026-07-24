@@ -5,6 +5,7 @@
 #include "json.hpp"
 #include "print.h"
 #include "GIT_HASH.h"
+#include "httplib.h"
 
 #define CCDB_VERSION_TO_TEXT(x) #x
 #define CCDB_VERSION_TO_STRING(x) CCDB_VERSION_TO_TEXT(x)
@@ -16,8 +17,8 @@
     " TSL Map: TSL Hopscotch-Hashing Map v2.4.0\n" \
     "    UTF8: 4.1.1\n" \
     "    JSON: " CCDB_VERSION_TO_STRING(NLOHMANN_JSON_VERSION_MAJOR) "." CCDB_VERSION_TO_STRING(NLOHMANN_JSON_VERSION_MINOR) "." CCDB_VERSION_TO_STRING(NLOHMANN_JSON_VERSION_PATCH) "\n" \
-    "     TAR: tar (GNU tar) 1.35\n"
-
+    "     TAR: tar (GNU tar) 1.35\n" \
+    " HTTPLIB: " CPPHTTPLIB_VERSION "\n"
 #ifdef __USE_IMG__
 #define IMG_LIB_VERSION \
     "CCDB has enabled image loading in terminal:\n" \
