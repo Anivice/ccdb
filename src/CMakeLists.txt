@@ -347,6 +347,10 @@ add_executable(ccdb
         misc/args.cpp                   include/args.h
         misc/sort.cpp
         misc/json.cpp                   include/json.hpp
+        misc/update.cpp                 include/update.h
+        misc/term_name.cpp              include/term_name.h
+        misc/mihomo.cpp                 include/mihomo.h
+        misc/pull_subinfo.cpp           include/pull_subinfo.h
 
         include/print.h
 
@@ -358,12 +362,8 @@ add_executable(ccdb
         ccdb/ccdb.get_log.cpp
         ccdb/ccdb.set.cpp
         ccdb/ccdb.nload.cpp
-
-        ccdb/ccdb.print_table.cpp       include/ccdb.h
-        ccdb/term_name.cpp              include/term_name.h
         ccdb/general_info_pulling.cpp   include/general_info_pulling.h
-        ccdb/mihomo.cpp                 include/mihomo.h
-        ccdb/pull_subinfo.cpp           include/pull_subinfo.h
+        ccdb/ccdb.print_table.cpp       include/ccdb.h
         versions.cpp                    include/versions.h
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})

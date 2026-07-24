@@ -115,7 +115,7 @@
     < clearLogs (Clear logs in the cache): [NONE] >,
     < exportColorScheme (Export the custom color scheme binary cache): [NONE] >,
     < restartContinuousUpdates (Restart background continuous update workers): [NONE] >,
-    < upgrade (Upgrade backend): core (Upgrade core), geo (Upgrade geoip) >,
+    < upgrade (Upgrade backend): core (Upgrade core), geo (Upgrade geoip), self (Upgrade ccdb) >,
     < restart (Restart backend): [NONE] >,
     < flush (Flush fake-ip cache): [NONE] >,
 }

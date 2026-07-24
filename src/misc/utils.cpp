@@ -39,7 +39,7 @@
 #include <cstdlib>
 #include <sys/syscall.h>
 #include <stdexcept>
-#include <tuple>
+// #include <tuple>
 #include "lzw6.h"
 #include "json.hpp"
 #include "lang.json.h"
@@ -717,10 +717,9 @@ static std::string regex_replace_callback(
 {
     std::string result;
     std::sregex_iterator it(input.begin(), input.end(), pattern);
-    std::sregex_iterator end;
     std::size_t last_pos = 0;
 
-    for (; it != end; ++it) {
+    for (const std::sregex_iterator end; it != end; ++it) {
         // Append text before match
         result.append(input, last_pos, it->position() - last_pos);
         // Call user function to generate replacement
@@ -1291,7 +1290,7 @@ void ccdb::utils::set_progress_bar(const progress_bar_state_t state, const int p
                 std::stringstream ss3;
                 ss3 << "\r" << "[" << std::string(p, '=') << std::string(l, ' ') << str_p;
                 const auto str3 = ss3.str();
-                write(fd, str3.c_str(), str3.length());
+                (void)write(fd, str3.c_str(), str3.length());
             }
         }
 

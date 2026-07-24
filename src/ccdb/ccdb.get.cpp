@@ -32,6 +32,8 @@
 #include "ccdb.h"
 #include "utils.h"
 #include "ccdbrc.h"
+#include "Readline.h"
+#include "update.h"
 
 // --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;
@@ -299,6 +301,64 @@ void ccdb::ccdb::get_rules()
     catch (const std::exception & e)
     {
         print<is_error>("Failed to get rules: ", e.what(), "\n");
+    }
+}
+
+void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
+{
+    // upgrade [...]
+    if (command_vector[1] == "geo")  {
+        const auto result = backend_instance.generic_post("/upgrade/geo");
+        try {
+            const auto json = json::parse(result);
+            const auto result_ = std::string(json.contains("message") ? json["message"] : json["status"]);
+            print(result_, "\n");
+        } catch (...) {
+            if (!result.empty()) print(result, "\n");
+        }
+    } else if (command_vector[1] == "core") {
+        const auto result = backend_instance.generic_post("/upgrade");
+        try {
+            const auto json = json::parse(result);
+            const auto result_ = std::string(json.contains("message") ? json["message"] : json["status"]);
+            print(result_, "\n");
+        } catch (...) {
+            if (!result.empty()) print(result, "\n");
+        }
+    }  else if (command_vector[1] == "self") {
+        const auto vec = get_content(30);
+        char buff[512] { };
+        if (readlink("/proc/self/exe", buff, 512) == -1) {
+            throw std::runtime_error("Failed to read /proc/self/exe: " + std::string(std::strerror(errno)));
+        }
+
+        const auto result = std::string(buff);
+
+        if (rename(result.c_str(), (result + ".bak").c_str()) == -1) {
+            throw std::runtime_error("Failed to rename: " + std::string(std::strerror(errno)));
+        }
+
+        if (std::ofstream ofs((result + ".new").c_str(), std::ios::trunc); ofs)
+        {
+            ofs.write(vec.data(), vec.size());
+            ofs.close();
+        }
+        else
+        {
+            throw std::runtime_error("Failed to write: " + std::string(std::strerror(errno)));
+        }
+
+        if (rename((result + ".new").c_str(), result.c_str()) == -1)
+        {
+            rename((result + ".bak").c_str(), result.c_str());
+            throw std::runtime_error("Failed to rename: " + std::string(std::strerror(errno)));
+        }
+
+        unlink((result + ".bak").c_str());
+        print("Upgraded self. Please relaunch CCDB to complete the update.\n");
+    } else {
+        print<is_error>("Unknown command `", command_vector[1], "`\n");
+        if (execute_and_no_interactive) throw std::runtime_error("");
     }
 }
 

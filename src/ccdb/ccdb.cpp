@@ -621,31 +621,8 @@ void ccdb::ccdb::init()
                     if (execute_and_no_interactive) throw std::runtime_error("");
                 }
             }
-            else if (command_vector.front() == "upgrade" && command_vector.size() == 2)
-            {
-                // upgrade [...]
-                if (command_vector[1] == "geo")  {
-                    const auto result = backend_instance.generic_post("/upgrade/geo");
-                    try {
-                        const auto json = json::parse(result);
-                        const auto result_ = std::string(json.contains("message") ? json["message"] : json["status"]);
-                        print(result_, "\n");
-                    } catch (...) {
-                        if (!result.empty()) print(result, "\n");
-                    }
-                } else if (command_vector[1] == "core") {
-                    const auto result = backend_instance.generic_post("/upgrade");
-                    try {
-                        const auto json = json::parse(result);
-                        const auto result_ = std::string(json.contains("message") ? json["message"] : json["status"]);
-                        print(result_, "\n");
-                    } catch (...) {
-                        if (!result.empty()) print(result, "\n");
-                    }
-                } else {
-                    print<is_error>("Unknown command `", command_vector[1], "`\n");
-                    if (execute_and_no_interactive) throw std::runtime_error("");
-                }
+            else if (command_vector.front() == "upgrade" && command_vector.size() == 2) {
+                upgrade(command_vector);
             }
             else if (command_vector.front() == "restart" && command_vector.size() == 1) {
                 const auto result = backend_instance.generic_post("/restart");
