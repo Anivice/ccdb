@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include "GIT_HASH.h"
+
 //Get current architecture, detects nearly every architecture. Coded by Freak
 static constexpr const char * getBuild()
 {
@@ -12,10 +14,7 @@ static constexpr const char * getBuild()
     return "x86_64";
 #elif defined(i386) || defined(__i386__) || defined(__i386) || defined(_M_IX86)
     return "i586";
-#elif defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__) || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7S__) \
-    || defined(__ARM_ARCH_7A__) || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7S__) \
-    || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7S__) \
-    defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7S__)
+#elif defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__) || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7S__) || defined(__ARM_ARCH_7A__) || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7S__) || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7S__) defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7S__)
     return "armv7";
 #elif defined(__aarch64__) || defined(_M_ARM64)
     return "aarch64";
@@ -66,7 +65,7 @@ namespace
         while (std::getline(ss, s, ';')) {
             const auto name = s.substr(0, s.find_first_of(':'));
             const auto value = s.substr(s.find_first_of(':') + 1);
-            env_headers_vec.emplace_back(std::pair{name,value});
+            env_headers_vec.emplace_back(name,value);
         }
 
         return {
@@ -182,6 +181,11 @@ namespace
 std::vector<char> get_content(const int timeout)
 {
     const auto hash = get_latest_hash(timeout);
+    if (hash == ccdb_utils_unpack_string(GIT_HASH))
+    {
+        throw std::runtime_error(ccdb::utils::sprint("Already the latest build (", hash, ")\n"));
+    }
+
     // wget https://github.com/Anivice/ccdb/releases/download/ccdb.NightlyBuild."$VER"/ccdb."$ARCH" -O "$DEST"
     const auto url_dest = "https://github.com/Anivice/ccdb/releases/download/ccdb.NightlyBuild."
         + hash.substr(0, 8) + "/ccdb." + ArchName;
