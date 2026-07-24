@@ -1098,5 +1098,10 @@
     "en"    : "Backend version",
     "en_US" : "Backend version",
     "zh_CN" : "后端版本"
+  },
+  {
+    "en"    : "Upgrade ccdb",
+    "en_US" : "Upgrade ccdb",
+    "zh_CN" : "更新ccdb"
   }
 ]
