@@ -92,7 +92,7 @@ namespace ccdb::color
 
 namespace sim
 {
-    enum color_scheme_t : int { RAINBOW_DISTINCT, RAINBOW_CONTINUOUS, CUSTOMIZED };
+    enum color_scheme_t : int { RAINBOW_DISTINCT, RAINBOW_CONTINUOUS, CUSTOMIZED, UNDEFINED };
     extern color_scheme_t color_scheme;
     extern std::string customized_color_command_calc;
     using Num = long double;

@@ -97,7 +97,7 @@ namespace ccdb
         std::ranges::for_each(line, [&hash](const auto & s) { hash << s; });
         hash << search_content;
         const auto h = hash.str();
-        if (const auto it = cache.get_cache(h); it != nullptr) {
+        if (const auto it = cache.get_cache(h); it) {
             return *it;
         }
 
@@ -208,7 +208,7 @@ static std::mutex text_translator_mtx;
 std::string ccdb::utils::get_text(const std::string &text)
 {
     static cache_w_freq_table_t < std::string, std::string > converted;
-    if (const auto it = converted.get_cache(text); it != nullptr) return *it;
+    if (const auto it = converted.get_cache(text); it) return *it;
 
     using json = nlohmann::json;
 
@@ -738,7 +738,7 @@ std::string ccdb::utils::regex_replace_all(std::string &original, const std::str
     std::string hash;
     if (use_cache) {
         hash = original + pattern;
-        if (const auto it = cache.get_cache(hash); it !=  nullptr) {
+        if (const auto it = cache.get_cache(hash); it) {
             return *it;
         }
     }
@@ -907,7 +907,7 @@ std::string ccdb::utils::second_to_human_readable(unsigned long long value)
 std::u32string ccdb::utils::utf8_to_u32(const std::string &s)
 {
     static cache_w_freq_table_t <std::string, std::u32string > cache;
-    if (const auto it = cache.get_cache(s); it != nullptr) {
+    if (const auto it = cache.get_cache(s); it) {
         return *it;
     }
 
@@ -929,7 +929,7 @@ int ccdb::utils::UnicodeDisplayWidth::get_width_utf8(const std::string &utf8_str
 int ccdb::utils::UnicodeDisplayWidth::get_width_utf32(const std::u32string &utf32_str)
 {
     static cache_w_freq_table_t < std::u32string, int > cache;
-    if (const auto it = cache.get_cache(utf32_str); it != nullptr) {
+    if (const auto it = cache.get_cache(utf32_str); it) {
         return *it;
     }
 

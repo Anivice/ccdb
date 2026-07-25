@@ -154,6 +154,7 @@ protected:
     void update_from_traffic(const std::string& info);
     void update_from_connections(const std::string& info);
     void update_from_logs(const std::string& info);
+    void update_from_memory(const std::string& info);
 
 public:
     using proxy_info_summary_t = std::pair < decltype(proxy_groups), tsl::hopscotch_map < std::string /* proxy name */, int /* latency in ms */ > /* proxy_latency */ >;
@@ -184,6 +185,8 @@ public:
     bool modify_config_int(const std::string & entry, uint64_t val) const;
     void clearLogs() { std::lock_guard lock(logs_mutex); logs.clear(); }
 
+    std::atomic < uint64_t > current_memory_in_use_by_mihomo = 0;
+    std::atomic < uint64_t > current_memory_limit_by_mihomo = 0;
 };
 
 #endif //SRC_GENERAL_INFO_PULLING_H

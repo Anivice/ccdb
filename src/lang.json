@@ -1113,5 +1113,10 @@
     "en"    : "Upgraded self. Please relaunch CCDB to complete the update.\n",
     "en_US" : "Upgraded self. Please relaunch CCDB to complete the update.\n",
     "zh_CN" : "已下载更新, 请重新启动来完成更新。\n"
+  },
+  {
+    "en"    : "Backend memory usage: ",
+    "en_US" : "Backend memory usage: ",
+    "zh_CN" : "后端内存占用: "
   }
 ]

@@ -106,6 +106,15 @@ namespace ccdb
             std::vector < std::string > & top_3_connections_using_most_speed,
             std::mutex * top_3_connections_using_most_speed_mtx);
 
+        struct frame_data_t
+        {
+            uint64_t frame_index;
+            std::string frame;
+            bool clear;
+        };
+
+        static void display(ccdb_atomic_t < frame_data_t > & frame, const std::atomic_bool * running);
+
         /// show info using pager
         /// @param str content to be shown
         /// @param override_less_check Skip availability test
@@ -138,7 +147,7 @@ namespace ccdb
         /// @param highlight_str Highlight this string
         /// @param column_alignment
         /// @returns NONE
-        void print_table(
+        std::string print_table(
             std::vector<std::string> const & table_keys,
             std::vector < std::vector<std::string> > const & table_values,
             bool muff_non_ascii = false,

@@ -394,7 +394,7 @@ namespace ccdb::utils
 #endif
 
     template < typename Key, typename Value >
-class cache_w_freq_table_t
+    class cache_w_freq_table_t
     {
     private:
         std::mutex mtx_;
@@ -445,9 +445,9 @@ class cache_w_freq_table_t
         }
 #endif
 
-        const Value * get_cache(const Key & key)
+        std::optional < Value > get_cache(const Key & key)
         {
-            if (!do_i_use_cache) return nullptr;
+            if (!do_i_use_cache) return std::nullopt;
             std::lock_guard<std::mutex> lock_guard(mtx_);
 #ifdef __DEBUG__
             ++access_;
@@ -472,10 +472,10 @@ class cache_w_freq_table_t
                 ++hit_;
 #endif
                 const Value & val = it->second;
-                return &val;
+                return val;
             }
 
-            return nullptr;
+            return std::nullopt;
         }
 
         void emplace_cache(const Key & key, const Value & value)

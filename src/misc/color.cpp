@@ -34,7 +34,7 @@
 #include "nlohmann/json.hpp"
 
 std::atomic_int ccdb::color::g_color_status_override = -1;
-sim::color_scheme_t sim::color_scheme = RAINBOW_DISTINCT;
+sim::color_scheme_t sim::color_scheme = UNDEFINED;
 std::string sim::customized_color_command_calc;
 namespace ccdb::color {
     ColorSchemeCacheType local_color_cache;
@@ -254,7 +254,7 @@ namespace sim
         case CUSTOMIZED:
             {
                 static ccdb::utils::cache_w_freq_table_t<Num, NumPack_t> local_color_cache;
-                if (const auto it = local_color_cache.get_cache(x); it != nullptr) {
+                if (const auto it = local_color_cache.get_cache(x); it) {
                     return *it;
                 }
 
