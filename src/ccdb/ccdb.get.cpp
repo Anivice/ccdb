@@ -342,6 +342,11 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
         {
             ofs.write(vec.data(), vec.size());
             ofs.close();
+            if (chmod((result + ".new").c_str(), 0755) == -1)
+            {
+                unlink((result + ".new").c_str());
+                throw std::runtime_error("Failed to chmod: " + std::string(std::strerror(errno)));
+            }
         }
         else
         {
