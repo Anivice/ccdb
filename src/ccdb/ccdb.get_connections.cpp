@@ -415,6 +415,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             append_msg("   ");
             append_msg(sprint("Backend memory usage: ") + value_to_size(backend_instance.current_memory_in_use_by_mihomo));
             append_msg("   ");
+            append_msg(sprint("Frontend memory usage: ") + value_to_size(cur_mem_size()));
+            append_msg("   ");
             append_msg(update_subinfo(subinfo_ball, threads));
 
             title_line = ss.str();

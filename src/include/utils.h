@@ -548,6 +548,7 @@ namespace ccdb::utils
     void set_progress_bar(progress_bar_state_t, int percentages /* 0 - 100 */);
     void exportBinary(const std::vector<uint8_t> &, std::basic_ostream<char> &);
     std::vector<uint8_t> importBinary(std::basic_istream<char> &);
+    ssize_t cur_mem_size();
     constexpr char dump_start_signature[] = "----------------- START OF THE DATA STRUCTURE -----------------";
     constexpr char dump_end_signature[] =   "------------------ END OF THE DATA STRUCTURE ------------------";
 

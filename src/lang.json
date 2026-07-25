@@ -1118,5 +1118,10 @@
     "en"    : "Backend memory usage: ",
     "en_US" : "Backend memory usage: ",
     "zh_CN" : "后端内存占用: "
+  },
+  {
+    "en"    : "Frontend memory usage: ",
+    "en_US" : "Frontend memory usage: ",
+    "zh_CN" : "前端内存占用: "
   }
 ]

@@ -1445,3 +1445,24 @@ std::vector<uint8_t> ccdb::utils::importBinary(std::basic_istream<char>& in)
     return { reinterpret_cast<const uint8_t*>(data.data()),
         reinterpret_cast<const uint8_t*>(data.data()) + data.size() };
 }
+
+ssize_t ccdb::utils::cur_mem_size()
+{
+    unsigned long size, resident, share, text, lib, data, dt;
+    FILE *f = fopen("/proc/self/statm", "r");
+    if (!f) {
+        return -1;
+    }
+
+    if (fscanf(f, "%lu %lu %lu %lu %lu %lu %lu",
+               &size, &resident, &share, &text, &lib, &data, &dt) != 7)
+    {
+        fclose(f);
+        return -1;
+    }
+    fclose(f);
+
+    const long page_size = sysconf(_SC_PAGESIZE);
+    const auto rss_bytes = resident * page_size;
+    return rss_bytes;
+}
