@@ -184,9 +184,10 @@ namespace
 std::vector<char> get_content(const int timeout)
 {
     const auto hash = get_latest_hash(timeout);
-    if (hash == ccdb_utils_unpack_string(GIT_HASH))
+    const auto current_hash = ccdb_utils_unpack_string(GIT_HASH);
+    if (hash.substr(0, 8) == current_hash)
     {
-        throw std::runtime_error(ccdb::utils::sprint("Already the latest build (", hash, ")\n"));
+        throw std::runtime_error(ccdb::utils::sprint("Already the latest build (", hash, ")"));
     }
 
     // wget https://github.com/Anivice/ccdb/releases/download/ccdb.NightlyBuild."$VER"/ccdb."$ARCH" -O "$DEST"

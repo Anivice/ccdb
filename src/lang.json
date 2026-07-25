@@ -747,7 +747,7 @@
   {
     "en"    : "Show last three logs instead of top three speed connections",
     "en_US" : "Show last three logs instead of top three speed connections",
-    "zh_CN" : "显示最新三条后端日志（替换原本显示的三个占速最多的连接）"
+    "zh_CN" : "显示最新三条后端日志 (替换原本显示的三个占速最多的连接) "
   },
   {
     "en"    : "Total usable data: ",
@@ -777,7 +777,7 @@
   {
     "en"    : "Specify subscription URL (only for --subinfo)",
     "en_US" : "Specify subscription URL (only for --subinfo)",
-    "zh_CN" : "指定代理链接（只能用于 --subinfo）"
+    "zh_CN" : "指定代理链接 (只能用于 --subinfo) "
   },
   {
     "en"    : " UP: ",
@@ -927,7 +927,7 @@
   {
     "en"    : "Press Ctrl+C (^C) to end immediately.\n",
     "en_US" : "Press Ctrl+C (^C) to end immediately.\n",
-    "zh_CN" : "按 Ctrl+C（^C）立即结束。\n"
+    "zh_CN" : "按 Ctrl+C (^C) 立即结束。\n"
   },
   {
     "en"    : "Wait...\n",
@@ -1103,5 +1103,15 @@
     "en"    : "Upgrade ccdb",
     "en_US" : "Upgrade ccdb",
     "zh_CN" : "更新ccdb"
+  },
+  {
+    "en"    : "Already the latest build (",
+    "en_US" : "Already the latest build (",
+    "zh_CN" : "已经是最新版本 ("
+  },
+  {
+    "en"    : "Upgraded self. Please relaunch CCDB to complete the update.\n",
+    "en_US" : "Upgraded self. Please relaunch CCDB to complete the update.\n",
+    "zh_CN" : "已下载更新, 请重新启动来完成更新。\n"
   }
 ]
