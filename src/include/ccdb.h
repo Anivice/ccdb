@@ -111,6 +111,7 @@ namespace ccdb
             uint64_t frame_index;
             std::string frame;
             bool clear;
+            bool pause;
         };
 
         static void display(ccdb_atomic_t < frame_data_t > & frame, const std::atomic_bool * running);

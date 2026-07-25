@@ -608,6 +608,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     });
 
                     pause_input_watcher = true;
+                    frame_data.set({ .pause = true });
                     if (!jq.empty()) {
                         exec_command("/bin/sh", matched_connection.metadata.raw_json,
                             "-c", jq + (color::is_no_color() ? "" : " --color-output") + " | " + less);
