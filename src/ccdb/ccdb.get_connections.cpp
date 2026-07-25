@@ -101,7 +101,6 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::vector < std::thread > child_workers;
     std::vector <std::string> title_this_session;
     std::atomic_int atm_focus;
-    std::unique_ptr<::ccdb::utils::setup_term> setup_term;
     atomic_subinfo_ball_t subinfo_ball = std::make_unique<ccdb_atomic_t<subinfo_ball_t>>();
     std::vector < std::pair < std::unique_ptr<std::atomic_bool>, std::thread > > threads;
     std::atomic_bool pause_input_watcher = false;
@@ -117,6 +116,10 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::string focused_connection_info;
     constexpr int start_line = 6;
     int vector_size_last_time = -1;
+    uint64_t frame_index = 0;
+    ccdb_atomic_t<frame_data_t> frame_data;
+    frame_data.set({});
+    std::thread Display;
 
     auto show_info = [&g_title_lines](const std::string & msg, const std::string & level, int timeout = -1) {
         g_title_lines.emplace_back("[" + level + "]: " + msg,
@@ -163,7 +166,11 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     }
 
     if (use_input) {
-        setup_term = std::make_unique<utils::setup_term>();
+        Display = std::thread([&]
+        {
+            display(frame_data, &running);
+        });
+
         input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
             &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
             &mouse_x, &mouse_y, &kill_connection, &focus_to_highlight, &conn_show_detail, &sort_by_from_watcher, &atm_focus,
@@ -405,6 +412,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             append_msg(sprint("Total downloads: ") + value_to_size(backend_instance.get_total_downloaded_bytes()));
             append_msg("   ");
             append_msg(sprint("Download speed: ") + value_to_speed(backend_instance.get_current_download_speed()));
+            append_msg("   ");
+            append_msg(sprint("Backend memory usage: ") + value_to_size(backend_instance.current_memory_in_use_by_mihomo));
             append_msg("   ");
             append_msg(update_subinfo(subinfo_ball, threads));
 
@@ -696,7 +705,10 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                         g_title_lines.erase(g_title_lines.begin());
                     content.pop_back(); // pop '\n'
                     search_content_buffer.set({});
-                    std::cout << setup_term->clear;
+                    frame_data.set({
+                        .frame_index = ++frame_index,
+                        .clear = true,
+                    });
 
                     // command block
                     if (!content.empty() && content.front() == ':')
@@ -811,7 +823,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
             auto print = [&](const bool dry_run)
             {
-                print_table(title_this_session,
+                return print_table(title_this_session,
                     table_vals,
                     false,
                     true,
@@ -842,9 +854,11 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             const bool skip_due_to_lock = lock_to_max && (leading_spaces < max_leading_spaces);
             if (const bool i_dont_print = (skip_due_to_lock || skip_due_to_shrink); !i_dont_print)
             {
-                setup_term->move_home();
-                print(false);
-                setup_term->ed_clear();
+                frame_data.set({
+                    .frame_index = ++frame_index,
+                    .frame = print(false),
+                    .clear = false
+                });
             }
 
             int local_leading_spaces = leading_spaces;
@@ -889,7 +903,10 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                         (utils::getenv("ENABLE_CLEAR_ON_SHRINK") == "true" && skip_due_to_shrink
                             && table_vals.size() <= window_frame_size))
                     {
-                        std::cout << setup_term->clear << std::flush;
+                        frame_data.set({
+                            .frame_index = ++frame_index,
+                            .clear = true,
+                        });
                         window_size_change = false;
                     }
 
@@ -928,4 +945,5 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         std::cout.write(clear, static_cast<std::streamsize>(strlen(clear)));
         std::cout.flush();
     }
+    if (Display.joinable()) Display.join();
 }

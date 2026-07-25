@@ -39,6 +39,15 @@ void ccdb::ccdb::nload(
     std::mutex *top_3_connections_using_most_speed_mtx)
 {
     set_thread_name("nload:/show");
+
+    uint64_t frame_index = 0;
+    ccdb_atomic_t<frame_data_t> frame_data;
+    frame_data.set({});
+
+    std::thread Display([&] {
+       display(frame_data, running);
+   });
+
     constexpr int reserved_lines = 4 + 3;
     std::atomic_int row = 0, col = 0;
     int window_space = 0;
@@ -347,7 +356,6 @@ void ccdb::ccdb::nload(
     }
     const uint64_t upload_total_bytes_when_started = *total_upload, download_total_bytes_when_started = *total_download;
     const auto now = std::chrono::high_resolution_clock::now();
-    utils::setup_term term;
     std::thread input_watcher(&ccdb::generic_input_watcher, this, "get/nload:input", running);
     int info_space_size_before = info_space_size;
     int conn_list_size_before = 0;
@@ -576,21 +584,23 @@ void ccdb::ccdb::nload(
                         new_line += std::string(col - line_len, ' ');
                     }
 
-                    replace_all(new_line, sprint(" UP: "), color::color(5,3,0) + sprint(" UP: "));
-                    replace_all(new_line, sprint(" DL: "), color::color(0,3,5) + sprint(" DL: "));
-                    replace_all(new_line, sprint(" ID: "), color::color(1,1,1) + sprint(" ID: "));
-                    replace_all(new_line, "WARNING", color::color(3,3,0) + "WARNING");
-                    replace_all(new_line, "ERROR", color::color(3,0,0) + "ERROR");
-                    replace_all(new_line, "INFO", color::color(0,3,0) + "INFO");
-                    replace_all(new_line, "DEBUG", color::color24(32,32,32) + "DEBUG");
+                    // replace_all(new_line, sprint(" UP: "), color::color(5,3,0) + sprint(" UP: "));
+                    // replace_all(new_line, sprint(" DL: "), color::color(0,3,5) + sprint(" DL: "));
+                    // replace_all(new_line, sprint(" ID: "), color::color(1,1,1) + sprint(" ID: "));
+                    // replace_all(new_line, "WARNING", color::color(3,3,0) + "WARNING");
+                    // replace_all(new_line, "ERROR", color::color(3,0,0) + "ERROR");
+                    // replace_all(new_line, "INFO", color::color(0,3,0) + "INFO");
+                    // replace_all(new_line, "DEBUG", color::color24(32,32,32) + "DEBUG");
 
                     screen_str_frame << color::no_color() << (color::is_no_color() ? "" : "\033[01;m")
                                      << new_line << color::no_color() << std::endl;
                 });
             }
 
+            const auto subinfo = update_subinfo(subinfo_ball, threads);
             if (const auto msg = sprint("* P: On this page, O: Overall", ", ", "-: Direct, x: Proxied", ", ",
-                update_subinfo(subinfo_ball, threads));
+                "Backend memory usage: ", value_to_size(backend_instance.current_memory_in_use_by_mihomo),
+                subinfo.empty() ? "" : ", " + subinfo);
                 col >= UnicodeDisplayWidth::get_width_utf8(msg))
             {
                 screen_str_frame << color::color(5,5,5);
@@ -673,9 +683,11 @@ void ccdb::ccdb::nload(
         }
 
         /// repaint:
-        term.move_home();
-        std::cout << screen_str_frame.str() << std::flush;
-        term.ed_clear();
+        frame_data.set({
+            .frame_index = ++frame_index,
+            .frame = screen_str_frame.str(),
+            .clear = false,
+        });
 
         /// wait:
         for (int i = 0; i < screen_refresh_interval_in_ms / 100; i++)
@@ -684,7 +696,10 @@ void ccdb::ccdb::nload(
             {
                 info_space_size_before = info_space_size;
                 conn_list_size_before = conn_list_size;
-                std::cout << term.clear << std::flush;
+                frame_data.set({
+                    .frame_index = ++frame_index,
+                    .clear = true,
+                });
                 window_size_change = false;
                 break;
             }
@@ -700,6 +715,7 @@ void ccdb::ccdb::nload(
     if (input_watcher.joinable()) input_watcher.join();
     std::ranges::for_each(threads, [](auto & T) { if (T.second.joinable()) T.second.join(); });
     std::ranges::for_each(local_workers, [](auto & T) { if (T.joinable()) T.join(); });
+    if (Display.joinable()) Display.join();
 }
 
 void ccdb::ccdb::nload(const std::vector<std::string> & vec)

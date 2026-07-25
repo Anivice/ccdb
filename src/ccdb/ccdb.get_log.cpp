@@ -43,7 +43,6 @@ void ccdb::ccdb::get_log()
     do_col_hide.resize(log_titles.size(), false);
     std::string focused_log; // crc64 of focused log entry
     constexpr int start_line = 5;
-    setup_term term;
     ccdb_atomic_t < std::u32string > search_content_buffer;
     std::atomic_int cursor_position = 0;
     std::atomic_bool show_search = false;
@@ -56,6 +55,13 @@ void ccdb::ccdb::get_log()
     std::atomic_bool pause = false;
     decltype(logPullerNoFilter) lines_local_incrimination;
     decltype(logPullerNoFilter) log_local_incrimination;
+    uint64_t frame_index = 0;
+    ccdb_atomic_t<frame_data_t> frame_data;
+    frame_data.set({});
+
+    std::thread Display([&] {
+       display(frame_data, &running);
+   });
 
     auto input_getc_worker = std::thread(&ccdb::get_conn_input_watcher, this,
         &running, &leading_spaces, &max_leading_spaces, &current_skip_lines, &max_skip_lines,
@@ -333,12 +339,15 @@ void ccdb::ccdb::get_log()
                 search_content_buffer.set({});
                 last_checked_log.clear();
                 all_matches.clear();
-                std::cout << term.clear;
+                frame_data.set({
+                    .frame_index = ++frame_index,
+                    .clear = true
+                });
             }
 
             auto print = [&](const bool dry_run)
             {
-                print_table(log_titles,
+                return print_table(log_titles,
                     lines_local_incrimination,
                     false,
                     true,
@@ -365,9 +374,11 @@ void ccdb::ccdb::get_log()
             skip_due_to_lock = lock_to_max && (leading_spaces < max_leading_spaces);
             if (const bool i_dont_print = skip_due_to_lock; !i_dont_print)
             {
-                term.move_home();
-                print(false);
-                term.ed_clear();
+                frame_data.set({
+                    .frame_index = ++frame_index,
+                    .frame = print(false),
+                    .clear = false
+                });
             }
         }
 
@@ -396,7 +407,10 @@ void ccdb::ccdb::get_log()
                     || skip_due_to_lock)
                 {
                     if (window_size_change) {
-                        std::cout << term.clear << std::flush;
+                        frame_data.set({
+                            .frame_index = ++frame_index,
+                            .clear = false
+                        });
                         window_size_change = false;
                     }
 
@@ -425,6 +439,7 @@ void ccdb::ccdb::get_log()
 
     running = false;
     if (input_getc_worker.joinable()) input_getc_worker.join();
+    if (Display.joinable()) Display.join();
 }
 
 void ccdb::ccdb::get_logLevel() const

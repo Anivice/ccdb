@@ -806,3 +806,27 @@ void ccdb::ccdb::get_conn_input_watcher(
         if (T.joinable()) T.join();
     });
 }
+
+void ccdb::ccdb::display(ccdb_atomic_t< frame_data_t > & frame, const std::atomic_bool* running)
+{
+    setup_term setup_term;
+    uint64_t current_frame_index = -1;
+    while (*running)
+    {
+        const auto [frame_index, frame_, clear] = frame.get();
+        if (clear && frame_index != current_frame_index) // updated frame
+        {
+            std::cout << setup_term.clear << std::flush;
+            std::cout << "\033[H\033[2J\033[3J" << std::flush;
+        }
+        else
+        {
+            setup_term.move_home();
+            std::cout << frame_.c_str() << std::flush;
+            setup_term.ed_clear();
+        }
+
+        current_frame_index = frame_index;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+}

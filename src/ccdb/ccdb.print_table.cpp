@@ -97,6 +97,7 @@ namespace ccdb {
     class auto_print_t
     {
     private:
+        std::string & final_frame_;
         std::ostringstream & frame_;
         std::ostringstream & less_output_redirect_;
         ccdb * parent_;
@@ -206,9 +207,11 @@ namespace ccdb {
             const std::string & color_line_hl,
             const int & matches,
             const std::string & highlight_str,
-            const bool dry_run
+            const bool dry_run,
+            std::string & final_frame
         )
         :
+            final_frame_(final_frame),
             frame_(frame),
             less_output_redirect_(less_output_redirect),
             parent_(parent),
@@ -262,14 +265,16 @@ namespace ccdb {
                     vec.erase(vec.begin());
                 }
 
-                std::cout << ss2.str();
-                std::cout << utf8::utf32to8(print_search_box()) << std::flush;
+                std::stringstream out;
+                out << ss2.str();
+                out << utf8::utf32to8(print_search_box());
+                final_frame_ = out.str();
             }
         }
     };
 }
 
-void ccdb::ccdb::print_table(
+std::string ccdb::ccdb::print_table(
     std::vector<std::string> const &table_keys,
     std::vector<std::vector<std::string>> const &table_values,
     bool muff_non_ascii,
@@ -293,428 +298,434 @@ void ccdb::ccdb::print_table(
     const bool dry_run
 )
 {
-    const auto white_strip = color::color(5,5,5,0,0,0);
-    std::ostringstream frame;
-    std::ostringstream less_output_redirect;
-    int current_line_index = 0;
-    std::string color_line_hl = "\033[07m";
-    int matches = 0;
-    if (utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") == "true") {
-        color_line_hl = "";
-    }
-
-    auto_print_t auto_print(
-        frame,
-        less_output_redirect,
-        this,
-        static_cast<int>(table_values.size()),
-        skip_lines,
-        current_line_index,
-        out,
-        show_search,
-        search_line_boxContent,
-        cursor_position_in_search_box,
-        color_line_hl,
-        matches,
-        highlight_str,
-        dry_run
-    );
-
-    const auto col = get_col_size() - 1;
-    const auto lines = get_line_size() - 1;
-    if (get_col_size() < 1 || get_line_size() < 1) return;
-
-    if (lines < 9 || col < 3) {
-        frame << color::color(0,0,0,5,0,0) << sprint("TOO SMALL") << color::no_color() << std::endl;
-        return;
-    }
-
-    auto get_string_screen_length = [](const std::string & str)->int
+    std::string final_frame;
+    [&]
     {
-        const auto u32 = utils::utf8_to_u32(str);
-        return utils::UnicodeDisplayWidth::get_width_utf32(u32);
-    };
+        const auto white_strip = color::color(5,5,5,0,0,0);
+        std::ostringstream frame;
+        std::ostringstream less_output_redirect;
+        int current_line_index = 0;
+        std::string color_line_hl = "\033[07m";
+        int matches = 0;
+        if (utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") == "true") {
+            color_line_hl = "";
+        }
 
-    auto get_string_screen_length_u32 = [](const std::u32string & str)->int {
-        return utils::UnicodeDisplayWidth::get_width_utf32(str);
-    };
+        auto_print_t auto_print(
+            frame,
+            less_output_redirect,
+            this,
+            static_cast<int>(table_values.size()),
+            skip_lines,
+            current_line_index,
+            out,
+            show_search,
+            search_line_boxContent,
+            cursor_position_in_search_box,
+            color_line_hl,
+            matches,
+            highlight_str,
+            dry_run,
+            final_frame
+        );
 
-    tsl::hopscotch_map < std::string /* table keys */, uint32_t /* longest value in this column */ > size_map;
-    for (const auto & key : table_keys) {
-        size_map[key] = get_string_screen_length(key);
-    }
+        const auto col = get_col_size() - 1;
+        const auto lines = get_line_size() - 1;
+        if (get_col_size() < 1 || get_line_size() < 1) return;
 
-    for (const auto & vals : table_values)
-    {
-        if (vals.size() != table_keys.size()) return;
-        int index = 0;
-        for (const auto & val : vals)
+        if (lines < 9 || col < 3) {
+            frame << color::color(0,0,0,5,0,0) << sprint("TOO SMALL") << color::no_color() << std::endl;
+            return;
+        }
+
+        auto get_string_screen_length = [](const std::string & str)->int
         {
-            if (const auto & current_key = table_keys[index++];
-                size_map[current_key] < get_string_screen_length(val))
+            const auto u32 = utils::utf8_to_u32(str);
+            return utils::UnicodeDisplayWidth::get_width_utf32(u32);
+        };
+
+        auto get_string_screen_length_u32 = [](const std::u32string & str)->int {
+            return utils::UnicodeDisplayWidth::get_width_utf32(str);
+        };
+
+        tsl::hopscotch_map < std::string /* table keys */, uint32_t /* longest value in this column */ > size_map;
+        for (const auto & key : table_keys) {
+            size_map[key] = get_string_screen_length(key);
+        }
+
+        for (const auto & vals : table_values)
+        {
+            if (vals.size() != table_keys.size()) return;
+            int index = 0;
+            for (const auto & val : vals)
             {
-                size_map[current_key] = get_string_screen_length(val);
+                if (const auto & current_key = table_keys[index++];
+                    size_map[current_key] < get_string_screen_length(val))
+                {
+                    size_map[current_key] = get_string_screen_length(val);
+                }
             }
         }
-    }
 
-    std::stringstream header;
-    std::stringstream ss;
-    {
-        int index = 0;
-        for (const auto & key : table_keys)
+        std::stringstream table_header;
+        std::stringstream ss;
         {
-            if (!table_hide.empty() && table_hide.size() == table_keys.size() && table_hide[index])
+            int index = 0;
+            for (const auto & key : table_keys)
             {
-                index++;
-                continue;
-            }
+                if (!table_hide.empty() && table_hide.size() == table_keys.size() && table_hide[index])
+                {
+                    index++;
+                    continue;
+                }
 
-            {
-                const int paddings = static_cast<int>(size_map[key] - get_string_screen_length(key)) + 2;
-                const int before = std::max(paddings / 2, 1);
-                const int after = std::max(paddings - before, 1);
-                ss << "|" << std::string(before, ' ') << key << std::string(after, ' ');
-            }
+                {
+                    const int paddings = static_cast<int>(size_map[key] - get_string_screen_length(key)) + 2;
+                    const int before = std::max(paddings / 2, 1);
+                    const int after = std::max(paddings - before, 1);
+                    ss << "|" << std::string(before, ' ') << key << std::string(after, ' ');
+                }
 
-            {
-                std::string index_str = std::to_string(index);
-                const int paddings = static_cast<int>(size_map[key] - get_string_screen_length(index_str)) + 2;
-                const int before = std::max(paddings / 2, 1);
-                const int after = std::max(paddings - before, 1);
-                header << "|" << std::string(before, ' ') << index_str << std::string(after, ' ');
+                {
+                    std::string index_str = std::to_string(index);
+                    const int paddings = static_cast<int>(size_map[key] - get_string_screen_length(index_str)) + 2;
+                    const int before = std::max(paddings / 2, 1);
+                    const int after = std::max(paddings - before, 1);
+                    table_header << "|" << std::string(before, ' ') << index_str << std::string(after, ' ');
+                }
+                index ++;
             }
-            index ++;
         }
-    }
-    ss << "|";
-    header << "|";
-    const std::string title_line = ss.str();
-    const std::string header_line = header.str();
-    std::string separation_line;
-    if (get_string_screen_length(title_line) > 2)
-    {
-        std::stringstream ss_sep;
-        ss_sep << "+" << std::string(get_string_screen_length(title_line) - 2, '-') << "+";
-        separation_line = ss_sep.str();
-    }
-
-    const auto defined_str_len = std::max(get_string_screen_length(separation_line), get_string_screen_length(additional_info_before_table));
-    auto max_tailing_size = defined_str_len > col ? (defined_str_len - col) : 0;
-    if (max_tailing_size_ptr) *max_tailing_size_ptr = static_cast<int>(max_tailing_size);
-    leading_offset = std::min(static_cast<decltype(max_tailing_size)>(leading_offset), max_tailing_size);
-    int printed_lines = 0;
-
-    // define Tab size
-    const auto tabsz_str = utils::getenv("TABSIZE");
-    int tab_space_size = -1;
-    try {
-        tab_space_size = static_cast<int>(std::strtol(tabsz_str.c_str(), nullptr, 10));
-    } catch (...) { }
-    if (tab_space_size <= 0) {
-        tab_space_size = 4;
-    }
-
-    auto print_line = [&](std::string line_, const std::string & color = "", const bool endl = true)->void
-    {
-        replace_all(line_, "\n", "");
-        replace_all(line_, "\r", "");
-        replace_all(line_, "\t", std::string(tab_space_size, ' ')); // Tab
-        auto line = utf8_to_u32(line_);
-        if (max_tailing_size_ptr && !using_pager && !enforce_no_pager)
+        ss << "|";
+        table_header << "|";
+        const std::string title_line = ss.str();
+        const std::string header_line = table_header.str();
+        std::string separation_line;
+        if (get_string_screen_length(title_line) > 2)
         {
-            // cut
-            if (leading_offset > 0 && UnicodeDisplayWidth::get_width_utf32(line) >= leading_offset)
+            std::stringstream ss_sep;
+            ss_sep << "+" << std::string(get_string_screen_length(title_line) - 2, '-') << "+";
+            separation_line = ss_sep.str();
+        }
+
+        const auto defined_str_len = std::max(get_string_screen_length(separation_line), get_string_screen_length(additional_info_before_table));
+        auto max_tailing_size = defined_str_len > col ? (defined_str_len - col) : 0;
+        if (max_tailing_size_ptr) *max_tailing_size_ptr = static_cast<int>(max_tailing_size);
+        leading_offset = std::min(static_cast<decltype(max_tailing_size)>(leading_offset), max_tailing_size);
+        int printed_lines = 0;
+
+        // define Tab size
+        const auto tabsz_str = utils::getenv("TABSIZE");
+        int tab_space_size = -1;
+        try {
+            tab_space_size = static_cast<int>(std::strtol(tabsz_str.c_str(), nullptr, 10));
+        } catch (...) { }
+        if (tab_space_size <= 0) {
+            tab_space_size = 4;
+        }
+
+        auto print_line = [&](std::string line_, const std::string & color = "", const bool endl = true)->void
+        {
+            replace_all(line_, "\n", "");
+            replace_all(line_, "\r", "");
+            replace_all(line_, "\t", std::string(tab_space_size, ' ')); // Tab
+            auto line = utf8_to_u32(line_);
+            if (max_tailing_size_ptr && !using_pager && !enforce_no_pager)
             {
-                const auto p_leading_offset = leading_offset + 1;
-                int leads = 0;
-                int len = 0;
-                while (!line.empty())
+                // cut
+                if (leading_offset > 0 && UnicodeDisplayWidth::get_width_utf32(line) >= leading_offset)
                 {
-                    len = utils::UnicodeDisplayWidth::get_width_utf32({line.front()});
-                    leads += len;
-
-                    if (leads > p_leading_offset) {
-                        leads -= len;
-                        break;
-                    }
-
-                    line.erase(line.begin());
-                }
-
-                // add padding
-                if (leads < p_leading_offset) { // not enough leads
-                    line.erase(line.begin());
-                    line = utf8_to_u32(std::string(leads + len - p_leading_offset, ' ')) + line;
-                } else if (leads > p_leading_offset) { // more than enough
-                    line = utf8_to_u32(std::string(leads - p_leading_offset, ' ')) + line;
-                }
-
-                line = utf8_to_u32("<") + line; // add color code here will mess up formation bc color codes occupies no spaces on screen
-            }
-            else if (leading_offset > 0) // && UnicodeDisplayWidth::get_width_utf32(line) < leading_offset
-            {
-                if (endl) frame << std::endl;
-                printed_lines++;
-                return;
-            }
-
-            if (const int total_size = get_string_screen_length_u32(line); total_size > col)
-            {
-                if (col > 1)
-                {
-                    int p_size = 0, ap_size = 0;
-                    int offset = 0;
-                    for (const auto & c : line)
+                    const auto p_leading_offset = leading_offset + 1;
+                    int leads = 0;
+                    int len = 0;
+                    while (!line.empty())
                     {
-                        p_size += UnicodeDisplayWidth::get_width_utf32({c});
-                        if (p_size > (col - 1)) {
+                        len = utils::UnicodeDisplayWidth::get_width_utf32({line.front()});
+                        leads += len;
+
+                        if (leads > p_leading_offset) {
+                            leads -= len;
                             break;
                         }
 
-                        offset++;
-                        ap_size = p_size;
+                        line.erase(line.begin());
                     }
 
-                    std::string padding;
-                    if (ap_size < (col - 1)) {
-                        padding = std::string((col - 1) - ap_size, ' ');
+                    // add padding
+                    if (leads < p_leading_offset) { // not enough leads
+                        line.erase(line.begin());
+                        line = utf8_to_u32(std::string(leads + len - p_leading_offset, ' ')) + line;
+                    } else if (leads > p_leading_offset) { // more than enough
+                        line = utf8_to_u32(std::string(leads - p_leading_offset, ' ')) + line;
                     }
 
-                    line = line.substr(0, offset) + utf8_to_u32(padding) +
-                           utf8_to_u32(white_strip + ">" + color::no_color());
+                    line = utf8_to_u32("<") + line; // add color code here will mess up formation bc color codes occupies no spaces on screen
+                }
+                else if (leading_offset > 0) // && UnicodeDisplayWidth::get_width_utf32(line) < leading_offset
+                {
+                    if (endl) frame << std::endl;
+                    printed_lines++;
+                    return;
+                }
+
+                if (const int total_size = get_string_screen_length_u32(line); total_size > col)
+                {
+                    if (col > 1)
+                    {
+                        int p_size = 0, ap_size = 0;
+                        int offset = 0;
+                        for (const auto & c : line)
+                        {
+                            p_size += UnicodeDisplayWidth::get_width_utf32({c});
+                            if (p_size > (col - 1)) {
+                                break;
+                            }
+
+                            offset++;
+                            ap_size = p_size;
+                        }
+
+                        std::string padding;
+                        if (ap_size < (col - 1)) {
+                            padding = std::string((col - 1) - ap_size, ' ');
+                        }
+
+                        line = line.substr(0, offset) + utf8_to_u32(padding) +
+                               utf8_to_u32(white_strip + ">" + color::no_color());
+                    }
+                    else
+                    {
+                        line = line.substr(0, col);
+                    }
+                }
+            }
+
+            if (using_pager || enforce_no_pager) {
+                less_output_redirect << color << line_ << color::no_color();
+                if (endl) less_output_redirect << std::endl;
+            } else {
+                std::string utf8_str;
+                utf8::utf32to8(line.begin(), line.end(), std::back_inserter(utf8_str));
+                const auto use_line_highlighter = printed_lines + 1 == highlight_screen_line;
+                if (use_line_highlighter) {
+                    frame << color_line_hl;
+                }
+
+                if (!utf8_str.empty() && utf8_str.front() == '<') // add color code for '<' at the beginning
+                {
+                    utf8_str.erase(utf8_str.begin());
+                    utf8_str = white_strip + "<" + color + utf8_str;
+                } else {
+                    utf8_str = color + utf8_str;
+                }
+
+                if (utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true") {
+                    color::g_color_status_override = 0;
+                }
+
+                frame << highlight(
+                    utf8_str,
+                    highlight_str,
+                    color + (use_line_highlighter ? color_line_hl : ""),
+                    matches,
+                    utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true" ? "\033[01;05;07m" : "")
+                      << color::no_color();
+                color::g_color_status_override = -1;
+                if (endl) frame << std::endl;
+                printed_lines++;
+            }
+        };
+
+        if (!additional_info_before_table.empty())
+        {
+            additional_info_before_table += std::string(
+                    std::max(static_cast<int>(col + leading_offset - UnicodeDisplayWidth::get_width_utf8(additional_info_before_table)), 0),
+                ' ');
+
+            print_line(additional_info_before_table, white_strip);
+        }
+
+        print_line(separation_line, white_strip);
+        print_line(header_line, white_strip);
+        print_line(separation_line, white_strip);
+        print_line(title_line, white_strip);
+        print_line(separation_line, white_strip);
+
+        const int max_skip_lines = std::max(static_cast<int>(table_values.size()) - (lines - 2 - printed_lines), 0);
+        if (max_skip_lines_ptr) *max_skip_lines_ptr = max_skip_lines;
+        if (skip_lines > max_skip_lines) skip_lines = max_skip_lines;
+
+        auto print_progress = [&]
+        {
+            std::stringstream ssa;
+            ssa << skip_lines << "/" << current_line_index << "/" << table_values.size() << "/"
+                << std::fixed << std::setprecision(2)
+                << (static_cast<double>(current_line_index) / static_cast<double>(table_values.size())) * 100 << "%";
+            const std::string ssa_str = ssa.str();
+
+            if (color::is_no_color() && utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true") {
+                color::g_color_status_override = 0;
+                frame << white_strip;
+                color::g_color_status_override = -1;
+            }
+
+            frame << color::bg_color(5,5,5) << color::color(0,0,5)
+                << ssa_str;
+
+            if (color::is_no_color() && utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true") {
+                color::g_color_status_override = 0;
+                frame << color::no_color();
+                color::g_color_status_override = -1;
+            }
+
+            const auto lZ = col - static_cast<int>(ssa_str.length());
+            frame << color::no_color() << std::string(lZ > 0 ? lZ : 0, ' ');
+        };
+
+        /// content
+        for (const auto & vals : table_values)
+        {
+            if (!using_pager)
+            {
+                // skip n elements
+                if (current_line_index < skip_lines)
+                {
+                    current_line_index++;
+                    continue;
+                }
+
+                // last element on screen
+                if (current_line_index > skip_lines && printed_lines >= (lines - 1))
+                {
+                    print_progress();
+                    return;
+                }
+            }
+
+            std::string color_line;
+            if (color_code_overrides.empty() || !color_code_overrides.contains(current_line_index))
+            {
+                // blue and black
+                if (USE_OLD_COLOR_SCHEME)
+                {
+                    if (current_line_index & 0x01) color_line = white_strip;
+                    else color_line = color::color(5,5,5,0,0,5);
                 }
                 else
                 {
-                    line = line.substr(0, col);
+                    const double ratio_ref = static_cast<double>(current_line_index - skip_lines) /
+                        static_cast<double>(std::min(static_cast<uint64_t>(lines - 7
+                           /* - (table_values.size() > (lines - 7) ? 1 : 0) */), static_cast<uint64_t>(table_values.size()) )
+                           );
+                    const auto [red, green, blue] =
+                        sim::simulation_rainbow(sim::Span * ratio_ref + sim::Begin);
+                    color_line = color::bg_color24(static_cast<int>(std::round(red)),
+                        static_cast<int>(std::round(green)), static_cast<int>(std::round(blue)));
+                    if (constexpr double gate = static_cast<double>(255) / 3 * 2;
+                        green > gate || (blue > gate && red > gate))
+                    {
+                        color_line += color::color(0,0,0);
+                    } else {
+                        color_line += color::color(5,5,5);
+                    }
+                    // else if (blue > gate && red > gate) {
+                    //     color_line += color::color(0,5,5);
+                    // }
                 }
-            }
-        }
-
-        if (using_pager || enforce_no_pager) {
-            less_output_redirect << color << line_ << color::no_color();
-            if (endl) less_output_redirect << std::endl;
-        } else {
-            std::string utf8_str;
-            utf8::utf32to8(line.begin(), line.end(), std::back_inserter(utf8_str));
-            const auto use_line_highlighter = printed_lines + 1 == highlight_screen_line;
-            if (use_line_highlighter) {
-                frame << color_line_hl;
-            }
-
-            if (!utf8_str.empty() && utf8_str.front() == '<') // add color code for '<' at the beginning
-            {
-                utf8_str.erase(utf8_str.begin());
-                utf8_str = white_strip + "<" + color + utf8_str;
             } else {
-                utf8_str = color + utf8_str;
+                color_line = color::bg_color(0,0,0) + color_code_overrides.at(current_line_index);
             }
 
-            if (utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true") {
-                color::g_color_status_override = 0;
-            }
-
-            frame << highlight(
-                utf8_str,
-                highlight_str,
-                color + (use_line_highlighter ? color_line_hl : ""),
-                matches,
-                utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true" ? "\033[01;05;07m" : "")
-                  << color::no_color();
-            color::g_color_status_override = -1;
-            if (endl) frame << std::endl;
-            printed_lines++;
-        }
-    };
-
-    if (!additional_info_before_table.empty())
-    {
-        additional_info_before_table += std::string(
-                std::max(static_cast<int>(col + leading_offset - UnicodeDisplayWidth::get_width_utf8(additional_info_before_table)), 0),
-            ' ');
-
-        print_line(additional_info_before_table, white_strip);
-    }
-
-    print_line(separation_line, white_strip);
-    print_line(header_line, white_strip);
-    print_line(separation_line, white_strip);
-    print_line(title_line, white_strip);
-    print_line(separation_line, white_strip);
-
-    const int max_skip_lines = std::max(static_cast<int>(table_values.size()) - (lines - 2 - printed_lines), 0);
-    if (max_skip_lines_ptr) *max_skip_lines_ptr = max_skip_lines;
-    if (skip_lines > max_skip_lines) skip_lines = max_skip_lines;
-
-    auto print_progress = [&]
-    {
-        std::stringstream ssa;
-        ssa << skip_lines << "/" << current_line_index << "/" << table_values.size() << "/"
-            << std::fixed << std::setprecision(2)
-            << (static_cast<double>(current_line_index) / static_cast<double>(table_values.size())) * 100 << "%";
-        const std::string ssa_str = ssa.str();
-
-        if (color::is_no_color() && utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true") {
-            color::g_color_status_override = 0;
-            frame << white_strip;
-            color::g_color_status_override = -1;
-        }
-
-        frame << color::bg_color(5,5,5) << color::color(0,0,5)
-            << ssa_str;
-
-        if (color::is_no_color() && utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true") {
-            color::g_color_status_override = 0;
-            frame << color::no_color();
-            color::g_color_status_override = -1;
-        }
-
-        const auto lZ = col - static_cast<int>(ssa_str.length());
-        frame << color::no_color() << std::string(lZ > 0 ? lZ : 0, ' ');
-    };
-
-    /// content
-    for (const auto & vals : table_values)
-    {
-        if (!using_pager)
-        {
-            // skip n elements
-            if (current_line_index < skip_lines)
+            int index = 0;
+            std::stringstream val_line_stream;
+            for (const auto & val : vals)
             {
-                current_line_index++;
-                continue;
-            }
-
-            // last element on screen
-            if (current_line_index > skip_lines && printed_lines >= (lines - 1))
-            {
-                print_progress();
-                return;
-            }
-        }
-
-        std::string color_line;
-        if (color_code_overrides.empty() || !color_code_overrides.contains(current_line_index))
-        {
-            // blue and black
-            if (USE_OLD_COLOR_SCHEME)
-            {
-                if (current_line_index & 0x01) color_line = white_strip;
-                else color_line = color::color(5,5,5,0,0,5);
-            }
-            else
-            {
-                const double ratio_ref = static_cast<double>(current_line_index - skip_lines) /
-                    static_cast<double>(std::min(static_cast<uint64_t>(lines - 7
-                       /* - (table_values.size() > (lines - 7) ? 1 : 0) */), static_cast<uint64_t>(table_values.size()) )
-                       );
-                const auto [red, green, blue] =
-                    sim::simulation_rainbow(sim::Span * ratio_ref + sim::Begin);
-                color_line = color::bg_color24(static_cast<int>(std::round(red)),
-                    static_cast<int>(std::round(green)), static_cast<int>(std::round(blue)));
-                if (constexpr double gate = static_cast<double>(255) / 3 * 2;
-                    green > gate || (blue > gate && red > gate))
+                if (!table_hide.empty() && table_hide.size() == table_keys.size() && table_hide[index])
                 {
-                    color_line += color::color(0,0,0);
-                } else {
-                    color_line += color::color(5,5,5);
+                    index++;
+                    continue;
                 }
-                // else if (blue > gate && red > gate) {
-                //     color_line += color::color(0,5,5);
-                // }
-            }
-        } else {
-            color_line = color::bg_color(0,0,0) + color_code_overrides.at(current_line_index);
-        }
 
-        int index = 0;
-        std::stringstream val_line_stream;
-        for (const auto & val : vals)
-        {
-            if (!table_hide.empty() && table_hide.size() == table_keys.size() && table_hide[index])
-            {
-                index++;
-                continue;
-            }
+                const int current_alignment = column_alignment.empty() ? 0 /* left */ : column_alignment[index];
+                const auto & current_key = table_keys[index++];
 
-            const int current_alignment = column_alignment.empty() ? 0 /* left */ : column_alignment[index];
-            const auto & current_key = table_keys[index++];
+                int before = 0;
+                int after = 0;
 
-            int before = 0;
-            int after = 0;
-
-            switch (current_alignment)
-            {
+                switch (current_alignment)
+                {
                 default:
                 case 0: // left
-                {
-                    const int paddings = static_cast<int>(size_map[current_key] - get_string_screen_length(val)) + 2;
-                    before = 1;
-                    after = std::max(paddings - before, 1);
-                }
+                    {
+                        const int paddings = static_cast<int>(size_map[current_key] - get_string_screen_length(val)) + 2;
+                        before = 1;
+                        after = std::max(paddings - before, 1);
+                    }
                     break;
                 case 1: // right
-                {
-                    const int paddings = static_cast<int>(size_map[current_key] - get_string_screen_length(val)) + 2;
-                    after = 1;
-                    before = std::max(paddings - after, 1);
-                }
+                    {
+                        const int paddings = static_cast<int>(size_map[current_key] - get_string_screen_length(val)) + 2;
+                        after = 1;
+                        before = std::max(paddings - after, 1);
+                    }
                     break;
                 case 2: // center
-                {
-                    const int paddings = static_cast<int>(size_map[current_key] - get_string_screen_length(val)) + 2;
-                    before = paddings / 2;
-                    after = std::max(paddings - before, 1);
-                }
+                    {
+                        const int paddings = static_cast<int>(size_map[current_key] - get_string_screen_length(val)) + 2;
+                        before = paddings / 2;
+                        after = std::max(paddings - before, 1);
+                    }
                     break;
+                }
+
+                val_line_stream << (seperator ? "|" : " ") << std::string(before, ' ');
+                std::string output;
+                output = val;
+                if (muff_non_ascii) {
+                    for (auto & c : output) {
+                        if (!std::isprint(c)) c = '#';
+                    }
+                }
+
+                val_line_stream << output << std::string(after, ' ');
             }
 
-            val_line_stream << (seperator ? "|" : " ") << std::string(before, ' ');
-            std::string output;
-            output = val;
-            if (muff_non_ascii) {
-                for (auto & c : output) {
-                    if (!std::isprint(c)) c = '#';
+            if (seperator) {
+                val_line_stream << "|";
+            }
+            print_line(val_line_stream.str(), color_line);
+            current_line_index++;
+        }
+
+        /// tailings
+        if (skip_lines == 0) {
+            print_line(separation_line, white_strip, false);
+            if (printed_lines < lines) {
+                for (int i = 0; i < lines - printed_lines; i++) {
+                    frame << std::string(col, ' ');
                 }
             }
+        } else {
+            const auto col_sz = col;
+            const auto line_sz = lines;
+            if (/* (col_sz > 2) && */ (printed_lines <= (line_sz - 2) && get_string_screen_length(separation_line) > 2))
+            {
+                frame       << white_strip
+                            << "+" << std::string(std::min(static_cast<long long>(col_sz - 2ul),
+                                static_cast<long long>(get_string_screen_length(separation_line) - 2)), '-')
+                            << "+" << std::endl;
+            }
 
-            val_line_stream << output << std::string(after, ' ');
+            // if (line_sz > 2)
+            // {
+            for (int j = printed_lines; j < (line_sz - 2); j++)
+                frame << std::endl;
+            // }
+
+            print_progress();
         }
-
-        if (seperator) {
-            val_line_stream << "|";
-        }
-        print_line(val_line_stream.str(), color_line);
-        current_line_index++;
-    }
-
-    /// tailings
-    if (skip_lines == 0) {
-        print_line(separation_line, white_strip, false);
-        if (printed_lines < lines) {
-           for (int i = 0; i < lines - printed_lines; i++) {
-               frame << std::string(col, ' ');
-           }
-        }
-    } else {
-        const auto col_sz = col;
-        const auto line_sz = lines;
-        if (/* (col_sz > 2) && */ (printed_lines <= (line_sz - 2) && get_string_screen_length(separation_line) > 2))
-        {
-            frame       << white_strip
-                        << "+" << std::string(std::min(static_cast<long long>(col_sz - 2ul),
-                            static_cast<long long>(get_string_screen_length(separation_line) - 2)), '-')
-                        << "+" << std::endl;
-        }
-
-        // if (line_sz > 2)
-        // {
-        for (int j = printed_lines; j < (line_sz - 2); j++)
-            frame << std::endl;
-        // }
-
-        print_progress();
-    }
+    }();
+    return final_frame;
 }
 
 void ccdb::ccdb::simple_print_table(std::vector<std::string> const &table_titles,

@@ -27,6 +27,7 @@
 #include <iostream>
 #include <chrono>
 #include <fstream>
+#include <functional>
 #include "print.h"
 #include "general_info_pulling.h"
 #include "Readline.h"
@@ -193,6 +194,18 @@ void general_info_pulling::update_from_logs(const std::string& info)
     }
 }
 
+void general_info_pulling::update_from_memory(const std::string& info)
+{
+    try
+    {
+        const auto json = json::parse(info);
+        const auto inuse = json["inuse"];
+        const auto oslimit = json["oslimit"];
+        current_memory_in_use_by_mihomo = inuse;
+        current_memory_limit_by_mihomo = oslimit;
+    } catch (...) { }
+}
+
 void general_info_pulling::pull_continuous_updates()
 {
     keep_pull_continuous_updates = true;
@@ -213,133 +226,79 @@ void general_info_pulling::pull_continuous_updates()
         thread_pool.clear();
     };
 
-
-    auto make_traffic = [&]
+    auto make_thread = [&]<typename Func = std::function <void(const std::atomic_bool *)>>
+        (Func worker, const std::string & name = "")
     {
-        // /traffic puller
-        auto traffic_running = std::make_shared<std::atomic_bool>(true);
-        auto run_traffic = [this](const std::atomic_bool * _traffic_running)
+        auto is_running = std::make_shared<std::atomic_bool>(true);
+        auto runner = [this](const std::atomic_bool * _is_running, std::string name_, Func worker_)
         {
-            ccdb::utils::set_thread_name("/traffic");
+            ccdb::utils::set_thread_name(name_);
             if (force_quit) return;
-            while (*_traffic_running && !force_quit)
+            while (*_is_running && !force_quit)
             {
                 try
                 {
-                    backend_client.get_stream_info("traffic",
+                    worker_(_is_running);
+                }
+                catch (...) { }
+            }
+        };
+        std::atomic_bool * ptr = is_running.get();
+        thread_pool.emplace_back(std::move(is_running), std::thread(runner, ptr, name, worker));
+    };
+
+    auto make_traffic = [&]
+    {
+        make_thread([&](const std::atomic_bool * _traffic_running)
+        {
+            backend_client.get_stream_info("traffic",
                         _traffic_running,
                         this,
                         &general_info_pulling::update_from_traffic);
-                }
-                catch (std::exception &)
-                {
-                    // ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
-                    // force_quit = true;
-                }
-            }
-        };
-        std::atomic_bool * ptr = traffic_running.get();
-        thread_pool.emplace_back(std::move(traffic_running), std::thread(run_traffic, ptr));
+        }, "/traffic");
     };
 
     auto make_connections = [&]
     {
         // /connections puller
-        auto connection_running = std::make_shared<std::atomic_bool>(true);
-        auto run_connections = [this](const std::atomic_bool * _connection_running)
+        make_thread([&](const std::atomic_bool *)
         {
-            ccdb::utils::set_thread_name("/connections");
-            while (*_connection_running && !force_quit)
-            {
-                try
-                {
-                    backend_client.get_info("connections",
+            backend_client.get_info("connections",
                         this,
                         &general_info_pulling::update_from_connections);
-                    std::this_thread::sleep_for(std::chrono::seconds(1l));
-                }
-                catch (std::exception &)
-                {
-                    // ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
-                    // force_quit = true;
-                }
-            }
-        };
-        std::atomic_bool * ptr = connection_running.get();
-        thread_pool.emplace_back(std::move(connection_running), std::thread(run_connections, ptr));
+            std::this_thread::sleep_for(std::chrono::milliseconds(100l));
+        }, "/connections");
     };
 
     auto make_logs = [&]
     {
         // /logs puller
-        // clear_and_stop_all_threads();
         const auto configJSON = json::parse(get_config());
         puller_logLevel.set(std::string(configJSON["log-level"]));
-        auto log_running = std::make_shared<std::atomic_bool>(true);
-        auto run_logs = [&](const std::atomic_bool * _log_running)
+        make_thread([&](const std::atomic_bool * _log_running)
         {
-            ccdb::utils::set_thread_name("/logs");
-#ifdef __DEBUG__
-            std::thread T0;
-#endif
-            while (*_log_running && !force_quit)
-            {
-                try
-                {
-#if defined(__DEBUG__) // && defined(__WITH_LOG_NOISE__)
-                    T0 = std::thread([&]
-                    {
-                        ccdb::utils::set_thread_name("/logs:noise");
-                        std::random_device dev;
-                        std::mt19937 rng(dev());
-                        constexpr int seeding = 1000;
-                        std::uniform_int_distribution<std::mt19937::result_type> dist6(1, seeding);
+            backend_client.get_stream_info("logs?&level=" + puller_logLevel.get(),
+                                    _log_running,
+                                    this,
+                                    &general_info_pulling::update_from_logs);
+        }, "/connections");
+    };
 
-                        while (*_log_running)
-                        {
-                            if (dist6(rng) < seeding / 3)
-                            {
-                                if (dist6(rng) < seeding / 4)
-                                {
-                                    if (dist6(rng) < seeding / 2) {
-                                        update_from_logs(R"({"type":"debug","payload":"[TCP] [REDACTED]:[REDACTED]([REDACTED], uid=[REDACTED]) --\u003e [REDACTED]:[REDACTED] match [REDACTED] using [REDACTED]"})");
-                                    } else {
-                                        update_from_logs(R"({"type":"error","payload":"[TCP] [REDACTED]:[REDACTED]([REDACTED], uid=[REDACTED]) --\u003e [REDACTED]:[REDACTED] match [REDACTED] using [REDACTED]"})");
-                                    }
-                                } else {
-                                    update_from_logs(R"({"type":"warning","payload":"[TCP] [REDACTED]:[REDACTED]([REDACTED], uid=[REDACTED]) --\u003e [REDACTED]:[REDACTED] match [REDACTED] using [REDACTED]"})");
-                                }
-                            } else {
-                                update_from_logs(R"({"type":"info","payload":"[TCP] [REDACTED]:[REDACTED]([REDACTED], uid=[REDACTED]) --\u003e [REDACTED]:[REDACTED] match [REDACTED] using [REDACTED]"})");
-                            }
-
-                            std::this_thread::sleep_for(std::chrono::milliseconds(500l));
-                        }
-                    });
-#endif //__DEBUG__
-                    backend_client.get_stream_info("logs?&level=" + puller_logLevel.get(),
-                        _log_running,
+    auto make_memory = [&]
+    {
+        make_thread([&](const std::atomic_bool * _memory_running)
+        {
+            backend_client.get_stream_info("memory",
+                        _memory_running,
                         this,
-                        &general_info_pulling::update_from_logs);
-                }
-                catch (std::exception &)
-                {
-                    // ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
-                    // force_quit = true;
-                }
-            }
-
-#ifdef __DEBUG__
-            if (T0.joinable()) T0.join();
-#endif
-        };
-        std::atomic_bool * ptr = log_running.get();
-        thread_pool.emplace_back(std::move(log_running), std::thread(run_logs, ptr));
+                        &general_info_pulling::update_from_memory);
+        }, "/memory");
     };
 
     make_traffic();
     make_connections();
     make_logs();
+    make_memory();
 
     while (keep_pull_continuous_updates.load() && !force_quit) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10l));
@@ -393,10 +352,8 @@ void general_info_pulling::start_continuous_updates()
             force_quit = true;
         }
         catch (const std::exception &) {
-            // ccdb::utils::print<ccdb::utils::is_error>("Error when pulling traffic data: ", e.what(), "\n");
         }
     });
-    // std::this_thread::sleep_for(std::chrono::milliseconds(100l));
 }
 
 void general_info_pulling::update_proxy_list()
