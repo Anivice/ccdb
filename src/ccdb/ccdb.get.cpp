@@ -304,28 +304,67 @@ void ccdb::ccdb::get_rules()
     }
 }
 
+void ccdb::ccdb::get_providerRules()
+{
+    const auto json = backend_instance.get_providerRules();
+    try
+    {
+        const auto data = json::parse(json);
+        const std::vector<std::string> table_titles = {
+            sprint("Name"), sprint("Last Update Time"),
+        };
+
+        std::vector<std::vector<std::string>> table_vals;
+        for (const auto & providers = data["providers"];
+            const auto& [entry_name, provider] : providers.items())
+        {
+            table_vals.emplace_back(std::vector{entry_name, provider.value("updatedAt", "")});
+        }
+
+        simple_print_table(table_titles, table_vals);
+    }
+    catch (const std::exception & e)
+    {
+        print<is_error>("Failed to get rules: ", e.what(), "\n");
+    }
+}
+
 void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
 {
     // upgrade [...]
     if (command_vector[1] == "geo")  {
-        const auto result = backend_instance.generic_post("/upgrade/geo");
         try {
+            const auto result = backend_instance.generic_post("/upgrade/geo");
             const auto json = json::parse(result);
             const auto result_ = std::string(json.contains("message") ? json["message"] : json["status"]);
             print(result_, "\n");
-        } catch (...) {
-            if (!result.empty()) print(result, "\n");
+        } catch (std::exception & e) {
+            print(e.what(), "\n");
         }
     } else if (command_vector[1] == "core") {
-        const auto result = backend_instance.generic_post("/upgrade");
         try {
+            const auto result = backend_instance.generic_post("/upgrade");
             const auto json = json::parse(result);
             const auto result_ = std::string(json.contains("message") ? json["message"] : json["status"]);
             print(result_, "\n");
-        } catch (...) {
-            if (!result.empty()) print(result, "\n");
+        } catch (std::exception & e) {
+            print(e.what(), "\n");
         }
-    }  else if (command_vector[1] == "self") {
+    } else if (command_vector[1] == "providerRules") {
+        try {
+            const auto json = backend_instance.get_providerRules();
+            const auto data = json::parse(json);
+            for (const auto & providers = data["providers"];
+            const auto & [ entry_name, _ ] : providers.items())
+            {
+                ::ccdb::utils::print("Upgrading ", entry_name, "... ", flush);
+                (void)backend_instance.generic_put("/providers/rules/" + entry_name);
+                print("done.\n");
+            }
+        } catch (std::exception & e) {
+            print<is_error>("Failed to upgrade: ", e.what(), "\n");
+        }
+    } else if (command_vector[1] == "self") {
         const auto vec = get_content(30);
         char buff[512] { };
         if (readlink("/proc/self/exe", buff, 512) == -1) {
@@ -527,8 +566,8 @@ void ccdb::ccdb::get_latencyHistory(std::vector<std::string> command_vector)
                         }
                     }
 
-                    const auto typical = latency_history_vec.empty() ? UINT64_MAX : iqr_filtered_latency(latency_history_vec);
-                    const auto avg = latency_history_vec.empty() ? UINT64_MAX : iqr_filtered_latency(latency_history_vec, false);
+                    const auto typical = latency_history_vec.empty() ? static_cast<double>(UINT64_MAX) : iqr_filtered_latency(latency_history_vec);
+                    const auto avg = latency_history_vec.empty() ? static_cast<double>(UINT64_MAX) : iqr_filtered_latency(latency_history_vec, false);
                     utils::print("  ", color::color(2,4,5), "IQR", color::no_color(),
                         ": typical=", color_coding(typical), typical, color::no_color(),
                         ", avg=", color_coding(avg), avg, color::no_color(), "\n");

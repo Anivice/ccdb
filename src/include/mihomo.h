@@ -52,6 +52,7 @@ public:
     [[nodiscard]] bool close_all_connections() const;
     [[nodiscard]] bool close_connection(const std::string & id) const;
     void generic_post(const std::string & path, const std::function < void(int, const std::string&) > & method) const;
+    void generic_put(const std::string & path, const std::function < void(int, const std::string&) > & method) const;
 
     template < typename InstanceType >
     void get_info(const std::string & endpoint_name, InstanceType* instance, void (InstanceType::*method)(const std::string&))

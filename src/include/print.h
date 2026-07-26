@@ -80,12 +80,26 @@ namespace ccdb::utils
         return oss.str();
     }
 
-    template < MessageType MsgType = is_normal, MsgValueType... Args >
-    void print(const Args &...args) {
+    inline struct flush_t {} flush;
+    template < typename T > concept StdIOMsgType = MsgValueType<T> || std::is_same_v<T, flush_t>;
+
+    template < typename T >
+    void _print(const T & val, std::ostream & oss)
+    {
+        if constexpr (MsgValueType<T>) {
+            _sprint(val, oss);
+        } else if constexpr (std::is_same_v<T, flush_t>) {
+            oss << std::flush;
+        }
+    }
+
+    template < MessageType MsgType = is_normal, StdIOMsgType... Args >
+    void print(const Args &...args)
+    {
         if constexpr (std::is_same_v<MsgType, is_error>) {
-            std::cerr << sprint(args...);
+            (_print(args, std::cerr), ...);
         } else {
-            std::cout << sprint(args...);
+            (_print(args, std::cout), ...);
         }
     }
 }

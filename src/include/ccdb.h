@@ -211,6 +211,7 @@ namespace ccdb
         void get_logLevel() const;
         void get_proxy();
         void get_rules();
+        void get_providerRules();
         void upgrade(const std::vector<std::string> & command_vector);
         void get_latencyHistory(std::vector<std::string> command_vector);
         void get_vecGroupProxy(bool show_vgroups = true);

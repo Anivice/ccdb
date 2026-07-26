@@ -168,7 +168,9 @@ public:
     [[nodiscard]] std::string get_config() const;
     [[nodiscard]] std::string get_proxy_metadata(const std::string & proxy_name) const;
     [[nodiscard]] std::string get_rules() const;
+    [[nodiscard]] std::string get_providerRules() const;
     [[nodiscard]] std::string generic_post(const std::string & tail) const;
+    [[nodiscard]] std::string generic_put(const std::string & tail) const;
     [[nodiscard]] std::string get_version() const;
     [[nodiscard]] std::string get_current_mode() const;
 

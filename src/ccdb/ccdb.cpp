@@ -620,6 +620,8 @@ void ccdb::ccdb::init()
                     get_logLevel();
                 } else if (command_vector[1] == "rules") {
                     get_rules();
+                } else if (command_vector[1] == "providerRules") {
+                    get_providerRules();
                 } else {
                     print<is_error>("Unknown command `", command_vector[1], "`\n");
                     if (execute_and_no_interactive) throw std::runtime_error("");

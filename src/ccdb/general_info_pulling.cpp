@@ -552,10 +552,32 @@ std::string general_info_pulling::get_rules() const
     return ret;
 }
 
+std::string general_info_pulling::get_providerRules() const
+{
+    std::string ret;
+    backend_client.get_info_no_instance("providers/rules", [&](const std::string & r){ ret = r; });
+    return ret;
+}
+
 std::string general_info_pulling::generic_post(const std::string & tail) const
 {
     std::string ret;
-    backend_client.generic_post(tail, [&](const int, const std::string & r){ ret = r; });
+    backend_client.generic_post(tail, [&](const int status, const std::string & r)
+    {
+        if (!(status >= 200 && status < 300)) throw std::runtime_error(std::to_string(status) + ": " + r);
+        ret = r;
+    });
+    return ret;
+}
+
+std::string general_info_pulling::generic_put(const std::string & tail) const
+{
+    std::string ret;
+    backend_client.generic_put(tail, [&](const int status, const std::string & r)
+    {
+        if (!(status >= 200 && status < 300)) throw std::runtime_error(std::to_string(status) + ": " + r);
+        ret = r;
+    });
     return ret;
 }
 
