@@ -58,7 +58,7 @@
         loglevel            (Backend log level),
         rules               (Backend rule list),
         version             (Backend version),
-        providerRules       (Upgrade provider rules),
+        providerRules       (Provider rules),
     >,
     < set (Set parameters): < mode          (Proxy mode):           global (Global mode), rule (Rule mode), direct (Direct mode) >,
                           # < group         (Switch proxy group):   [GROUP] (Group name), [PROXY] (Proxy endpoint name) >,

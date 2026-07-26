@@ -253,7 +253,7 @@ std::string ccdb::utils::get_text(const std::string &text)
         converted.emplace_cache(text, result);
         return result;
     }
-
+#ifdef RELEASE_CANDIDATE_PRE_RELEASE_BUILD
     static std::atomic_bool fs_check_completed = false;
     if (!fs_check_completed)
     {
@@ -325,6 +325,7 @@ std::string ccdb::utils::get_text(const std::string &text)
             fl.l_type = F_UNLCK;
             (void)fcntl(fd, F_SETLK, &fl);
         }();
+#endif
     converted.emplace_cache(text, text);
     return text;
 }

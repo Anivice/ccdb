@@ -472,3 +472,7 @@ endif ()
 if ("${USE_CYGWIN}" STREQUAL "True")
     target_compile_definitions(ccdb PRIVATE USE_CYGWIN=1)
 endif ()
+
+if(CCDB_VERSION MATCHES [[^[0-9]+\.[0-9]+\.[0-9]+-rc[0-9]+$]])
+    target_compile_definitions(ccdb PRIVATE RELEASE_CANDIDATE_PRE_RELEASE_BUILD=1)
+endif()

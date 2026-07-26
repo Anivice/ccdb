@@ -1123,5 +1123,20 @@
     "en"    : "Frontend memory usage: ",
     "en_US" : "Frontend memory usage: ",
     "zh_CN" : "前端内存占用: "
+  },
+  {
+    "en"    : "Upgrade provider rules",
+    "en_US" : "Upgrade provider rules",
+    "zh_CN" : "升级外源策略"
+  },
+  {
+    "en"    : "Provider rules",
+    "en_US" : "Provider rules",
+    "zh_CN" : "外源策略"
+  },
+  {
+    "en"    : "Last Update Time",
+    "en_US" : "Last Update Time",
+    "zh_CN" : "上次更新时间"
   }
 ]
