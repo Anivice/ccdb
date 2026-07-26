@@ -494,6 +494,10 @@ void ccdb::ccdb::init()
         }
     }
 
+    if (sim::color_scheme == sim::UNDEFINED) { // still undefined? reset to default
+        sim::color_scheme = sim::RAINBOW_DISTINCT;
+    }
+
     const auto ret = exec_command("/bin/sh", "jq --version >/dev/null 2>/dev/null\n");
     if (!utils::getenv("JQ").empty()) {
         jq = utils::getenv("JQ");
