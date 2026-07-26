@@ -36,6 +36,7 @@ namespace ccdb
 {
     bool is_highlight_match(const std::vector < std::string > & line, const std::string & search_content);
     class auto_print_t;
+    extern std::atomic<int> g_pid;
 
     class ccdb
     {
@@ -396,23 +397,7 @@ namespace ccdb
         pollfd fds { };
         fds.fd = pipefd[0];
         fds.events = POLLIN;
-
-        std::atomic_bool running = true;
-        const auto sig_status = watcher.make_status_watcher();
-
-        std::thread T([&]
-        {
-            while (running)
-            {
-                if (sig_status) {
-                    close(pipefd[0]);
-                    (void)kill(pid, SIGKILL);
-                    break;
-                }
-
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            }
-        });
+        g_pid = pid;
 
         if (const int ret = poll(&fds, 1, timeout_ms); ret == -1) {
         } else if (ret == 0) {
@@ -431,8 +416,7 @@ namespace ccdb
         // Wait for child to avoid zombie
         int status;
         waitpid(pid, &status, 0);
-        running = false;
-        if (T.joinable()) T.join();
+        g_pid = -1;
         return status == 0;
     }
 

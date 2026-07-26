@@ -1138,5 +1138,25 @@
     "en"    : "Last Update Time",
     "en_US" : "Last Update Time",
     "zh_CN" : "上次更新时间"
+  },
+  {
+    "en"    : "Unexpected status: ",
+    "en_US" : "Unexpected status: ",
+    "zh_CN" : "未预见的服务端回复: "
+  },
+  {
+    "en"    : "Download failed, retrying...\n",
+    "en_US" : "Download failed, retrying...\n",
+    "zh_CN" : "下载失败, 正在尝试重新下载...\n"
+  },
+  {
+    "en"    : "Redirect to ",
+    "en_US" : "Redirect to ",
+    "zh_CN" : "链接转移至 "
+  },
+  {
+    "en"    : "Using proxy ",
+    "en_US" : "Using proxy ",
+    "zh_CN" : "使用代理 "
   }
 ]

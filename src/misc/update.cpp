@@ -94,7 +94,9 @@ namespace
         return env_remote;
     }
 
-    httplib::Result get_from_url(const std::string & url, const std::vector<std::pair<std::string, std::string>> & headers, const int timeout)
+    httplib::Result get_from_url(const std::string & url,
+        const std::vector<std::pair<std::string, std::string>> & headers,
+        const int timeout, const bool resume = false)
     {
         std::string scheme, host, path, proxy_host;
         if (!ccdb::utils::parse_url(url, scheme, host, path)) {
@@ -125,12 +127,70 @@ namespace
         if (int proxy_port = 0;
             ccdb::utils::parse_proxy(ccdb::utils::getenv(scheme + "_proxy"), proxy_host, proxy_port))
         {
+            ccdb::utils::print("Using proxy ", proxy_host, ":", proxy_port, "\n");
             client.set_proxy(proxy_host, proxy_port);
         }
 
         httplib::Result res;
         std::atomic_bool finished = false;
-        std::thread T([&]{ res = client.Get(path, header_for_httpLib); finished = true; });
+        std::vector<char> content;
+        std::thread T([&]
+        {
+            if (!resume)
+            {
+                res = client.Get(path, header_for_httpLib);
+            }
+            else
+            {
+                if (!content.empty()) {
+                    header_for_httpLib.emplace("Range", "bytes=" + std::to_string(content.size()) + "-");
+                }
+
+                auto download = [&]
+                {
+                    res = client.Get(path, header_for_httpLib,  [&](const httplib::Response& response)
+                    {
+                        if (response.status == 206)
+                        {
+                            // Server accepted resume request.
+                            const auto content_range = response.get_header_value("Content-Range");
+                            const auto expected_prefix = "bytes " + std::to_string(content.size()) + "-";
+
+                            if (content_range.rfind(expected_prefix, 0) != 0) {
+                                ccdb::utils::print<ccdb::utils::is_error>("Unexpected Content-Range: ", content_range, '\n');
+                                return false;
+                            }
+
+                            return true;
+                        }
+
+                        if (response.status == 200 || response.status == 302) {
+                            content.clear();
+                            return true;
+                        }
+
+                        ccdb::utils::print<ccdb::utils::is_error>("Unexpected status: ", response.status, '\n');
+                        return false;
+                    },
+                    [&](const char* data, const std::size_t length)
+                    {
+                        content.insert(content.end(), data, data + length);
+                        return true;
+                    });
+                };
+
+                download();
+                while (!res)
+                {
+                    ccdb::utils::print<ccdb::utils::is_error>("Download failed, retrying...\n");
+                    download();
+                }
+
+                res->body = { content.begin(), content.end() };
+                finished = true;
+            }
+        });
+
         if (timeout > 0)
         {
             for (int i = 0; i < timeout * 100; i++) {
@@ -144,7 +204,7 @@ namespace
         if (T.joinable()) T.join();
 
         if (!res) {
-            throw std::runtime_error(ccdb::utils::sprint("Failed to pull: ", httplib::to_string(res.error())));
+            throw std::runtime_error(std::to_string(res->status) + ": " + to_string(res.error()));
         }
 
         while (res->status == 302)
@@ -159,16 +219,13 @@ namespace
                     return false;
                 }))
             {
-                res = get_from_url(redir, headers, timeout);
+                ccdb::utils::print("Redirect to ", redir, '\n');
+                res = get_from_url(redir, headers, timeout, resume);
             }
             else
             {
-                throw std::runtime_error(ccdb::utils::sprint("Failed to pull: ", std::to_string(res->status)));
+                throw std::runtime_error(std::to_string(res->status) + ": " + to_string(res.error()));
             }
-        }
-
-        if (res->status != 200) {
-            throw std::runtime_error(ccdb::utils::sprint("Failed to pull: ", std::to_string(res->status)));
         }
 
         return res;
@@ -177,7 +234,9 @@ namespace
     std::string get_latest_hash(const int timeout)
     {
         const auto [url, headers] = get_remote();
-        return get_from_url(url, headers, timeout)->body;
+        const auto res = get_from_url(url, headers, timeout);
+        if (!res || res->status != 200) throw std::runtime_error(std::to_string(res->status) + ": " + to_string(res.error()));
+        return res->body;
     }
 }
 
@@ -193,7 +252,7 @@ std::vector<char> get_content(const int timeout)
     // wget https://github.com/Anivice/ccdb/releases/download/ccdb.NightlyBuild."$VER"/ccdb."$ARCH" -O "$DEST"
     const auto url_dest = "https://github.com/Anivice/ccdb/releases/download/ccdb.NightlyBuild."
         + hash.substr(0, 8) + "/ccdb." + ArchName;
-    httplib::Result res = get_from_url(url_dest, {}, timeout);
+    httplib::Result res = get_from_url(url_dest, {}, timeout, true);
     if (!res) {
         throw std::runtime_error(ccdb::utils::sprint("Failed to pull: ", httplib::to_string(res.error())));
     }

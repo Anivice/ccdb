@@ -27,6 +27,7 @@
 #include <vector>
 #include <numeric>
 #include <stdexcept>
+#include <csignal>
 #include "print.h"
 #include "pull_subinfo.h"
 #include "ccdb.h"
@@ -365,41 +366,70 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
             print<is_error>("Failed to upgrade: ", e.what(), "\n");
         }
     } else if (command_vector[1] == "self") {
-        const auto vec = get_content(30);
         char buff[512] { };
         if (readlink("/proc/self/exe", buff, 512) == -1) {
             throw std::runtime_error("Failed to read /proc/self/exe: " + std::string(std::strerror(errno)));
         }
 
         const auto result = std::string(buff);
-
-        if (rename(result.c_str(), (result + ".bak").c_str()) == -1) {
-            throw std::runtime_error("Failed to rename: " + std::string(std::strerror(errno)));
-        }
-
-        if (std::ofstream ofs((result + ".new").c_str(), std::ios::trunc); ofs)
-        {
-            ofs.write(vec.data(), vec.size());
-            ofs.close();
-            if (chmod((result + ".new").c_str(), 0755) == -1)
+        if (!detach_execute
+        (
+            [&](const int fd)->bool
             {
+                try
+                {
+                    const auto vec = get_content(30);
+                    if (rename(result.c_str(), (result + ".bak").c_str()) == -1) {
+                        throw std::runtime_error("Failed to rename: " + std::string(std::strerror(errno)));
+                    }
+
+                    if (std::ofstream ofs((result + ".new").c_str(), std::ios::trunc); ofs)
+                    {
+                        ofs.write(vec.data(), vec.size());
+                        ofs.close();
+                        if (chmod((result + ".new").c_str(), 0755) == -1)
+                        {
+                            unlink((result + ".new").c_str());
+                            throw std::runtime_error("Failed to chmod: " + std::string(std::strerror(errno)));
+                        }
+                    }
+                    else
+                    {
+                        throw std::runtime_error("Failed to write: " + std::string(std::strerror(errno)));
+                    }
+
+                    if (rename((result + ".new").c_str(), result.c_str()) == -1)
+                    {
+                        rename((result + ".bak").c_str(), result.c_str());
+                        throw std::runtime_error("Failed to rename: " + std::string(std::strerror(errno)));
+                    }
+
+                    unlink((result + ".bak").c_str());
+                    print("Upgraded self. Please relaunch CCDB to complete the update.\n");
+                    write(fd, "1", 1);
+                }
+                catch (std::exception & e)
+                {
+                    print<is_error>(e.what(), "\n");
+                    return false;
+                }
+
+                return true;
+            },
+        [](const int fd)
+        {
+            char buff_[2] { };
+            return read(fd, buff_, 1) == 1;
+        }, 60 * 20 * 1000))
+        {
+            if (std::filesystem::exists(result + ".bak")) {
+                rename((result + ".bak").c_str(), result.c_str());
+            }
+
+            if (std::filesystem::exists(result + ".new")) {
                 unlink((result + ".new").c_str());
-                throw std::runtime_error("Failed to chmod: " + std::string(std::strerror(errno)));
             }
         }
-        else
-        {
-            throw std::runtime_error("Failed to write: " + std::string(std::strerror(errno)));
-        }
-
-        if (rename((result + ".new").c_str(), result.c_str()) == -1)
-        {
-            rename((result + ".bak").c_str(), result.c_str());
-            throw std::runtime_error("Failed to rename: " + std::string(std::strerror(errno)));
-        }
-
-        unlink((result + ".bak").c_str());
-        print("Upgraded self. Please relaunch CCDB to complete the update.\n");
     } else {
         print<is_error>("Unknown command `", command_vector[1], "`\n");
         if (execute_and_no_interactive) throw std::runtime_error("");

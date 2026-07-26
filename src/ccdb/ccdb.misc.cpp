@@ -35,6 +35,7 @@
 ccdb::sigint_watcher_ ccdb::watcher;
 std::atomic_bool ccdb::window_size_change = false;
 std::atomic_bool ccdb::sysint_pressed = false;
+std::atomic<int> ccdb::g_pid = -1;
 
 void ccdb::sigint_handler(int)
 {
@@ -42,6 +43,8 @@ void ccdb::sigint_handler(int)
     if (Readline::sig_pipe[1] != -1) {
         (void)write(Readline::sig_pipe[1], &ch, 1);
     }
+
+    if (g_pid != -1) (void)kill(g_pid, SIGKILL);
     sysint_pressed = true;
 }
 
