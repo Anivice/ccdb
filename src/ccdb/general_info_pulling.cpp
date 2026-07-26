@@ -97,7 +97,7 @@ void general_info_pulling::update_from_connections(const std::string& info)
             conn.metadata.connectionID = id;
             conn.metadata.raw_json = connection.dump();
 
-            // TODO: in
+            // TODO: ina
             if (auto previous = connection_map.find(id); previous != connection_map.end())
             {
                 const auto last_pull = previous->second.timeLastPulled;
