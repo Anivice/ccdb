@@ -334,11 +334,9 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
 {
     // upgrade [...]
     if (command_vector[1] == "geo")  {
+        std::string result;
         try {
-            const auto result = backend_instance.generic_post("/upgrade/geo");
-            const auto json = json::parse(result);
-            const auto result_ = std::string(json.contains("message") ? json["message"] : json["status"]);
-            print(result_, "\n");
+            print(backend_instance.generic_post("/upgrade/geo"), "\n");
         } catch (std::exception & e) {
             print(e.what(), "\n");
         }
@@ -358,7 +356,7 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
             for (const auto & providers = data["providers"];
             const auto & [ entry_name, _ ] : providers.items())
             {
-                ::ccdb::utils::print("Upgrading ", entry_name, "... ", flush);
+                utils::print("Upgrading ", entry_name, "... ", flush);
                 (void)backend_instance.generic_put("/providers/rules/" + entry_name);
                 print("done.\n");
             }

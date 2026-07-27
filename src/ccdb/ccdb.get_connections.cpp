@@ -667,7 +667,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 /// auto complition
                 static const std::vector<std::string> g_args = {
                     "closeAll", "clearFilters", "filterReverse", "closeOnScreen", "filter",
-                    "pause", "resume", "sort", "sortReverse"
+                    "pause", "resume", "sort", "sortReverse", "reverseChainParser"
                 };
 
                 /// is a command
@@ -782,6 +782,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                                     "INFO");
                             } else if (vec.front() == "clearFilters") {
                                 clear_filter();
+                            } else if (vec.front() == "reverseChainParser") {
+                                backend_instance.parse_chains = !backend_instance.parse_chains;
                             }
                             else if (vec.front() == "filter") {
                                 if (vec.size() == 3)
