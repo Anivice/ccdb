@@ -76,6 +76,43 @@ std::vector<std::string> auto_complete(const std::string & command_arg,
     return possible_matches;
 }
 
+namespace
+{
+    template < typename T >
+    class compare_t
+    {
+        const T & host;
+        std::function<bool(const T&a, const T&b)> comp;
+
+    public:
+        explicit compare_t(const T & host_, std::function<bool(const T&a, const T&b)> comp_) : host(host_), comp(std::move(comp_)) {}
+
+        bool operator > (const compare_t & other) const {
+            return comp(host, other.host);
+        }
+
+        bool operator == (const compare_t & other) const {
+            return host == other.host;
+        }
+
+        bool operator < (const compare_t & other) const {
+            return !(*this == other || *this > other); // < --> !(>=)
+        }
+
+        compare_t & operator = (const compare_t& other) = default;
+        compare_t & operator = (compare_t&& other) = default;
+        compare_t(const compare_t & other) = default;
+        compare_t(compare_t&& other) = default;
+    };
+
+    class host_compare_t : public compare_t < std::string >
+    {
+    public:
+        explicit host_compare_t(const std::string & h) : compare_t(h, sort_url_if_fit) { }
+        host_compare_t() : compare_t("", [](const auto &, const auto &){return false;}) { }
+    };
+}
+
 void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 {
     bool lock_to_max = false;
@@ -229,39 +266,39 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         std::vector<std::vector<std::string>> table_vals;
         if (!pause_update || (pause_update && (sort_by_local != sort_by || reverse_sort_local != sort_reverse)))
             std::ranges::sort(connections,
-                          [&](const general_info_pulling::connection_t & a, const general_info_pulling::connection_t & b)
-                          {
-                              switch (sort_by_final)
-                              {
-                                  case 0:
-                                      return sort_url_if_fit(a.host, b.host);
-                                  case 1:
-                                      return a.processName > b.processName;
-                                  case 2:
-                                      return a.totalDownloadedBytes > b.totalDownloadedBytes;
-                                  case 3:
-                                      return a.totalUploadedBytes > b.totalUploadedBytes;
-                                  case 5:
-                                      return a.uploadSpeed > b.uploadSpeed;
-                                  case 6:
-                                      return a.ruleName > b.ruleName;
-                                  case 7:
-                                      return a.timeElapsedSinceConnectionEstablished > b.timeElapsedSinceConnectionEstablished;
-                                  case 8:
-                                      return a.src > b.src;
-                                  case 9:
-                                      return a.destination > b.destination;
-                                  case 10:
-                                      return a.networkType > b.networkType;
-                                  case 11:
-                                      return a.chainName > b.chainName;
-                                  case 4:
-                                      return a.downloadSpeed > b.downloadSpeed;
-
-                                  default:
-                                      return (a.downloadSpeed + a.uploadSpeed) > (b.downloadSpeed + b.uploadSpeed);
-                                  }
-                              });
+                    [&](const general_info_pulling::connection_t & a, const general_info_pulling::connection_t & b)
+                        {
+                            const host_compare_t aH(a.host), bH(b.host);
+                            switch (sort_by_final)
+                            {
+                            case 0:
+                                return aH > bH;
+                            case 1:
+                                return std::tie(a.processName, aH) > std::tie(b.processName, bH);
+                            case 2:
+                                return std::tie(a.totalDownloadedBytes, aH) > std::tie(b.totalDownloadedBytes, bH);
+                            case 3:
+                                return std::tie(a.totalUploadedBytes, aH) > std::tie(b.totalUploadedBytes, bH);
+                            case 5:
+                                return std::tie(a.uploadSpeed, aH) > std::tie(b.uploadSpeed, bH);
+                            case 6:
+                                return std::tie(a.ruleName, aH) > std::tie(b.ruleName, bH);
+                            case 7:
+                                return std::tie(a.timeElapsedSinceConnectionEstablished, aH) > std::tie(b.timeElapsedSinceConnectionEstablished, bH);
+                            case 8:
+                                return std::tie(a.src, aH) > std::tie(b.src, bH);
+                            case 9:
+                                return std::tie(a.destination, aH) > std::tie(b.destination, bH);
+                            case 10:
+                                return std::tie(a.networkType, aH) > std::tie(b.networkType, bH);
+                            case 11:
+                                return std::tie(a.chainName, aH) > std::tie(b.chainName, bH);
+                            case 4:
+                                return std::tie(a.downloadSpeed, aH) > std::tie(b.downloadSpeed, bH);
+                            default:
+                                return (a.downloadSpeed + a.uploadSpeed) > (b.downloadSpeed + b.uploadSpeed);
+                            }
+                        });
         pad_host(connections);
         pad_src(connections);
         if (!pause_update || (pause_update && (sort_by_local != sort_by || reverse_sort_local != sort_reverse)))
