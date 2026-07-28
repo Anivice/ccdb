@@ -364,6 +364,8 @@ add_executable(ccdb
         ccdb/ccdb.nload.cpp
         ccdb/general_info_pulling.cpp   include/general_info_pulling.h
         ccdb/ccdb.print_table.cpp       include/ccdb.h
+        ccdb/ccdb.continuous_table.cpp
+
         versions.cpp                    include/versions.h
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})

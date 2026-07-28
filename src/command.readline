@@ -42,7 +42,7 @@
                                         10  (Type),
                                         11  (Chains),
             >,
-            shot            (Use pager and pull the active connections once),
+            # shot            (Use pager and pull the active connections once),
         >,
         logSize             (Log buffer size),
         mode                (Proxy mode),
