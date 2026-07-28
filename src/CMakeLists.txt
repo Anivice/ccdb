@@ -410,8 +410,78 @@ if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     else()
         target_link_libraries(ccdb PRIVATE atomic readline::readline ncurses::ncurses)
     endif()
-    target_compile_options(ccdb PRIVATE -fconcepts-diagnostics-depth=3)
+    target_compile_options(ccdb PRIVATE -fconcepts-diagnostics-depth=3 -O0 -g3)
     target_compile_definitions(ccdb PRIVATE __DEBUG__=1)
+
+    # libunwind
+    set(LIBUNWIND_MAKE_ENTIRE "${MAKE_EXECUTABLE} ${LIBUNWIND_MAKE_ADDITIONAL_FLAGS}")
+    set(LIBUNWIND_SRC_DEST ${CMAKE_CURRENT_BINARY_DIR}/libunwind/src)
+    message(STATUS "LIBUNWIND: ${LIBUNWIND_MAKE_ENTIRE}")
+    ExternalProject_Add(LIBUNWIND
+            PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/libunwind
+            SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/libunwind-1.8.3
+            INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/libunwind/install
+            CONFIGURE_COMMAND   /bin/sh -c "cp -r <SOURCE_DIR>/* ${LIBUNWIND_SRC_DEST} && cd ${LIBUNWIND_SRC_DEST} && ${LIBUNWIND_SRC_DEST}/configure --prefix=<INSTALL_DIR> --disable-tests --enable-per-thread-cache --enable-cxx-exceptions --enable-debug-frame --enable-block-signals --enable-conservative-checks --enable-msabi-support ${LIBUNWIND_CONFIGURE_ADDITIONAL_FLAGS}"
+            BUILD_COMMAND       /bin/sh -c "cd ${LIBUNWIND_SRC_DEST} && ${LIBUNWIND_MAKE_ENTIRE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\""
+            INSTALL_COMMAND     /bin/sh -c "cd ${LIBUNWIND_SRC_DEST} && ${MAKE_EXECUTABLE} install ${LIBUNWIND_MAKE_INSTALL_ADDITIONAL_FLAGS}"
+            INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libunwind.a <INSTALL_DIR>/lib/libunwind-generic.a <INSTALL_DIR>/lib/libunwind-ptrace.a <INSTALL_DIR>/lib/libunwind-setjmp.a <INSTALL_DIR>/lib/libunwind-coredump.a
+            TEST_COMMAND        ""
+            INACTIVITY_TIMEOUT  15
+            CONFIGURE_HANDLED_BY_BUILD ON
+    )
+
+    ExternalProject_Get_Property(LIBUNWIND INSTALL_DIR)
+    set(LIBUNWIND_INCLUDE_DIR "${INSTALL_DIR}/include")
+    set(LIBUNWIND_LIB_DIR     "${INSTALL_DIR}/lib")
+    file(MAKE_DIRECTORY "${LIBUNWIND_INCLUDE_DIR}" "${LIBUNWIND_LIB_DIR}")
+
+    # Export to CMake
+    add_library(libunwind::libunwind_main STATIC IMPORTED GLOBAL)
+    set_target_properties(libunwind::libunwind_main PROPERTIES
+            IMPORTED_LOCATION             "${LIBUNWIND_LIB_DIR}/libunwind.a"
+            INTERFACE_INCLUDE_DIRECTORIES "${LIBUNWIND_INCLUDE_DIR}"
+    )
+
+    add_library(libunwind::libunwind_generic STATIC IMPORTED GLOBAL)
+    set_target_properties(libunwind::libunwind_generic PROPERTIES
+            IMPORTED_LOCATION               "${LIBUNWIND_LIB_DIR}/libunwind-generic.a"
+            INTERFACE_INCLUDE_DIRECTORIES   "${LIBUNWIND_INCLUDE_DIR}"
+    )
+
+    add_library(libunwind::libunwind_ptrace STATIC IMPORTED GLOBAL)
+    set_target_properties(libunwind::libunwind_ptrace PROPERTIES
+            IMPORTED_LOCATION               "${LIBUNWIND_LIB_DIR}/libunwind-ptrace.a"
+            INTERFACE_INCLUDE_DIRECTORIES   "${LIBUNWIND_INCLUDE_DIR}"
+    )
+
+    add_library(libunwind::libunwind_setjmp STATIC IMPORTED GLOBAL)
+    set_target_properties(libunwind::libunwind_setjmp PROPERTIES
+            IMPORTED_LOCATION               "${LIBUNWIND_LIB_DIR}/libunwind-setjmp.a"
+            INTERFACE_INCLUDE_DIRECTORIES   "${LIBUNWIND_INCLUDE_DIR}"
+    )
+
+    add_library(libunwind::libunwind_coredump STATIC IMPORTED GLOBAL)
+    set_target_properties(libunwind::libunwind_coredump PROPERTIES
+            IMPORTED_LOCATION               "${LIBUNWIND_LIB_DIR}/libunwind-coredump.a"
+            INTERFACE_INCLUDE_DIRECTORIES   "${LIBUNWIND_INCLUDE_DIR}"
+    )
+
+    # Bundle target consumers can link to
+    add_library(libunwind::libunwind INTERFACE IMPORTED GLOBAL)
+    target_link_libraries(libunwind::libunwind INTERFACE
+            libunwind::libunwind_generic
+            libunwind::libunwind_ptrace
+            libunwind::libunwind_setjmp
+            libunwind::libunwind_coredump
+            libunwind::libunwind_main
+    )
+
+    include_directories("${LIBUNWIND_INCLUDE_DIR}")
+    target_link_libraries(ccdb PRIVATE libunwind::libunwind)
+
+#    add_executable(crash tests/crash.cpp)
+#    target_link_libraries(crash PRIVATE libunwind::libunwind)
+#    target_compile_options(crash PRIVATE -O0 -g3)
 
 #    add_executable(numeric tests/numeric.cpp)
 #    target_include_directories(numeric PRIVATE include)

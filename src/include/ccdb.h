@@ -336,9 +336,9 @@ namespace ccdb
         using HashType = String;
         using OverrideColorType = tsl::hopscotch_map<uint64_t, std::string>;
         template < typename ContainerType >
-        void continuous_table(const bool banner, const std::vector < bool > & do_col_hide,
+        void continuous_table(const bool banner, const std::vector < bool > & do_col_hide, const std::vector<int> alignment,
             const CommandType < ContainerType > & CommandMap,
-            const std::function<std::pair<ViewerType<ContainerType>, SearchMatches>(std::atomic_int * sort_by_from_watcher, const std::string &)> & ReturnContent,
+            const std::function<ViewerType<ContainerType>(std::atomic_int * sort_by_from_watcher)> & ReturnContent,
             const std::function<String(message_type_t, const ContainerType & current_focus)> & GenerateBanner,
             const std::function<HashType(const ContainerType &)> & HashContent,
             const std::function<OverrideColorType(const ViewerType<ContainerType> &, uint64_t)> & GenerateOverrideColorInContent,
@@ -407,6 +407,16 @@ namespace ccdb
 
             while (running)
             {
+                if (start_line >= get_line_size())
+                {
+                    frame_data.set({
+                        .frame_index = ++frame_index,
+                        .frame = color::color(0,0,0,5,0,0) + "TOO SMALL" + color::no_color()
+                    });
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                    continue;
+                }
+
                 OverrideColorType color_code_overrides;
                 auto leading_spaces = leading_spaces_.load();
                 auto current_skip_lines = current_skip_lines_.load();
@@ -431,9 +441,13 @@ namespace ccdb
                 atm_focus_ = -1;
                 search_focus_move_ = IDLE_STATE;
                 search_matches.clear();
-                const auto & [ first, second ] = ReturnContent(&sort_by_from_watcher_, search_content);
-                content = first;
-                search_matches = second;
+                content = ReturnContent(&sort_by_from_watcher_);
+                search_matches.clear();
+                const auto keys = GetTitleForCurrentSession();
+                const auto values = GetTableValueForCurrentSession(content);
+                for (uint64_t i = 0; i < values.size(); i++) {
+                    search_matches.emplace_back(HashContent(content[i]), is_highlight_match(values[i], search_content));
+                }
 
                 // if focused_connection_id is not present anymore, delete it
                 if (!focused_id.empty())
@@ -831,9 +845,6 @@ namespace ccdb
                     leading_spaces = max_leading_spaces;
                 }
 
-                const auto keys = GetTitleForCurrentSession();
-                const auto values = GetTableValueForCurrentSession(content);
-
                 auto print = [&](const bool dry_run)
                 {
                     return print_table(
@@ -855,11 +866,7 @@ namespace ccdb
                             &search_content_buffer,
                             &cursor_position,
                             search_content,
-                            // hard coded alignment justification: 0 left, 1: right, 2 center
-                            {
-                                1 /* host */, 2 /* process */, 1 /* DL */, 1 /* UP */, 1 /* DL Speed */, 1 /* UP Speed */,
-                                0 /* Rules */, 1 /* Time */, 1 /* Src IP */, 0 /* Dest IP */, 2 /* Type */, 0 /* Chains */
-                            },
+                            alignment,
                             dry_run
                     );
                 };
@@ -1062,11 +1069,14 @@ namespace ccdb
     std::vector<vecType> make_screen_vector_frame(const std::vector<vecType> & vec,
         const int current_skip_lines, const int get_line_size, const int start_line)
     {
-        if (current_skip_lines > vec.size()) throw std::logic_error("Internal BUG");
+        if (vec.empty()) return { };
+        if (current_skip_lines >= vec.size()) return { }; // throw std::logic_error("Internal BUG");
         auto frame_size = get_line_size - start_line - 1 /* search line is always empty*/;
         if (vec.size() > frame_size) {
             frame_size -= 1;
         }
+
+        if (frame_size <= 0 || frame_size > get_line_size) return { };
 
         std::vector <vecType> vecReturn
         {
