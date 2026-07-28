@@ -27,35 +27,48 @@
 #include "ccdb.h"
 #include "utils.h"
 
-// --------------------------------------------- CCDB --------------------------------------------- //
-using namespace ccdb::utils;
-#define pad_string(NAME)                                                                        \
-static void pad_##NAME(std::vector < general_info_pulling::connection_t > & conns)              \
-{                                                                                               \
-    int max = -1;                                                                               \
-    std::ranges::for_each(conns, [&](const general_info_pulling::connection_t & t)              \
-    {                                                                                           \
-        if (const auto pos = t.NAME.find_last_of(':'); pos != std::string::npos)                \
-        {                                                                                       \
-            if (const auto len = t.NAME.size() - pos; len > 0) {                                \
-                if (max < static_cast<int>(len)) max = len;                                     \
-            }                                                                                   \
-        }                                                                                       \
-    });                                                                                         \
-                                                                                                \
-    std::ranges::for_each(conns, [&max](general_info_pulling::connection_t & t)                 \
-    {                                                                                           \
-        if (const auto pos = t.NAME.find_last_of(':'); pos != std::string::npos)                \
-        {                                                                                       \
-            if (const auto len = t.NAME.size() - pos; len > 0) {                                \
-                t.NAME += std::string(((max - len) > 0) ? (max - len) : 0, ' ');                \
-            }                                                                                   \
-        }                                                                                       \
-    });                                                                                         \
+namespace
+{
+    struct connection_frame_t
+    {
+        general_info_pulling::connection_t connection_data;
+        std::chrono::high_resolution_clock::time_point time_of_the_closure;
+        bool connection_is_closed = false;
+    };
 }
 
-pad_string(host)
-pad_string(src)
+// --------------------------------------------- CCDB --------------------------------------------- //
+using namespace ccdb::utils;
+#define pad_string(NAME)                                                                            \
+static void pad_##NAME(std::vector < connection_frame_t > & conns)                                  \
+{                                                                                                   \
+    int max = -1;                                                                                   \
+    std::ranges::for_each(conns, [&](const connection_frame_t & t)                                  \
+    {                                                                                               \
+        if (const auto pos = t.connection_data.NAME.find_last_of(':'); pos != std::string::npos)    \
+        {                                                                                           \
+            if (const auto len = t.connection_data.NAME.size() - pos; len > 0) {                    \
+                if (max < static_cast<int>(len)) max = len;                                         \
+            }                                                                                       \
+        }                                                                                           \
+    });                                                                                             \
+                                                                                                    \
+    std::ranges::for_each(conns, [&max](connection_frame_t & t)                                     \
+    {                                                                                               \
+        if (const auto pos = t.connection_data.NAME.find_last_of(':'); pos != std::string::npos)    \
+        {                                                                                           \
+            if (const auto len = t.connection_data.NAME.size() - pos; len > 0) {                    \
+                t.connection_data.NAME += std::string(((max - len) > 0) ? (max - len) : 0, ' ');    \
+            }                                                                                       \
+        }                                                                                           \
+    });                                                                                             \
+}
+
+namespace
+{
+    pad_string(host)
+    pad_string(src)
+}
 
 bool match_logic(const std::string & s1, const std::string & s2) {
     return (s1.size() >= s2.size() && s1.find(s2) != std::string::npos);
@@ -157,6 +170,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     ccdb_atomic_t<frame_data_t> frame_data;
     frame_data.set({});
     std::thread Display;
+    std::unordered_map < std::string, connection_frame_t > connection_frame;
+    const auto color_for_closed_connections = color::color24(255,255,255,128,128,128);
 
     auto show_info = [&g_title_lines](const std::string & msg, const std::string & level, int timeout = -1) {
         g_title_lines.emplace_back("[" + level + "]: " + msg,
@@ -219,7 +234,6 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         return is_connection_valid(c);
     };
 
-    decltype(backend_instance.get_active_connections()) connections;
     bool pause_update = false;
     int sort_by_local = sort_by;
     int reverse_sort_local = sort_reverse;
@@ -258,47 +272,84 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
             index_title++;
         });
+
         if (!pause_update) {
-            connections = backend_instance.get_active_connections();
+            const auto cur_frame = backend_instance.get_active_connections();
+            const auto cur_time = std::chrono::high_resolution_clock::now();
+            std::ranges::for_each(connection_frame | std::views::values, [&cur_time](auto & c_)
+            {
+                if (!c_.connection_is_closed) {
+                    c_.connection_is_closed = true;
+                    c_.time_of_the_closure = cur_time;
+                }
+            });
+
+            std::ranges::for_each(backend_instance.get_active_connections(),
+                [&connection_frame](auto & c_)
+                {
+                    auto it = connection_frame.find(c_.metadata.connectionID);
+                    if (it != connection_frame.end()) {
+                        it->second.connection_is_closed = false;
+                    } else {
+                        connection_frame.emplace(c_.metadata.connectionID, c_);
+                    }
+                });
+
+            std::vector<std::string> to_delete;
+            std::ranges::for_each(connection_frame | std::views::values, [&](auto & c_)
+            {
+                if (c_.connection_is_closed && std::chrono::duration_cast<std::chrono::seconds>(cur_time - c_.time_of_the_closure).count() > 3) {
+                    to_delete.emplace_back(c_.connection_data.metadata.connectionID);
+                }
+            });
+
+            std::ranges::for_each(to_delete, [&](const auto & id){connection_frame.erase(id);});
         }
 
-        decltype(connections) connections_filtered;
+        const auto & ref_ = connection_frame | std::views::values;
+        std::vector<connection_frame_t> connections = {ref_.begin(), ref_.end()};
+        std::vector<connection_frame_t> connections_filtered;
         std::vector<std::vector<std::string>> table_vals;
         if (!pause_update || (pause_update && (sort_by_local != sort_by || reverse_sort_local != sort_reverse)))
+        {
             std::ranges::sort(connections,
-                    [&](const general_info_pulling::connection_t & a, const general_info_pulling::connection_t & b)
+                    [&](const connection_frame_t & a_, const connection_frame_t & b_)
+                    {
+                        const auto & a = a_.connection_data;
+                        const auto & b = b_.connection_data;
+                        const host_compare_t aH(a.host), bH(b.host);
+                        switch (sort_by_final)
                         {
-                            const host_compare_t aH(a.host), bH(b.host);
-                            switch (sort_by_final)
-                            {
                             case 0:
-                                return aH > bH;
-                            case 1:
-                                return std::tie(a.processName, aH) > std::tie(b.processName, bH);
-                            case 2:
-                                return std::tie(a.totalDownloadedBytes, aH) > std::tie(b.totalDownloadedBytes, bH);
-                            case 3:
-                                return std::tie(a.totalUploadedBytes, aH) > std::tie(b.totalUploadedBytes, bH);
-                            case 5:
-                                return std::tie(a.uploadSpeed, aH) > std::tie(b.uploadSpeed, bH);
-                            case 6:
-                                return std::tie(a.ruleName, aH) > std::tie(b.ruleName, bH);
-                            case 7:
-                                return std::tie(a.timeElapsedSinceConnectionEstablished, aH) > std::tie(b.timeElapsedSinceConnectionEstablished, bH);
-                            case 8:
-                                return std::tie(a.src, aH) > std::tie(b.src, bH);
-                            case 9:
-                                return std::tie(a.destination, aH) > std::tie(b.destination, bH);
-                            case 10:
-                                return std::tie(a.networkType, aH) > std::tie(b.networkType, bH);
-                            case 11:
-                                return std::tie(a.chainName, aH) > std::tie(b.chainName, bH);
-                            case 4:
-                                return std::tie(a.downloadSpeed, aH) > std::tie(b.downloadSpeed, bH);
-                            default:
-                                return (a.downloadSpeed + a.uploadSpeed) > (b.downloadSpeed + b.uploadSpeed);
-                            }
-                        });
+                            return aH > bH;
+                        case 1:
+                            return std::tie(a.processName, aH) > std::tie(b.processName, bH);
+                        case 2:
+                            return std::tie(a.totalDownloadedBytes, aH) > std::tie(b.totalDownloadedBytes, bH);
+                        case 3:
+                            return std::tie(a.totalUploadedBytes, aH) > std::tie(b.totalUploadedBytes, bH);
+                        case 5:
+                            return std::tie(a.uploadSpeed, aH) > std::tie(b.uploadSpeed, bH);
+                        case 6:
+                            return std::tie(a.ruleName, aH) > std::tie(b.ruleName, bH);
+                        case 7:
+                            return std::tie(a.timeElapsedSinceConnectionEstablished, aH) > std::tie(b.timeElapsedSinceConnectionEstablished, bH);
+                        case 8:
+                            return std::tie(a.src, aH) > std::tie(b.src, bH);
+                        case 9:
+                            return std::tie(a.destination, aH) > std::tie(b.destination, bH);
+                        case 10:
+                            return std::tie(a.networkType, aH) > std::tie(b.networkType, bH);
+                        case 11:
+                            return std::tie(a.chainName, aH) > std::tie(b.chainName, bH);
+                        case 4:
+                            return std::tie(a.downloadSpeed, aH) > std::tie(b.downloadSpeed, bH);
+                        default:
+                            return (a.downloadSpeed + a.uploadSpeed) > (b.downloadSpeed + b.uploadSpeed);
+                    }
+                });
+        }
+
         pad_host(connections);
         pad_src(connections);
         if (!pause_update || (pause_update && (sort_by_local != sort_by || reverse_sort_local != sort_reverse)))
@@ -314,24 +365,24 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         for (const auto & connection : connections)
         {
             // determine if we need to filter out the result
-            if (valid_check(connection))
+            if (valid_check(connection.connection_data))
             {
                 table_vals.push_back({
-                    connection.host,
-                    connection.processName,
-                    value_to_size(connection.totalDownloadedBytes),
-                    value_to_size(connection.totalUploadedBytes),
-                    value_to_speed(connection.downloadSpeed),
-                    value_to_speed(connection.uploadSpeed),
-                    connection.ruleName,
-                    second_to_human_readable(connection.timeElapsedSinceConnectionEstablished),
-                    connection.src,
-                    connection.destination,
-                    connection.networkType,
-                    connection.chainName,
+                    connection.connection_data.host,
+                    connection.connection_data.processName,
+                    value_to_size(connection.connection_data.totalDownloadedBytes),
+                    value_to_size(connection.connection_data.totalUploadedBytes),
+                    value_to_speed(connection.connection_data.downloadSpeed),
+                    value_to_speed(connection.connection_data.uploadSpeed),
+                    connection.connection_data.ruleName,
+                    second_to_human_readable(connection.connection_data.timeElapsedSinceConnectionEstablished),
+                    connection.connection_data.src,
+                    connection.connection_data.destination,
+                    connection.connection_data.networkType,
+                    connection.connection_data.chainName,
                 });
 
-                search_matches.emplace_back(connection.metadata.connectionID,
+                search_matches.emplace_back(connection.connection_data.metadata.connectionID,
                     is_highlight_match(table_vals.back(), search_content));
                 connections_filtered.emplace_back(connection);
             }
@@ -340,9 +391,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         // if focused_connection_id is not present anymore, delete it
         if (!focused_connection_id.empty())
         {
-            if (!std::ranges::any_of(connections_filtered, [&](const general_info_pulling::connection_t & connection)
-            {
-                return connection.metadata.connectionID == focused_connection_id;
+            if (!std::ranges::any_of(connections_filtered, [&](const connection_frame_t & connection) {
+                return connection.connection_data.metadata.connectionID == focused_connection_id;
             }))
             {
                 show_info("Connection " + focused_connection_info + " not present, deleted", "INFO");
@@ -479,7 +529,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 bool found = false;
                 for (auto it_ = connections_filtered.begin(); it_ != connections_filtered.end(); ++it_)
                 {
-                    if (it_->metadata.connectionID == focused_connection_id)
+                    if (it_->connection_data.metadata.connectionID == focused_connection_id)
                     {
                         if (do_i_process(it_, connections_filtered))
                         {
@@ -493,13 +543,14 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 }
 
                 if (!found && focused_index < static_cast<decltype(focused_index)>(connections_filtered.size())) {
-                    focused_connection_id = connections_filtered.at(focused_index).metadata.connectionID;
+                    focused_connection_id = connections_filtered.at(focused_index).connection_data.metadata.connectionID;
                 }
             }
         };
 
         if (use_input)
         {
+            tsl::hopscotch_map<uint64_t, std::string> color_code_overrides;
             /// move
             switch (atm_focus)
             {
@@ -510,7 +561,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                         return it_ != (vec.end() - 1);
                     },
                     [&](auto it_)->std::string {
-                        return (it_ + 1)->metadata.connectionID;
+                        return (it_ + 1)->connection_data.metadata.connectionID;
                     });
                 }
             break;
@@ -521,7 +572,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                         return it_ != vec.begin();
                     },
                     [&](auto it_)->std::string {
-                        return (it_ - 1)->metadata.connectionID;
+                        return (it_ - 1)->connection_data.metadata.connectionID;
                     });
                 }
             break;
@@ -536,9 +587,9 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 {
                     auto connections_current_page = make_screen_vector_frame(connections_filtered,
                            i, get_line_size(), start_line);
-                    return std::ranges::any_of(connections_current_page, [&](const general_info_pulling::connection_t & conn)->bool
+                    return std::ranges::any_of(connections_current_page, [&](const connection_frame_t & conn)->bool
                     {
-                        return (conn.metadata.connectionID == focused_connection_id);
+                        return (conn.connection_data.metadata.connectionID == focused_connection_id);
                     });
                 };
 
@@ -574,14 +625,14 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 {
                     // refocus
                     int offset = 0;
-                    if (!std::ranges::any_of(connections_current_page, [&](const general_info_pulling::connection_t & line)->bool
+                    if (!std::ranges::any_of(connections_current_page, [&](const connection_frame_t & line)->bool
                     {
                         if (offset != mouse_y - start_line - 1) {
                             offset++;
                             return false;
                         }
 
-                        focused_connection_id = line.metadata.connectionID;
+                        focused_connection_id = line.connection_data.metadata.connectionID;
                         focus_line = mouse_y;
                         return true;
                     }))
@@ -593,13 +644,13 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 {
                     // find the focused line on page
                     if (int index = 0;
-                        std::ranges::any_of(connections_current_page, [&](const general_info_pulling::connection_t & line)->bool
+                        std::ranges::any_of(connections_current_page, [&](const connection_frame_t & line)->bool
                         {
                             index++;
-                            if (const auto & line_hash = line.metadata.connectionID;
+                            if (const auto & line_hash = line.connection_data.metadata.connectionID;
                                 line_hash == focused_connection_id)
                             {
-                                focused_connection_info = line.host;
+                                focused_connection_info = line.connection_data.host;
                                 return true;
                             }
 
@@ -610,6 +661,15 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                         focus_line = index + start_line;
                         focused_index = index;
                     }
+                }
+
+                {
+                    int offset = current_skip_lines;
+                    std::ranges::for_each(connections_current_page, [&](const connection_frame_t & line)
+                    {
+                        if (line.connection_is_closed) color_code_overrides.emplace(offset, color_for_closed_connections);
+                        offset++;
+                    });
                 }
 
                 mouse_y = -1;
@@ -636,10 +696,10 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 if (focus_line != -1)
                 {
                     general_info_pulling::connection_t matched_connection;
-                    (void)std::ranges::any_of(connections, [&](const general_info_pulling::connection_t & conn)->bool
+                    (void)std::ranges::any_of(connections, [&](const connection_frame_t & conn)->bool
                     {
-                        if (conn.metadata.connectionID == focused_connection_id) {
-                            matched_connection = conn;
+                        if (conn.connection_data.metadata.connectionID == focused_connection_id) {
+                            matched_connection = conn.connection_data;
                             return true;
                         }
 
@@ -659,7 +719,6 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
                 conn_show_detail = false;
             }
-
 
             /// commands and search
             if (!search_content_buffer.get().empty())
@@ -771,9 +830,9 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                             else if (vec.front() == "closeOnScreen")
                             {
                                 for (const auto & conn : connections_filtered) {
-                                    if (!backend_instance.close_connection(conn.metadata.connectionID))
+                                    if (!backend_instance.close_connection(conn.connection_data.metadata.connectionID))
                                     {
-                                        show_info(sprint("Failed to close connection", conn.host), "ERROR");
+                                        show_info(sprint("Failed to close connection", conn.connection_data.host), "ERROR");
                                     }
                                 }
                             } else if (vec.front() == "filterReverse") {
@@ -784,6 +843,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                                 clear_filter();
                             } else if (vec.front() == "reverseChainParser") {
                                 backend_instance.parse_chains = !backend_instance.parse_chains;
+                                connection_frame.clear();
                             }
                             else if (vec.front() == "filter") {
                                 if (vec.size() == 3)
@@ -877,7 +937,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     current_skip_lines,
                     &max_skip_lines,
                     false,
-                    {},
+                    color_code_overrides,
                     focus_line,
                     nullptr,
                     &show_search,

@@ -62,177 +62,179 @@ namespace sim
     const Num blue_curve_start = std::pow(std::numbers::pi / 2 * 4, 2) / M2;
     const Num blue_curve_end = End;
     const Num hg_green_g1_curve_x = 3 * 3 * std::numbers::pi * std::numbers::pi / MK;
-
-    Num g1 (const Num x) {
-        return -1 * high_point * std::cos(std::sqrt(x * MK)) + high_point;
-    }
-
-    const Num hg_g2_curve_ratio_k = g1(hg_green_g1_curve_x) / std::pow(hg_green_g1_curve_x - Begin, 2);
-    Num g2 (const Num x) {
-        return hg_g2_curve_ratio_k * std::pow(x - Begin, 2);
-    }
-
-    Num r1 (const Num x) {
-        return -1 * high_point * std::sin(std::sqrt(x * Length)) + high_point;
-    }
-
-    Num r2 (const Num x) {
-        return r1(green_curve_end) / std::log(green_curve_end / blue_curve_start) * std::log(x / blue_curve_start);
-    }
-
-    class Solver_
-    {
-    private:
-        static constexpr Num r1(const Num x, const Num K, const Num L) {
-            return -K * std::sin(std::sqrt(L * x)) + K;
-        }
-
-        // r2(x) = r1(G) * log(x/B) / log(G/B)
-        static constexpr Num r2(const Num x, const Num B, const Num G, const Num r1_G) {
-            return r1_G * std::log(x / B) / std::log(G / B);
-        }
-
-        // Derivative of r1(x)
-        static constexpr Num dr1(const Num x, const Num K, const Num L) {
-            if (x <= 0.0) return 0.0; // avoid division by zero
-            const Num u = std::sqrt(L * x);
-            return -(K * L * std::cos(u)) / (2.0 * u);
-        }
-
-        // Derivative of r2(x)
-        static constexpr Num dr2(const Num x, const Num B, const Num G, const Num r1_G) {
-            return r1_G / (x * std::log(G / B));
-        }
-
-        // f(x) = r1(x) - r2(x)
-        static constexpr Num f(const Num x, const Num K, const Num L, const Num B, const Num G, const Num r1_G) {
-            return r1(x, K, L) - r2(x, B, G, r1_G);
-        }
-
-        // Derivative f'(x)
-        static constexpr Num df(const Num x, const Num K, const Num L, const Num B, const Num G, const Num r1_G) {
-            return dr1(x, K, L) - dr2(x, B, G, r1_G);
-        }
-
-        // Newton iteration to find the second root (x != G)
-        static constexpr Num find_second_intersection(
-            const Num K, const Num L, const Num B, const Num G,
-            const Num tol = 1e-12, const int max_iter = 100)
-        {
-            const Num r1_G = r1(G, K, L);
-            Num x = B;               // initial guess (near where r2 = 0)
-
-            for (int iter = 0; iter < max_iter; ++iter) {
-                const Num fx = f(x, K, L, B, G, r1_G);
-                if (std::fabs(fx) < tol) {
-                    return x;
-                }
-
-                const Num dfx = df(x, K, L, B, G, r1_G);
-                if (std::fabs(dfx) < 1e-15) {
-                    return x;
-                }
-
-                Num x_new = x - fx / dfx;
-
-                // Avoid stepping onto the known root G
-                if (std::fabs(x_new - G) < 1e-12) {
-                    x_new = (x_new + B) / 2.0; // perturb
-                }
-
-                // Domain check: x must be > 0 for logarithms and sqrt
-                if (x_new <= 0.0) {
-                    x_new = 1e-6;
-                }
-
-                x = x_new;
-            }
-
-            return x;
-        }
-
-
-    public:
-        const Num InterSectXVal;
-        Solver_() : InterSectXVal(find_second_intersection(3.0, 1.0,
-            blue_curve_start, green_curve_end)) { }
-    } Solver_;
-
-    struct RGB {
-        Num r, g, b;
-    };
-
-    static Num smootherstep(const Num u) {
-        return u * u * u * (u * (u * 6.0 - 15.0) + 10.0);
-    }
-
-    static Num lerp(const Num a, const Num b, const Num t) {
-        return a + (b - a) * t;
-    }
-
-    RGB rainbowRGB(const Num x, const Num X0, const Num X1, const int l0 = -1, const int l1 = -1)
-    {
-        Num t = (x - X0) / (X1 - X0);
-        t = std::clamp(t, static_cast<Num>(0.0), static_cast<Num>(1.0));
-
-        const std::array<RGB, 7> C = {{
-            {255.0,   0.0,   0.0},   // red
-            {255.0, 127.0,   0.0},   // orange
-            {255.0, 255.0,   0.0},   // yellow
-            {  0.0, 255.0,   0.0},   // green
-            {  0.0,   0.0, 255.0},   // blue
-            { 75.0,   0.0, 130.0},   // indigo
-            {148.0,   0.0, 211.0}    // violet
-        }};
-
-        const int i = std::min(static_cast<int>(std::floor(t * 6.0)), 5);
-        const Num u = t * 6.0 - i;
-        const Num s = smootherstep(u);
-
-        const auto [ar, ag, ab] = C[l0 == -1 ? i : l0];
-        const auto [br, bg, bb] = C[l1 == -1 ? i + 1 : l1];
-
-        return
-        {
-            lerp(ar, br, s),
-            lerp(ag, bg, s),
-            lerp(ab, bb, s)
-        };
-    }
-
     const Num ContinuousEnd = std::pow(std::numbers::pi / 2 * 8, 2) / M2;
     const Num Span = ContinuousEnd - Begin; // Color span
-    Num sim_red_curve(const Num x)
+
+    namespace
     {
-        if (x < red_curve_start || x > ContinuousEnd) return 0;
-        if (x > Solver_.InterSectXVal) {
-            const auto result = r2(x);
-            if (result > 255) return 255;
-            return result;
+        Num g1 (const Num x) {
+            return -1 * high_point * std::cos(std::sqrt(x * MK)) + high_point;
         }
 
-        return r1(x);
-    }
+        const Num hg_g2_curve_ratio_k = g1(hg_green_g1_curve_x) / std::pow(hg_green_g1_curve_x - Begin, 2);
+        Num g2 (const Num x) {
+            return hg_g2_curve_ratio_k * std::pow(x - Begin, 2);
+        }
 
-    const Num green_curve_continuous_end = std::pow(std::numbers::pi / 2 * 12, 2) / MK;
-    Num sim_green_curve(const Num x)
-    {
-        if (x < green_curve_start || x > green_curve_continuous_end) return 0;
-        // return -1 * high_point * std::cos(std::sqrt(x * MK)) + high_point;
-        if (x < hg_green_g1_curve_x) return g2(x);
-        return g1(x);
-    }
+        Num r1 (const Num x) {
+            return -1 * high_point * std::sin(std::sqrt(x * Length)) + high_point;
+        }
 
-    Num sim_blue_curve(const Num x)
-    {
-        if (x < blue_curve_start || x > ContinuousEnd) return 0;
-        return -1 * high_point * std::cos(std::sqrt(x * M2)) + high_point;
-    }
+        Num r2 (const Num x) {
+            return r1(green_curve_end) / std::log(green_curve_end / blue_curve_start) * std::log(x / blue_curve_start);
+        }
 
-    NumPack_t simulation_rainbow_(const Num x, const int precision = 16)
-    {
-        switch (color_scheme)
+        class Solver_
         {
+        private:
+            static constexpr Num r1(const Num x, const Num K, const Num L) {
+                return -K * std::sin(std::sqrt(L * x)) + K;
+            }
+
+            // r2(x) = r1(G) * log(x/B) / log(G/B)
+            static constexpr Num r2(const Num x, const Num B, const Num G, const Num r1_G) {
+                return r1_G * std::log(x / B) / std::log(G / B);
+            }
+
+            // Derivative of r1(x)
+            static constexpr Num dr1(const Num x, const Num K, const Num L) {
+                if (x <= 0.0) return 0.0; // avoid division by zero
+                const Num u = std::sqrt(L * x);
+                return -(K * L * std::cos(u)) / (2.0 * u);
+            }
+
+            // Derivative of r2(x)
+            static constexpr Num dr2(const Num x, const Num B, const Num G, const Num r1_G) {
+                return r1_G / (x * std::log(G / B));
+            }
+
+            // f(x) = r1(x) - r2(x)
+            static constexpr Num f(const Num x, const Num K, const Num L, const Num B, const Num G, const Num r1_G) {
+                return r1(x, K, L) - r2(x, B, G, r1_G);
+            }
+
+            // Derivative f'(x)
+            static constexpr Num df(const Num x, const Num K, const Num L, const Num B, const Num G, const Num r1_G) {
+                return dr1(x, K, L) - dr2(x, B, G, r1_G);
+            }
+
+            // Newton iteration to find the second root (x != G)
+            static constexpr Num find_second_intersection(
+                const Num K, const Num L, const Num B, const Num G,
+                const Num tol = 1e-12, const int max_iter = 100)
+            {
+                const Num r1_G = r1(G, K, L);
+                Num x = B;               // initial guess (near where r2 = 0)
+
+                for (int iter = 0; iter < max_iter; ++iter) {
+                    const Num fx = f(x, K, L, B, G, r1_G);
+                    if (std::fabs(fx) < tol) {
+                        return x;
+                    }
+
+                    const Num dfx = df(x, K, L, B, G, r1_G);
+                    if (std::fabs(dfx) < 1e-15) {
+                        return x;
+                    }
+
+                    Num x_new = x - fx / dfx;
+
+                    // Avoid stepping onto the known root G
+                    if (std::fabs(x_new - G) < 1e-12) {
+                        x_new = (x_new + B) / 2.0; // perturb
+                    }
+
+                    // Domain check: x must be > 0 for logarithms and sqrt
+                    if (x_new <= 0.0) {
+                        x_new = 1e-6;
+                    }
+
+                    x = x_new;
+                }
+
+                return x;
+            }
+
+
+        public:
+            const Num InterSectXVal;
+            Solver_() : InterSectXVal(find_second_intersection(3.0, 1.0,
+                blue_curve_start, green_curve_end)) { }
+        } Solver_;
+
+        struct RGB {
+            Num r, g, b;
+        };
+
+        Num smootherstep(const Num u) {
+            return u * u * u * (u * (u * 6.0 - 15.0) + 10.0);
+        }
+
+        Num lerp(const Num a, const Num b, const Num t) {
+            return a + (b - a) * t;
+        }
+
+        RGB rainbowRGB(const Num x, const Num X0, const Num X1, const int l0 = -1, const int l1 = -1)
+        {
+            Num t = (x - X0) / (X1 - X0);
+            t = std::clamp(t, static_cast<Num>(0.0), static_cast<Num>(1.0));
+
+            const std::array<RGB, 7> C = {{
+                {255.0,   0.0,   0.0},   // red
+                {255.0, 127.0,   0.0},   // orange
+                {255.0, 255.0,   0.0},   // yellow
+                {  0.0, 255.0,   0.0},   // green
+                {  0.0,   0.0, 255.0},   // blue
+                { 75.0,   0.0, 130.0},   // indigo
+                {148.0,   0.0, 211.0}    // violet
+            }};
+
+            const int i = std::min(static_cast<int>(std::floor(t * 6.0)), 5);
+            const Num u = t * 6.0 - i;
+            const Num s = smootherstep(u);
+
+            const auto [ar, ag, ab] = C[l0 == -1 ? i : l0];
+            const auto [br, bg, bb] = C[l1 == -1 ? i + 1 : l1];
+
+            return
+            {
+                lerp(ar, br, s),
+                lerp(ag, bg, s),
+                lerp(ab, bb, s)
+            };
+        }
+
+        Num sim_red_curve(const Num x)
+        {
+            if (x < red_curve_start || x > ContinuousEnd) return 0;
+            if (x > Solver_.InterSectXVal) {
+                const auto result = r2(x);
+                if (result > 255) return 255;
+                return result;
+            }
+
+            return r1(x);
+        }
+
+        const Num green_curve_continuous_end = std::pow(std::numbers::pi / 2 * 12, 2) / MK;
+        Num sim_green_curve(const Num x)
+        {
+            if (x < green_curve_start || x > green_curve_continuous_end) return 0;
+            // return -1 * high_point * std::cos(std::sqrt(x * MK)) + high_point;
+            if (x < hg_green_g1_curve_x) return g2(x);
+            return g1(x);
+        }
+
+        Num sim_blue_curve(const Num x)
+        {
+            if (x < blue_curve_start || x > ContinuousEnd) return 0;
+            return -1 * high_point * std::cos(std::sqrt(x * M2)) + high_point;
+        }
+
+        NumPack_t simulation_rainbow_(const Num x, const int precision = 16)
+        {
+            switch (color_scheme)
+            {
             default:
             case RAINBOW_CONTINUOUS:
                 return { .R = sim_red_curve(x), .G = sim_green_curve(x), .B = sim_blue_curve(x) };
@@ -251,53 +253,54 @@ namespace sim
                         return { R, G, B };
                     }
                 }
-        case CUSTOMIZED:
-            {
-                static ccdb::utils::cache_w_freq_table_t<Num, NumPack_t> local_color_cache;
-                if (const auto it = local_color_cache.get_cache(x); it) {
-                    return *it;
-                }
-
-                static std::atomic<Num> range = -1;
-                static std::atomic<Num> begin = -1;
-                while (range < 0)
+            case CUSTOMIZED:
                 {
-                    const auto status = ::ccdb::utils::exec_command2(
-                        customized_color_command_calc,
-                        "", R"({ "offset": -1, "precision": 0 })");
-                    if (status.exit_status == 0) {
-                        const auto json = json::parse(status.fd_stdout);
-                        const auto End_ = static_cast<Num>(json["End"]);
-                        const auto Begin_ = static_cast<Num>(json["Begin"]);
-                        begin = Begin_;
-                        range = End_ - Begin_;
+                    static ccdb::utils::cache_w_freq_table_t<Num, NumPack_t> local_color_cache;
+                    if (const auto it = local_color_cache.get_cache(x); it) {
+                        return *it;
                     }
-                }
 
-                // normalize
-                const auto renormalized = (x - Begin) / Span * range + begin;
-                std::stringstream rn_ss; rn_ss << std::fixed << std::setprecision(precision) << renormalized;
-                const auto str = rn_ss.str();
-                ccdb::utils::cmd_status status;
-                while (true)
-                {
-                    status = ::ccdb::utils::exec_command2(customized_color_command_calc,
-                           "", R"({ "offset": )" + str + R"(, "precision": )" + std::to_string(precision) + " }");
-                    if (status.exit_status == 0) break;
-                }
+                    static std::atomic<Num> range = -1;
+                    static std::atomic<Num> begin = -1;
+                    while (range < 0)
+                    {
+                        const auto status = ::ccdb::utils::exec_command2(
+                            customized_color_command_calc,
+                            "", R"({ "offset": -1, "precision": 0 })");
+                        if (status.exit_status == 0) {
+                            const auto json = json::parse(status.fd_stdout);
+                            const auto End_ = static_cast<Num>(json["End"]);
+                            const auto Begin_ = static_cast<Num>(json["Begin"]);
+                            begin = Begin_;
+                            range = End_ - Begin_;
+                        }
+                    }
 
-                try
-                {
-                    const auto json = json::parse(status.fd_stdout);
-                    const NumPack_t ret {
-                        static_cast<Num>(json["R"]),
-                        static_cast<Num>(json["G"]),
-                        static_cast<Num>(json["B"])
-                    };
-                    local_color_cache.emplace_cache(x, ret);
-                    return ret;
-                } catch (const std::exception&) {
-                    return { .R = sim_red_curve(x), .G = sim_green_curve(x), .B = sim_blue_curve(x) };
+                    // normalize
+                    const auto renormalized = (x - Begin) / Span * range + begin;
+                    std::stringstream rn_ss; rn_ss << std::fixed << std::setprecision(precision) << renormalized;
+                    const auto str = rn_ss.str();
+                    ccdb::utils::cmd_status status;
+                    while (true)
+                    {
+                        status = ::ccdb::utils::exec_command2(customized_color_command_calc,
+                               "", R"({ "offset": )" + str + R"(, "precision": )" + std::to_string(precision) + " }");
+                        if (status.exit_status == 0) break;
+                    }
+
+                    try
+                    {
+                        const auto json = json::parse(status.fd_stdout);
+                        const NumPack_t ret {
+                            static_cast<Num>(json["R"]),
+                            static_cast<Num>(json["G"]),
+                            static_cast<Num>(json["B"])
+                        };
+                        local_color_cache.emplace_cache(x, ret);
+                        return ret;
+                    } catch (const std::exception&) {
+                        return { .R = sim_red_curve(x), .G = sim_green_curve(x), .B = sim_blue_curve(x) };
+                    }
                 }
             }
         }
