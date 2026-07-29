@@ -200,8 +200,8 @@ void general_info_pulling::update_from_memory(const std::string& info)
     try
     {
         const auto json = json::parse(info);
-        const auto inuse = json["inuse"];
-        const auto oslimit = json["oslimit"];
+        const auto& inuse = json["inuse"];
+        const auto& oslimit = json["oslimit"];
         current_memory_in_use_by_mihomo = inuse;
         current_memory_limit_by_mihomo = oslimit;
     } catch (...) { }
