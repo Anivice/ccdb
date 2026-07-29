@@ -885,13 +885,13 @@ namespace ccdb
                     );
                 };
 
-                print(true);
+                const auto frame_string = print(false);
                 const bool skip_due_to_lock = lock_to_max && (leading_spaces < max_leading_spaces_);
                 if (const bool i_dont_print = (skip_due_to_lock || skip_due_to_shrink); !i_dont_print)
                 {
                     frame_data.set({
                             .frame_index = ++frame_index,
-                            .frame = print(false),
+                            .frame = frame_string,
                             .clear = false
                     });
                 }

@@ -267,7 +267,7 @@ void general_info_pulling::pull_continuous_updates()
             backend_client.get_info("connections",
                         this,
                         &general_info_pulling::update_from_connections);
-            std::this_thread::sleep_for(std::chrono::milliseconds(100l));
+            std::this_thread::sleep_for(std::chrono::milliseconds(500l));
         }, "/connections");
     };
 
@@ -282,7 +282,7 @@ void general_info_pulling::pull_continuous_updates()
                                     _log_running,
                                     this,
                                     &general_info_pulling::update_from_logs);
-        }, "/connections");
+        }, "/logs");
     };
 
     auto make_memory = [&]
