@@ -405,14 +405,24 @@ namespace ccdb
             ViewerType <ContainerType> content;
             ContainerType focused_container;
 
+            const auto unstable_terminal = color::color(0,0,0,5,0,0) + "UNSTABLE TERMINAL" + color::no_color();
+            const auto too_small = color::color(0,0,0,5,0,0) + "TOO SMALL" + color::no_color();
             while (running)
             {
-                if (start_line >= get_line_size())
+                const auto line_size = get_line_size();
+                if (const auto window_size_change_ = window_size_change.load();
+                    line_size <= 7 || window_size_change_)
                 {
-                    frame_data.set({
-                        .frame_index = ++frame_index,
-                        .frame = color::color(0,0,0,5,0,0) + "TOO SMALL" + color::no_color()
-                    });
+                    if (window_size_change_) {
+                        window_size_change = false;
+                    }
+                    else
+                    {
+                        frame_data.set({
+                            .frame_index = ++frame_index,
+                            .frame = too_small
+                        });
+                    }
                     std::this_thread::sleep_for(std::chrono::milliseconds(100));
                     continue;
                 }
@@ -423,7 +433,6 @@ namespace ccdb
                 String title_line;
                 int focus_line = -1;
                 bool skip_due_to_shrink = false;
-                int window_frame_size = 0;
 
                 const auto mouse_y = mouse_y_.load();
                 const auto kill_connection = kill_connection_.load();
@@ -449,6 +458,10 @@ namespace ccdb
                     search_matches.emplace_back(HashContent(content[i]), is_highlight_match(values[i], search_content));
                 }
 
+                const int fr = line_size - start_line - 1 /* print_table do not use the last line */; // space without heads
+                const int window_frame_size = std::min(static_cast<int>(content.size()), // list size
+                    fr - (content.size() > fr ? 1 : 0) - (current_skip_lines == max_skip_lines ? 1 : 0));
+
                 // if focused_connection_id is not present anymore, delete it
                 if (!focused_id.empty())
                 {
@@ -461,59 +474,61 @@ namespace ccdb
                     }
                 }
 
-                const auto it = std::ranges::find_if(search_matches,
-                [&](const std::pair < std::string, bool > & conn)->bool {
-                    return conn.first == focused_id;
-                });
-
-                switch (search_focus_move)
+                if (search_focus_move != IDLE_STATE)
                 {
-                case SEARCH_MOVE_UP:
+                    if (const auto it = std::ranges::find_if(search_matches,
+                        [&](const std::pair < std::string, bool > & conn)->bool { return conn.first == focused_id; });
+                        it != search_matches.end())
                     {
-                        if (search_matches.size() >= 2 && it != search_matches.end())
+                        switch (search_focus_move)
                         {
-                            if (it > search_matches.begin())
+                        case SEARCH_MOVE_UP:
                             {
-                                decltype(search_matches) reverse { search_matches.begin(), it };
-                                std::ranges::reverse(reverse);
-                                (void)std::ranges::any_of(reverse, [&](const auto & conn)->bool
+                                if (search_matches.size() >= 2)
                                 {
-                                    if (conn.second) {
-                                        focused_id = conn.first;
+                                    if (it > search_matches.begin())
+                                    {
+                                        decltype(search_matches) reverse { search_matches.begin(), it };
+                                        std::ranges::reverse(reverse);
+                                        (void)std::ranges::any_of(reverse, [&](const auto & conn)->bool
+                                        {
+                                            if (conn.second) {
+                                                focused_id = conn.first;
+                                            }
+
+                                            return conn.second;
+                                        });
                                     }
-
-                                    return conn.second;
-                                });
-                            }
-                        } else if (!search_matches.empty() && it == search_matches.end()) {
-                            focused_id = search_matches.back().first;
-                        }
-
-                        focus_to_highlight = true;
-                    }
-                break;
-
-                case SEARCH_MOVE_DOWN:
-                    {
-                        if (search_matches.size() >= 2 && it != search_matches.end())
-                        {
-                            const decltype(search_matches) reverse { it + 1, search_matches.end() };
-                            (void)std::ranges::any_of(reverse, [&](const auto & conn)->bool
-                            {
-                                if (conn.second) {
-                                    focused_id = conn.first;
+                                } else if (!search_matches.empty()) {
+                                    focused_id = search_matches.back().first;
                                 }
 
-                                return conn.second;
-                            });
-                        } else if (!search_matches.empty() && it == search_matches.end()) {
-                            focused_id = search_matches.front().first;
-                        }
+                                focus_to_highlight = true;
+                            }
+                        break;
+                        case SEARCH_MOVE_DOWN:
+                            {
+                                if (search_matches.size() >= 2)
+                                {
+                                    const decltype(search_matches) reverse { it + 1, search_matches.end() };
+                                    (void)std::ranges::any_of(reverse, [&](const auto & conn)->bool
+                                    {
+                                        if (conn.second) {
+                                            focused_id = conn.first;
+                                        }
 
-                        focus_to_highlight = true;
+                                        return conn.second;
+                                    });
+                                } else if (!search_matches.empty()) {
+                                    focused_id = search_matches.front().first;
+                                }
+
+                                focus_to_highlight = true;
+                            }
+                        break;
+                        default: break;
+                        }
                     }
-                break;
-                default: break;
                 }
 
                 if (banner)
@@ -617,11 +632,15 @@ namespace ccdb
                 }
 
                 /// refocus
-                if (focus_to_highlight || kill_connection)
+                if ((focus_to_highlight || kill_connection) && !focused_id.empty()
+                    && std::ranges::any_of(content, [&](const ContainerType & c_)->bool {
+                        return HashContent(c_) == focused_id;
+                    }))
                 {
                     auto can_i_find_in_this_index = [&](const int i)->bool
                     {
-                        auto connections_current_page = make_screen_vector_frame(content, i, get_line_size(), start_line);
+                        auto connections_current_page = make_screen_vector_frame(content, i, line_size, start_line);
+                        if (connections_current_page.size() > window_frame_size) connections_current_page.resize(window_frame_size);
                         return std::ranges::any_of(connections_current_page, [&](const ContainerType & conn)->bool {
                             return (HashContent(conn) == focused_id);
                         });
@@ -640,18 +659,12 @@ namespace ccdb
                             }
                         }
                     }
-
-                    focus_to_highlight = false;
                 }
 
                 /// focus
                 {
-                    auto content_on_cur_page = make_screen_vector_frame(content, current_skip_lines, get_line_size(), start_line);
-                    const int fr = get_line_size() - start_line - 1 /* print_table do not use the last line */; // space without heads
-                    window_frame_size = std::min(
-                    static_cast<int>(content.size()), // list size
-                        fr - (content.size() > fr ? 1 : 0) - (current_skip_lines == max_skip_lines ? 1 : 0));
-                    content_on_cur_page.resize(window_frame_size);
+                    auto content_on_cur_page = make_screen_vector_frame(content, current_skip_lines, line_size, start_line);
+                    if (content_on_cur_page.size() > window_frame_size) content_on_cur_page.resize(window_frame_size);
 
                     if (mouse_y > start_line && (mouse_y - start_line) <= window_frame_size)
                     {
@@ -845,8 +858,9 @@ namespace ccdb
                     leading_spaces = max_leading_spaces;
                 }
 
-                auto print = [&](const bool dry_run)
+                auto print = [&](const bool dry_run)->std::string
                 {
+                    // return {};
                     return print_table(
                             keys, values,
                             false,

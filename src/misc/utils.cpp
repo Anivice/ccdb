@@ -764,54 +764,23 @@ std::string ccdb::utils::regex_replace_all(std::string &original, const std::str
 
 std::pair < const int, const int > ccdb::utils::get_screen_row_col() noexcept
 {
-    constexpr int term_col_size = 80;
-    constexpr int term_row_size = 25;
-    const auto col_size_from_env = ccdb::utils::getenv("COLUMNS");
-    const auto row_size_from_env = ccdb::utils::getenv("LINES");
-    long col_env = -1;
-    long row_env = -1;
-
-    try
-    {
-        if (!col_size_from_env.empty() && !row_size_from_env.empty()) {
-            col_env = std::strtol(col_size_from_env.c_str(), nullptr, 10);
-            row_env = std::strtol(row_size_from_env.c_str(), nullptr, 10);
-        }
-    } catch (...) {
-        col_env = -1;
-        row_env = -1;
-    }
-
-    auto get_pair = [&]->std::pair < const int, const int >
-    {
-        if (col_env != -1 && row_env != -1) {
-            return {row_env, col_env};
-        }
-
-        return {term_row_size, term_col_size};
-    };
-
-    bool is_terminal = false;
+    static std::atomic_bool is_terminal = isatty(STDOUT_FILENO);
     struct stat st{};
     if (fstat(STDOUT_FILENO, &st) == -1) {
-        return get_pair();
-    }
-
-    if (isatty(STDOUT_FILENO)) {
-        is_terminal = true;
+        return {-1, -1};
     }
 
     if (is_terminal)
     {
         winsize w{};
         if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) != 0 || (w.ws_col | w.ws_row) == 0) {
-            return get_pair();
+            return {-1, -1};;
         }
 
         return {w.ws_row, w.ws_col};
     }
 
-    return get_pair();
+    return {-1, -1};;
 }
 
 uint64_t ccdb::utils::get_timestamp() noexcept

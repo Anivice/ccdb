@@ -130,12 +130,15 @@ void ccdb::ccdb::get_log()
             OverrideColorType line_color_overrides;
             std::ranges::for_each(logs, [&](const auto & it)
             {
-                if (const auto & level = it[1]; level == "ERROR") {
-                    line_color_overrides[offset] = color::color(5,0,0);
-                } else if (level == "DEBUG") {
-                    line_color_overrides[offset] = color::color(0,5,0);
-                } else if (level == "WARNING") {
-                    line_color_overrides[offset] = color::color(5,5,0);
+                if (!it.empty())
+                {
+                    if (const auto & level = it[1]; level == "ERROR") {
+                        line_color_overrides[offset] = color::color(5,0,0);
+                    } else if (level == "DEBUG") {
+                        line_color_overrides[offset] = color::color(0,5,0);
+                    } else if (level == "WARNING") {
+                        line_color_overrides[offset] = color::color(5,5,0);
+                    }
                 }
 
                 offset++;
