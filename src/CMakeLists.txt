@@ -463,6 +463,7 @@ include_directories("${LIBUNWIND_INCLUDE_DIR}")
 target_link_libraries(ccdb PRIVATE libunwind::libunwind)
 target_compile_definitions(ccdb PRIVATE ENABLE_CRASH_CATCHER=1)
 target_compile_options(ccdb PRIVATE -rdynamic)
+add_dependencies(ccdb LIBUNWIND)
 
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     if ("${CMAKE_SANITIZER_TYPE}" STREQUAL "address")

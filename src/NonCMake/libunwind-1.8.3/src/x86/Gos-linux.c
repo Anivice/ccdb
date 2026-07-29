@@ -288,14 +288,14 @@ x86_r_uc_addr (ucontext_t *uc, int reg)
 HIDDEN int
 x86_local_resume (unw_addr_space_t as, unw_cursor_t *cursor, void *arg)
 {
-  struct cursor *c = (struct cursor *) cursor;
-  ucontext_t *uc = c->uc;
+  // struct cursor *c = (struct cursor *) cursor;
+  // ucontext_t *uc = c->uc;
 
-  Debug (8, "resuming at ip=%x via setcontext()\n", c->dwarf.ip);
-#if !defined(__ANDROID__)
+  // Debug (8, "resuming at ip=%x via setcontext()\n", c->dwarf.ip);
+// #if !defined(__ANDROID__)
   // setcontext (uc);
-  abort(); // WARNING! DO NOT CALL RESUME!!!
-#endif
+  // abort(); // WARNING! DO NOT CALL RESUME!!!
+// #endif
   return -UNW_EINVAL;
 }
 
