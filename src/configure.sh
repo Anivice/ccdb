@@ -76,6 +76,7 @@ env PATH="$MUSL_SYSROOT"/bin/:"$PATH" cmake -B "$BUILD_DIR" -S "$script_dir" \
             -DTAR_CONFIGURE_ADDITIONAL_FLAGS="--host=$ARCH" \
 	          -DLIBPSL_CONFIGURE_ADDITIONAL_FLAGS="--host=$ARCH" \
             -DNCURSES_CONFIGURE_ADDITIONAL_FLAGS="--disable-stripping;--host=$ARCH" \
+            -DLIBUNWIND_CONFIGURE_ADDITIONAL_FLAGS="--host=$ARCH" \
             -DCMAKE_STRIP="$MUSL_SYSROOT/bin/$STRIP" \
             -DNCURSES_MAKE_ADDITIONAL_FLAGS="$MAKE_FLAGS" \
             -DREADLINE_MAKE_ADDITIONAL_FLAGS="$MAKE_FLAGS" \

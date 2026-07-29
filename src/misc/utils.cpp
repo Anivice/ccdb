@@ -477,7 +477,6 @@ namespace
 namespace
 {
     std::atomic_bool term_inited = false;
-    static
     __attribute_used__
     class init_term_t
     {
@@ -1342,7 +1341,7 @@ static void encode_dump94(input_stream_t & in, output_stream_t & out)
 		std::vector < char > buff(line_size, 0);
 		while (oss)
 		{
-			oss.read(buff.data(), line_size);
+			oss.read(buff.data(), static_cast<std::streamsize>(line_size));
 			const std::streamsize bytes_read = oss.gcount();
 			if (bytes_read <= 0) break;
 			out.write(buff.data(), bytes_read);
@@ -1444,3 +1443,91 @@ ssize_t ccdb::utils::cur_mem_size()
     const auto rss_bytes = resident * page_size;
     return static_cast<ssize_t>(rss_bytes);
 }
+
+#ifdef ENABLE_CRASH_CATCHER
+#ifndef _GNU_SOURCE
+# define _GNU_SOURCE
+#endif //_GNU_SOURCE
+#include <csignal>
+#include <cstring>
+#include <atomic>
+#include <dlfcn.h>
+#include <elf.h>
+#include <cinttypes>
+#include <link.h>
+#include "libunwind.h"
+
+extern "C" __attribute__((visibility("default"))) void landmark() { }
+
+namespace
+{
+    void print(uint64_t num, const int fd, const int base, const char * dictionary, const char * prefix)
+    {
+        char nums[256] { };
+        int off = 0;
+        while (num) {
+            nums[off++] = dictionary[num % base];
+            num /= base;
+        }
+
+        if (prefix) write(fd, prefix, strlen(prefix));
+        for (int i = off - 1; i >= 0; i--) {
+            write(fd, nums + i, 1);
+        }
+    }
+
+    void print10(const uint64_t num, const int fd) {
+        print(num, fd, 10, "0123456789", nullptr);
+    }
+
+    void print16(const uint64_t num, const int fd) {
+        print(num, fd, 16, "0123456789ABCDEF", "0x");
+    }
+
+    void signal_handler(const int sig)
+    {
+        unw_context_t ctx;
+        unw_cursor_t cursor;
+
+        unw_getcontext(&ctx);
+        unw_init_local(&cursor, &ctx);
+
+        uint64_t trace[64] { };
+        int idx = 0;
+        while (unw_step(&cursor) > 0 && idx < 64) {
+            unw_word_t ip;
+            unw_get_reg(&cursor, UNW_REG_IP, &ip);
+            trace[idx++] = ip;
+        }
+
+        constexpr char error_msg[] = "\n\nUnexpected signal captured, the signal and its trace will be printed in the following lines:\nSIG NUMBER: ";
+        constexpr char error_msg2[] = "\n================================== TRACER ==================================\n";
+        constexpr char error_msg3[] = "landmark: ";
+        write(STDERR_FILENO, error_msg, sizeof(error_msg));
+        print10(sig, STDERR_FILENO);
+        write(STDERR_FILENO, error_msg2, sizeof(error_msg2));
+        for (int i = 0; i < idx; i++) {
+            print16(trace[i], STDERR_FILENO);
+            if (i < idx - 1) write(STDERR_FILENO, "\n", 1);
+        }
+        write(STDERR_FILENO, error_msg2, sizeof(error_msg2));
+        write(STDERR_FILENO, error_msg3, sizeof(error_msg3));
+        print16((uint64_t)&landmark, STDERR_FILENO);
+        write(STDERR_FILENO, "\n", 1);
+        exit(128 + sig);
+    }
+
+    __attribute_used__
+    class init_crash_report_t
+    {
+    public:
+        init_crash_report_t()
+        {
+            std::signal(SIGABRT, signal_handler);
+            std::signal(SIGTERM, signal_handler);
+            std::signal(SIGQUIT, signal_handler);
+            std::signal(SIGSEGV, signal_handler);
+        }
+    } init_crash_report;
+}
+#endif //ENABLE_CRASH_CATCHER
