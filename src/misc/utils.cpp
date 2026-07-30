@@ -1470,9 +1470,9 @@ namespace
             num /= base;
         }
 
-        if (prefix) write(fd, prefix, strlen(prefix));
+        if (prefix) (void)write(fd, prefix, strlen(prefix));
         for (int i = off - 1; i >= 0; i--) {
-            write(fd, nums + i, 1);
+            (void)write(fd, nums + i, 1);
         }
     }
 
@@ -1503,17 +1503,17 @@ namespace
         constexpr char error_msg[] = "\n\nUnexpected signal captured, the signal and its trace will be printed in the following lines:\nSIG NUMBER: ";
         constexpr char error_msg2[] = "\n================================== TRACER ==================================\n";
         constexpr char error_msg3[] = "landmark: ";
-        write(STDERR_FILENO, error_msg, sizeof(error_msg));
+        (void)write(STDERR_FILENO, error_msg, sizeof(error_msg));
         print10(sig, STDERR_FILENO);
-        write(STDERR_FILENO, error_msg2, sizeof(error_msg2));
+        (void)write(STDERR_FILENO, error_msg2, sizeof(error_msg2));
         for (int i = 0; i < idx; i++) {
             print16(trace[i], STDERR_FILENO);
-            if (i < idx - 1) write(STDERR_FILENO, "\n", 1);
+            if (i < idx - 1) (void)write(STDERR_FILENO, "\n", 1);
         }
-        write(STDERR_FILENO, error_msg2, sizeof(error_msg2));
-        write(STDERR_FILENO, error_msg3, sizeof(error_msg3));
+        (void)write(STDERR_FILENO, error_msg2, sizeof(error_msg2));
+        (void)write(STDERR_FILENO, error_msg3, sizeof(error_msg3));
         print16((uint64_t)&landmark, STDERR_FILENO);
-        write(STDERR_FILENO, "\n", 1);
+        (void)write(STDERR_FILENO, "\n", 1);
         exit(128 + sig);
     }
 
@@ -1527,6 +1527,10 @@ namespace
             std::signal(SIGTERM, signal_handler);
             std::signal(SIGQUIT, signal_handler);
             std::signal(SIGSEGV, signal_handler);
+            std::signal(SIGILL, signal_handler);
+            std::signal(SIGBUS, signal_handler);
+            std::signal(SIGFPE, signal_handler);
+            // std::signal(SIGTRAP, signal_handler);
         }
     } init_crash_report;
 }

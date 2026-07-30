@@ -404,7 +404,7 @@ ExternalProject_Add(LIBUNWIND
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/libunwind
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/libunwind-1.8.3
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/libunwind/install
-        CONFIGURE_COMMAND   /bin/sh -c "cp -r <SOURCE_DIR>/* ${LIBUNWIND_SRC_DEST} && cd ${LIBUNWIND_SRC_DEST} && ${LIBUNWIND_SRC_DEST}/configure --prefix=<INSTALL_DIR> --disable-tests --disable-shared --enable-static --disable-cxx-exceptions ${LIBUNWIND_CONFIGURE_ADDITIONAL_FLAGS}"
+        CONFIGURE_COMMAND   /bin/sh -c "cp -r <SOURCE_DIR>/* ${LIBUNWIND_SRC_DEST} && cd ${LIBUNWIND_SRC_DEST} && ${LIBUNWIND_SRC_DEST}/configure --prefix=<INSTALL_DIR> --disable-tests --disable-shared --enable-static --disable-cxx-exceptions --disable-minidebuginfo ${LIBUNWIND_CONFIGURE_ADDITIONAL_FLAGS}"
         BUILD_COMMAND       /bin/sh -c "cd ${LIBUNWIND_SRC_DEST} && ${LIBUNWIND_MAKE_ENTIRE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\""
         INSTALL_COMMAND     /bin/sh -c "cd ${LIBUNWIND_SRC_DEST} && ${MAKE_EXECUTABLE} install ${LIBUNWIND_MAKE_INSTALL_ADDITIONAL_FLAGS}"
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libunwind.a <INSTALL_DIR>/lib/libunwind-generic.a <INSTALL_DIR>/lib/libunwind-ptrace.a <INSTALL_DIR>/lib/libunwind-setjmp.a <INSTALL_DIR>/lib/libunwind-coredump.a
