@@ -431,31 +431,31 @@ set_target_properties(libunwind::libunwind_generic PROPERTIES
         INTERFACE_INCLUDE_DIRECTORIES   "${LIBUNWIND_INCLUDE_DIR}"
 )
 
-add_library(libunwind::libunwind_ptrace STATIC IMPORTED GLOBAL)
-set_target_properties(libunwind::libunwind_ptrace PROPERTIES
-        IMPORTED_LOCATION               "${LIBUNWIND_LIB_DIR}/libunwind-ptrace.a"
-        INTERFACE_INCLUDE_DIRECTORIES   "${LIBUNWIND_INCLUDE_DIR}"
-)
+#add_library(libunwind::libunwind_ptrace STATIC IMPORTED GLOBAL)
+#set_target_properties(libunwind::libunwind_ptrace PROPERTIES
+#        IMPORTED_LOCATION               "${LIBUNWIND_LIB_DIR}/libunwind-ptrace.a"
+#        INTERFACE_INCLUDE_DIRECTORIES   "${LIBUNWIND_INCLUDE_DIR}"
+#)
 
-add_library(libunwind::libunwind_setjmp STATIC IMPORTED GLOBAL)
-set_target_properties(libunwind::libunwind_setjmp PROPERTIES
-        IMPORTED_LOCATION               "${LIBUNWIND_LIB_DIR}/libunwind-setjmp.a"
-        INTERFACE_INCLUDE_DIRECTORIES   "${LIBUNWIND_INCLUDE_DIR}"
-)
+#add_library(libunwind::libunwind_setjmp STATIC IMPORTED GLOBAL)
+#set_target_properties(libunwind::libunwind_setjmp PROPERTIES
+#        IMPORTED_LOCATION               "${LIBUNWIND_LIB_DIR}/libunwind-setjmp.a"
+#        INTERFACE_INCLUDE_DIRECTORIES   "${LIBUNWIND_INCLUDE_DIR}"
+#)
 
-add_library(libunwind::libunwind_coredump STATIC IMPORTED GLOBAL)
-set_target_properties(libunwind::libunwind_coredump PROPERTIES
-        IMPORTED_LOCATION               "${LIBUNWIND_LIB_DIR}/libunwind-coredump.a"
-        INTERFACE_INCLUDE_DIRECTORIES   "${LIBUNWIND_INCLUDE_DIR}"
-)
+#add_library(libunwind::libunwind_coredump STATIC IMPORTED GLOBAL)
+#set_target_properties(libunwind::libunwind_coredump PROPERTIES
+#        IMPORTED_LOCATION               "${LIBUNWIND_LIB_DIR}/libunwind-coredump.a"
+#        INTERFACE_INCLUDE_DIRECTORIES   "${LIBUNWIND_INCLUDE_DIR}"
+#)
 
 # Bundle target consumers can link to
 add_library(libunwind::libunwind INTERFACE IMPORTED GLOBAL)
 target_link_libraries(libunwind::libunwind INTERFACE
         libunwind::libunwind_generic
-        libunwind::libunwind_ptrace
-        libunwind::libunwind_setjmp
-        libunwind::libunwind_coredump
+#        libunwind::libunwind_ptrace
+#        libunwind::libunwind_setjmp
+#        libunwind::libunwind_coredump
         libunwind::libunwind_main
 )
 
