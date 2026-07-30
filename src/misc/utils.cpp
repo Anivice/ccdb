@@ -1523,13 +1523,13 @@ namespace
     public:
         init_crash_report_t()
         {
-            std::signal(SIGABRT, signal_handler);
             std::signal(SIGTERM, signal_handler);
+            std::signal(SIGHUP, signal_handler);
             std::signal(SIGQUIT, signal_handler);
-            std::signal(SIGSEGV, signal_handler);
-            std::signal(SIGILL, signal_handler);
-            std::signal(SIGBUS, signal_handler);
-            std::signal(SIGFPE, signal_handler);
+            std::signal(SIGABRT, signal_handler);
+            // std::signal(SIGILL, signal_handler);
+            // std::signal(SIGBUS, signal_handler);
+            // std::signal(SIGFPE, signal_handler);
             // std::signal(SIGTRAP, signal_handler);
         }
     } init_crash_report;
