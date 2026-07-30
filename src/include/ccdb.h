@@ -552,15 +552,9 @@ namespace ccdb
 
                     on_display = g_title_line != nullptr;
 
-                    std::stringstream ss;
-                    auto append_msg = [&](const std::string & msg) {
-                        ss << msg;
-                    };
-
                     if (!g_title_line)
                     {
-                        append_msg(GenerateBanner(NORMAL, focused_container));
-                        title_line = ss.str();
+                        title_line = GenerateBanner(NORMAL, focused_container) + (lock_to_max ? "  *" : "");
                         if (title_line.empty()) title_line = " ";
                     }
                     else
@@ -568,8 +562,7 @@ namespace ccdb
                         if (!g_title_line || (g_title_line && g_title_line->empty())) {
                             title_line = " ";
                         } else if (g_title_line) {
-                            append_msg(*g_title_line);
-                            title_line = ss.str();
+                            title_line = *g_title_line;
                             if (title_line.empty()) title_line = " ";
                         }
                     }
@@ -854,10 +847,6 @@ namespace ccdb
                     lock_to_max = true;
                 }
 
-                // if (lock_to_max) {
-                    // leading_spaces = max_leading_spaces;
-                // }
-
                 auto print = [&](const bool dry_run)->std::string
                 {
                     return print_table(
@@ -908,6 +897,7 @@ namespace ccdb
                 const int local_search_focus_move = search_focus_move;
                 const int local_atm_focus = atm_focus;
                 const int local_tab_suggestion = tab_suggestion_requested;
+                if (lock_to_max) leading_spaces_ = max_leading_spaces_.load();
                 FrameVisitEach();
 
                 for (int i = 0; i < screen_refresh_interval_in_ms / 10; i++)
