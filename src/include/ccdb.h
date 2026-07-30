@@ -428,7 +428,7 @@ namespace ccdb
                 }
 
                 OverrideColorType color_code_overrides;
-                auto leading_spaces = leading_spaces_.load();
+                const auto leading_spaces = leading_spaces_.load();
                 auto current_skip_lines = current_skip_lines_.load();
                 String title_line;
                 int focus_line = -1;
@@ -850,23 +850,22 @@ namespace ccdb
                 skip_due_to_shrink = (vector_size_last_time > content.size() || skip_lines_before < current_skip_lines);
                 vector_size_last_time = static_cast<int>(content.size());
                 skip_lines_before = current_skip_lines;
-                if (leading_spaces == max_leading_spaces) {
+                if (leading_spaces >= max_leading_spaces) {
                     lock_to_max = true;
                 }
 
-                if (lock_to_max) {
-                    leading_spaces = max_leading_spaces;
-                }
+                // if (lock_to_max) {
+                    // leading_spaces = max_leading_spaces;
+                // }
 
                 auto print = [&](const bool dry_run)->std::string
                 {
-                    // return {};
                     return print_table(
                             keys, values,
                             false,
                             true,
                             do_col_hide,
-                            leading_spaces,
+                            lock_to_max ? INT32_MAX : leading_spaces,
                             &max_leading_spaces_,
                             false,
                             title_line,
@@ -886,8 +885,8 @@ namespace ccdb
                 };
 
                 const auto frame_string = print(false);
-                const bool skip_due_to_lock = lock_to_max && (leading_spaces < max_leading_spaces_);
-                if (const bool i_dont_print = (skip_due_to_lock || skip_due_to_shrink); !i_dont_print)
+                // const bool skip_due_to_lock = lock_to_max && (leading_spaces < max_leading_spaces_);
+                if (const bool i_dont_print = (/*skip_due_to_lock || */skip_due_to_shrink); !i_dont_print)
                 {
                     frame_data.set({
                             .frame_index = ++frame_index,
@@ -928,7 +927,7 @@ namespace ccdb
                         || local_atm_focus != atm_focus_
                         || !running
                         || skip_due_to_shrink
-                        || skip_due_to_lock
+                        // || skip_due_to_lock
                         || local_tab_suggestion != tab_suggestion_requested
                         || (!on_display && !g_title_lines.empty()) // not on display, and has notifications
                     )

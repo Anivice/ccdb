@@ -108,43 +108,45 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 {
     std::vector<bool> do_col_hide;
     do_col_hide.resize(get_conn_titles.size(), false);
-    if (command_vector.size() == 4)
+    auto hide_col = [](const std::string & hides, std::vector<bool> & do_col_hide)
     {
-        if (command_vector[2] == "hide")
+        std::string str_num;
+        std::vector<int> numeric_values;
+        std::istringstream numeric_stream(hides);
+        while (std::getline(numeric_stream, str_num, ','))
         {
-            std::string str_num;
-            std::vector<int> numeric_values;
-            std::istringstream numeric_stream(command_vector[3]);
-            while (std::getline(numeric_stream, str_num, ','))
-            {
-                try {
-                    if (str_num.find('-') == std::string::npos)
-                    {
-                        numeric_values.push_back(std::stoi(str_num));
-                    }
-                    else
-                    {
-                        std::string start = str_num.substr(0, str_num.find('-'));
-                        std::string stop = str_num.substr(str_num.find('-') + 1);
-                        int begin = std::stoi(start);
-                        int end = std::stoi(stop);
-                        for (int i = begin; i <= end; i++) {
-                            numeric_values.push_back(i);
-                        }
-                    }
-                } catch (...) {
+            try {
+                if (str_num.find('-') == std::string::npos)
+                {
+                    numeric_values.push_back(std::stoi(str_num));
                 }
-            }
-
-            for (const auto & i : numeric_values)
-            {
-                if (do_col_hide.size() > i) {
-                    do_col_hide[i] = true;
+                else
+                {
+                    std::string start = str_num.substr(0, str_num.find('-'));
+                    std::string stop = str_num.substr(str_num.find('-') + 1);
+                    int begin = std::stoi(start);
+                    int end = std::stoi(stop);
+                    for (int i = begin; i <= end; i++) {
+                        numeric_values.push_back(i);
+                    }
                 }
+            } catch (...) {
             }
         }
-        else
+
+        for (const auto & i : numeric_values)
         {
+            if (do_col_hide.size() > i) {
+                do_col_hide[i] = true;
+            }
+        }
+    };
+
+    if (command_vector.size() == 4)
+    {
+        if (command_vector[2] == "hide") {
+            hide_col(command_vector[3], do_col_hide);
+        } else {
             throw std::invalid_argument(sprint("Unknown command `") + command_vector[2] + "`");
         }
     }
@@ -172,6 +174,16 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             0 /* Rules */, 1 /* Time */, 1 /* Src IP */, 0 /* Dest IP */, 2 /* Type */, 0 /* Chains */
         },
         {
+                {
+                        "hide", [&](LeftType<connection_frame_t>, RightType cmd)->std::string
+                                    {
+                                        if (cmd.size() == 2)
+                                            hide_col(cmd[1], do_col_hide);
+                                        else
+                                            return sprint("Unknown command");
+                                        return { };
+                                    },
+                    },
                 {
                     "closeAll",     [this](LeftType<connection_frame_t>, RightType)->std::string
                                     {
