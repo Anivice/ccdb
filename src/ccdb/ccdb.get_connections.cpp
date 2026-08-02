@@ -155,7 +155,6 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
     std::unordered_map < std::string, connection_frame_t > connection_frame;
     std::vector<connection_frame_t> connections_filtered;
-    std::vector<std::vector<std::string>> table_vals;
     auto subinfo_ball = std::make_unique<ccdb_atomic_t<subinfo_ball_t>>();
     std::vector < std::pair < std::unique_ptr<std::atomic_bool>, std::thread > > threads;
     std::vector<std::string> title_this_session;
@@ -409,25 +408,6 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     sort_by_local = sort_by;
                     reverse_sort_local = sort_reverse;
                 }
-            }
-
-            for (const auto & connection : connections_filtered)
-            {
-                // determine if we need to filter out the result
-                table_vals.push_back({
-                        connection.connection_data.host,
-                        connection.connection_data.processName,
-                        value_to_size(connection.connection_data.totalDownloadedBytes),
-                        value_to_size(connection.connection_data.totalUploadedBytes),
-                        value_to_speed(connection.connection_data.downloadSpeed),
-                        value_to_speed(connection.connection_data.uploadSpeed),
-                        connection.connection_data.ruleName,
-                        second_to_human_readable(connection.connection_data.timeElapsedSinceConnectionEstablished),
-                        connection.connection_data.src,
-                        connection.connection_data.destination,
-                        connection.connection_data.networkType,
-                        connection.connection_data.chainName,
-                });
             }
 
             return ScopeType{connections_filtered.begin(), connections_filtered.end()};
