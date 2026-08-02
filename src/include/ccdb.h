@@ -89,11 +89,10 @@ namespace ccdb
         const uint64_t endScope = current_skip_lines +
             std::min(static_cast<long>(get_line_size - start_line),
                     static_cast<long>(ScopeSize) - current_skip_lines);
-        return
-            {
-                begin + current_skip_lines,
-                begin + std::min(std::min(endScope, ScopeSize), window_frame_size)
-            };
+        const auto offset_end = std::min(
+            std::min(endScope, ScopeSize),
+            current_skip_lines + window_frame_size);
+        return { begin + current_skip_lines, begin + offset_end };
     }
 
     /// signal watcher
