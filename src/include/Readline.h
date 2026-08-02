@@ -208,8 +208,12 @@ namespace Readline
             const auto buf = blocked_read_file(history_file);
             std::istringstream ss (buf);
             std::string str;
-            while (std::getline(ss, str)) {
-                add_history(str.c_str());
+            while (std::getline(ss, str))
+            {
+                if (!str.empty()) {
+                    add_history(str.c_str());
+                    last_line = str;
+                }
             }
 
             history_set_pos(history_length);
