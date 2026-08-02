@@ -43,6 +43,7 @@ public:
     ccdb_atomic_t() = default;
     explicit ccdb_atomic_t(const T & val) : val_(val) { }
     [[nodiscard]] T get() { std::lock_guard lock(mtx_); return val_; }
+    void get(std::function<void(const T & val)> callback) { std::lock_guard lock(mtx_); callback(val_); }
     void set(const T& val) { std::lock_guard lock(mtx_); val_ = val; }
     ccdb_atomic_t & operator = (const T& val) { set(val); return *this; }
 };

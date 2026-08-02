@@ -917,13 +917,23 @@ void ccdb::ccdb::display(ccdb_atomic_t< frame_data_t > & frame, const std::atomi
     set_thread_name("TUIRenderer");
     setup_term setup_term;
     uint64_t current_frame_index = -1;
-// #ifdef RELEASE_CANDIDATE_PRE_RELEASE_BUILD
-//     uint64_t current_frame_raw = 0;
-//     std::chrono::high_resolution_clock::time_point last_render_time;
-// #endif
+    std::string frame_;
     while (*running)
     {
-        if (auto [frame_index, frame_, clear, pause] = frame.get(); !pause)
+        bool clear;
+        uint64_t frame_index;
+        bool skip;
+        frame.get([&](const frame_data_t & v_)
+        {
+            if (skip = current_frame_index == v_.frame_index || v_.pause; !skip)
+            {
+                clear = v_.clear;
+                frame_ = v_.frame;
+                frame_index = v_.frame_index;
+            }
+        });
+
+        if (!skip)
         {
             if (clear && frame_index != current_frame_index) // updated frame
             {
@@ -933,17 +943,7 @@ void ccdb::ccdb::display(ccdb_atomic_t< frame_data_t > & frame, const std::atomi
             else
             {
                 setup_term.move_home();
-// #ifdef RELEASE_CANDIDATE_PRE_RELEASE_BUILD
-//                 const auto now = std::chrono::high_resolution_clock::now();
-//                 const auto frame_index_str = std::to_string(frame_index) + "/" + std::to_string(++current_frame_raw)
-//                     + "/" + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(now - last_render_time).count()) + "ms";
-//                 last_render_time = now;
-//                 const auto comp = static_cast<std::streamsize>(frame_.size()) - static_cast<std::streamsize>(frame_index_str.size());
-//                 const auto & str = frame_.substr(0, comp > 0 ? comp : 0);
-//                 std::cout << str << frame_index_str << std::flush;
-// #else
                 std::cout << frame_ << std::flush;
-// #endif
                 setup_term.ed_clear();
             }
 
