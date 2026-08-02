@@ -455,7 +455,7 @@ void ccdb::ccdb::get_conn_input_watcher(
                 if (cc == 27) { // ESCAPE
                     str += "^[";
                 } else {
-                    str += "^";
+                    str += '^';
                     str.append(std::to_string(c));
                 }
             }
@@ -477,8 +477,6 @@ void ccdb::ccdb::get_conn_input_watcher(
 
     std::vector <int> ch_list;
     char ch;
-    bool esc_caught = false;
-    bool timeout_on_read = false;
 
     auto up = [&](const int row_step)
     {
@@ -555,6 +553,26 @@ void ccdb::ccdb::get_conn_input_watcher(
         if (focus_move) *focus_move = 1;
     };
 
+    std::atomic_bool esc_caught = false;
+    NotificationType<char> buffer;
+    threads.emplace_back([&]
+    {
+        set_thread_name("input:/Reader");
+        char buf[4096]{ };
+        while (running)
+        {
+            if (const auto len = read_with_timeout(STDIN_FILENO, buf, sizeof(buf), 50); len != -1) {
+                for (int i = 0; i < len; ++i) {
+                    buffer.push(buf[i]);
+                }
+            } else if (esc_caught) {
+                break;
+            }
+        }
+
+        buffer.push(-1);
+    });
+
     while (running)
     {
         if (pause && *pause) {
@@ -563,19 +581,12 @@ void ccdb::ccdb::get_conn_input_watcher(
             continue;
         }
 
-        if (const ssize_t sz = read_with_timeout(STDIN_FILENO, &ch, 1, 50); sz == -1)
+        if (ch = buffer.wait(); ch == -1)
         {
-            if (esc_caught == true) {
-                break;
-            }
-
             if (show_search && !*show_search) {
                 ch_list.clear();
                 continue;
             }
-
-            ch = 0;
-            timeout_on_read = true;
         }
 
         const auto [row, col] = get_screen_row_col();
@@ -604,7 +615,8 @@ void ccdb::ccdb::get_conn_input_watcher(
                 continue;
             }
 
-            if ((!show_search || (show_search && !*show_search)) && (ch == 'q' || ch == 'Q')) break;
+            if ((!show_search || (show_search && !*show_search)) && (ch == 'q' || ch == 'Q'))
+                break;
         }
 
         esc_caught = (ch == 27);
@@ -667,10 +679,10 @@ void ccdb::ccdb::get_conn_input_watcher(
 
                 ch_list.clear();
             }
-            else if (std::regex_match(str_buffer, escape_pattern) && timeout_on_read) {
+            else if (std::regex_match(str_buffer, escape_pattern)) {
                 ch_list.clear();
             }
-            else if (!str_buffer.empty() && (timeout_on_read || str_buffer.front() != '^'))
+            else if (!str_buffer.empty() && str_buffer.front() != '^')
             {
                 auto str = search_content_buffer->get();
                 std::ranges::for_each(ch_list, [&](const int c)
@@ -701,14 +713,6 @@ void ccdb::ccdb::get_conn_input_watcher(
                 search_content_buffer->set(str);
                 ch_list.clear();
             }
-
-            if (timeout_on_read) {
-                tab_request = 0;
-                // if (tab_suggestion_requested) *tab_suggestion_requested = 0;
-                ch_list.clear();
-            }
-
-            timeout_on_read = false;
         }
         else
         {

@@ -357,7 +357,8 @@ void ccdb::ccdb::nload(
     }
     const uint64_t upload_total_bytes_when_started = *total_upload, download_total_bytes_when_started = *total_download;
     const auto now = std::chrono::high_resolution_clock::now();
-    std::thread input_watcher(&ccdb::generic_input_watcher, this, "get/nload:input", running);
+    std::thread input_watcher(&ccdb::generic_input_watcher, this, "nload:/input", running);
+
     int info_space_size_before = info_space_size;
     int conn_list_size_before = 0;
     auto subinfo_ball = std::make_unique<ccdb_atomic_t<subinfo_ball_t>>();
@@ -438,6 +439,8 @@ void ccdb::ccdb::nload(
         {
             if (sig = watcher_.wait(); sig == SIGWINCH)
                 window_size_change = true;
+            else
+                break;
         }
     });
 

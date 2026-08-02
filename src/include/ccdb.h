@@ -79,8 +79,6 @@ namespace ccdb
     bool is_highlight_match(const std::vector < std::string > & line, const std::string & search_content);
     class auto_print_t;
     extern std::atomic<int> g_pid;
-    // extern std::atomic_bool window_size_change;
-    // extern std::atomic_bool sysint_pressed;
 
     template < typename Itr_ >
     std::pair<Itr_, Itr_> make_screen_vector_frame(const Itr_ begin, const Itr_ end, const uint64_t ScopeSize,
