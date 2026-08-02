@@ -473,7 +473,7 @@ void ccdb::ccdb::get_conn_input_watcher(
     const std::regex mouse_pattern(R"(^\^\[\[\<[\d]+\;([\d]+)\;([\d]+)[Mm]$)");
     const std::regex mouse_scroll_down_pattern(R"(^\^\[\[\<65\;([\d]+)\;([\d]+)[Mm]$)");
     const std::regex mouse_scroll_up_pattern(R"(^\^\[\[\<64\;([\d]+)\;([\d]+)[Mm]$)");
-    const std::regex escape_pattern(R"(^\^\[\[.*$)");
+    const std::regex escape_pattern(R"(^\^\[\[.*[Mm]$)");
 
     std::vector <int> ch_list;
     char ch;
@@ -553,7 +553,6 @@ void ccdb::ccdb::get_conn_input_watcher(
         if (focus_move) *focus_move = 1;
     };
 
-    std::atomic_bool esc_caught = false;
     NotificationType<char> buffer;
     threads.emplace_back([&]
     {
@@ -565,14 +564,13 @@ void ccdb::ccdb::get_conn_input_watcher(
                 for (int i = 0; i < len; ++i) {
                     buffer.push(buf[i]);
                 }
-            } else if (esc_caught) {
-                break;
             }
         }
 
         buffer.push(-1);
     });
 
+    auto last_updated_time = std::chrono::steady_clock::now();
     while (running)
     {
         if (pause && *pause) {
@@ -619,7 +617,30 @@ void ccdb::ccdb::get_conn_input_watcher(
                 break;
         }
 
-        esc_caught = (ch == 27);
+        const auto now = std::chrono::steady_clock::now();
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_updated_time).count() > 50)
+        {
+            if (ch_list.size() == 1 && ch_list.front() == 27 // cache only has ESC recorded
+                && ch == '\n' // Enter pressed next
+                && show_search && *show_search) // in search mode
+            {
+                /// ESC+Enter: Exit command mode
+                *show_search = false;
+                search_content_buffer->set({});
+                if (cursor_position) {
+                    *cursor_position = -1;
+                }
+
+                continue;
+            }
+
+
+
+
+            ch_list.clear();
+        }
+
+        last_updated_time = now;
         if (ch) ch_list.push_back(ch);
         str_buffer = ch_list_to_string(ch_list);
 
@@ -679,10 +700,15 @@ void ccdb::ccdb::get_conn_input_watcher(
 
                 ch_list.clear();
             }
-            else if (std::regex_match(str_buffer, escape_pattern)) {
+            else if (std::regex_match(str_buffer, escape_pattern))
+            {
                 ch_list.clear();
+                // str_buffer.clear();
+                std::this_thread::sleep_for(std::chrono::milliseconds(10)); // wait 10ms to buffer all inputs
+                buffer.flush(); // discard all inputs
             }
-            else if (!str_buffer.empty() && str_buffer.front() != '^')
+            else if (!str_buffer.empty() && !(ch == 27 || std::ranges::any_of(ch_list, [](const char c){ return c == 27; }))
+                && std::ranges::all_of(ch_list, [](const int c){ return std::isprint(c) || c == '\t'; }))
             {
                 auto str = search_content_buffer->get();
                 std::ranges::for_each(ch_list, [&](const int c)

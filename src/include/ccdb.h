@@ -74,6 +74,16 @@ namespace ccdb
 
             condition_.notify_one();
         }
+
+        void flush()
+        {
+            {
+                std::unique_lock lock(mutex_);
+                queue_.clear();
+            }
+
+            condition_.notify_one();
+        }
     };
 
     bool is_highlight_match(const std::vector < std::string > & line, const std::string & search_content);
