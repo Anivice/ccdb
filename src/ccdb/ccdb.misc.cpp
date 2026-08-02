@@ -560,11 +560,15 @@ void ccdb::ccdb::get_conn_input_watcher(
         char buf[4096]{ };
         while (running)
         {
-            if (const auto len = read_with_timeout(STDIN_FILENO, buf, sizeof(buf), 50); len != -1) {
-                for (int i = 0; i < len; ++i) {
-                    buffer.push(buf[i]);
+            if (!pause || !(pause && *pause))
+                if (const auto len = read_with_timeout(STDIN_FILENO, buf, sizeof(buf), 50); len != -1)
+                {
+                    for (int i = 0; i < len; ++i) {
+                        buffer.push(buf[i]);
+                    }
                 }
-            }
+
+            std::this_thread::sleep_for(std::chrono::microseconds(1));
         }
 
         buffer.push(-1);
@@ -573,12 +577,6 @@ void ccdb::ccdb::get_conn_input_watcher(
     auto last_updated_time = std::chrono::steady_clock::now();
     while (running)
     {
-        if (pause && *pause) {
-            ch_list.clear();
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            continue;
-        }
-
         if (ch = buffer.wait(); ch == -1)
         {
             if (show_search && !*show_search) {
@@ -618,25 +616,7 @@ void ccdb::ccdb::get_conn_input_watcher(
         }
 
         const auto now = std::chrono::steady_clock::now();
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_updated_time).count() > 50)
-        {
-            if (ch_list.size() == 1 && ch_list.front() == 27 // cache only has ESC recorded
-                && ch == '\n' // Enter pressed next
-                && show_search && *show_search) // in search mode
-            {
-                /// ESC+Enter: Exit command mode
-                *show_search = false;
-                search_content_buffer->set({});
-                if (cursor_position) {
-                    *cursor_position = -1;
-                }
-
-                continue;
-            }
-
-
-
-
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_updated_time).count() > 50) {
             ch_list.clear();
         }
 
@@ -652,6 +632,16 @@ void ccdb::ccdb::get_conn_input_watcher(
                 if (cursor_position && *cursor_position > 0) {
                     *cursor_position -= 1;
                 }
+            }
+            else if (validation(str_buffer, "^[e")) // exit
+            {
+                *show_search = false;
+                search_content_buffer->set({});
+                if (cursor_position) {
+                    *cursor_position = -1;
+                }
+
+                continue;
             }
             else if (validation(str_buffer, keyboard_shortcut_map.at("MoveRight"))) // right arrow
             {
