@@ -163,8 +163,9 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
     int sort_by_local = sort_by;
     bool reverse_sort_local = sort_reverse;
-
-    continuous_table <connection_frame_t>
+    using ScopeType = std::pair<std::vector<connection_frame_t>::const_iterator, std::vector<connection_frame_t>::const_iterator>;
+    using ArgsCopyScope = const ScopeType &;
+    continuous_table <connection_frame_t, std::vector<connection_frame_t>::const_iterator, ScopeType>
     (
         true,
         do_col_hide,
@@ -175,7 +176,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         },
         {
                 {
-                        "hide", [&](LeftType<connection_frame_t>, RightType cmd)->std::string
+                        "hide", [&](ArgsCopyScope, CommandVectorType cmd)->std::string
                                     {
                                         if (cmd.size() == 2)
                                             hide_col(cmd[1], do_col_hide);
@@ -185,7 +186,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                                     },
                     },
                 {
-                    "closeAll",     [this](LeftType<connection_frame_t>, RightType)->std::string
+                    "closeAll",     [this](ArgsCopyScope, CommandVectorType)->std::string
                                     {
                                         if (!backend_instance.close_all_connections())
                                         {
@@ -195,20 +196,21 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                                     },
                 },
                 {
-                    "closeOnScreen", [this](LeftType<connection_frame_t> conns, RightType)->std::string
+                    "closeOnScreen", [this](ArgsCopyScope conns, CommandVectorType)->std::string
                                     {
                                         std::stringstream ss;
-                                        for (const auto & conn : conns) {
+                                        std::for_each(conns.first, conns.second,[&](const auto & conn)
+                                        {
                                             if (!backend_instance.close_connection(conn.connection_data.metadata.connectionID)) {
                                                 ss << sprint("Failed to close connection", conn.connection_data.host, " ");
                                             }
-                                        }
+                                        });
 
                                         return ss.str();
                                     }
                 },
                 {
-                    "filterReverse", [this](LeftType<connection_frame_t>, RightType)->std::string
+                    "filterReverse", [this](ArgsCopyScope, CommandVectorType)->std::string
                                     {
                                         reverse_filter_list = !reverse_filter_list;
                                         return sprint("Filter reversed, current mode: ", reverse_filter_list ? "reverse" : "normal");
@@ -216,10 +218,10 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                                     },
                 },
                 {
-                    "clearFilters", [this](LeftType<connection_frame_t>, RightType)->std::string { clear_filter(); return {}; },
+                    "clearFilters", [this](ArgsCopyScope, CommandVectorType)->std::string { clear_filter(); return {}; },
                 },
                 {
-                    "reverseChainParser", [&](LeftType<connection_frame_t>, RightType)->std::string
+                    "reverseChainParser", [&](ArgsCopyScope, CommandVectorType)->std::string
                                     {
                                         backend_instance.parse_chains = !backend_instance.parse_chains;
                                         connection_frame.clear();
@@ -227,7 +229,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                                     },
                 },
                 {
-                    "filter", [this](LeftType<connection_frame_t>, RightType vec)->std::string
+                    "filter", [this](ArgsCopyScope, CommandVectorType vec)->std::string
                             {
                                 if (vec.size() == 3)
                                 {
@@ -252,21 +254,21 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                             },
                 },
                 {
-                    "pause", [&](LeftType<connection_frame_t>, RightType)->std::string
+                    "pause", [&](ArgsCopyScope, CommandVectorType)->std::string
                                 {
                                     pause_update = true;
                                     return sprint("Update paused");
                                 }
                 },
                 {
-                    "resume", [&](LeftType<connection_frame_t>, RightType)->std::string
+                    "resume", [&](ArgsCopyScope, CommandVectorType)->std::string
                                 {
                                     pause_update = false;
                                     return sprint("Update resumed");
                                 }
                 },
                 {
-                    "sort", [&](LeftType<connection_frame_t>, RightType vec)->std::string
+                    "sort", [&](ArgsCopyScope, CommandVectorType vec)->std::string
                             {
                                 if (vec.size() == 2)
                                 {
@@ -288,10 +290,10 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                             }
                 },
                 {
-                    "sortReverse", [&](LeftType<connection_frame_t>, RightType vec)->std::string { sort_reverse = !sort_reverse; return {}; }
+                    "sortReverse", [&](ArgsCopyScope, CommandVectorType)->std::string { sort_reverse = !sort_reverse; return {}; }
                 }
             },
-        [&](std::atomic_int * sort_by_from_watcher)->std::vector<connection_frame_t>
+        [&](std::atomic_int * sort_by_from_watcher)->ScopeType
         {
             // final sort value
             int sort_by_final { };
@@ -428,7 +430,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 });
             }
 
-            return connections_filtered;
+            return ScopeType{connections_filtered.begin(), connections_filtered.end()};
         },
         [&](const message_type_t type, const connection_frame_t & current_focus)->std::string
         {
@@ -465,11 +467,11 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             }
         },
         [](const connection_frame_t & conn)->std::string { return conn.connection_data.metadata.connectionID; },
-        [&color_for_closed_connections](const std::vector<connection_frame_t> & on_screen_conns,
+        [&color_for_closed_connections](const ScopeType & on_screen_conns,
             uint64_t current_skip_lines)->tsl::hopscotch_map<uint64_t, std::string>
         {
             tsl::hopscotch_map<uint64_t, std::string> ret;
-            std::ranges::for_each(on_screen_conns, [&](const connection_frame_t & conn)
+            std::for_each(on_screen_conns.first, on_screen_conns.second, [&](const connection_frame_t & conn)
             {
                 if (conn.connection_is_closed) ret.emplace(current_skip_lines, color_for_closed_connections);
                 current_skip_lines++;
@@ -516,7 +518,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         [](const auto & current_frame)
         {
             std::vector < std::vector < std::string > > table_vals;
-            for (const auto & connection : current_frame)
+            std::for_each(current_frame.first, current_frame.second, [&](const auto & connection)
             {
                 table_vals.push_back({
                     connection.connection_data.host,
@@ -532,7 +534,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     connection.connection_data.networkType,
                     connection.connection_data.chainName,
                 });
-            }
+            });
 
             return table_vals;
         },

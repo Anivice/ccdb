@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <chrono>
 #include <utility>
+#include <iterator>
 #include "config.h"
 #include "general_info_pulling.h"
 #include "tsl/hopscotch_map.h"
@@ -37,14 +38,65 @@
 
 namespace ccdb
 {
+    template <typename T> concept Iterator = std::input_iterator<T>;
+
+    template < typename T >
+    class NotificationType {
+        std::deque<T> queue_;
+        std::mutex mutex_;
+        std::condition_variable condition_;
+
+    public:
+        T wait()
+        {
+            std::unique_lock lock(mutex_);
+
+            condition_.wait(
+                lock,
+                [&]
+                {
+                    return !queue_.empty();
+                }
+            );
+
+            const int value = queue_.front();
+            queue_.pop_front();
+
+            return value;
+        }
+
+        void push(const T value)
+        {
+            {
+                std::lock_guard lock(mutex_);
+                queue_.push_back(value);
+            }
+
+            condition_.notify_one();
+        }
+    };
+
     bool is_highlight_match(const std::vector < std::string > & line, const std::string & search_content);
     class auto_print_t;
     extern std::atomic<int> g_pid;
-    template < typename vecType >
-    std::vector<vecType> make_screen_vector_frame(const std::vector<vecType> & vec,
-        int current_skip_lines, int get_line_size, int start_line);
     extern std::atomic_bool window_size_change;
     extern std::atomic_bool sysint_pressed;
+
+    template < typename Itr_ >
+    std::pair<Itr_, Itr_> make_screen_vector_frame(const Itr_ begin, const Itr_ end, const uint64_t ScopeSize,
+        const int current_skip_lines, const int get_line_size, const int start_line, const uint64_t window_frame_size)
+    {
+        if (begin == end) return { };
+        if (current_skip_lines >= ScopeSize) return { }; // throw std::logic_error("Internal BUG");
+        const uint64_t endScope = current_skip_lines +
+            std::min(static_cast<long>(get_line_size - start_line),
+                    static_cast<long>(ScopeSize) - current_skip_lines);
+        return
+            {
+                begin + current_skip_lines,
+                begin + std::min(std::min(endScope, ScopeSize), window_frame_size)
+            };
+    }
 
     class ccdb
     {
@@ -325,27 +377,30 @@ namespace ccdb
         }
 
         const std::string history_file_loc = utils::getenv("HOME") + "/.cache/ccdb/ccdb_history";
-        template < typename ContainerType > using LeftType = const std::vector < ContainerType > &;
-        using RightType = const std::vector<std::string> &;
-        template < typename ContainerType >
-        using CommandType = tsl::hopscotch_map < std::string, std::function<std::string(LeftType<ContainerType>, RightType)>>;
+
+        using CommandVectorType = const std::vector<std::string> &;
+
+        template < typename ContainerType, typename ScopeType >
+        using CommandType = tsl::hopscotch_map < std::string, std::function<std::string(const ScopeType &, CommandVectorType)>>;
+
         using SearchMatches = std::vector < std::pair < std::string /* checksum */, bool /* if match ? */ > >;
 
-        template <typename ContainerType> using ViewerType = std::vector < ContainerType >;
+        // template <typename ContainerType> using ViewerType = std::vector < ContainerType >;
         using String = std::string;
         using HashType = String;
         using OverrideColorType = tsl::hopscotch_map<uint64_t, std::string>;
-        template < typename ContainerType >
+        template < typename ContainerType, typename ConstantIteratorType, typename ScopeType > // = std::pair<ConstantIteratorType, ConstantIteratorType> >
+        requires (std::is_same_v<ScopeType, std::pair<ConstantIteratorType, ConstantIteratorType>> && Iterator<ConstantIteratorType>)
         void continuous_table(const bool banner, const std::vector < bool > & do_col_hide, const std::vector<int> alignment,
-            const CommandType < ContainerType > & CommandMap,
-            const std::function<ViewerType<ContainerType>(std::atomic_int * sort_by_from_watcher)> & ReturnContent,
+            const CommandType < ContainerType, ScopeType > & CommandMap,
+            const std::function<ScopeType(std::atomic_int * sort_by_from_watcher)> & ReturnContent,
             const std::function<String(message_type_t, const ContainerType & current_focus)> & GenerateBanner,
             const std::function<HashType(const ContainerType &)> & HashContent,
-            const std::function<OverrideColorType(const ViewerType<ContainerType> &, uint64_t)> & GenerateOverrideColorInContent,
+            const std::function<OverrideColorType(const ScopeType &, uint64_t)> & GenerateOverrideColorInContent,
             const std::function<void(const ContainerType *)> & PressKey_P,
             const std::function<void(const ContainerType *)> & PressKey_K,
             const std::function<std::vector<String>()> & GetTitleForCurrentSession,
-            const std::function<std::vector<std::vector<String>>(const ViewerType<ContainerType> &)> & GetTableValueForCurrentSession,
+            const std::function<std::vector<std::vector<String>>(const ScopeType &)> & GetTableValueForCurrentSession,
             const std::function<void()> & FrameVisitEach
         )
         {
@@ -402,7 +457,7 @@ namespace ccdb
             int in_tab_suggestion = -1;
             std::vector < String > tab_suggestions;
             bool on_display = false; // if banner has msg
-            ViewerType <ContainerType> content;
+            ScopeType content;
             ContainerType focused_container;
 
             const auto unstable_terminal = color::color(0,0,0,5,0,0) + "UNSTABLE TERMINAL" + color::no_color();
@@ -454,18 +509,23 @@ namespace ccdb
                 search_matches.clear();
                 const auto keys = GetTitleForCurrentSession();
                 const auto values = GetTableValueForCurrentSession(content);
-                for (uint64_t i = 0; i < values.size(); i++) {
-                    search_matches.emplace_back(HashContent(content[i]), is_highlight_match(values[i], search_content));
+                const auto contentSize = values.size();
+                {
+                    int index = 0;
+                    for (auto it = content.first; it != content.second; ++it) {
+                        search_matches.emplace_back(HashContent(*it), is_highlight_match(values[index], search_content));
+                        ++index;
+                    }
                 }
 
                 const int fr = line_size - start_line - 1 /* print_table do not use the last line */; // space without heads
-                const int window_frame_size = std::min(static_cast<int>(content.size()), // list size
-                    fr - (content.size() > fr ? 1 : 0) - (current_skip_lines == max_skip_lines ? 1 : 0));
+                const int window_frame_size = std::min(static_cast<int>(contentSize), // list size
+                    fr - (contentSize > fr ? 1 : 0) - (current_skip_lines == max_skip_lines ? 1 : 0));
 
                 // if focused_connection_id is not present anymore, delete it
                 if (!focused_id.empty())
                 {
-                    if (!std::ranges::any_of(content, [&](const ContainerType & conn) {
+                    if (!std::any_of(content.first, content.second, [&](const ContainerType & conn) {
                         return HashContent(conn) == focused_id;
                     }))
                     {
@@ -569,17 +629,17 @@ namespace ccdb
                 }
 
                 auto move = [&](
-                    const std::function<bool(typename ViewerType<ContainerType>::const_iterator, const ViewerType<ContainerType> &)> & do_i_process,
-                    const std::function<std::string(typename ViewerType<ContainerType>::const_iterator)> & how_do_i_process)
+                    const std::function<bool(ConstantIteratorType, ConstantIteratorType begin, ConstantIteratorType end)> & do_i_process,
+                    const std::function<std::string(ConstantIteratorType)> & how_do_i_process)
                 {
                     if (!focused_id.empty())
                     {
                         bool found = false;
-                        for (auto it_ = content.begin(); it_ != content.end(); ++it_)
+                        for (auto it_ = content.first; it_ != content.second; ++it_)
                         {
                             if (HashContent(*it_) == focused_id)
                             {
-                                if (do_i_process(it_, content))
+                                if (do_i_process(it_, content.first, content.second))
                                 {
                                     focus_to_highlight = true;
                                     focused_id = how_do_i_process(it_);
@@ -590,8 +650,8 @@ namespace ccdb
                             }
                         }
 
-                        if (!found && focused_index < static_cast<decltype(focused_index)>(content.size())) {
-                            focused_id = HashContent(content.at(focused_index));
+                        if (!found && focused_index < static_cast<decltype(focused_index)>(contentSize)) {
+                            focused_id = HashContent(*(content.first + focused_index));
                         }
                     }
                 };
@@ -602,8 +662,8 @@ namespace ccdb
                     // move down
                 case 1:
                     {
-                        move([&](auto it_, const auto & vec)->bool {
-                            return it_ != (vec.end() - 1);
+                        move([&](auto it_, auto, auto end)->bool {
+                            return it_ != (end - 1);
                         },
                         [&](auto it_)->std::string {
                             return HashContent(*(it_ + 1));
@@ -613,8 +673,8 @@ namespace ccdb
                     // move up
                 case 2:
                     {
-                        move([&](auto it_, const auto & vec)->bool {
-                            return it_ != vec.begin();
+                        move([&](auto it_, auto begin, auto)->bool {
+                            return it_ != begin;
                         },
                         [&](auto it_)->std::string {
                             return HashContent(*(it_ - 1));
@@ -626,15 +686,15 @@ namespace ccdb
 
                 /// refocus
                 if ((focus_to_highlight || kill_connection) && !focused_id.empty()
-                    && std::ranges::any_of(content, [&](const ContainerType & c_)->bool {
+                    && std::any_of(content.first, content.second, [&](const ContainerType & c_)->bool {
                         return HashContent(c_) == focused_id;
                     }))
                 {
                     auto can_i_find_in_this_index = [&](const int i)->bool
                     {
-                        auto connections_current_page = make_screen_vector_frame(content, i, line_size, start_line);
-                        if (connections_current_page.size() > window_frame_size) connections_current_page.resize(window_frame_size);
-                        return std::ranges::any_of(connections_current_page, [&](const ContainerType & conn)->bool {
+                        auto connections_current_page = make_screen_vector_frame(content.first, content.second, contentSize,
+                            i, line_size, start_line, window_frame_size);
+                        return std::any_of(connections_current_page.first, connections_current_page.second, [&](const ContainerType & conn)->bool {
                             return (HashContent(conn) == focused_id);
                         });
                     };
@@ -656,14 +716,13 @@ namespace ccdb
 
                 /// focus
                 {
-                    auto content_on_cur_page = make_screen_vector_frame(content, current_skip_lines, line_size, start_line);
-                    if (content_on_cur_page.size() > window_frame_size) content_on_cur_page.resize(window_frame_size);
-
+                    auto content_on_cur_page = make_screen_vector_frame(content.first, content.second, contentSize,
+                        current_skip_lines, line_size, start_line, window_frame_size);
                     if (mouse_y > start_line && (mouse_y - start_line) <= window_frame_size)
                     {
                         // refocus
                         int offset = 0;
-                        if (!std::ranges::any_of(content_on_cur_page, [&](const ContainerType & line)->bool
+                        if (!std::any_of(content_on_cur_page.first, content_on_cur_page.second, [&](const ContainerType & line)->bool
                         {
                             if (offset != mouse_y - start_line - 1) {
                                 offset++;
@@ -682,7 +741,7 @@ namespace ccdb
                     {
                         // find the focused line on page
                         if (int index = 0;
-                            std::ranges::any_of(content_on_cur_page, [&](const ContainerType & line)->bool
+                            std::any_of(content_on_cur_page.first, content_on_cur_page.second, [&](const ContainerType & line)->bool
                             {
                                 index++;
                                 if (const auto & line_hash = HashContent(line); line_hash == focused_id)
@@ -716,7 +775,7 @@ namespace ccdb
                     const ContainerType * matched = nullptr;
                     if (focus_line != -1)
                     {
-                        (void)std::ranges::any_of(content, [&](const ContainerType & conn)->bool
+                        (void)std::any_of(content.first, content.second, [&](const ContainerType & conn)->bool
                         {
                             if (HashContent(conn) == focused_id) {
                                 matched = &conn;
@@ -840,8 +899,8 @@ namespace ccdb
                     }
                 }
 
-                skip_due_to_shrink = (vector_size_last_time > content.size() || skip_lines_before < current_skip_lines);
-                vector_size_last_time = static_cast<int>(content.size());
+                skip_due_to_shrink = (vector_size_last_time > contentSize || skip_lines_before < current_skip_lines);
+                vector_size_last_time = static_cast<int>(contentSize);
                 skip_lines_before = current_skip_lines;
                 if (leading_spaces >= max_leading_spaces) {
                     lock_to_max = true;
@@ -924,7 +983,7 @@ namespace ccdb
                     {
                         if (window_size_change ||
                             (getenv("ENABLE_CLEAR_ON_SHRINK") == "true" && skip_due_to_shrink
-                                && content.size() <= window_frame_size))
+                                && contentSize <= window_frame_size))
                         {
                             frame_data.set({
                                 .frame_index = ++frame_index,
@@ -1066,31 +1125,6 @@ namespace ccdb
         waitpid(pid, &status, 0);
         g_pid = -1;
         return status == 0;
-    }
-
-    template < typename vecType >
-    std::vector<vecType> make_screen_vector_frame(const std::vector<vecType> & vec,
-        const int current_skip_lines, const int get_line_size, const int start_line)
-    {
-        if (vec.empty()) return { };
-        if (current_skip_lines >= vec.size()) return { }; // throw std::logic_error("Internal BUG");
-        auto frame_size = get_line_size - start_line - 1 /* search line is always empty*/;
-        if (vec.size() > frame_size) {
-            frame_size -= 1;
-        }
-
-        if (frame_size <= 0 || frame_size > get_line_size) return { };
-
-        std::vector <vecType> vecReturn
-        {
-            vec.begin() + current_skip_lines,
-            vec.begin() + current_skip_lines +
-                std::min(
-                    static_cast<std::vector<int>::difference_type>(get_line_size - start_line),
-                    static_cast<std::vector<int>::difference_type>(vec.size()) - current_skip_lines)
-        };
-        vecReturn.resize(frame_size);
-        return vecReturn;
     }
 }
 

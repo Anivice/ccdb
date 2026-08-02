@@ -60,11 +60,12 @@ void ccdb::ccdb::get_log()
 
     using log_frame_t = std::vector < std::string >;
     bool pause_log_update = false;
-    continuous_table < log_frame_t >
+    using ScopeType = std::pair<std::vector<log_frame_t>::const_iterator, std::vector<log_frame_t>::const_iterator>;
+    continuous_table < log_frame_t, std::vector<log_frame_t>::const_iterator, ScopeType >
     (
         false,
         do_col_hide, {2, 2, 0}, {},
-        [&](std::atomic_int *)->std::vector<log_frame_t>
+        [&](std::atomic_int *)->ScopeType
         {
             if (!pause_log_update)
             {
@@ -121,14 +122,14 @@ void ccdb::ccdb::get_log()
                 if (log_local_incrimination.size() > max_log_size) log_local_incrimination.resize(max_log_size);
             }
 
-            return log_local_incrimination;
+            return {log_local_incrimination.begin(), log_local_incrimination.end()};
         },
         [](message_type_t, const log_frame_t &)->std::string { return {}; },
         [](const log_frame_t & log)->std::string { return log.at(3); },
-        [](const auto & logs, uint64_t offset)->OverrideColorType
+        [](const ScopeType & logs, uint64_t offset)->OverrideColorType
         {
             OverrideColorType line_color_overrides;
-            std::ranges::for_each(logs, [&](const auto & it)
+            std::for_each(logs.first, logs.second, [&](const auto & it)
             {
                 if (!it.empty())
                 {
@@ -148,11 +149,11 @@ void ccdb::ccdb::get_log()
         },
         [&pause_log_update](const auto *) { pause_log_update = !pause_log_update; },
         [](const auto *) {},
-        [&log_titles]->std::vector<std::string> { return log_titles; },
-        [](const std::vector<log_frame_t> & logs)->std::vector<std::vector<std::string>>
+        [&log_titles]->std::vector<std::string> { return {log_titles.begin(), log_titles.end()}; },
+        [](const ScopeType & logs)->std::vector<std::vector<std::string>>
         {
             std::vector<std::vector<std::string>> ret;
-            std::ranges::for_each(logs, [&ret](const log_frame_t & log) {
+            std::for_each(logs.first, logs.second, [&ret](const log_frame_t & log) {
                 ret.emplace_back(std::vector {log[0], log[1], log[2]});
             });
             return ret;

@@ -301,18 +301,29 @@ void ccdb::ccdb::generic_input_watcher(const std::string &name, std::atomic_bool
         std::this_thread::sleep_for(std::chrono::milliseconds(50l));
     } });
 
-    char ch;
-    bool esc_caught = false;
-    while (*running)
+    std::atomic_bool esc_caught = false;
+    NotificationType<char> buffer;
+    std::thread T2([&]
     {
-        if (read_with_timeout(STDIN_FILENO, &ch, 1, 50) == -1) {
-            if (esc_caught) {
+        char buf[64]{ };
+        while (*running)
+        {
+            if (const auto len = read_with_timeout(STDIN_FILENO, buf, sizeof(buf), 50); len != -1) {
+                for (int i = 0; i < len; ++i) {
+                    buffer.push(buf[i]);
+                }
+            } else if (esc_caught) {
                 break;
             }
-
-            continue;
         }
 
+        buffer.push(-1);
+    });
+
+    while (*running)
+    {
+        const char ch = buffer.wait();
+        if (ch == -1) break;
         if (ch == 'q' || ch == 'Q')
         {
             break;
