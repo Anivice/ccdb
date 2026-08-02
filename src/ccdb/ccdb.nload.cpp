@@ -40,6 +40,7 @@ void ccdb::ccdb::nload(
 {
     set_thread_name("nload:/show");
 
+    std::atomic_bool window_size_change = false;
     uint64_t frame_index = 0;
     ccdb_atomic_t<frame_data_t> frame_data;
     frame_data.set({});
@@ -428,6 +429,18 @@ void ccdb::ccdb::nload(
         }
     });
 
+    auto watcher_ = watcher.make_status_watcher();
+
+    local_workers.emplace_back([&]
+    {
+        int sig = 0;
+        while (sig >= 0 || running)
+        {
+            if (sig = watcher_.wait(); sig == SIGWINCH)
+                window_size_change = true;
+        }
+    });
+
     while (*running)
     {
         const auto now_in_loop = std::chrono::high_resolution_clock::now();
@@ -712,6 +725,7 @@ void ccdb::ccdb::nload(
         update_window_spaces();
     }
 
+    watcher_.stop();
     print("\n\n", "Wait...\n", "Press Ctrl+C (^C) to end immediately.\n");
     if (input_watcher.joinable()) input_watcher.join();
     std::ranges::for_each(threads, [](auto & T) { if (T.second.joinable()) T.second.join(); });

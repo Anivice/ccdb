@@ -32,75 +32,118 @@
 #include "ccdb.h"
 #include "versions.h"
 
-ccdb::sigint_watcher_ ccdb::watcher;
-std::atomic_bool ccdb::window_size_change = false;
-std::atomic_bool ccdb::sysint_pressed = false;
-std::atomic<int> ccdb::g_pid = -1;
-
-void ccdb::sigint_handler(int)
+ccdb::signal_watcher_::auto_signal_status_t::auto_signal_status_t(signal_watcher_* _watcher) : watcher_(_watcher)
 {
-    constexpr unsigned char ch = 0x03;
-    if (Readline::sig_pipe[1] != -1) {
-        (void)write(Readline::sig_pipe[1], &ch, 1);
+    watcher_->watcher_clear_disable = true;
+    std::lock_guard lock(watcher_->watcher_mutex);
+    watcher_->watchers.emplace_back(&notification_);
+}
+
+ccdb::signal_watcher_::auto_signal_status_t::~auto_signal_status_t() {
+    stop();
+}
+
+void ccdb::signal_watcher_::auto_signal_status_t::stop()
+{
+    if (stopped_) return;
+    watcher_->watcher_clear_disable = false;
+    // stop receiving notifications
+    {
+        std::lock_guard lock(watcher_->watcher_mutex);
+        for (auto it = watcher_->watchers.begin(); it != watcher_->watchers.end(); ++it)
+        {
+            if (*it == &notification_) {
+                watcher_->watchers.erase(it);
+                break;
+            }
+        }
     }
 
-    if (g_pid != -1) (void)kill(g_pid, SIGKILL);
-    sysint_pressed = true;
+    notification_.push(-1); // invalid signal, indicate abort
+    stopped_ = true;
 }
 
-void ccdb::window_size_change_handler(int)
-{
-    window_size_change = true;
+int ccdb::signal_watcher_::auto_signal_status_t::wait() {
+    return notification_.wait();
 }
 
-/// signal SIGINT watcher
-ccdb::sigint_watcher_::auto_SIGINT_status_t::auto_SIGINT_status_t(sigint_watcher_ * _watcher) : watcher_(_watcher)
+ccdb::signal_watcher_ ccdb::watcher;
+std::atomic<int> ccdb::g_pid = -1;
+namespace
 {
-    sysint_pressed = false;
-    _watcher->watcher_clear_disable = true;
-    _watcher->sigint_caught = false;
+    volatile bool window_size_change = false;
+    volatile bool sysint_pressed = false;
+
+    void sigint_handler(int)
+    {
+        sysint_pressed = true;
+    }
+
+    void window_size_change_handler(int)
+    {
+        window_size_change = true;
+    }
 }
 
-ccdb::sigint_watcher_::auto_SIGINT_status_t::~auto_SIGINT_status_t()
+void ccdb::signal_watcher_::sigint_watcher()
 {
-    sysint_pressed = false;
-    watcher_->watcher_clear_disable = false;
-}
-
-[[nodiscard]] ccdb::sigint_watcher_::auto_SIGINT_status_t::operator bool() const
-{
-    return watcher_->sigint_caught.load();
-}
-
-ccdb::sigint_watcher_::auto_SIGINT_status_t ccdb::sigint_watcher_::make_status_watcher()
-{
-    return auto_SIGINT_status_t(this);
-}
-
-void ccdb::sigint_watcher_::sigint_watcher()
-{
-    utils::set_thread_name("SIGINT Watcher");
+    utils::set_thread_name("Signal Watcher");
     while (sigint_watcher_running)
     {
         if (sysint_pressed)
         {
-            sigint_caught = true;
             sysint_pressed = false;
+            constexpr unsigned char ch = 0x03;
+            if (!watcher_clear_disable && Readline::sig_pipe[1] != -1) {
+                (void)write(Readline::sig_pipe[1], &ch, 1);
+            }
+
+            if (g_pid != -1) (void)kill(g_pid, SIGKILL);
+
+            SignalWatcher.push(SIGINT);
+        }
+
+        if (window_size_change)
+        {
+            window_size_change = false;
+            SignalWatcher.push(SIGWINCH);
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 }
 
-ccdb::sigint_watcher_::sigint_watcher_()
+ccdb::signal_watcher_::signal_watcher_()
 {
-    worker_thread = std::thread(&sigint_watcher_::sigint_watcher, this);
+    std::signal(SIGINT, sigint_handler);
+    std::signal(SIGWINCH, window_size_change_handler);
+    std::signal(SIGPIPE, SIG_IGN);
+    worker_threads.emplace_back(&signal_watcher_::sigint_watcher, this);
+    worker_threads.emplace_back([this]
+    {
+        utils::set_thread_name("Signal Dispatcher");
+        while (sigint_watcher_running)
+        {
+            if (const int sig = SignalWatcher.wait(); sig != -1)
+            {
+                std::lock_guard lock(watcher_mutex);
+                std::ranges::for_each(watchers, [&](auto * nt_) {
+                    nt_->push(sig);
+                });
+            }
+            else
+            {
+                break;
+            }
+        }
+    });
 }
 
-ccdb::sigint_watcher_::~sigint_watcher_()
+ccdb::signal_watcher_::~signal_watcher_()
 {
     sigint_watcher_running = false;
-    if (worker_thread.joinable()) { worker_thread.join(); }
+    SignalWatcher.push(-1);
+    std::ranges::for_each(worker_threads, [](auto & worker_thread){ if (worker_thread.joinable()) { worker_thread.join(); } });
 }
 
 // --------------------------------------------- CCDB --------------------------------------------- //
@@ -293,18 +336,32 @@ void ccdb::ccdb::generic_input_watcher(const std::string &name, std::atomic_bool
 {
     set_thread_name(name);
     interactive_verification();
-    const auto sigint_status = watcher.make_status_watcher();
+    auto sigint_status = watcher.make_status_watcher();
+    std::vector<std::thread> child_workers;
 
-    // pull SIGINT status every 50ms
-    std::thread T([&] { while (*running) {
-        if (sigint_status || backend_instance.force_quit) { (*running) = false; break; }
+    child_workers.emplace_back([&] { while (*running) {
+        set_thread_name("input:/Backend Force Quit Puller");
+        if (backend_instance.force_quit) { (*running) = false; break; }
         std::this_thread::sleep_for(std::chrono::milliseconds(50l));
     } });
 
+    child_workers.emplace_back([&]
+    {
+        set_thread_name("input:/SIGINT Puller");
+        while (*running)
+        {
+            if (const auto sig = sigint_status.wait(); sig == SIGINT || sig < 0) {
+                *running = false;
+                break;
+            }
+        }
+    });
+
     std::atomic_bool esc_caught = false;
     NotificationType<char> buffer;
-    std::thread T2([&]
+    child_workers.emplace_back([&]
     {
+        set_thread_name("input:/Reader");
         char buf[64]{ };
         while (*running)
         {
@@ -333,7 +390,8 @@ void ccdb::ccdb::generic_input_watcher(const std::string &name, std::atomic_bool
     }
 
     *running = false;
-    if (T.joinable()) T.join();
+    sigint_status.stop();
+    std::ranges::for_each(child_workers, [](auto &T){ if (T.joinable()) T.join(); });
 }
 
 void ccdb::ccdb::get_conn_input_watcher(
@@ -364,15 +422,27 @@ void ccdb::ccdb::get_conn_input_watcher(
     std::atomic_int & current_skip_lines = *current_skip_lines_ptr;
     const std::atomic_int & max_skip_lines = *max_skip_lines_ptr;
     std::vector<std::thread> threads;
-    const auto sigint_status = watcher.make_status_watcher();
+    auto sigint_status = watcher.make_status_watcher();
     int tab_request;
 
     // pull SIGINT every 50ms
     threads.emplace_back([&] { while (running) {
-        set_thread_name("input:/SIGINT Puller");
-        if (sigint_status || backend_instance.force_quit) { running = false; break; }
+        set_thread_name("input:/Backend Force Quit Puller");
+        if (backend_instance.force_quit) { running = false; break; }
         std::this_thread::sleep_for(std::chrono::milliseconds(50l));
     } });
+
+    threads.emplace_back([&]
+    {
+        set_thread_name("input:/SIGINT Puller");
+        while (running)
+        {
+            if (const auto sig = sigint_status.wait(); sig == SIGINT || sig < 0) {
+                running = false;
+                break;
+            }
+        }
+    });
 
     auto ch_list_to_string = [](const std::vector < int > & list)->std::string
     {
@@ -816,6 +886,7 @@ void ccdb::ccdb::get_conn_input_watcher(
     }
 
     running = false;
+    sigint_status.stop();
     std::ranges::for_each(threads, [](std::thread & T) {
         if (T.joinable()) T.join();
     });

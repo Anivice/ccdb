@@ -79,8 +79,8 @@ namespace ccdb
     bool is_highlight_match(const std::vector < std::string > & line, const std::string & search_content);
     class auto_print_t;
     extern std::atomic<int> g_pid;
-    extern std::atomic_bool window_size_change;
-    extern std::atomic_bool sysint_pressed;
+    // extern std::atomic_bool window_size_change;
+    // extern std::atomic_bool sysint_pressed;
 
     template < typename Itr_ >
     std::pair<Itr_, Itr_> make_screen_vector_frame(const Itr_ begin, const Itr_ end, const uint64_t ScopeSize,
@@ -97,6 +97,45 @@ namespace ccdb
                 begin + std::min(std::min(endScope, ScopeSize), window_frame_size)
             };
     }
+
+    /// signal watcher
+    extern class signal_watcher_ {
+    public:
+        std::atomic_bool watcher_clear_disable = false; // disable auto clear
+        std::list < NotificationType<int> * > watchers;
+        std::mutex watcher_mutex;
+
+        /// Create this instance to skip readline screen clear on SIGINT.
+        /// SIGINT watcher will resume clear when this instance is destroyed.
+        /// This instance can also be used in if() to check if SIGINT is received.
+        class auto_signal_status_t {
+        private:
+            signal_watcher_ * watcher_;
+            NotificationType<int> notification_;
+            explicit auto_signal_status_t(signal_watcher_ * _watcher);
+            bool stopped_ = false;
+
+        public:
+            friend class signal_watcher_;
+            ~auto_signal_status_t();
+            void stop();
+            [[nodiscard]] int wait(); // return -1 as an indication of thread abort. blocked
+        };
+
+        auto_signal_status_t make_status_watcher() { return auto_signal_status_t(this); }
+
+    protected:
+        std::atomic_bool sigint_watcher_running = true;
+        std::vector<std::thread> worker_threads;
+        void sigint_watcher();
+
+    private:
+        NotificationType<int> SignalWatcher;
+
+    public:
+        signal_watcher_();
+        ~signal_watcher_();
+    } watcher;
 
     class ccdb
     {
@@ -423,6 +462,7 @@ namespace ccdb
             std::atomic_bool show_search = false;
             std::atomic < search_move_t > search_focus_move_;
             std::atomic_bool running = true;
+            std::atomic_bool window_size_change = false;
 
             HashType focused_id;
             SearchMatches search_matches;
@@ -439,8 +479,18 @@ namespace ccdb
             ccdb_atomic_t<frame_data_t> frame_data;
             frame_data.set({});
             int skip_lines_before = current_skip_lines_;
+            auto watcher_ = watcher.make_status_watcher();
 
             child_workers.emplace_back([&]{display(frame_data, &running);});
+            child_workers.emplace_back([&]
+            {
+                int sig = 0;
+                while (sig >= 0 || running)
+                {
+                    if (sig = watcher_.wait(); sig == SIGWINCH)
+                        window_size_change = true;
+                }
+            });
             child_workers.emplace_back(&ccdb::get_conn_input_watcher, this,
                         &running, &leading_spaces_, &max_leading_spaces_, &current_skip_lines_, &max_skip_lines_,
                         &mouse_x_, &mouse_y_, &kill_connection_, &focus_to_highlight_, &conn_show_detail_, &sort_by_from_watcher_, &atm_focus_,
@@ -1012,6 +1062,7 @@ namespace ccdb
             }
 
             running = false;
+            watcher_.stop();
             print("\n\n", "Wait...\n", "Press Ctrl+C (^C) to end immediately.\n");
             wait_thread(child_workers);
             if (const char* clear = capstr("clear")) {
@@ -1026,43 +1077,6 @@ namespace ccdb
 
         friend class auto_print_t;
     };
-
-    /// signal SIGINT watcher
-    extern class sigint_watcher_ {
-    public:
-        std::atomic_bool watcher_clear_disable = false; // disable auto clear
-
-        /// Create this instance to skip readline screen clear on SIGINT.
-        /// SIGINT watcher will resume clear when this instance is destroyed.
-        /// This instance can also be used in if() to check if SIGINT is received.
-        class auto_SIGINT_status_t {
-        private:
-            sigint_watcher_ * watcher_;
-            explicit auto_SIGINT_status_t(sigint_watcher_ * _watcher);
-
-        public:
-            friend class sigint_watcher_;
-            ~auto_SIGINT_status_t();
-            [[nodiscard]] explicit operator bool() const;
-        };
-
-        auto_SIGINT_status_t make_status_watcher();
-
-    protected:
-        std::atomic_bool sigint_watcher_running = true;
-        std::atomic_bool sigint_caught = false;
-        std::thread worker_thread;
-        void sigint_watcher();
-    public:
-
-        std::atomic_bool & sigint_caught_ = sigint_caught;
-        sigint_watcher_();
-        ~sigint_watcher_();
-    } watcher;
-
-
-    void sigint_handler(int);
-    void window_size_change_handler(int);
 
     template <
         typename... ArgsForFetcherChild, typename... ArgsForFetcherParent,

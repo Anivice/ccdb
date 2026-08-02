@@ -138,8 +138,7 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
         }
 
         // Build argv for execv
-        watcher.watcher_clear_disable = true;
-        watcher.sigint_caught_ = false;
+        std::atomic_bool sigint_caught_ = false;
         std::atomic_bool finished = false;
         less.clear();
         jq.clear();
@@ -149,11 +148,22 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
             finished = true;
         });
 
-        while (!finished && !watcher.sigint_caught_) {
+        auto watcher_ = watcher.make_status_watcher();
+        std::thread T1([&]
+        {
+            int sig = 0;
+            while (sig >= 0) {
+                if (sig = watcher_.wait(); sig == SIGINT) sigint_caught_ = true;
+            }
+        });
+
+        while (!finished && !sigint_caught_) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
 
+        watcher_.stop();
         if (finished && T0.joinable()) T0.join(); // WTF
+        if (T1.joinable()) T1.join();
         _exit(EXIT_SUCCESS);
     }
     else
@@ -230,38 +240,35 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
             finished = true;
         });
 
-        class exit_guard_t {
-        public:
-            exit_guard_t() {
-                watcher.watcher_clear_disable = true;
-                watcher.sigint_caught_ = false;
+        auto watcher_ = watcher.make_status_watcher();
+        std::atomic_bool sigint_caught_ = false;
+        std::thread T1([&]
+        {
+            int sig = 0;
+            while (sig >= 0) {
+                if (sig = watcher_.wait(); sig == SIGINT) sigint_caught_ = true;
             }
+        });
 
-            ~exit_guard_t() {
-                watcher.watcher_clear_disable = false;
-                watcher.sigint_caught_ = false;
-            }
-        } exit_guard;
-
-        while (!finished && !watcher.sigint_caught_) {
+        while (!finished && !sigint_caught_) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
 
-        if (watcher.sigint_caught_) {
+        if (sigint_caught_) {
             kill(pid, SIGINT);
-            watcher.sigint_caught_ = false;
         }
 
         while (!finished)
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            if (watcher.sigint_caught_) {
+            if (sigint_caught_) {
                 print<is_error>("Killing child ", pid, "\n");
                 kill(pid, SIGKILL);
             }
         }
 
         if (T0.joinable()) T0.join();
+        watcher_.stop(); if (T1.joinable()) T1.join();
         if (status.fd_stderr.empty()) {
             exec_command("/bin/sh", status.fd_stdout, "-c", command_ss.str());
         } else {
@@ -287,10 +294,6 @@ static bool is_executable(const fs::path& p)
 
 void ccdb::ccdb::init()
 {
-    // std::setlocale(LC_ALL, "en_US.UTF-8");
-    std::signal(SIGINT, sigint_handler);
-    std::signal(SIGPIPE, SIG_IGN);
-    std::signal(SIGWINCH, window_size_change_handler);
     namespace fs = std::filesystem;
     if (const auto config = fs::path(utils::getenv("HOME")) / ".ccdbrc"; fs::exists(config)) {
         ccdb_config = std::make_unique<configuration>(config);
@@ -751,18 +754,19 @@ void ccdb::ccdb::init()
         };
 
         try {
-            if (special_filler == "[GROUP]") {
-                return {}; // escape(get_groups());
-            }
-            else if (special_filler == "[PROXY]") {
-                return {};
+            // if (special_filler == "[GROUP]") {
+                // return {}; // escape(get_groups());
+            // }
+            // else if (special_filler == "[PROXY]") {
+                // return {};
                 // std::string group;
                 // if (args.size() >= 3) {
                 //     group = args[2];
                 // }
                 // return escape(get_endpoints(group));
-            }
-            else if (special_filler == "[VGROUP]") {
+            // }
+            // else
+            if (special_filler == "[VGROUP]") {
                 return escape(get_vgroups());
             }
             else if (special_filler == "[VPROXY]")
