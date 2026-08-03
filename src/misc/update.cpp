@@ -191,6 +191,7 @@ namespace
             }
         });
 
+        bool time_out = false;
         if (timeout > 0)
         {
             for (int i = 0; i < timeout * 100; i++) {
@@ -199,12 +200,13 @@ namespace
             }
 
             client.stop();
+            time_out = true;
         }
 
         if (T.joinable()) T.join();
 
-        if (!res) {
-            throw std::runtime_error(std::to_string(res->status) + ": " + to_string(res.error()));
+        if (!res || time_out) {
+            throw std::runtime_error(std::to_string(res->status) + ": " + to_string(res.error()) + (time_out ? " <Timeout>" : ""));
         }
 
         while (res->status == 302)
