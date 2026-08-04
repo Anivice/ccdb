@@ -407,12 +407,16 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
                     unlink((result + ".bak").c_str());
                     print("Upgraded self. Please relaunch CCDB to complete the update.\n");
 #ifndef __DEBUG__
-                    write(fd, "1", 1);
+                    close(fd);
 #endif
                 }
                 catch (std::exception & e)
                 {
                     print<is_error>(e.what(), "\n");
+#ifndef __DEBUG__
+                    (void)write(fd, e.what(), strlen(e.what()));
+                    (void)write(fd, "\n", 1);
+#endif
 #ifndef __DEBUG__
                     return false;
 #else
@@ -425,8 +429,18 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
             },
         [](const int fd)
         {
-            char buff_[2] { };
-            return read(fd, buff_, 1) == 1;
+            char buff_[1024] { };
+            ssize_t len = 0;
+            bool ret = true;
+            do
+            {
+                len = read(fd, buff_, sizeof(buff_));
+                if (len > 0) {
+                    (void)write(STDERR_FILENO, buff_, len);
+                    ret = false;
+                }
+            } while (len > 0);
+            return ret;
         }, 60 * 20 * 1000))
         {
 #endif
