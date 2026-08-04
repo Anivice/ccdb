@@ -1,4 +1,7 @@
 #include "update.h"
+
+#include <print>
+
 #include "httplib.h"
 #include "utils.h"
 #include "print.h"
@@ -6,6 +9,7 @@
 #include <vector>
 
 #include "GIT_HASH.h"
+#include "nlohmann/json.hpp"
 
 //Get current architecture, detects nearly every architecture. Coded by Freak
 static constexpr const char * getBuild()
@@ -42,10 +46,10 @@ static constexpr int strcmp_constexpr(const char* s1, const char* s2)
 }
 
 static constexpr char remote_repo_url[] = "https://api.github.com/repos/Anivice/ccdb/commits/HEAD";
-static constexpr char header_1_name[] = "Accept";
-static constexpr char header_1_value[] = "application/vnd.github.sha";
-static constexpr char header_2_name[] = "X-GitHub-Api-Version";
-static constexpr char header_2_value[] = "2022-11-28";
+// static constexpr char header_1_name[] = "Accept";
+// static constexpr char header_1_value[] = "application/vnd.github.sha";
+// static constexpr char header_2_name[] = "X-GitHub-Api-Version";
+// static constexpr char header_2_value[] = "2022-11-28";
 static constexpr const char * ArchName = getBuild();
 static_assert(strcmp_constexpr(ArchName, "UNKNOWN") != 0, "Unknown arch");
 
@@ -79,14 +83,14 @@ namespace
 
     remote_repo get_remote()
     {
-        const auto env_remote = get_remote_from_env();
+        auto env_remote = get_remote_from_env();
         if (env_remote.url.empty())
         {
             return {
                 .url = remote_repo_url,
                 .headers = {
-                        { header_1_name, header_1_value },
-                        { header_2_name, header_2_value }
+                        // { header_1_name, header_1_value },
+                        // { header_2_name, header_2_value }
                 }
             };
         }
@@ -134,6 +138,8 @@ namespace
         httplib::Result res;
         std::atomic_bool finished = false;
         std::vector<char> content;
+        std::atomic_uint64_t progress_in_bytes = 0;
+        std::atomic_uint64_t overall_size = 0;
         std::thread T([&]
         {
             if (!resume)
@@ -148,6 +154,16 @@ namespace
 
                 auto download = [&]
                 {
+                    res = client.Head(path, header_for_httpLib);
+                    if (!res) {
+                        finished = true;
+                        return;
+                    }
+
+                    try {
+                        overall_size = std::strtoul(res->headers.find("Content-Length")->second.c_str(), nullptr, 0);
+                        content.reserve(overall_size);
+                    } catch (...) { finished = true; return; }
                     res = client.Get(path, header_for_httpLib,  [&](const httplib::Response& response)
                     {
                         if (response.status == 206)
@@ -174,6 +190,7 @@ namespace
                     },
                     [&](const char* data, const std::size_t length)
                     {
+                        progress_in_bytes += length;
                         content.insert(content.end(), data, data + length);
                         return true;
                     });
@@ -187,8 +204,9 @@ namespace
                 }
 
                 res->body = { content.begin(), content.end() };
-                finished = true;
             }
+
+            finished = true;
         });
 
         bool time_out = false;
@@ -196,11 +214,23 @@ namespace
         {
             for (int i = 0; i < timeout * 100; i++) {
                 if (finished) break;
+                ccdb::utils::set_progress_bar(ccdb::utils::SET_PROGRESS,
+                    overall_size == 0 ? 0 :
+                        static_cast<int>(
+                            std::round(static_cast<double>(progress_in_bytes) / static_cast<double>(overall_size) * 100)
+                        )
+                );
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
 
-            client.stop();
-            time_out = true;
+            ccdb::utils::set_progress_bar(ccdb::utils::SET_PROGRESS, 100);
+            ccdb::utils::set_progress_bar(ccdb::utils::CLEAR_PROGRESS_BAR, 0);
+
+            if (!finished)
+            {
+                client.stop();
+                time_out = true;
+            }
         }
 
         if (T.joinable()) T.join();
@@ -242,18 +272,43 @@ namespace
     }
 }
 
+#ifdef __USE_IMG__
+void show_img(const std::vector<uint8_t> & image_data, int fixed_w, int fixed_h) noexcept;
+#endif
 std::vector<char> get_content(const int timeout)
 {
-    const auto hash = get_latest_hash(timeout);
-    const auto current_hash = ccdb_utils_unpack_string(GIT_HASH);
-    if (hash.substr(0, 8) == current_hash)
+    std::string content;
+    while (content.empty())
     {
+        try {
+            content = get_latest_hash(timeout);
+        } catch (const std::exception & e) {
+            ccdb::utils::print<ccdb::utils::is_error>(e.what(), ", retrying...\n");
+        }
+    }
+
+    const auto json = nlohmann::json::parse(content);
+    const auto hash = std::string(json["sha"]);
+    if (const auto current_hash = ccdb_utils_unpack_string(GIT_HASH); hash.substr(0, 8) == current_hash) {
         throw std::runtime_error(ccdb::utils::sprint("Already the latest build (", hash, ")"));
     }
 
     // wget https://github.com/Anivice/ccdb/releases/download/ccdb.NightlyBuild."$VER"/ccdb."$ARCH" -O "$DEST"
     const auto url_dest = "https://github.com/Anivice/ccdb/releases/download/ccdb.NightlyBuild."
-        + hash.substr(0, 8) + "/ccdb." + ArchName;
+        + hash.substr(0, 8) + "/ccdb." + ArchName + (ccdb::utils::getenv("DEBUGINFO") == "true" ? ".debug_info" : "");
+    const auto commiter_avatar_url = std::string(json["committer"]["avatar_url"]);
+#ifdef __USE_IMG__
+    if (const httplib::Result res_avatar = get_from_url(commiter_avatar_url, {}, timeout, true);
+        res_avatar && res_avatar->status == 200)
+    {
+        ccdb::utils::print("\r\n");
+        const auto [h, w] = ccdb::utils::get_screen_row_col();
+        const auto min_ = std::min(h, w) * 4;
+        show_img({res_avatar->body.begin(), res_avatar->body.end()},
+            std::min(min_, 250), std::min(min_, 250));
+    }
+#endif  // __USE_IMG__
+    ccdb::utils::print("GET: ", url_dest, "\n");
     httplib::Result res = get_from_url(url_dest, {}, timeout, true);
     if (!res) {
         throw std::runtime_error(ccdb::utils::sprint("Failed to pull: ", httplib::to_string(res.error())));

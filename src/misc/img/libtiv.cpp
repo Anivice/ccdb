@@ -259,7 +259,14 @@ CImg<unsigned char> load_png_from_memory_as_cimg(const unsigned char* png_data, 
 
 #include "libtiv.h"
 
+void show_img(const std::vector<uint8_t> & image_data, int fixed_w, int fixed_h) noexcept;
 void show() noexcept
+{
+    const auto img = get_img();
+    show_img(img, -1, -1);
+}
+
+void show_img(const std::vector<uint8_t> & image_data, int fixed_w, int fixed_h) noexcept
 {
     std::ios::sync_with_stdio(false);  // apparently makes printing faster
 
@@ -278,20 +285,27 @@ void show() noexcept
     winsize w{};
     // If redirecting STDOUT to one file ( col or row == 0, or the previous
     // ioctl call's failed )
-    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) != 0 ||
-        (w.ws_col | w.ws_row) == 0)
+    if (fixed_w > 0 && fixed_h > 0)
     {
-        std::cerr << "Warning: failed to determine most reasonable size: "
-                  << strerror(errno) << ", defaulting to 20x6" << std::endl;
-    } else {
-        maxWidth = w.ws_col * 4;
-        maxHeight = w.ws_row * 8;
+        maxWidth = fixed_w;
+        maxHeight = fixed_h;
+    }
+    else
+    {
+        if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) != 0 ||
+            (w.ws_col | w.ws_row) == 0)
+        {
+            std::cerr << "Warning: failed to determine most reasonable size: "
+                      << strerror(errno) << ", defaulting to 20x6" << std::endl;
+        } else {
+            maxWidth = w.ws_col * 4;
+            maxHeight = w.ws_row * 8;
+        }
     }
 
     try
     {
-        const auto img = get_img();
-        CImg<unsigned char> image = load_png_from_memory_as_cimg(img.data(), img.size());
+        CImg<unsigned char> image = load_png_from_memory_as_cimg(image_data.data(), static_cast<int>(image_data.size()));
         if (image.width() > maxWidth || image.height() > maxHeight) {
             // scale image down to fit terminal size
             const size new_size = size(image).fitted_within(size(maxWidth, maxHeight));

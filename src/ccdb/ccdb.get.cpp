@@ -370,13 +370,15 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
         }
 
         const auto result = std::string(buff);
+#ifndef __DEBUG__
         if (!detach_execute
         (
             [&](const int fd)->bool
             {
+#endif
                 try
                 {
-                    const auto vec = get_content(30);
+                    const auto vec = get_content(120);
                     if (rename(result.c_str(), (result + ".bak").c_str()) == -1) {
                         throw std::runtime_error("Failed to rename: " + std::string(std::strerror(errno)));
                     }
@@ -404,14 +406,21 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
 
                     unlink((result + ".bak").c_str());
                     print("Upgraded self. Please relaunch CCDB to complete the update.\n");
+#ifndef __DEBUG__
                     write(fd, "1", 1);
+#endif
                 }
                 catch (std::exception & e)
                 {
                     print<is_error>(e.what(), "\n");
+#ifndef __DEBUG__
                     return false;
+#else
+                    return;
+#endif
                 }
 
+#ifndef __DEBUG__
                 return true;
             },
         [](const int fd)
@@ -420,6 +429,7 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
             return read(fd, buff_, 1) == 1;
         }, 60 * 20 * 1000))
         {
+#endif
             if (std::filesystem::exists(result + ".bak")) {
                 rename((result + ".bak").c_str(), result.c_str());
             }
@@ -427,7 +437,9 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
             if (std::filesystem::exists(result + ".new")) {
                 unlink((result + ".new").c_str());
             }
+#ifndef __DEBUG__
         }
+#endif
     } else {
         print<is_error>("Unknown command `", command_vector[1], "`\n");
         if (execute_and_no_interactive) throw std::runtime_error("");
