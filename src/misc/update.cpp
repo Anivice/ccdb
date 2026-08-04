@@ -1,13 +1,9 @@
 #include "update.h"
-
-#include <print>
-
 #include "httplib.h"
 #include "utils.h"
 #include "print.h"
 #include <string>
 #include <vector>
-
 #include "GIT_HASH.h"
 #include "nlohmann/json.hpp"
 
