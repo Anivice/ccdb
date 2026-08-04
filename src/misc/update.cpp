@@ -289,6 +289,14 @@ std::vector<char> get_content(const int timeout)
         throw std::runtime_error(ccdb::utils::sprint("Already the latest build (", hash, ")"));
     }
 
+    // first, check if we actually build the program
+    const auto job_res = get_from_url("https://api.github.com/repos/Anivice/ccdb/commits/HEAD/check-runs", {}, 30);
+    if (!job_res) throw std::runtime_error(to_string(job_res.error()));
+    const auto job_json = nlohmann::json::parse(job_res->body);
+    // conclusion:
+    if (job_json["check_runs"].front()["status"] != "completed") throw std::runtime_error("GitHub build has not completed");
+    if (job_json["check_runs"].front()["conclusion"] != "success") throw std::runtime_error("GitHub build failed");
+
     // wget https://github.com/Anivice/ccdb/releases/download/ccdb.NightlyBuild."$VER"/ccdb."$ARCH" -O "$DEST"
     const auto url_dest = "https://github.com/Anivice/ccdb/releases/download/ccdb.NightlyBuild."
         + hash.substr(0, 8) + "/ccdb." + ArchName + (ccdb::utils::getenv("DEBUGINFO") == "true" ? ".debug_info" : "");
