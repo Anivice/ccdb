@@ -424,16 +424,14 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
                 }
                 catch (std::exception & e)
                 {
-                    print<is_error>(e.what(), "\n");
 #ifndef __DEBUG__
                     status_t status { };
                     std::memcpy(status.msg, e.what(), std::min((uint64_t)strlen(e.what()), (uint64_t)sizeof(status.msg)));
                     status.success = false;
                     (void)write(fd, &status, sizeof(status));
-#endif
-#ifndef __DEBUG__
                     return false;
 #else
+                    print<is_error>(e.what(), "\n");
                     return;
 #endif
                 }

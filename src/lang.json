@@ -1158,5 +1158,15 @@
     "en"    : "Using proxy ",
     "en_US" : "Using proxy ",
     "zh_CN" : "使用代理 "
+  },
+  {
+    "en"    : "GitHub build has not completed",
+    "en_US" : "GitHub build has not completed",
+    "zh_CN" : "GitHub构建未完成"
+  },
+  {
+    "en"    : "Already the latest build (",
+    "en_US" : "Already the latest build (",
+    "zh_CN" : "已是最新版本 ("
   }
 ]
