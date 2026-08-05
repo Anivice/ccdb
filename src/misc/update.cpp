@@ -312,7 +312,7 @@ std::vector<char> get_content(const int timeout)
             std::min(min_, 250), std::min(min_, 250));
     }
 #endif  // __USE_IMG__
-    ccdb::utils::print("GET: ", url_dest, "\n");
+    ccdb::utils::print("\r\n\r\nGET: ", url_dest, "\r\n");
     httplib::Result res = get_from_url(url_dest, {}, timeout, true);
     if (!res) {
         throw std::runtime_error(ccdb::utils::sprint("Failed to pull: ", httplib::to_string(res.error())));

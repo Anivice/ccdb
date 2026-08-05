@@ -371,6 +371,12 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
 
         const auto result = std::string(buff);
 #ifndef __DEBUG__
+        struct status_t
+        {
+            char msg[512];
+            bool success;
+        };
+
         if (!detach_execute
         (
             [&](const int fd)->bool
@@ -405,17 +411,25 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
                     }
 
                     unlink((result + ".bak").c_str());
-                    print("Upgraded self. Please relaunch CCDB to complete the update.\n");
+
 #ifndef __DEBUG__
-                    close(fd);
+                    // close(fd);
+
+                    status_t status { };
+                    const auto str = sprint("Upgraded self. Please relaunch CCDB to complete the update.\n");
+                    std::memcpy(status.msg, str.c_str(), std::min((uint64_t)str.size(), (uint64_t)sizeof(status.msg)));
+                    status.success = true;
+                    (void)write(fd, &status, sizeof(status));
 #endif
                 }
                 catch (std::exception & e)
                 {
                     print<is_error>(e.what(), "\n");
 #ifndef __DEBUG__
-                    (void)write(fd, e.what(), strlen(e.what()));
-                    (void)write(fd, "\n", 1);
+                    status_t status { };
+                    std::memcpy(status.msg, e.what(), std::min((uint64_t)strlen(e.what()), (uint64_t)sizeof(status.msg)));
+                    status.success = false;
+                    (void)write(fd, &status, sizeof(status));
 #endif
 #ifndef __DEBUG__
                     return false;
@@ -431,16 +445,14 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
         {
             char buff_[1024] { };
             ssize_t len = 0;
-            bool ret = true;
             do
             {
-                len = read(fd, buff_, sizeof(buff_));
-                if (len > 0) {
-                    (void)write(STDERR_FILENO, buff_, len);
-                    ret = false;
-                }
+                len = read(fd, buff_ + len, sizeof(buff_) - len);
             } while (len > 0);
-            return ret;
+            status_t status { };
+            std::memcpy(&status, buff_, sizeof(status));
+            std::cout << status.msg << std::endl;
+            return status.success;
         }, 60 * 20 * 1000))
         {
 #endif
