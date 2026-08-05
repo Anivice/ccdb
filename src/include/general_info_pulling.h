@@ -149,6 +149,7 @@ private:
 public:
     general_info_pulling(const std::string & url, const std::string& token) : backend_client(url, token) { }
     ~general_info_pulling() { stop_continuous_updates(); };
+    const mihomo & backend_client_ref = backend_client;
 
 protected:
     // need continuous updates

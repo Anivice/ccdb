@@ -44,6 +44,9 @@ public:
         : token_(std::move(token)), backend_address_(std::move(direct_url)) { }
     ~mihomo() = default;
 
+    const std::string & token = token_;
+    const std::string & backend_address = backend_address_;
+
     [[nodiscard]] bool change_proxy(const std::string & group_name, const std::string & proxy_name) const;
     void abort() { info_streaming_pulling_ = false; }
     void get_info_no_instance(const std::string & endpoint_name, const std::function < void(const std::string&) > & method) const;

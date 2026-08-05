@@ -244,3 +244,32 @@ void ccdb::ccdb::apply() const
         if (execute_and_no_interactive) throw;
     }
 }
+
+void ccdb::ccdb::reload(const std::vector<std::string> & cmd) const
+{
+    // reload current config
+    /*
+    curl -X PUT 'http://127.0.0.1:9090/configs?force=true' \
+          -H 'Authorization: Bearer your-secret' \
+          -H 'Content-Type: application/json' \
+          -d '{"path":"","payload":""}'
+     */
+    httplib::Client poster(backend_instance.backend_client_ref.backend_address);
+    set_ssl_automatically(poster, backend_instance.backend_client_ref.backend_address);
+    poster.set_decompress(false);
+    poster.set_read_timeout(10, 0);
+    httplib::Headers headers;
+    if (!backend_instance.backend_client_ref.token.empty()) headers.emplace("Authorization", "Bearer " + backend_instance.backend_client_ref.token);
+    httplib::Result result;
+    if (cmd.size() == 1) {
+        result = poster.Put("/configs?force=true", headers,
+            R"({"path":"","payload":""})", "application/json");
+    } else if (cmd.size() == 2) {
+        result = poster.Put("/configs?force=true", headers,
+            R"({"path":")" + cmd[1] + R"(","payload":""})", "application/json");
+    }
+
+    if (!result) {
+        print<is_error>("Failed to reload config\n");
+    }
+}

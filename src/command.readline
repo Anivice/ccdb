@@ -119,6 +119,7 @@
     < upgrade (Upgrade backend): core (Upgrade core), geo (Upgrade geoip), self (Upgrade ccdb), providerRules (Upgrade provider rules) >,
     < restart (Restart backend): [NONE] >,
     < flush (Flush fake-ip cache): [NONE] >,
+    < reload (Reload configuration): [NONE] >, # reload configuration, can be provided by `reload [PATH]`
 }
 
 # $ ssh me@localhost

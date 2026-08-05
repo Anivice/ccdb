@@ -359,6 +359,7 @@ namespace ccdb
         void fork_and_execute(const std::vector<std::string> &);
         void map_proxy_chain();
         void ccdbrc();
+        void reload(const std::vector<std::string> &) const;
 
         /// Input watcher that sets running flag when q is pressed
         /// @param name Thread name

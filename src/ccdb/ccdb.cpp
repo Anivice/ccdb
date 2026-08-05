@@ -720,6 +720,9 @@ void ccdb::ccdb::init()
             else if (command_vector.front() == "clearFilter") {
                 clear_filter();
             }
+            else if (command_vector.front() == "reload") {
+                reload(command_vector);
+            }
             else if (command_vector.front() == "apply") {
                 apply();
             }
