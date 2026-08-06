@@ -366,6 +366,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                         const auto & a = a_.connection_data;
                         const auto & b = b_.connection_data;
                         const host_compare_t aH(a.host), bH(b.host);
+                        const auto a_traffic = a.downloadSpeed + a.uploadSpeed;
+                        const auto b_traffic = b.uploadSpeed + b.downloadSpeed;
                         switch (sort_by_final)
                         {
                             case 0:
@@ -393,7 +395,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                         case 4:
                             return std::tie(a.downloadSpeed, aH) > std::tie(b.downloadSpeed, bH);
                         default:
-                            return (a.downloadSpeed + a.uploadSpeed) > (b.downloadSpeed + b.uploadSpeed);
+                            return std::tie(a_traffic, aH) > std::tie(b_traffic, bH);
                         }
                     });
             }
