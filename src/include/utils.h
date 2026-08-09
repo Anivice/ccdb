@@ -32,6 +32,8 @@
 #include <termios.h>
 #include <sys/wait.h>
 #include <poll.h>
+#include <limits>
+#include <type_traits>
 #include <thread>
 #include "lzw6.h"
 #include "utf8.h"
@@ -565,10 +567,92 @@ namespace ccdb::utils
     constexpr char header[] = "DATA SET SIZE: ";
     constexpr char hash_header[] = "CRC64: ";
 
+#if !((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
+    template<typename T> std::enable_if_t < std::is_integral_v<T> && !std::is_same_v<T, bool>, bool >
+    from_chars(const char* first, const char* last, T& value)
+    {
+        if (first == last)
+            return false;
+
+        typedef typename std::make_unsigned<T>::type U;
+
+        const bool is_signed = std::numeric_limits<T>::is_signed;
+
+        bool negative = false;
+
+        if (*first == '-') {
+            if (!is_signed)
+                return false;
+
+            negative = true;
+            ++first;
+
+            if (first == last)
+                return false;
+        }
+
+        U limit;
+
+        if (negative) {
+            limit =
+                static_cast<U>(
+                    -(std::numeric_limits<T>::min() + 1)
+                ) + 1;
+        } else {
+            limit = static_cast<U>(std::numeric_limits<T>::max());
+        }
+
+        U result = 0;
+        bool parsed = false;
+
+        while (first != last) {
+            const char c = *first;
+
+            if (c < '0' || c > '9')
+                break;
+
+            const U digit = static_cast<U>(c - '0');
+
+            if (result > (limit - digit) / 10)
+                return false;
+
+            result = result * 10 + digit;
+
+            ++first;
+            parsed = true;
+        }
+
+        if (!parsed)
+            return false;
+
+        if (negative) {
+            const U min_abs =
+                static_cast<U>(
+                    -(std::numeric_limits<T>::min() + 1)
+                ) + 1;
+
+            if (result == min_abs) {
+                value = std::numeric_limits<T>::min();
+            } else {
+                value = static_cast<T>(-static_cast<T>(result));
+            }
+        } else {
+            value = static_cast<T>(result);
+        }
+
+        return true;
+    }
+#endif
+
     template<typename T> requires std::is_integral_v<T>
     T convertToNumber(const std::string & arg)
     {
         T value { };
+#if !((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
+        if (!from_chars(arg.c_str(), arg.c_str() + arg.size(), value)) {
+            throw std::invalid_argument("Invalid argument: " + arg);
+        }
+#else
         auto [ptr, ec] = std::from_chars(
             arg.data(),
             arg.data() + arg.size(),
@@ -578,6 +662,7 @@ namespace ccdb::utils
         if (ec != std::errc{} || ptr != arg.data() + arg.size()) {
             throw std::invalid_argument("Invalid argument: " + arg);
         }
+#endif
 
         return value;
     }
