@@ -32,13 +32,13 @@ bool mihomo::change_proxy(const std::string & group_name, const std::string & pr
         {"Authorization", "Bearer " + token_},
     };
 
-    const std::string body = R"({"name": ")" + proxy_name +  "\"}";
+    const nlohmann::json body = { {"name", proxy_name} };
     httplib::Result res;
 
     if (!token_.empty()) {
-        res = http_cli.Put("/proxies/" + group_name, headers, body, "application/json");
+        res = http_cli.Put("/proxies/" + group_name, headers, body.dump(), "application/json");
     } else {
-        res = http_cli.Put("/proxies/" + group_name, body, "application/json");
+        res = http_cli.Put("/proxies/" + group_name, body.dump(), "application/json");
     }
 
     if (!res) {

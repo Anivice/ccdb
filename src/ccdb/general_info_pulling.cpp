@@ -241,7 +241,16 @@ void general_info_pulling::pull_continuous_updates()
                 {
                     worker_(_is_running);
                 }
-                catch (...) { }
+                catch (std::exception & e)
+                {
+                    nlohmann::json json = {
+                        { "type", "ERROR" },
+                        {"payload", e.what() }
+                    };
+                    update_from_logs(json.dump());
+                    if (!_is_running || force_quit) break;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                }
             }
         };
         std::atomic_bool * ptr = is_running.get();
@@ -317,7 +326,7 @@ void general_info_pulling::pull_continuous_updates()
 
 [[nodiscard]] std::vector < std::vector < std::string > > general_info_pulling::get_logs()
 {
-    std::lock_guard lock(logs_mutex); return logs;
+    std::lock_guard lock(logs_mutex); return { logs.begin(), logs.end() };
 }
 
 [[nodiscard]] general_info_pulling::proxy_info_summary_t general_info_pulling::get_proxies_and_latencies_as_pair()
@@ -442,7 +451,11 @@ void general_info_pulling::latency_test(const std::string & url)
                 else break;
             }
             ccdb::utils::set_thread_name("ping " + name);
-            if (force_quit) return;
+            if (force_quit)
+            {
+                ++progress_counter;
+                return;
+            }
             ccdb::utils::replace_all(proxy_, " ", "%20");
             try
             {
@@ -468,7 +481,7 @@ void general_info_pulling::latency_test(const std::string & url)
         thread_pool.emplace_back(worker, proxy, url, ptr);
     });
 
-    while (progress_counter < proxies.size())
+    while (!force_quit && progress_counter < proxies.size())
     {
         const auto ratio = static_cast<double>(progress_counter.load()) / static_cast<double>(proxies.size());
         const auto percentage = ratio * 100;

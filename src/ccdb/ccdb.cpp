@@ -319,7 +319,7 @@ void ccdb::ccdb::init()
         if (ccdb_config && ccdb_config->config_signal_hash_map.contains(flag_definition))
         {
             const auto & result = ccdb_config->config_signal_hash_map.at(flag_definition);
-            const auto num = std::strtol(result.c_str(), nullptr, 10);
+            const auto num = convertToNumber<uint64_t>(result);
             if (!sanity_check(num)) {
                 throw std::invalid_argument("Sanity check failed for key `" + flag_definition + "`.");
             }
@@ -402,7 +402,9 @@ void ccdb::ccdb::init()
     });
 
     int_helper("Global::RefreshIntervalMS", screen_refresh_interval_in_ms);
-    int_helper("Global::logSize", max_log_size);
+    int_helper("Global::logSize", max_log_size, [](const auto size)->bool {
+        return size > 0;
+    });
 
     filter_helper("Filter::Host", 0);
     filter_helper("Filter::Process", 1);
@@ -681,19 +683,19 @@ void ccdb::ccdb::init()
                     set_filter(command_vector);
                 }
                 else if (command_vector.size() == 3 && command_vector[1] == "port")  {
-                    set_port(static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10)));
+                    set_port(convertToNumber<int>(command_vector[2]));
                 }
                 else if (command_vector.size() == 3 && command_vector[1] == "socksport")  {
-                    set_socksport(static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10)));
+                    set_socksport(convertToNumber<int>(command_vector[2]));
                 }
                 else if (command_vector.size() == 3 && command_vector[1] == "redirport")  {
-                    set_redirport(static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10)));
+                    set_redirport(convertToNumber<int>(command_vector[2]));
                 }
                 else if (command_vector.size() == 3 && command_vector[1] == "tproxyport")  {
-                    set_tproxyport(static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10)));
+                    set_tproxyport(convertToNumber<int>(command_vector[2]));
                 }
                 else if (command_vector.size() == 3 && command_vector[1] == "mixedport")  {
-                    set_mixedport(static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10)));
+                    set_mixedport(convertToNumber<int>(command_vector[2]));
                 }
                 else if (command_vector.size() == 3 && command_vector[1] == "logSize")  {
                     set_log_size(command_vector);
@@ -788,7 +790,7 @@ void ccdb::ccdb::init()
 
                     group = clean(args[2]);
                 }
-                return escape(get_vendpoints(index_to_proxy_name_list.at(std::strtol(group.c_str(), nullptr, 10))));
+                return escape(get_vendpoints(index_to_proxy_name_list.at(convertToNumber<int>(group))));
             }
             else if (special_filler == "[ENDPOINTS...]")
             {
@@ -1031,8 +1033,8 @@ ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::stri
             if (std::smatch matches;
                 std::regex_search(color_fgbg, matches, std::regex(R"(([\d]+)\;([\d]+))")))
             {
-                const auto fg = std::strtol(matches[1].str().c_str(), nullptr, 10);
-                const auto bg = std::strtol(matches[2].str().c_str(), nullptr, 10);
+                const auto fg = convertToNumber<uint64_t>(matches[1].str());
+                const auto bg = convertToNumber<uint64_t>(matches[2].str());
 
                 if (fg < bg) { // terminal is in light mode
                     if (utils::getenv("COLOR").empty()) {

@@ -418,7 +418,7 @@ std::string ccdb::ccdb::print_table(
         const auto tabsz_str = utils::getenv("TABSIZE");
         int tab_space_size = -1;
         try {
-            tab_space_size = static_cast<int>(std::strtol(tabsz_str.c_str(), nullptr, 10));
+            tab_space_size = convertToNumber<int>(tabsz_str);
         } catch (...) { }
         if (tab_space_size <= 0) {
             tab_space_size = 4;

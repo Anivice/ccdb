@@ -138,7 +138,7 @@ int main(int argc, char ** argv)
         }
 
         if (parsed.contains("subinfo_timeout")) {
-            timeout = static_cast<int>(std::strtoul(parsed.at("subinfo_timeout").c_str(), nullptr, 10));
+            timeout = utils::convertToNumber<int>(parsed.at("subinfo_timeout"));
         }
 
         if (parsed.contains("subinfo_user-agent")) {

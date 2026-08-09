@@ -588,7 +588,7 @@ void ccdb::ccdb::get_latencyHistory(std::vector<std::string> command_vector)
             try
             {
                 str = str.substr(0, str.find_first_of(':'));
-                const auto index = std::strtol(str.c_str(), nullptr, 10);
+                const auto index = convertToNumber<uint64_t>(str);
                 str = index_to_proxy_name_list.at(index);
             }
             catch (const std::exception & e)

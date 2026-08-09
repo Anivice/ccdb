@@ -60,7 +60,7 @@ public:
     std::atomic < bool > parse_chains = true;
     std::atomic < bool > force_quit = false;
     ccdb_atomic_t < std::string > puller_logLevel;
-    ccdb_atomic_t <std::string> mihomo_output_log_location;
+    ccdb_atomic_t < std::string > mihomo_output_log_location;
     std::atomic_int max_log_size = 4096;
 
     struct connection_t
@@ -129,7 +129,7 @@ private:
 
     mihomo backend_client;
     std::atomic_bool keep_pull_continuous_updates;
-    std::vector < std::vector < std::string > > logs;
+    std::deque < std::vector < std::string > > logs;
     std::mutex logs_mutex;
     std::thread pull_continuous_updates_worker;
     std::mutex proxy_list_mtx;

@@ -564,6 +564,23 @@ namespace ccdb::utils
 
     constexpr char header[] = "DATA SET SIZE: ";
     constexpr char hash_header[] = "CRC64: ";
+
+    template<typename T> requires std::is_integral_v<T>
+    T convertToNumber(const std::string & arg)
+    {
+        T value { };
+        auto [ptr, ec] = std::from_chars(
+            arg.data(),
+            arg.data() + arg.size(),
+            value
+        );
+
+        if (ec != std::errc{} || ptr != arg.data() + arg.size()) {
+            throw std::invalid_argument("Invalid argument: " + arg);
+        }
+
+        return value;
+    }
 }
 
 /// Automatic unpack from xxd with xxd naming convention

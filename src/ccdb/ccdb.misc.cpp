@@ -509,8 +509,8 @@ void ccdb::ccdb::get_conn_input_watcher(
         std::regex_match(fmt, match, reg);
         std::vector<std::string> vec { match.begin(), match.end() };
         if (vec.size() == 3) {
-            const auto x = std::strtol(vec[1].c_str(), nullptr, 10);
-            const auto y = std::strtol(vec[2].c_str(), nullptr, 10);
+            const auto x = convertToNumber<uint64_t>(vec[1]);
+            const auto y = convertToNumber<uint64_t>(vec[2]);
             return { x, y };
         }
 

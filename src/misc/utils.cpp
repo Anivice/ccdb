@@ -144,7 +144,7 @@ bool ccdb::utils::parse_proxy(const std::string& url, std::string& host, int & p
     }
 
     host = match[1];
-    port = static_cast<int>(std::strtoul(match[2].str().c_str(), nullptr, 10));
+    port = convertToNumber<int>(match[2].str());
     return true;
 }
 
@@ -1385,7 +1385,7 @@ static void decode_dump94(input_stream_t & in, output_stream_t & out)
             };
 
             read_header(header, line);
-			size = std::strtoull(line.c_str(), nullptr, 10);
+			size = convertToNumber<decltype(size)>(line);
             std::getline(in, line);
             read_header(hash_header, line);
             crc64_value = line;

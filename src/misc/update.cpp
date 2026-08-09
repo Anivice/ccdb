@@ -157,7 +157,7 @@ namespace
                     }
 
                     try {
-                        overall_size = std::strtoul(res->headers.find("Content-Length")->second.c_str(), nullptr, 0);
+                        overall_size = ccdb::utils::convertToNumber<uint64_t>(res->headers.find("Content-Length")->second);
                         content.reserve(overall_size);
                     } catch (...) { finished = true; return; }
                     res = client.Get(path, header_for_httpLib,  [&](const httplib::Response& response)
@@ -232,7 +232,8 @@ namespace
         if (T.joinable()) T.join();
 
         if (!res || time_out) {
-            throw std::runtime_error(std::to_string(res->status) + ": " + to_string(res.error()) + (time_out ? " <Timeout>" : ""));
+            throw std::runtime_error((res ? std::to_string(res->status) + ": " : "") +
+                to_string(res.error()) + (time_out ? " <Timeout>" : ""));
         }
 
         while (res->status == 302)
@@ -290,10 +291,11 @@ std::vector<char> get_content(const int timeout)
     }
 
     // first, check if we actually build the program
-    const auto job_res = get_from_url("https://api.github.com/repos/Anivice/ccdb/commits/HEAD/check-runs", {}, 30);
+    const auto job_res = get_from_url("https://api.github.com/repos/Anivice/ccdb/commits/" + hash + "/check-runs", {}, 30);
     if (!job_res) throw std::runtime_error(to_string(job_res.error()));
     const auto job_json = nlohmann::json::parse(job_res->body);
     // conclusion:
+    if (job_json["check_runs"].empty()) throw std::runtime_error("GitHub returned no data");
     if (job_json["check_runs"].front()["status"] != "completed") throw std::runtime_error("GitHub build has not completed");
     if (job_json["check_runs"].front()["conclusion"] != "success") throw std::runtime_error("GitHub build failed");
 

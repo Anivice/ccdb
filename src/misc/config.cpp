@@ -24,62 +24,65 @@
 #include <regex>
 #include "utils.h"
 #include "config.h"
-
 #include "nlohmann/json.hpp"
 
 namespace ccdb {
-    std::string clean_line(const std::string& line) {
-        return line.substr(0, line.find_first_of('#'));
-    }
-
-    std::string get_comments(const std::string& line)
+    namespace
     {
-        if (line.find('#') == std::string::npos) return {};
-        auto str = line.substr(line.find_first_of('#') + 1);
-        str = str.substr(str.find_first_not_of(' '));
-        str = str.substr(0, str.find_last_not_of(' ') + 1);
-        return str;
-    }
-
-    std::string get_section(const std::string& line)
-    {
-        const std::regex pattern(R"(\s*\[([^\]]+)\]\s*)");
-        if (std::smatch matches; std::regex_match(line, matches, pattern) && matches.size() > 1)
-        {
-            return matches[1];
+        std::string clean_line(const std::string& line) {
+            return line.substr(0, line.find_first_of('#'));
         }
 
-        return "";
-    }
-
-    std::pair <std::string, std::string> get_pair(const std::string& line)
-    {
-        std::pair <std::string, std::string> pair;
-        const std::regex pattern(R"(\s*([^=]+)\s*=\s*(.*)\s*)");
-        if (std::smatch matches; std::regex_match(line, matches, pattern) && matches.size() > 2)
+        std::string get_comments(const std::string& line)
         {
-            pair.first = matches[1];
-            pair.second = matches[2];
+            if (line.find('#') == std::string::npos) return {};
+            const auto str = line.substr(line.find_first_of('#') + 1);
+            const auto begin = str.find_first_not_of(" \t");
+            if (begin == std::string::npos) return {};
+            const auto end = str.find_last_not_of(" \t");
+            return str.substr(begin, end - begin + 1);
         }
 
-        pair.first = pair.first.substr(0, std::min(pair.first.find_last_not_of(' ') + 1, pair.first.size())); // remove tailing spaces
-        pair.second = pair.second.substr(0, std::min(pair.second.find_last_not_of(' ') + 1, pair.second.size()));
-        return pair;
-    }
-
-    std::string process_value(std::string value)
-    {
-        return utils::regex_replace_all(value, R"((\%([\w]+)\%))",
-            [](const std::smatch& match)->std::string
+        std::string get_section(const std::string& line)
+        {
+            const std::regex pattern(R"(\s*\[([^\]]+)\]\s*)");
+            if (std::smatch matches; std::regex_match(line, matches, pattern) && matches.size() > 1)
             {
-                if (match.size() == 3) {
-                    const std::string result = match[2];
-                    return utils::getenv(result);
-                }
-
-                return {};
+                return matches[1];
             }
-        );
+
+            return "";
+        }
+
+        std::pair <std::string, std::string> get_pair(const std::string& line)
+        {
+            std::pair <std::string, std::string> pair;
+            const std::regex pattern(R"(\s*([^=]+)\s*=\s*(.*)\s*)");
+            if (std::smatch matches; std::regex_match(line, matches, pattern) && matches.size() > 2)
+            {
+                pair.first = matches[1];
+                pair.second = matches[2];
+            }
+
+            pair.first = pair.first.substr(0, std::min(pair.first.find_last_not_of(' ') + 1, pair.first.size())); // remove tailing spaces
+            pair.second = pair.second.substr(0, std::min(pair.second.find_last_not_of(' ') + 1, pair.second.size()));
+            return pair;
+        }
+
+        std::string process_value(std::string value)
+        {
+            return utils::regex_replace_all(value, R"((\%([\w]+)\%))",
+                [](const std::smatch& match)->std::string
+                {
+                    if (match.size() == 3) {
+                        const std::string result = match[2];
+                        return utils::getenv(result);
+                    }
+
+                    return {};
+                }
+            );
+        }
     }
 
     configuration::configuration(const std::string& path)

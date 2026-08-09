@@ -396,9 +396,9 @@ namespace sim
                                 const auto str = ccdb::utils::getenv("SCHEME_CACHE_SIZE");
                                 const auto tStr = ccdb::utils::getenv("SCHEME_CACHE_THREAD_COUNT");
                                 const auto pStr = ccdb::utils::getenv("SCHEME_CACHE_DECIMAL_PRECISION");
-                                if (!str.empty()) cache_fraction = std::strtol(str.c_str(), nullptr, 10);
-                                if (!tStr.empty()) thread_count = std::strtol(tStr.c_str(), nullptr, 10);
-                                if (!pStr.empty()) precision = std::strtol(pStr.c_str(), nullptr, 10);
+                                if (!str.empty()) cache_fraction = utils::convertToNumber<decltype(cache_fraction)>(str);
+                                if (!tStr.empty()) thread_count = utils::convertToNumber<decltype(thread_count)>(tStr);
+                                if (!pStr.empty()) precision = utils::convertToNumber<decltype(precision)>(pStr);
                             } catch (const std::exception&) { }
                             if (cache_fraction < 0) cache_fraction = default_cache_size;
                             if (thread_count < 0) thread_count = std::thread::hardware_concurrency();
@@ -475,17 +475,17 @@ namespace sim
                             {
                                 const auto size = static_cast<uint64_t>(color::local_color_cache.size());
 
-                                write(fd_out, &NumSize, sizeof(NumSize));
-                                write(fd_out, &NumPackSize, sizeof(NumPackSize));
+                                (void)write(fd_out, &NumSize, sizeof(NumSize));
+                                (void)write(fd_out, &NumPackSize, sizeof(NumPackSize));
 
-                                write(fd_out, &size, sizeof(size));
+                                (void)write(fd_out, &size, sizeof(size));
                                 std::ranges::for_each(color::local_color_cache, [&fd_out](const std::pair <Num, NumPack_t> & p)
                                 {
                                     const auto & [num, pack] = p;
                                     std::vector<uint8_t> NumData(sizeof(Num) + sizeof(pack), 0);
                                     std::memcpy(NumData.data(), &num, sizeof(num));
                                     std::memcpy(NumData.data() + sizeof(num), &pack, sizeof(pack));
-                                    write(fd_out, NumData.data(), NumData.size());
+                                    (void)write(fd_out, NumData.data(), NumData.size());
                                 });
                                 close(fd_out);
                             }
@@ -506,21 +506,21 @@ namespace sim
                                     } fd_w(fd_in);
 
                                     uint64_t NumSizeInCache, NumPackSizeInCache, ListSizeInCache;
-                                    read(fd_in, &NumSizeInCache, sizeof(NumSizeInCache));
-                                    read(fd_in, &NumPackSizeInCache, sizeof(NumPackSizeInCache));
+                                    (void)read(fd_in, &NumSizeInCache, sizeof(NumSizeInCache));
+                                    (void)read(fd_in, &NumPackSizeInCache, sizeof(NumPackSizeInCache));
                                     if (NumSizeInCache != NumSize || NumPackSizeInCache != NumPackSize) {
                                         std::filesystem::remove_all(cache_loc);
                                         return true;
                                     }
 
-                                    read(fd_in, &ListSizeInCache, sizeof(ListSizeInCache));
+                                    (void)read(fd_in, &ListSizeInCache, sizeof(ListSizeInCache));
                                     color::local_color_cache.reserve(ListSizeInCache);
                                     for (decltype(ListSizeInCache) i = 0; i < ListSizeInCache; i++)
                                     {
                                         Num key { };
                                         NumPack_t val { };
-                                        read(fd_in, &key, sizeof(key));
-                                        read(fd_in, &val, sizeof(val));
+                                        (void)read(fd_in, &key, sizeof(key));
+                                        (void)read(fd_in, &val, sizeof(val));
                                         color::local_color_cache.emplace_back(key, val);
                                     }
 

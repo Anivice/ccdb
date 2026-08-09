@@ -72,8 +72,8 @@ void ccdb::ccdb::set_vgroup(const std::vector<std::string> & command_vector)
         clean(group);
         clean(proxy);
 
-        const uint64_t group_vec = std::strtoul(group.c_str(), nullptr, 10);
-        const uint64_t proxy_vec = std::strtoul(proxy.c_str(), nullptr, 10);
+        const auto group_vec = convertToNumber<uint64_t>(group);
+        const auto proxy_vec = convertToNumber<uint64_t>(proxy);
         const auto & group_name = index_to_proxy_name_list.at(group_vec);
         const auto & proxy_name = index_to_proxy_name_list.at(proxy_vec);
         print("Changing `", group_name, "` proxy endpoint to `", proxy_name, "`\n");
@@ -126,7 +126,7 @@ void ccdb::ccdb::set_log_level(const std::vector<std::string> &command_vector) c
 void ccdb::ccdb::set_sort_by(const std::vector<std::string> &command_vector)
 {
     try {
-        sort_by = static_cast<int>(std::strtol(command_vector[2].c_str(), nullptr, 10));
+        sort_by = convertToNumber<int>(command_vector[2]);
         if (sort_by < 0 || sort_by > 11)
         {
             sort_by = 4; // download speed
@@ -155,7 +155,7 @@ void ccdb::ccdb::set_filter(const std::vector<std::string> &command_vector)
 {
     const std::string & index = command_vector[2], & pattern = command_vector[3];
     try {
-        const uint64_t index_num = std::strtoul(index.c_str(), nullptr, 10);
+        const auto index_num = convertToNumber<uint64_t>(index);
         constexpr int allowed_indexes[] = {
             0, 1, 6, 8, 9, 10, 11, 12, 13
         };
@@ -215,7 +215,8 @@ INSTANTIATE_SET_PORT(mixedport,     "mixed-port")
 void ccdb::ccdb::set_log_size(const std::vector<std::string> &command_vector)
 {
     try {
-        max_log_size = static_cast<int>(std::strtol(command_vector.at(2).c_str(), nullptr, 10));
+        if (const auto size = convertToNumber<int>(command_vector[2]); size > 0) max_log_size = size;
+        else print("Invalid size\n");
     } catch (std::exception & e) {
         std::cerr << e.what() << std::endl;
     }
@@ -260,16 +261,16 @@ void ccdb::ccdb::reload(const std::vector<std::string> & cmd) const
     poster.set_read_timeout(10, 0);
     httplib::Headers headers;
     if (!backend_instance.backend_client_ref.token.empty()) headers.emplace("Authorization", "Bearer " + backend_instance.backend_client_ref.token);
-    httplib::Result result;
-    if (cmd.size() == 1) {
-        result = poster.Put("/configs?force=true", headers,
-            R"({"path":"","payload":""})", "application/json");
-    } else if (cmd.size() == 2) {
-        result = poster.Put("/configs?force=true", headers,
-            R"({"path":")" + cmd[1] + R"(","payload":""})", "application/json");
-    }
+    const nlohmann::json body = {
+        {"path", cmd.size() == 2 ? cmd[1] : ""},
+        {"payload", ""}
+    };
 
-    if (!result) {
+    if (httplib::Result result = poster.Put("/configs?force=true", headers, body.dump(), "application/json");
+        !result)
+    {
         print<is_error>("Failed to reload config\n");
+    } else if (result->status < 200 || result->status >= 300) {
+        print<is_error>("Failed to reload config: HTTP ", result->status, ": ", result->body, "\n");
     }
 }

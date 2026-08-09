@@ -234,7 +234,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                                 {
                                     try
                                     {
-                                        const auto filter_id = std::strtoul(vec[1].c_str(), nullptr, 10);
+                                        const auto filter_id = convertToNumber<uint64_t>(vec[1]);
                                         if (filter_id >= get_conn_titles.size()) throw std::invalid_argument(sprint("Invalid filter ID"));
                                         std::regex r(vec[2]);
                                         filter_patterns[filter_id] = vec[2];
@@ -273,7 +273,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                                 {
                                     try
                                     {
-                                        const auto sort_id = std::strtoul(vec[1].c_str(), nullptr, 10);
+                                        const auto sort_id = convertToNumber<uint64_t>(vec[1]);
                                         if (sort_id >= get_conn_titles.size()) throw std::invalid_argument(sprint("Invalid sort ID"));
                                         sort_by = static_cast<int>(sort_id);
                                     }
@@ -316,45 +316,48 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             sort_by = sort_by_final;
 
             // set existing ones as all closed
-            const auto cur_time = std::chrono::high_resolution_clock::now();
-            std::ranges::for_each(connection_frame | std::views::values, [&cur_time](auto & c_)
+            if (!pause_update)
             {
-                if (!c_.connection_is_closed) {
-                    c_.connection_is_closed = true;
-                    c_.time_of_the_closure = cur_time;
-                }
-            });
-
-            // get current connections, if missing, add it, if exist, update info and remove the close flag
-            std::ranges::for_each(backend_instance.get_active_connections(),
-                [&connection_frame](auto & c_)
+                const auto cur_time = std::chrono::high_resolution_clock::now();
+                std::ranges::for_each(connection_frame | std::views::values, [&cur_time](auto & c_)
                 {
-                    auto it = connection_frame.find(c_.metadata.connectionID);
-                    if (it != connection_frame.end()) {
-                        it->second.connection_is_closed = false;
-                        it->second.connection_data = c_;
-                    } else {
-                        connection_frame.emplace(c_.metadata.connectionID, c_);
+                    if (!c_.connection_is_closed) {
+                        c_.connection_is_closed = true;
+                        c_.time_of_the_closure = cur_time;
                     }
                 });
 
-            // remove closed connections lasting more than 3s
-            std::vector<std::string> to_delete;
-            std::ranges::for_each(connection_frame | std::views::values, [&](auto & c_)
-            {
-                if (c_.connection_is_closed && std::chrono::duration_cast<std::chrono::seconds>(cur_time - c_.time_of_the_closure).count() > 3) {
-                    to_delete.emplace_back(c_.connection_data.metadata.connectionID);
-                }
-            });
-            std::ranges::for_each(to_delete, [&](const auto & id){connection_frame.erase(id);});
+                // get current connections, if missing, add it, if exist, update info and remove the close flag
+                std::ranges::for_each(backend_instance.get_active_connections(),
+                    [&connection_frame](auto & c_)
+                    {
+                        auto it = connection_frame.find(c_.metadata.connectionID);
+                        if (it != connection_frame.end()) {
+                            it->second.connection_is_closed = false;
+                            it->second.connection_data = c_;
+                        } else {
+                            connection_frame.emplace(c_.metadata.connectionID, c_);
+                        }
+                    });
 
-            // get connection frame as a vector list, and filter
-            connections_filtered.clear();
-            for (const auto & connection : connection_frame | std::views::values)
-            {
-                // determine if we need to filter out the result
-                if (is_connection_valid(connection.connection_data)) {
-                    connections_filtered.push_back(connection);
+                // remove closed connections lasting more than 3s
+                std::vector<std::string> to_delete;
+                std::ranges::for_each(connection_frame | std::views::values, [&](auto & c_)
+                {
+                    if (c_.connection_is_closed && std::chrono::duration_cast<std::chrono::seconds>(cur_time - c_.time_of_the_closure).count() > 3) {
+                        to_delete.emplace_back(c_.connection_data.metadata.connectionID);
+                    }
+                });
+                std::ranges::for_each(to_delete, [&](const auto & id){connection_frame.erase(id);});
+
+                // get connection frame as a vector list, and filter
+                connections_filtered.clear();
+                for (const auto & connection : connection_frame | std::views::values)
+                {
+                    // determine if we need to filter out the result
+                    if (is_connection_valid(connection.connection_data)) {
+                        connections_filtered.push_back(connection);
+                    }
                 }
             }
 
