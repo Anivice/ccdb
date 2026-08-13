@@ -165,6 +165,10 @@ namespace ccdb
             utils::get_text("Chains"),       // 11
         };
 
+        const std::vector<std::string> log_titles = {
+            utils::get_text("Time"), utils::get_text("Level"), utils::get_text("Log")
+        };
+
         bool reverse_filter_list = false; // reverse white list
         tsl::hopscotch_map < uint64_t, std::string > filter_patterns; // Regex filter patterns for `get connections`
         std::atomic_int sort_by = -1; // get connections table: sort by which column
@@ -186,7 +190,7 @@ namespace ccdb
         std::atomic_int & max_log_size = backend_instance.max_log_size;
         std::string external_puller_command;
         int external_puller_command_time_out_ms = 10000;
-        std::vector<std::vector<std::string>> logPullerNoFilter;
+        std::deque < std::vector<std::string> > logPullerNoFilter;
         enum log_level_t : uint8_t { ERROR = 1, DEBUG, WARNING, };
         // tsl::hopscotch_map < std::string, log_level_t > logStatusSignsCache;
 
@@ -429,8 +433,15 @@ namespace ccdb
 
         template < typename ContainerType, typename ScopeType >
         using CommandType = tsl::hopscotch_map < std::string, std::function<std::string(const ScopeType &, CommandVectorType)>>;
-
         using SearchMatches = std::vector < std::pair < std::string /* checksum */, bool /* if match ? */ > >;
+        struct session_compliment_data_t
+        {
+            std::atomic_int * leading_spaces_;
+            const std::atomic_int * max_leading_spaces_;
+            std::atomic_int * skip_lines_;
+            const std::atomic_int * max_skip_lines_;
+            std::atomic_int * sort_by_from_watcher;
+        };
 
         // template <typename ContainerType> using ViewerType = std::vector < ContainerType >;
         using String = std::string;
@@ -440,7 +451,7 @@ namespace ccdb
         requires (std::is_same_v<ScopeType, std::pair<ConstantIteratorType, ConstantIteratorType>> && Iterator<ConstantIteratorType>)
         void continuous_table(const bool banner, const std::vector < bool > & do_col_hide, const std::vector<int> alignment,
             const CommandType < ContainerType, ScopeType > & CommandMap,
-            const std::function<ScopeType(std::atomic_int * sort_by_from_watcher)> & ReturnContent,
+            const std::function<ScopeType(session_compliment_data_t *)> & ReturnContent,
             const std::function<String(message_type_t, const ContainerType & current_focus)> & GenerateBanner,
             const std::function<HashType(const ContainerType &)> & HashContent,
             const std::function<OverrideColorType(const ScopeType &, uint64_t)> & GenerateOverrideColorInContent,
@@ -471,6 +482,13 @@ namespace ccdb
             std::atomic < search_move_t > search_focus_move_;
             std::atomic_bool running = true;
             std::atomic_bool window_size_change = false;
+            session_compliment_data_t compliment_data = {
+                .leading_spaces_ = &leading_spaces_,
+                .max_leading_spaces_ = &max_leading_spaces_,
+                .skip_lines_ = &current_skip_lines_,
+                .max_skip_lines_ = &max_skip_lines_,
+                .sort_by_from_watcher = &sort_by_from_watcher_,
+            };
 
             HashType focused_id;
             SearchMatches search_matches;
@@ -540,6 +558,7 @@ namespace ccdb
                     continue;
                 }
 
+                content = ReturnContent(&compliment_data);
                 OverrideColorType color_code_overrides;
                 const auto leading_spaces = leading_spaces_.load();
                 auto current_skip_lines = current_skip_lines_.load();
@@ -563,7 +582,6 @@ namespace ccdb
                 atm_focus_ = -1;
                 search_focus_move_ = IDLE_STATE;
                 search_matches.clear();
-                content = ReturnContent(&sort_by_from_watcher_);
                 search_matches.clear();
                 const auto keys = GetTitleForCurrentSession();
                 const auto values = GetTableValueForCurrentSession(content);

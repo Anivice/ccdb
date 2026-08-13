@@ -153,11 +153,11 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
     const auto color_for_closed_connections = color::color24(255,255,255,128,128,128);
 
-    std::unordered_map < std::string, connection_frame_t > connection_frame;
-    std::vector<connection_frame_t> connections_filtered;
+    tsl::hopscotch_map < std::string, connection_frame_t > connection_frame;
+    std::vector < connection_frame_t > connections_filtered;
     auto subinfo_ball = std::make_unique<ccdb_atomic_t<subinfo_ball_t>>();
     std::vector < std::pair < std::unique_ptr<std::atomic_bool>, std::thread > > threads;
-    std::vector<std::string> title_this_session;
+    std::vector < std::string > title_this_session;
     bool pause_update = false;
 
     int sort_by_local = sort_by;
@@ -292,24 +292,24 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     "sortReverse", [&](ArgsCopyScope, CommandVectorType)->std::string { sort_reverse = !sort_reverse; return {}; }
                 }
             },
-        [&](std::atomic_int * sort_by_from_watcher)->ScopeType
+        [&](session_compliment_data_t * data_)->ScopeType
         {
             // final sort value
             int sort_by_final { };
-            if (*sort_by_from_watcher == -1) {
+            if (*data_->sort_by_from_watcher == -1) {
                 sort_by_final = sort_by;
             }
             else
             {
-                if (sort_by == *sort_by_from_watcher) {
+                if (sort_by == *data_->sort_by_from_watcher) {
                     sort_reverse = !sort_reverse;
                     sort_by_final = sort_by;
                 } else {
-                    sort_by = sort_by_from_watcher->load();
-                    sort_by_final = *sort_by_from_watcher;
+                    sort_by = data_->sort_by_from_watcher->load();
+                    sort_by_final = *data_->sort_by_from_watcher;
                 }
 
-                *sort_by_from_watcher = -1;
+                *data_->sort_by_from_watcher = -1;
             }
 
             sort_by_local = sort_by_final;
@@ -319,13 +319,13 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             if (!pause_update)
             {
                 const auto cur_time = std::chrono::high_resolution_clock::now();
-                std::ranges::for_each(connection_frame | std::views::values, [&cur_time](auto & c_)
+                for (auto it = connection_frame.begin(); it != connection_frame.end(); ++it)
                 {
-                    if (!c_.connection_is_closed) {
+                    if (auto & c_ = it.value(); !c_.connection_is_closed) {
                         c_.connection_is_closed = true;
                         c_.time_of_the_closure = cur_time;
                     }
-                });
+                }
 
                 // get current connections, if missing, add it, if exist, update info and remove the close flag
                 std::ranges::for_each(backend_instance.get_active_connections(),
@@ -333,8 +333,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     {
                         auto it = connection_frame.find(c_.metadata.connectionID);
                         if (it != connection_frame.end()) {
-                            it->second.connection_is_closed = false;
-                            it->second.connection_data = c_;
+                            it.value().connection_is_closed = false;
+                            it.value().connection_data = c_;
                         } else {
                             connection_frame.emplace(c_.metadata.connectionID, c_);
                         }

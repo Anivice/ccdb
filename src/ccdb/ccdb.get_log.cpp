@@ -22,7 +22,6 @@
 #include <algorithm>
 #include <chrono>
 #include <utility>
-#include <span>
 #include "print.h"
 #include "ccdb.h"
 #include "utils.h"
@@ -32,7 +31,6 @@ using namespace ccdb::utils;
 
 void ccdb::ccdb::get_log()
 {
-    const std::vector log_titles = { sprint("Time"), sprint("Level"), sprint("Log") };
     std::vector < bool > do_col_hide; do_col_hide.resize(log_titles.size(), false);
     std::string focused_log; // crc64 of focused log entry
     std::string last_checked_log;
@@ -60,19 +58,18 @@ void ccdb::ccdb::get_log()
 
     using log_frame_t = std::vector < std::string >;
     bool pause_log_update = false;
-    using ScopeType = std::pair<std::vector<log_frame_t>::const_iterator, std::vector<log_frame_t>::const_iterator>;
-    continuous_table < log_frame_t, std::vector<log_frame_t>::const_iterator, ScopeType >
+    using ConstItrType = decltype(logPullerNoFilter)::const_iterator;
+    using ScopeType = std::pair<ConstItrType /* begin */, ConstItrType /* end */>;
+    continuous_table < log_frame_t, ConstItrType, ScopeType >
     (
         false,
         do_col_hide, {2, 2, 0}, {},
-        [&](std::atomic_int *)->ScopeType
+        [&](session_compliment_data_t * data)->ScopeType
         {
             if (!pause_log_update)
             {
                 if (lines_local_incrimination.empty() && !logPullerNoFilter.empty())
                 {
-                    lines_local_incrimination.reserve(logPullerNoFilter.size());
-                    log_local_incrimination.reserve(logPullerNoFilter.size());
                     std::ranges::for_each(logPullerNoFilter,
                         [&](const std::vector<std::string> & line)
                     {
@@ -86,36 +83,37 @@ void ccdb::ccdb::get_log()
                 }
 
                 auto new_logs = backend_instance.get_logs();
+                std::ranges::reverse(new_logs); // lastest one shows up on top
                 backend_instance.clearLogs();
 
-                logPullerNoFilter.reserve(logPullerNoFilter.size() + new_logs.size());
-
-                // append to reversed stack (last in first out)
-                std::ranges::reverse(logPullerNoFilter);
-    #           if ((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
-                logPullerNoFilter.append_range(new_logs);
-    #           else
-                logPullerNoFilter.insert(logPullerNoFilter.end(), new_logs.begin(), new_logs.end()); // append range
-    #           endif
-
-                std::ranges::reverse(lines_local_incrimination);
-                std::ranges::reverse(log_local_incrimination);
-                for (const std::span viewer { logPullerNoFilter.end() - static_cast<std::vector<std::string>::difference_type>(new_logs.size()), logPullerNoFilter.end() };
-                    const auto & log_ : viewer)
-                {
-                    const auto & level = log_[1];
-                    const auto & time = log_[0];
-                    const auto & log = log_[2];
-
-                    if (!if_skip(level, log)) {
-                        lines_local_incrimination.emplace_back(std::vector{ time, level, log });
-                        log_local_incrimination.emplace_back(log_);
-                    }
+                if (*data->skip_lines_ != 0) {
+                    *data->skip_lines_ += static_cast<int>(new_logs.size());
                 }
 
-                std::ranges::reverse(logPullerNoFilter);
-                std::ranges::reverse(lines_local_incrimination);
-                std::ranges::reverse(log_local_incrimination);
+    #           if ((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
+                logPullerNoFilter.insert_range(logPullerNoFilter.begin(), new_logs);
+    #           else
+                logPullerNoFilter.insert(logPullerNoFilter.begin(), new_logs.begin(), new_logs.end()); // append range
+    #           endif
+
+                if (!new_logs.empty())
+                {
+                    for (auto it = logPullerNoFilter.begin() + static_cast<ssize_t>(new_logs.size()) - 1;;--it)
+                    {
+                        const auto & level = (*it)[1];
+                        const auto & time = (*it)[0];
+                        const auto & log = (*it)[2];
+
+                        if (!if_skip(level, log)) {
+                            lines_local_incrimination.emplace_front(std::vector{ time, level, log });
+                            log_local_incrimination.emplace_front(*it);
+                        }
+
+                        if (it == logPullerNoFilter.begin()) {
+                            break;
+                        }
+                    }
+                }
 
                 if (logPullerNoFilter.size() > max_log_size) logPullerNoFilter.resize(max_log_size);
                 if (lines_local_incrimination.size() > max_log_size) lines_local_incrimination.resize(max_log_size);
@@ -149,10 +147,11 @@ void ccdb::ccdb::get_log()
         },
         [&pause_log_update](const auto *) { pause_log_update = !pause_log_update; },
         [](const auto *) {},
-        [&log_titles]->std::vector<std::string> { return {log_titles.begin(), log_titles.end()}; },
+        [&]->std::vector<std::string> { return {log_titles.begin(), log_titles.end()}; },
         [](const ScopeType & logs)->std::vector<std::vector<std::string>>
         {
             std::vector<std::vector<std::string>> ret;
+            ret.reserve(logs.second - logs.first);
             std::for_each(logs.first, logs.second, [&ret](const log_frame_t & log) {
                 ret.emplace_back(std::vector {log[0], log[1], log[2]});
             });

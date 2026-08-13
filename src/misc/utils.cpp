@@ -1527,6 +1527,7 @@ namespace
             std::signal(SIGHUP, signal_handler);
             std::signal(SIGQUIT, signal_handler);
             std::signal(SIGABRT, signal_handler);
+            std::signal(SIGSEGV, signal_handler);
             // std::signal(SIGILL, signal_handler);
             // std::signal(SIGBUS, signal_handler);
             // std::signal(SIGFPE, signal_handler);

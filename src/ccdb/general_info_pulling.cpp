@@ -123,11 +123,17 @@ void general_info_pulling::update_from_connections(const std::string& info)
 
 static std::string get_checksum(const std::vector < std::string > & line)
 {
-    std::stringstream ss;
+    std::random_device dev;
+    std::mt19937 rng(dev());
+    std::uniform_int_distribution<std::mt19937::result_type> dist6(0, UINT64_MAX);
+    std::stringstream ss, res;
     std::ranges::for_each(line, [&ss](const auto & l){ ss << l; });
     const std::string str = ss.str();
     ccdb::utils::CRC64 crc64; crc64.update(reinterpret_cast<const uint8_t *>(str.data()), str.size());
-    return crc64.get_checksum_str();
+    const auto checksum = crc64.get_checksum()
+        ^ static_cast<uint64_t>(dist6(rng)) ^ (static_cast<uint64_t>(dist6(rng)) | static_cast<uint64_t>(dist6(rng)));
+    res << std::hex << checksum;
+    return res.str();
 }
 
 void general_info_pulling::update_from_logs(const std::string& info)
