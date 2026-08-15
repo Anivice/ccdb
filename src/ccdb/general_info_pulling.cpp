@@ -742,7 +742,7 @@ void general_info_pulling::notify_all(const notifications_t& msg)
 general_info_pulling::general_info_pulling(const std::string& url, const std::string& token): backend_client(url, token)
 {
     const auto CCDB_SYNC_ADDRESS_BIND_TO = ccdb::utils::getenv("CCDB_SYNC_ADDRESS_BIND_TO");
-    if (!CCDB_SYNC_ADDRESS_BIND_TO.empty())
+    if (CCDB_SYNC_ADDRESS_BIND_TO.empty())
     {
         if (std::string scheme, host, path; ccdb::utils::parse_url(url, scheme, host, path)) {
             host = host.substr(0, host.find_last_of(':'));
