@@ -776,7 +776,8 @@ general_info_pulling::general_info_pulling(const std::string& url, const std::st
                         {
                             const nlohmann::json log = {
                                     {"type", "info"},
-                                    {"payload", std::string(json["content"]) },
+                                    // remove control codes from online clients
+                                    {"payload", ccdb::utils::strip_color(std::string(json["content"])) },
                             };
                             update_from_logs(log.dump());
                         }
