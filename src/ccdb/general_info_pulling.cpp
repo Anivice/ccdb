@@ -742,7 +742,9 @@ general_info_pulling::general_info_pulling(const std::string& url, const std::st
     if (std::string scheme, host, path; ccdb::utils::parse_url(url, scheme, host, path)) {
         host = host.substr(0, host.find_last_of(':'));
         if (const auto local_vec = find_local(host.c_str()); !local_vec.empty()) {
-            ccdb::utils::print(local_vec.front().first, " ", local_vec.front().second, "\n");
+            ccdb::utils::print("Local IP=", local_vec.front().first, ", interface=", local_vec.front().second, "\n");
+            MULTICAST_GROUP_CXX_STR = local_vec.front().first;
+            MULTICAST_GROUP = MULTICAST_GROUP_CXX_STR.c_str();
         }
     }
 
