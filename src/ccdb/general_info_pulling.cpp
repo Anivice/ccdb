@@ -42,15 +42,85 @@
 #include <unistd.h>
 #include <cerrno>
 #include <cstring>
+#include <net/if.h>
+#include <ifaddrs.h>
 #include "print.h"
 #include "general_info_pulling.h"
 #include "Readline.h"
 #include "utils.h"
 #include "httplib.h"
 
-
-static constexpr const char* MULTICAST_GROUP = "239.255.0.1";
+static std::string MULTICAST_GROUP_CXX_STR;
+static const char* MULTICAST_GROUP = "239.255.0.1";
 static constexpr std::uint16_t PORT = 49361;
+
+static bool addr_to_string(sockaddr *sa, char *buf, const size_t buflen)
+{
+    if (sa->sa_family == AF_INET) {
+        const auto *sin = reinterpret_cast<struct sockaddr_in *>(sa);
+        inet_ntop(AF_INET, &sin->sin_addr, buf, buflen);
+        return true;
+    } else if (sa->sa_family == AF_INET6) {
+        const auto *sin6 = reinterpret_cast<struct sockaddr_in6 *>(sa);
+        inet_ntop(AF_INET6, &sin6->sin6_addr, buf, buflen);
+        return true;
+    } else {
+        return false;
+    }
+}
+
+static bool is_same_network(sockaddr *addr, sockaddr *mask, const char *target_ip)
+{
+    if (addr->sa_family != AF_INET) {
+        return false; // ipv6 sucks, also it's for local network
+    }
+
+    const auto *addr_in = reinterpret_cast<struct sockaddr_in *>(addr);
+    const auto *mask_in = reinterpret_cast<struct sockaddr_in *>(mask);
+
+    const uint32_t ip = ntohl(addr_in->sin_addr.s_addr);
+    const uint32_t netmask = ntohl(mask_in->sin_addr.s_addr);
+    const uint32_t network = ip & netmask;
+
+    // Convert target IP to binary
+    in_addr target_bin{};
+    if (inet_pton(AF_INET, target_ip, &target_bin) != 1) {
+        return false; // invalid target
+    }
+    uint32_t target = ntohl(target_bin.s_addr);
+    uint32_t target_network = target & netmask;
+
+    return network == target_network;
+}
+
+static std::vector<std::pair<std::string, std::string>> find_local(const char *target_ip)
+{
+    std::vector<std::pair<std::string, std::string>> ret;
+    ifaddrs *ifaddr;
+
+    if (getifaddrs(&ifaddr) == -1) {
+        ccdb::utils::print<ccdb::utils::is_error>("getifaddrs: ", std::strerror(errno), "\n");
+        return { };
+    }
+
+    for (const ifaddrs * ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next)
+    {
+        if (ifa->ifa_addr == nullptr) continue;
+        if (ifa->ifa_addr->sa_family == AF_INET)
+        {
+            if (ifa->ifa_netmask == nullptr) continue;
+            char addr_str[INET_ADDRSTRLEN];
+            addr_to_string(ifa->ifa_addr, addr_str, sizeof(addr_str));
+
+            if (is_same_network(ifa->ifa_addr, ifa->ifa_netmask, target_ip)) {
+                ret.emplace_back(addr_str, ifa->ifa_name);
+            }
+        }
+    }
+
+    freeifaddrs(ifaddr);
+    return ret;
+}
 
 std::size_t general_info_pulling::message_key_hash_t::operator()(const message_key_t& key) const noexcept
 {
@@ -669,6 +739,13 @@ void general_info_pulling::notify_all(const notifications_t& msg)
 
 general_info_pulling::general_info_pulling(const std::string& url, const std::string& token): backend_client(url, token)
 {
+    if (std::string scheme, host, path; ccdb::utils::parse_url(url, scheme, host, path)) {
+        host = host.substr(0, host.find_last_of(':'));
+        if (const auto local_vec = find_local(host.c_str()); !local_vec.empty()) {
+            ccdb::utils::print(local_vec.front().first, " ", local_vec.front().second, "\n");
+        }
+    }
+
     ccdb_multicast_watcher = std::thread([this]
     {
         while (alive)
