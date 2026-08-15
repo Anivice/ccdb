@@ -1293,3 +1293,102 @@ std::string general_info_pulling::get_version() const
     backend_client.get_info_no_instance("version", [&](const std::string & r){ ret = r; });
     return ret;
 }
+
+void general_info_pulling::sendNotification(const std::vector<uint8_t> & data)
+{
+    uint64_t pack_num = data.size() / sizeof(notifications_t::body) + (data.size() % sizeof(notifications_t::body) == 0 ? 0 : 1);
+    std::random_device dev;
+    std::mt19937 rng(dev());
+    std::uniform_int_distribution<std::mt19937::result_type> dist6(0, UINT64_MAX);
+    ccdb::utils::CRC64 crc64; crc64.update(data.data(), data.size());
+    const uint64_t packName = crc64.get_checksum() ^ dist6(rng);
+
+    for (uint64_t i = 0; i < pack_num; i++)
+    {
+        notifications_t PartialNotifications { };
+        const uint64_t timestamp = std::chrono::steady_clock::now().time_since_epoch().count();
+        std::memcpy(&PartialNotifications.header.timestamp, &timestamp, sizeof(timestamp));
+        std::memcpy(&PartialNotifications.header.sequence, &i, sizeof(i));
+        std::memcpy(&PartialNotifications.header.overall_sequence_size, &pack_num, sizeof(pack_num));
+        std::memcpy(&PartialNotifications.header.packName, &packName, sizeof(packName));
+        static_assert(
+                   sizeof(timestamp) == sizeof(notifications_t::header.timestamp)
+                && sizeof(i) == sizeof(notifications_t::header.sequence)
+                && sizeof(pack_num) == sizeof(notifications_t::header.overall_sequence_size)
+                && sizeof(packName) == sizeof(notifications_t::header.packName),
+            "Invalid size");
+        const char * data_ = reinterpret_cast<const char *>(data.data()) + i * sizeof(notifications_t::body);
+        const auto len = i == pack_num - 1 ? data.size() % sizeof(notifications_t::body) :
+            sizeof(notifications_t::body);
+        PartialNotifications.header.size = static_cast<uint8_t>(len);
+        std::memcpy(&PartialNotifications.body, data_, len);
+        notify_all(PartialNotifications);
+    }
+}
+
+void general_info_pulling::receiveNotification(std::vector<uint8_t> & data)
+{
+    std::map<uint64_t, notifications_t, std::less<>> SessionNotifications;
+    std::optional<notifications_t> notification;
+    uint64_t packName { }; bool init = false;
+    uint64_t packSize { };
+    do
+    {
+        notification = notifications.wait_for(1000);
+        if (notification)
+        {
+            uint64_t packname_cur, packSize_cur, pack_cur;
+            std::memcpy(&packname_cur, &notification->header.packName, sizeof(packName));
+            std::memcpy(&packSize_cur, &notification->header.overall_sequence_size, sizeof(packSize));
+            std::memcpy(&pack_cur, &notification->header.sequence, sizeof(pack_cur));
+
+            if (!init)
+            {
+                init = true;
+                packName = packname_cur;
+                packSize = packSize_cur;
+                SessionNotifications.emplace(pack_cur, *notification);
+            }
+            else if (packName == packname_cur)
+            {
+                SessionNotifications.emplace(pack_cur, *notification);
+            }
+            else
+            {
+                notifications.push(*notification); // put it back
+            }
+
+        }
+    } while (notification && SessionNotifications.size() < packSize);
+
+    // repack all data
+    if (packSize > 0 && SessionNotifications.size() == packSize)
+    {
+        data.clear();
+        data.reserve(packSize * sizeof(general_info_pulling::notifications_t::body));
+        for (const auto & [header_, body_] : SessionNotifications | std::views::values)
+        {
+            data.resize(data.size() + header_.size);
+            std::memcpy(data.data() + data.size() - header_.size, &body_.data, header_.size);
+        }
+    }
+}
+
+std::string general_info_pulling::receiveNotification()
+{
+    std::vector<uint8_t> data;
+    receiveNotification(data);
+    if (data.empty()) return {};
+    std::string str; str.resize(data.size());
+    std::memcpy(str.data(), data.data(), data.size());
+    return {str};
+}
+
+void general_info_pulling::sendNotification(const nlohmann::json& json)
+{
+    std::vector<uint8_t> data;
+    const auto & dump = json.dump();
+    data.resize(dump.size());
+    std::memcpy(data.data(), dump.data(), dump.size());
+    sendNotification(data);
+}
