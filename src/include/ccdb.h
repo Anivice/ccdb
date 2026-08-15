@@ -29,7 +29,6 @@
 #include <algorithm>
 #include <chrono>
 #include <utility>
-#include <iterator>
 #include "config.h"
 #include "general_info_pulling.h"
 #include "tsl/hopscotch_map.h"
@@ -39,53 +38,6 @@
 namespace ccdb
 {
     template <typename T> concept Iterator = std::input_iterator<T>;
-
-    template < typename T >
-    class NotificationType {
-        std::deque<T> queue_;
-        std::mutex mutex_;
-        std::condition_variable condition_;
-
-    public:
-        T wait()
-        {
-            std::unique_lock lock(mutex_);
-
-            condition_.wait(
-                lock,
-                [&]
-                {
-                    return !queue_.empty();
-                }
-            );
-
-            const int value = queue_.front();
-            queue_.pop_front();
-
-            return value;
-        }
-
-        void push(const T value)
-        {
-            {
-                std::lock_guard lock(mutex_);
-                queue_.push_back(value);
-            }
-
-            condition_.notify_one();
-        }
-
-        void flush()
-        {
-            {
-                std::unique_lock lock(mutex_);
-                queue_.clear();
-            }
-
-            condition_.notify_one();
-        }
-    };
-
     bool is_highlight_match(const std::vector < std::string > & line, const std::string & search_content);
     class auto_print_t;
     extern std::atomic<int> g_pid;
@@ -364,6 +316,8 @@ namespace ccdb
         void map_proxy_chain();
         void ccdbrc();
         void reload(const std::vector<std::string> &) const;
+        void sendNotification(const std::vector<std::string> &);
+        void receiveNotification();
 
         /// Input watcher that sets running flag when q is pressed
         /// @param name Thread name

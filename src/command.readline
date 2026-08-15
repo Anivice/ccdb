@@ -120,6 +120,8 @@
     < restart (Restart backend): [NONE] >,
     < flush (Flush fake-ip cache): [NONE] >,
     < reload (Reload configuration): [NONE] >, # reload configuration, can be provided by `reload [PATH]`
+    < sendNotification (Send notification): [NONE] >,
+    < recvNotification (Receive notification): [NONE] >,
 }
 
 # $ ssh me@localhost

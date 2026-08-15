@@ -668,6 +668,63 @@ namespace ccdb::utils
     }
 }
 
+namespace ccdb
+{
+    template < typename T >
+    class NotificationType {
+        std::deque<T> queue_;
+        std::mutex mutex_;
+        std::condition_variable condition_;
+
+    public:
+        T wait()
+        {
+            std::unique_lock lock(mutex_);
+            condition_.wait(lock, [&]{ return !queue_.empty(); });
+            T value = std::move(queue_.front());
+            queue_.pop_front();
+            return value;
+        }
+
+        std::optional<T> wait_for(const uint64_t ms)
+        {
+            std::unique_lock lock(mutex_);
+            if (!condition_.wait_for(lock, std::chrono::milliseconds(ms), [&]{ return !queue_.empty(); })) {
+                return std::nullopt;
+            }
+            T value = std::move(queue_.front());
+            queue_.pop_front();
+            return value;
+        }
+
+        bool empty()
+        {
+            std::lock_guard lock(mutex_);
+            return queue_.empty();
+        }
+
+        void push(const T value)
+        {
+            {
+                std::lock_guard lock(mutex_);
+                queue_.push_back(std::move(value));
+            }
+
+            condition_.notify_one();
+        }
+
+        void flush()
+        {
+            {
+                std::lock_guard lock(mutex_);
+                queue_.clear();
+            }
+
+            condition_.notify_one();
+        }
+    };
+}
+
 /// Automatic unpack from xxd with xxd naming convention
 /// @param name xxd's name
 #define ccdb_utils_unpack_string(name) ::ccdb::utils::unpack_string(name, name##_len)

@@ -24,7 +24,7 @@
 
 #include <algorithm>
 #include <thread>
-#include "httplib.h"
+#include "utils.h"
 #include "mihomo.h"
 #include "json.hpp"
 #include "tsl/hopscotch_map.h"
@@ -127,16 +127,53 @@ private:
         return (chains.empty() ? "" : chains.back());
     }
 
+    using basic_msg_type = std::uint64_t;
     mihomo backend_client;
     std::atomic_bool keep_pull_continuous_updates;
     std::deque < std::vector < std::string > > logs;
     std::mutex logs_mutex;
-    std::thread pull_continuous_updates_worker;
+    std::vector < std::thread > pull_continuous_updates_worker;
+    ccdb::NotificationType < basic_msg_type > messages;
+    std::list < basic_msg_type > msg_buffer_each_cancelling;
+    std::mutex msg_buffer_each_cancelling_mtx;
+    ccdb::NotificationType < basic_msg_type > msg_buffer_recv;
+    enum message_type_t : basic_msg_type {
+        HELLO_I_AM = 0xFFFFFFFF00000000, BYE_AND_I_WAS = 0xFEFEFEFE00000000,
+        HAY_WHO_THE_FUCK_ARE_YOU_GUYS = 0xFCFCFCFC00000000,
+        HAY_YO_MESSAGE_PACK_8BIT_HERE = 0x7A00000000000000, // 0x7A [PackSignature8] [Sender8][Sender8] [Recv8][Recv8] [Sequence8] [Byte8]
+    };
+    std::atomic_uint16_t id = 0;
     std::mutex proxy_list_mtx;
     tsl::hopscotch_map < std::string /* group name */, std::pair < std::vector < std::string > /* proxies */, std::string /* current */ > > proxy_groups;
     std::unordered_map < std::string /* proxy name */, std::atomic_int /* latency in ms */ > proxy_latency;
     // -- tsl::hopscotch_map doesn't support std::atomic_int -- //
+    std::atomic_uint8_t g_packSeq = 0;
 
+public:
+    struct notifications_t
+    {
+        struct
+        {
+            uint8_t timestamp[8];
+            uint8_t sequence[8];
+            uint8_t overall_sequence_size[8];
+            uint8_t packName[8];
+            uint8_t size;
+        } header { };
+
+        struct
+        {
+            uint8_t data [255 - sizeof(header)];
+        } body { };
+    };
+
+    static_assert(sizeof(notifications_t) == 255, "Unaligned pack");
+    ccdb::NotificationType < notifications_t > notifications;
+    std::deque < basic_msg_type > get_response(const std::function<bool(basic_msg_type)> & qualify);
+    void notify_all(const notifications_t & msg);
+    void get_notifications();
+
+private:
     struct proxy_info_t
     {
         std::string type;

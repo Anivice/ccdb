@@ -312,16 +312,21 @@ std::string ccdb::utils::get_text(const std::string &text)
                 munmap(data_, st.st_size);
             }
 
-            if (json MISSING_TRANSLATIONS_json = !json_raw.empty() ? json::parse(json_raw) : json::array();
-                std::find(MISSING_TRANSLATIONS_json.begin(), MISSING_TRANSLATIONS_json.end(), text)
-                == MISSING_TRANSLATIONS_json.end())
+            try
             {
-                MISSING_TRANSLATIONS_json.emplace_back(text);
-                if (ftruncate(fd, 0) == -1) return;
-                const std::string dump = MISSING_TRANSLATIONS_json.dump();
-                (void)write(fd, dump.c_str(), dump.size());
+                if (json MISSING_TRANSLATIONS_json = !json_raw.empty() ? json::parse(json_raw) : json::array();
+                    std::find(MISSING_TRANSLATIONS_json.begin(), MISSING_TRANSLATIONS_json.end(), text)
+                    == MISSING_TRANSLATIONS_json.end())
+                {
+                    MISSING_TRANSLATIONS_json.emplace_back(text);
+                    if (ftruncate(fd, 0) == -1) return;
+                    const std::string dump = MISSING_TRANSLATIONS_json.dump();
+                    (void)write(fd, dump.c_str(), dump.size());
+                }
             }
-
+            catch (std::exception&) {
+                return;
+            }
             fl.l_type = F_UNLCK;
             (void)fcntl(fd, F_SETLK, &fl);
         }();

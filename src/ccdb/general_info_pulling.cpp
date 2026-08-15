@@ -28,10 +28,135 @@
 #include <chrono>
 #include <fstream>
 #include <functional>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <cerrno>
+#include <cstring>
 #include "print.h"
 #include "general_info_pulling.h"
 #include "Readline.h"
 #include "utils.h"
+#include "httplib.h"
+
+static constexpr const char* MULTICAST_GROUP = "239.255.0.1";
+static constexpr uint16_t PORT = 49361;
+
+template <typename MessageStructure>
+static void broadcast_receiver(std::atomic_bool * running,
+    const std::function<bool(const std::string &, const MessageStructure &)> & handler)
+{
+    const int fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd < 0) {
+        ccdb::utils::print<ccdb::utils::is_error>("socket: ", strerror(errno), '\n');
+        return;
+    }
+
+    int reuse = 1;
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
+        ccdb::utils::print<ccdb::utils::is_error>("setsockopt(SO_REUSEADDR): ", strerror(errno), '\n');
+        close(fd);
+        return;
+    }
+
+    sockaddr_in local{};
+    local.sin_family = AF_INET;
+    local.sin_port = htons(PORT);
+    local.sin_addr.s_addr = htonl(INADDR_ANY);
+
+    if (bind(fd, reinterpret_cast<sockaddr*>(&local), sizeof(local)) < 0) {
+        ccdb::utils::print<ccdb::utils::is_error>("bind: ", strerror(errno), '\n');
+        close(fd);
+        return;
+    }
+
+    ip_mreq mreq{};
+
+    if (inet_pton(AF_INET, MULTICAST_GROUP, &mreq.imr_multiaddr) != 1) {
+        ccdb::utils::print<ccdb::utils::is_error>("Invalid multicast address\n");
+        close(fd);
+        return;
+    }
+
+    mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+
+    if (setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) {
+        ccdb::utils::print<ccdb::utils::is_error>("IP_ADD_MEMBERSHIP: ", strerror(errno), '\n');
+        close(fd);
+        return;
+    }
+
+    ccdb::utils::print("CCDB group sync address: ", MULTICAST_GROUP, ":", PORT, "\n");
+
+    while (*running)
+    {
+        MessageStructure buffer { };
+        sockaddr_in sender { };
+        socklen_t sender_len = sizeof(sender);
+
+        if (const ssize_t n = recvfrom(fd, &buffer, sizeof(buffer), 0, reinterpret_cast<sockaddr*>(&sender), &sender_len); n != sizeof(buffer)) {
+            ccdb::utils::print<ccdb::utils::is_error>("recvfrom: ", strerror(errno), '\n');
+            continue;
+        }
+
+        char sender_ip[INET_ADDRSTRLEN]{};
+        inet_ntop(AF_INET, &sender.sin_addr, sender_ip, sizeof(sender_ip));
+        std::stringstream ss; ss << sender_ip << ":" << ntohs(sender.sin_port);
+        if (!handler(ss.str(), buffer)) break;
+    }
+
+    close(fd);
+}
+
+template <typename MessageStructure>
+static void broadcast_sender(std::atomic_bool * running, const std::function<MessageStructure()> & handler)
+{
+    const int fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd < 0) {
+        ccdb::utils::print<ccdb::utils::is_error>("socket: ", strerror(errno), '\n');
+        return;
+    }
+
+    // TTL = 1 => keep multicast on local network
+    if (constexpr int ttl = 1; setsockopt(fd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) < 0) {
+        ccdb::utils::print<ccdb::utils::is_error>("IP_MULTICAST_TTL: ", strerror(errno), '\n');
+        close(fd);
+        return;
+    }
+
+    if (constexpr int loop = 1; setsockopt(fd, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop)) < 0) {
+        ccdb::utils::print<ccdb::utils::is_error>("IP_MULTICAST_LOOP: ", strerror(errno), '\n');
+        close(fd);
+        return;
+    }
+
+    sockaddr_in destination{};
+    destination.sin_family = AF_INET;
+    destination.sin_port = htons(PORT);
+
+    if (inet_pton(AF_INET, MULTICAST_GROUP, &destination.sin_addr) != 1)
+    {
+        ccdb::utils::print<ccdb::utils::is_error>("Invalid multicast address\n");
+        close(fd);
+        return;
+    }
+
+    while (*running)
+    {
+        const auto message = handler();
+        const ssize_t n = sendto(fd, &message, sizeof(message), 0,
+            reinterpret_cast<sockaddr*>(&destination), sizeof(destination));
+
+        if (n != sizeof(message)) {
+            ccdb::utils::print<ccdb::utils::is_error>("sendto: ", strerror(errno), '\n');
+            close(fd);
+            return;
+        }
+    }
+
+    close(fd);
+}
 
 void general_info_pulling::update_from_traffic(const std::string& info)
 {
@@ -213,9 +338,124 @@ void general_info_pulling::update_from_memory(const std::string& info)
     } catch (...) { }
 }
 
+std::deque<general_info_pulling::basic_msg_type>
+general_info_pulling::get_response(const std::function<bool(basic_msg_type)>& qualify)
+{
+    std::deque < basic_msg_type > pack;
+    int pSize = -1;
+    do
+    {
+        pSize = static_cast<int>(pack.size());
+        if (const auto it = msg_buffer_recv.wait_for(100); it && qualify(*it)) {
+            pack.push_back(*it);
+        } else if (it) {
+            msg_buffer_recv.push(*it);
+        } else if (!it) break;
+    } while (pack.size() > pSize);
+    std::ranges::sort(pack);
+    const auto [beg, end] = std::ranges::unique(pack);
+    pack.erase(beg, end);
+    return pack;
+}
+
+void general_info_pulling::notify_all(const notifications_t& msg)
+{
+    static_assert(sizeof(notifications_t) <= 255, "Oversized pack");
+    // 1. query available responses from network
+    messages.push(HAY_WHO_THE_FUCK_ARE_YOU_GUYS);
+
+    std::deque < basic_msg_type > ids = get_response([this](const auto it)->bool {
+        return (it & 0xFFFFFFFF00000000) == HELLO_I_AM && (it & 0xFFFF) != 0 && (it & 0xFFFF) != id;
+    });
+
+    std::ranges::for_each(ids, [](basic_msg_type & id) {
+        id = id & 0xFFFF;
+    });
+
+    const auto * pointer = reinterpret_cast<const std::uint8_t *>(&msg);
+    uint8_t offset = 0;
+    ++g_packSeq;
+    const auto pkg = g_packSeq.load();
+    while (offset < sizeof(notifications_t))
+    {
+        // send pack
+        for (int i = 0; i < 5; i++)
+        {
+            for (const auto & id_ : ids)
+            {
+                const basic_msg_type pkgS   = (static_cast<basic_msg_type>(pkg) << 48); // 56-48
+                const basic_msg_type sender = (static_cast<basic_msg_type>(id.load() & 0xFFFF) << 32); // 48-32
+                const basic_msg_type recver = static_cast<basic_msg_type>(static_cast<std::uint16_t>(id_ & 0xFFFF) << 16) & 0xFFFF0000 ; // 32-16
+                const basic_msg_type data   = (offset << 8) | pointer[offset]; // 16-0
+                // 0x7A00 0000 0000 0000
+                const basic_msg_type pack = HAY_YO_MESSAGE_PACK_8BIT_HERE | pkgS | sender | recver | data;
+                messages.push(pack);
+            }
+        }
+
+        offset++;
+    }
+}
+
+void general_info_pulling::get_notifications()
+{
+    while (keep_pull_continuous_updates)
+    {
+        std::map < int, basic_msg_type > pack_data;
+        int pkg = -1; bool session_dead = false;
+        const auto start = std::chrono::steady_clock::now();
+        while (keep_pull_continuous_updates && pack_data.size() < sizeof(notifications_t))
+        {
+            // get packs
+            (void)get_response([&](const auto it)->bool
+            {
+                if ((it & 0xFF00000000000000) == HAY_YO_MESSAGE_PACK_8BIT_HERE)
+                {
+                    const auto packSeq   = (it & 0x00FF000000000000) >> (12 * 4);
+                    const auto sender    = (it & 0x0000FFFF00000000) >> 32;
+                    const auto receiver  = (it & 0x00000000FFFF0000) >> 16;
+                    const auto numOfPack = (it & 0x000000000000FF00) >> 8;
+                    const auto checksum  = it & 0xFF;
+                    if (receiver == id && (pkg < 0 || (pkg > 0 && pkg == packSeq)) && sender != id)
+                    {
+                        if (pkg < 0) {
+                            pkg = packSeq;
+                        }
+
+                        pack_data.emplace(numOfPack, it);
+                        return true;
+                    }
+                }
+
+                return false;
+            });
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            if (const auto now = std::chrono::steady_clock::now();
+                std::chrono::duration_cast<std::chrono::seconds>(now -  start).count() > 3)
+            {
+                // abandon session
+                session_dead = true;
+                break;
+            }
+        }
+
+        if (!session_dead)
+        {
+            notifications_t this_session { };
+            std::ranges::for_each(pack_data | std::views::values, [&this_session](basic_msg_type & it)
+            {
+                const auto numOfPack = (it & 0x000000000000FF00) >> 8;
+                const auto checksum  = it & 0xFF;
+                std::memcpy(reinterpret_cast<uint8_t*>(&this_session) + numOfPack, &checksum, 1);
+            });
+            notifications.push(this_session);
+        }
+    }
+}
+
 void general_info_pulling::pull_continuous_updates()
 {
-    keep_pull_continuous_updates = true;
     std::vector < std::pair < std::shared_ptr < std::atomic_bool >, std::thread > > thread_pool;
     std::string last_update;
 
@@ -353,13 +593,19 @@ void general_info_pulling::stop_continuous_updates()
     if (keep_pull_continuous_updates) {
         keep_pull_continuous_updates = false;
         backend_client.abort();
-        if (pull_continuous_updates_worker.joinable()) pull_continuous_updates_worker.join();
+        messages.push(BYE_AND_I_WAS | id.load());
+        std::ranges::for_each(pull_continuous_updates_worker, [](std::thread & T0)
+        {
+            if (T0.joinable()) T0.join();
+        });
     }
 }
 
 void general_info_pulling::start_continuous_updates()
 {
-    pull_continuous_updates_worker = std::thread([&]
+    keep_pull_continuous_updates = true;
+
+    pull_continuous_updates_worker.emplace_back([&]
     {
         try {
             ccdb::utils::set_thread_name("Puller");
@@ -370,6 +616,65 @@ void general_info_pulling::start_continuous_updates()
         catch (const std::exception &) {
         }
     });
+
+    // get to know who is in the group
+    const auto ME1 = static_cast<uint64_t>(HELLO_I_AM) | id.load();
+    messages.push(ME1);
+    messages.push(HAY_WHO_THE_FUCK_ARE_YOU_GUYS);
+
+    pull_continuous_updates_worker.emplace_back([&]
+    {
+        ccdb::utils::set_thread_name("Group:Sender");
+        broadcast_sender<basic_msg_type>(&keep_pull_continuous_updates, [this]->basic_msg_type {
+            const basic_msg_type msg = messages.wait();
+            std::lock_guard<std::mutex> lock(msg_buffer_each_cancelling_mtx);
+            msg_buffer_each_cancelling.push_back(msg);
+            return msg;
+        });
+    });
+
+    pull_continuous_updates_worker.emplace_back([&]
+    {
+        ccdb::utils::set_thread_name("Group:Receiver");
+        broadcast_receiver<basic_msg_type>(&keep_pull_continuous_updates,
+            [this](const std::string & sender, const basic_msg_type & msg)->bool
+        {
+            if (msg == HAY_WHO_THE_FUCK_ARE_YOU_GUYS) {
+                messages.push(HELLO_I_AM | id.load());
+            } else {
+                msg_buffer_recv.push(msg);
+            }
+
+            return true;
+        });
+    });
+
+    pull_continuous_updates_worker.emplace_back([&]
+    {
+        try {
+            ccdb::utils::set_thread_name("Group:Notifications");
+            get_notifications();
+        }
+        catch (const std::exception &) {
+        }
+    });
+
+    std::deque<basic_msg_type> ids;
+    uint16_t my_id = 0;
+    do
+    {
+        messages.push(HAY_WHO_THE_FUCK_ARE_YOU_GUYS);
+        ids = get_response([](const basic_msg_type msg)->bool {
+            return ((msg & 0xFFFFFFFF00000000) == HELLO_I_AM && (msg & 0xFFFF) != 0);
+        });
+
+        // get a random name
+        std::random_device dev;
+        std::mt19937 rng(dev());
+        std::uniform_int_distribution<std::mt19937::result_type> dist6(0, UINT16_MAX);
+        my_id = dist6(rng);
+    } while (std::ranges::find(ids, my_id) != ids.end());
+    id = my_id;
 }
 
 void general_info_pulling::update_proxy_list()
