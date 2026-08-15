@@ -300,8 +300,6 @@ bool general_info_pulling::open_protocol_sockets()
     }
     tx_port_ = ntohs(actual_tx.sin_port);
 
-    ccdb::utils::print("CCDB group sync address: ", MULTICAST_GROUP, ":", PORT,
-        " (ACK port ", tx_port_, ")\n");
     return true;
 }
 
