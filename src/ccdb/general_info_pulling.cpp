@@ -50,76 +50,140 @@
 #include "utils.h"
 #include "httplib.h"
 
-static std::string interface_str;
 static constexpr const auto * MULTICAST_GROUP = "239.255.0.1";
 static constexpr std::uint16_t PORT = 49361;
 
-static bool addr_to_string(sockaddr *sa, char *buf, const size_t buflen)
+struct multicast_interface_t
 {
-    if (sa->sa_family == AF_INET) {
-        const auto *sin = reinterpret_cast<struct sockaddr_in *>(sa);
-        inet_ntop(AF_INET, &sin->sin_addr, buf, buflen);
+    bool any = true;
+    std::string name;
+    in_addr address { .s_addr = htonl(INADDR_ANY) };
+    unsigned int ifindex = 0;
+};
+
+static multicast_interface_t multicast_interface;
+static bool multicast_interface_config_valid = true;
+
+static std::string ipv4_to_string(const in_addr address)
+{
+    char buffer[INET_ADDRSTRLEN] { };
+    if (::inet_ntop(AF_INET, &address, buffer, sizeof(buffer)) == nullptr) return { };
+    return buffer;
+}
+
+static bool resolve_interface_by_name(const std::string& name, multicast_interface_t& out)
+{
+    const unsigned int ifindex = ::if_nametoindex(name.c_str());
+    if (ifindex == 0) return false;
+
+    ifaddrs* interfaces = nullptr;
+    if (::getifaddrs(&interfaces) < 0) return false;
+
+    bool found = false;
+    for (const ifaddrs* it = interfaces; it != nullptr; it = it->ifa_next)
+    {
+        if (it->ifa_addr == nullptr || it->ifa_addr->sa_family != AF_INET || it->ifa_name == nullptr) continue;
+        if (name != it->ifa_name) continue;
+
+        const auto* address = reinterpret_cast<const sockaddr_in*>(it->ifa_addr);
+        out.any = false;
+        out.name = name;
+        out.address = address->sin_addr;
+        out.ifindex = ifindex;
+        found = true;
+        break;
+    }
+
+    ::freeifaddrs(interfaces);
+    return found;
+}
+
+static bool resolve_interface_by_address(const std::string& text, multicast_interface_t& out)
+{
+    in_addr wanted { };
+    if (::inet_pton(AF_INET, text.c_str(), &wanted) != 1) return false;
+
+    ifaddrs* interfaces = nullptr;
+    if (::getifaddrs(&interfaces) < 0) return false;
+
+    bool found = false;
+    for (const ifaddrs* it = interfaces; it != nullptr; it = it->ifa_next)
+    {
+        if (it->ifa_addr == nullptr || it->ifa_addr->sa_family != AF_INET || it->ifa_name == nullptr) continue;
+        const auto* address = reinterpret_cast<const sockaddr_in*>(it->ifa_addr);
+        if (address->sin_addr.s_addr != wanted.s_addr) continue;
+
+        const unsigned int ifindex = ::if_nametoindex(it->ifa_name);
+        if (ifindex == 0) continue;
+
+        out.any = false;
+        out.name = it->ifa_name;
+        out.address = wanted;
+        out.ifindex = ifindex;
+        found = true;
+        break;
+    }
+
+    ::freeifaddrs(interfaces);
+    return found;
+}
+
+static bool resolve_interface_spec(const std::string& spec, multicast_interface_t& out)
+{
+    if (spec.empty() || spec == "ADDR_ANY")
+    {
+        out = { };
         return true;
-    } else if (sa->sa_family == AF_INET6) {
-        const auto *sin6 = reinterpret_cast<struct sockaddr_in6 *>(sa);
-        inet_ntop(AF_INET6, &sin6->sin6_addr, buf, buflen);
-        return true;
-    } else {
+    }
+
+    if (resolve_interface_by_name(spec, out)) return true;
+    return resolve_interface_by_address(spec, out);
+}
+
+// Ask the kernel which local IPv4 it would use for the multicast destination,
+// then map that address back to an interface name/index. This is used only when
+// CCDB_SYNC_ADDRESS_BIND_TO is unset; an explicit setting always wins.
+static bool resolve_default_multicast_interface(multicast_interface_t& out)
+{
+    const int fd = ::socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd < 0) return false;
+
+    sockaddr_in destination { };
+    destination.sin_family = AF_INET;
+    destination.sin_port = htons(PORT);
+    if (::inet_pton(AF_INET, MULTICAST_GROUP, &destination.sin_addr) != 1)
+    {
+        ::close(fd);
         return false;
     }
-}
 
-static bool is_same_network(sockaddr *addr, sockaddr *mask, const char *target_ip)
-{
-    if (addr->sa_family != AF_INET) {
-        return false; // ipv6 sucks, also it's for local network
-    }
-
-    const auto *addr_in = reinterpret_cast<struct sockaddr_in *>(addr);
-    const auto *mask_in = reinterpret_cast<struct sockaddr_in *>(mask);
-
-    const uint32_t ip = ntohl(addr_in->sin_addr.s_addr);
-    const uint32_t netmask = ntohl(mask_in->sin_addr.s_addr);
-    const uint32_t network = ip & netmask;
-
-    // Convert target IP to binary
-    in_addr target_bin{};
-    if (inet_pton(AF_INET, target_ip, &target_bin) != 1) {
-        return false; // invalid target
-    }
-    uint32_t target = ntohl(target_bin.s_addr);
-    uint32_t target_network = target & netmask;
-
-    return network == target_network;
-}
-
-static std::vector<std::pair<std::string, std::string>> find_local(const char *target_ip)
-{
-    std::vector<std::pair<std::string, std::string>> ret;
-    ifaddrs *ifaddr;
-
-    if (getifaddrs(&ifaddr) == -1) {
-        ccdb::utils::print<ccdb::utils::is_error>("getifaddrs: ", std::strerror(errno), "\n");
-        return { };
-    }
-
-    for (const ifaddrs * ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next)
+    if (::connect(fd, reinterpret_cast<const sockaddr*>(&destination), sizeof(destination)) < 0)
     {
-        if (ifa->ifa_addr == nullptr) continue;
-        if (ifa->ifa_addr->sa_family == AF_INET)
-        {
-            if (ifa->ifa_netmask == nullptr) continue;
-            char addr_str[INET_ADDRSTRLEN];
-            addr_to_string(ifa->ifa_addr, addr_str, sizeof(addr_str));
-
-            if (is_same_network(ifa->ifa_addr, ifa->ifa_netmask, target_ip)) {
-                ret.emplace_back(addr_str, ifa->ifa_name);
-            }
-        }
+        ::close(fd);
+        return false;
     }
 
-    freeifaddrs(ifaddr);
-    return ret;
+    sockaddr_in local { };
+    socklen_t local_len = sizeof(local);
+    const bool got_local = ::getsockname(fd, reinterpret_cast<sockaddr*>(&local), &local_len) == 0;
+    ::close(fd);
+    if (!got_local || local.sin_addr.s_addr == htonl(INADDR_ANY)) return false;
+
+    return resolve_interface_by_address(ipv4_to_string(local.sin_addr), out);
+}
+
+static bool bind_socket_to_device(const int fd, const multicast_interface_t& interface)
+{
+    if (interface.any) return true;
+
+    if (::setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,
+        interface.name.c_str(), static_cast<socklen_t>(interface.name.size() + 1)) < 0)
+    {
+        ccdb::utils::print<ccdb::utils::is_error>(
+            "SO_BINDTODEVICE(", interface.name, "): ", std::strerror(errno), "\n");
+        return false;
+    }
+    return true;
 }
 
 std::size_t general_info_pulling::message_key_hash_t::operator()(const message_key_t& key) const noexcept
@@ -209,7 +273,7 @@ std::uint64_t general_info_pulling::random_nonzero_u64()
 }
 
 std::vector<std::uint8_t> general_info_pulling::serialize_packet(const packet_type_t type,
-    const std::uint64_t message_id, const std::span<const std::uint8_t> payload) const
+    const std::uint64_t message_id, const std::span<const std::uint8_t> payload)
 {
     if (node_id_.load() == 0) return { };
 
@@ -223,6 +287,22 @@ std::vector<std::uint8_t> general_info_pulling::serialize_packet(const packet_ty
         if (type == packet_type_t::ack && message_id == 0) return { };
         if (type != packet_type_t::ack && message_id != 0) return { };
     }
+
+    if (!bind_socket_to_device(multicast_fd_, multicast_interface)) {
+        close_protocol_sockets();
+        throw std::runtime_error("Failed to bind. Consider CCDB_SYNC_ADDRESS_BIND_TO=ADDR_ANY");
+    }
+
+#ifdef IP_MULTICAST_ALL
+    const int multicast_all = 0;
+    if (::setsockopt(multicast_fd_, IPPROTO_IP, IP_MULTICAST_ALL,
+        &multicast_all, sizeof(multicast_all)) < 0)
+    {
+        ccdb::utils::print<ccdb::utils::is_error>("IP_MULTICAST_ALL: ", strerror(errno), '\n');
+        close_protocol_sockets();
+        throw std::runtime_error("Failed to bind. Consider CCDB_SYNC_ADDRESS_BIND_TO=ADDR_ANY");
+    }
+#endif
 
     std::vector<std::uint8_t> wire(protocol_header_size_ + payload.size(), 0);
     write_u32(wire, 0, protocol_magic_);
@@ -288,6 +368,12 @@ bool general_info_pulling::parse_packet(const std::span<const std::uint8_t> wire
 bool general_info_pulling::open_protocol_sockets()
 {
     close_protocol_sockets();
+    if (!multicast_interface_config_valid)
+    {
+        ccdb::utils::print<ccdb::utils::is_error>(
+            "CCDB UDP group synchronization disabled: invalid CCDB_SYNC_ADDRESS_BIND_TO.\n");
+        return false;
+    }
 
     multicast_fd_ = ::socket(AF_INET, SOCK_DGRAM, 0);
     if (multicast_fd_ < 0) {
@@ -312,15 +398,22 @@ bool general_info_pulling::open_protocol_sockets()
         return false;
     }
 
-    ip_mreq membership { };
+    ip_mreqn membership { };
     if (::inet_pton(AF_INET, MULTICAST_GROUP, &membership.imr_multiaddr) != 1) {
         ccdb::utils::print<ccdb::utils::is_error>("Invalid multicast address\n");
         close_protocol_sockets();
         return false;
     }
-    if (interface_str.empty()) membership.imr_interface.s_addr = htonl(INADDR_ANY);
-    else inet_pton(AF_INET, interface_str.c_str(), &membership.imr_interface);
-    if (::setsockopt(multicast_fd_, IPPROTO_IP, IP_ADD_MEMBERSHIP, &membership, sizeof(membership)) < 0) {
+    membership.imr_address = multicast_interface.any
+        ? in_addr { .s_addr = htonl(INADDR_ANY) }
+        : multicast_interface.address;
+    membership.imr_ifindex = multicast_interface.any
+        ? 0
+        : static_cast<int>(multicast_interface.ifindex);
+
+    if (::setsockopt(multicast_fd_, IPPROTO_IP, IP_ADD_MEMBERSHIP,
+        &membership, sizeof(membership)) < 0)
+    {
         ccdb::utils::print<ccdb::utils::is_error>("IP_ADD_MEMBERSHIP: ", strerror(errno), '\n');
         close_protocol_sockets();
         return false;
@@ -333,14 +426,34 @@ bool general_info_pulling::open_protocol_sockets()
         return false;
     }
 
+    if (!bind_socket_to_device(tx_fd_, multicast_interface)) {
+        close_protocol_sockets();
+        return false;
+    }
+
     sockaddr_in tx_local { };
     tx_local.sin_family = AF_INET;
     tx_local.sin_port = htons(0);
-    tx_local.sin_addr.s_addr = htonl(INADDR_ANY);
+    tx_local.sin_addr = multicast_interface.any
+        ? in_addr { .s_addr = htonl(INADDR_ANY) }
+        : multicast_interface.address;
     if (::bind(tx_fd_, reinterpret_cast<sockaddr*>(&tx_local), sizeof(tx_local)) < 0) {
         ccdb::utils::print<ccdb::utils::is_error>("bind(tx): ", strerror(errno), '\n');
         close_protocol_sockets();
         return false;
+    }
+
+    if (!multicast_interface.any)
+    {
+        ip_mreqn outgoing { };
+        outgoing.imr_address = multicast_interface.address;
+        outgoing.imr_ifindex = static_cast<int>(multicast_interface.ifindex);
+        if (::setsockopt(tx_fd_, IPPROTO_IP, IP_MULTICAST_IF, &outgoing, sizeof(outgoing)) < 0)
+        {
+            ccdb::utils::print<ccdb::utils::is_error>("IP_MULTICAST_IF: ", strerror(errno), '\n');
+            close_protocol_sockets();
+            return false;
+        }
     }
 
     const unsigned char ttl = 1;
@@ -371,6 +484,14 @@ bool general_info_pulling::open_protocol_sockets()
     }
     tx_port_ = ntohs(actual_tx.sin_port);
 
+    if (multicast_interface.any) {
+        ccdb::utils::print("CCDB multicast interface: ADDR_ANY, tx-port=", tx_port_, "\n");
+    } else {
+        ccdb::utils::print("CCDB multicast interface: ", multicast_interface.name,
+            " (", ipv4_to_string(multicast_interface.address), ", ifindex=",
+            multicast_interface.ifindex, "), tx-port=", tx_port_, "\n");
+    }
+
     return true;
 }
 
@@ -378,11 +499,16 @@ void general_info_pulling::close_protocol_sockets()
 {
     if (multicast_fd_ >= 0)
     {
-        ip_mreq membership { };
+        ip_mreqn membership { };
         if (::inet_pton(AF_INET, MULTICAST_GROUP, &membership.imr_multiaddr) == 1) {
-            if (interface_str.empty()) membership.imr_interface.s_addr = htonl(INADDR_ANY);
-            else inet_pton(AF_INET, interface_str.c_str(), &membership.imr_interface);
-            (void)::setsockopt(multicast_fd_, IPPROTO_IP, IP_DROP_MEMBERSHIP, &membership, sizeof(membership));
+            membership.imr_address = multicast_interface.any
+                ? in_addr { .s_addr = htonl(INADDR_ANY) }
+                : multicast_interface.address;
+            membership.imr_ifindex = multicast_interface.any
+                ? 0
+                : static_cast<int>(multicast_interface.ifindex);
+            (void)::setsockopt(multicast_fd_, IPPROTO_IP, IP_DROP_MEMBERSHIP,
+                &membership, sizeof(membership));
         }
         ::close(multicast_fd_);
         multicast_fd_ = -1;
@@ -742,19 +868,40 @@ void general_info_pulling::notify_all(const notifications_t& msg)
 general_info_pulling::general_info_pulling(const std::string& url, const std::string& token): backend_client(url, token)
 {
     const auto CCDB_SYNC_ADDRESS_BIND_TO = ccdb::utils::getenv("CCDB_SYNC_ADDRESS_BIND_TO");
+
     if (CCDB_SYNC_ADDRESS_BIND_TO.empty())
     {
-        if (std::string scheme, host, path; ccdb::utils::parse_url(url, scheme, host, path)) {
-            host = host.substr(0, host.find_last_of(':'));
-            if (const auto local_vec = find_local(host.c_str()); !local_vec.empty()) {
-                ccdb::utils::print("Local IP=", local_vec.front().first, ", interface=", local_vec.front().second, "\n");
-                interface_str = local_vec.front().first;
-            }
+        if (!resolve_default_multicast_interface(multicast_interface))
+        {
+            // Preserve a usable fallback if the host has no route to the multicast group yet.
+            multicast_interface = { };
+            ccdb::utils::print<ccdb::utils::is_error>(
+                "Cannot auto-detect the multicast interface; falling back to ADDR_ANY. "
+                "Set CCDB_SYNC_ADDRESS_BIND_TO=<ifname|IPv4> to force an interface.\n");
         }
     }
-    else if (CCDB_SYNC_ADDRESS_BIND_TO != "ADDR_ANY")
+    else
     {
-        interface_str = CCDB_SYNC_ADDRESS_BIND_TO;
+        multicast_interface_config_valid = resolve_interface_spec(
+            CCDB_SYNC_ADDRESS_BIND_TO, multicast_interface);
+        if (!multicast_interface_config_valid)
+        {
+            ccdb::utils::print<ccdb::utils::is_error>(
+                "Invalid CCDB_SYNC_ADDRESS_BIND_TO=", CCDB_SYNC_ADDRESS_BIND_TO,
+                ". Expected ADDR_ANY, a local interface name (for example eth0), "
+                "or a local IPv4 address.\n");
+        }
+    }
+
+    if (multicast_interface_config_valid)
+    {
+        if (multicast_interface.any) {
+            ccdb::utils::print("CCDB_SYNC_ADDRESS_BIND_TO=ADDR_ANY\n");
+        } else {
+            ccdb::utils::print("CCDB_SYNC_ADDRESS_BIND_TO=", multicast_interface.name,
+                " (", ipv4_to_string(multicast_interface.address), ", ifindex=",
+                multicast_interface.ifindex, ")\n");
+        }
     }
 
     ccdb_multicast_watcher = std::thread([this]

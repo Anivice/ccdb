@@ -249,7 +249,7 @@ private:
     static std::uint64_t random_nonzero_u64();
 
     [[nodiscard]] std::vector<std::uint8_t> serialize_packet(packet_type_t type,
-        std::uint64_t message_id = 0, std::span<const std::uint8_t> payload = { }) const;
+        std::uint64_t message_id = 0, std::span<const std::uint8_t> payload = { });
     static bool parse_packet(std::span<const std::uint8_t> wire, decoded_packet_t& out) ;
 
     bool open_protocol_sockets();
