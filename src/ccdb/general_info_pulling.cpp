@@ -28,6 +28,14 @@
 #include <chrono>
 #include <fstream>
 #include <functional>
+#include <array>
+#include <random>
+#include <ranges>
+#include <span>
+#include <vector>
+#include <poll.h>
+#include <fcntl.h>
+#include <sys/uio.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -40,122 +48,669 @@
 #include "utils.h"
 #include "httplib.h"
 
+
 static constexpr const char* MULTICAST_GROUP = "239.255.0.1";
-static constexpr uint16_t PORT = 49361;
+static constexpr std::uint16_t PORT = 49361;
 
-template <typename MessageStructure>
-static void broadcast_receiver(std::atomic_bool * running,
-    const std::function<bool(const std::string &, const MessageStructure &)> & handler)
+std::size_t general_info_pulling::message_key_hash_t::operator()(const message_key_t& key) const noexcept
 {
-    const int fd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (fd < 0) {
-        ccdb::utils::print<ccdb::utils::is_error>("socket: ", strerror(errno), '\n');
-        return;
+    const auto h1 = std::hash<std::uint64_t>{}(key.sender_node_id);
+    const auto h2 = std::hash<std::uint64_t>{}(key.message_id);
+    return h1 ^ (h2 + 0x9e3779b97f4a7c15ULL + (h1 << 6) + (h1 >> 2));
+}
+
+void general_info_pulling::write_u16(std::vector<std::uint8_t>& out, const std::size_t offset,
+    const std::uint16_t value)
+{
+    out[offset] = static_cast<std::uint8_t>(value >> 8);
+    out[offset + 1] = static_cast<std::uint8_t>(value);
+}
+
+void general_info_pulling::write_u32(std::vector<std::uint8_t>& out, const std::size_t offset,
+    const std::uint32_t value)
+{
+    out[offset] = static_cast<std::uint8_t>(value >> 24);
+    out[offset + 1] = static_cast<std::uint8_t>(value >> 16);
+    out[offset + 2] = static_cast<std::uint8_t>(value >> 8);
+    out[offset + 3] = static_cast<std::uint8_t>(value);
+}
+
+void general_info_pulling::write_u64(std::vector<std::uint8_t>& out, const std::size_t offset,
+    const std::uint64_t value)
+{
+    for (std::size_t i = 0; i < 8; ++i) {
+        out[offset + i] = static_cast<std::uint8_t>(value >> ((7 - i) * 8));
+    }
+}
+
+std::uint16_t general_info_pulling::read_u16(const std::span<const std::uint8_t> in, const std::size_t offset)
+{
+    return static_cast<std::uint16_t>((static_cast<std::uint16_t>(in[offset]) << 8) |
+        static_cast<std::uint16_t>(in[offset + 1]));
+}
+
+std::uint32_t general_info_pulling::read_u32(const std::span<const std::uint8_t> in, const std::size_t offset)
+{
+    return (static_cast<std::uint32_t>(in[offset]) << 24) |
+        (static_cast<std::uint32_t>(in[offset + 1]) << 16) |
+        (static_cast<std::uint32_t>(in[offset + 2]) << 8) |
+        static_cast<std::uint32_t>(in[offset + 3]);
+}
+
+std::uint64_t general_info_pulling::read_u64(const std::span<const std::uint8_t> in, const std::size_t offset)
+{
+    std::uint64_t value = 0;
+    for (std::size_t i = 0; i < 8; ++i) {
+        value = (value << 8) | in[offset + i];
+    }
+    return value;
+}
+
+std::uint32_t general_info_pulling::crc32(const std::span<const std::uint8_t> bytes)
+{
+    std::uint32_t crc = 0xffffffffu;
+    for (const std::uint8_t byte : bytes)
+    {
+        crc ^= byte;
+        for (int bit = 0; bit < 8; ++bit)
+        {
+            const std::uint32_t mask = 0u - (crc & 1u);
+            crc = (crc >> 1) ^ (0xedb88320u & mask);
+        }
+    }
+    return ~crc;
+}
+
+std::uint64_t general_info_pulling::random_nonzero_u64()
+{
+    static thread_local std::mt19937_64 rng([] {
+        std::random_device rd;
+        std::seed_seq seed {
+            rd(), rd(), rd(), rd(),
+            static_cast<unsigned int>(::getpid()),
+            static_cast<unsigned int>(std::chrono::steady_clock::now().time_since_epoch().count())
+        };
+        return std::mt19937_64(seed);
+    }());
+
+    std::uint64_t value = 0;
+    while (value == 0) value = rng();
+    return value;
+}
+
+std::vector<std::uint8_t> general_info_pulling::serialize_packet(const packet_type_t type,
+    const std::uint64_t message_id, const std::span<const std::uint8_t> payload) const
+{
+    if (node_id_.load() == 0) return { };
+
+    if (type == packet_type_t::data)
+    {
+        if (payload.size() != sizeof(notifications_t) || message_id == 0) return { };
+    }
+    else
+    {
+        if (!payload.empty()) return { };
+        if (type == packet_type_t::ack && message_id == 0) return { };
+        if (type != packet_type_t::ack && message_id != 0) return { };
     }
 
-    int reuse = 1;
-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
+    std::vector<std::uint8_t> wire(protocol_header_size_ + payload.size(), 0);
+    write_u32(wire, 0, protocol_magic_);
+    wire[4] = protocol_version_;
+    wire[5] = static_cast<std::uint8_t>(type);
+    write_u16(wire, 6, 0); // flags
+    write_u64(wire, 8, node_id_.load());
+    write_u64(wire, 16, message_id);
+    write_u16(wire, 24, static_cast<std::uint16_t>(payload.size()));
+    write_u16(wire, 26, 0); // reserved
+    write_u32(wire, 28, payload.empty() ? 0u : crc32(payload));
+    std::copy(payload.begin(), payload.end(), wire.begin() + static_cast<std::ptrdiff_t>(protocol_header_size_));
+    return wire;
+}
+
+bool general_info_pulling::parse_packet(const std::span<const std::uint8_t> wire, decoded_packet_t& out)
+{
+    if (wire.size() < protocol_header_size_) return false;
+    if (read_u32(wire, 0) != protocol_magic_) return false;
+    if (wire[4] != protocol_version_) return false;
+    if (read_u16(wire, 6) != 0 || read_u16(wire, 26) != 0) return false;
+
+    const auto raw_type = wire[5];
+    if (raw_type < static_cast<std::uint8_t>(packet_type_t::discover) ||
+        raw_type > static_cast<std::uint8_t>(packet_type_t::bye)) return false;
+
+    const auto type = static_cast<packet_type_t>(raw_type);
+    const auto sender_node_id = read_u64(wire, 8);
+    const auto message_id = read_u64(wire, 16);
+    const auto payload_size = read_u16(wire, 24);
+    const auto expected_crc = read_u32(wire, 28);
+
+    if (sender_node_id == 0) return false;
+    if (wire.size() != protocol_header_size_ + payload_size) return false;
+
+    if (type == packet_type_t::data)
+    {
+        if (payload_size != sizeof(notifications_t) || message_id == 0) return false;
+    }
+    else
+    {
+        if (payload_size != 0) return false;
+        if (type == packet_type_t::ack) {
+            if (message_id == 0) return false;
+        } else if (message_id != 0) {
+            return false;
+        }
+    }
+
+    const auto payload = wire.subspan(protocol_header_size_, payload_size);
+    if ((payload.empty() && expected_crc != 0) ||
+        (!payload.empty() && expected_crc != crc32(payload))) return false;
+
+    out = { };
+    out.type = type;
+    out.flags = 0;
+    out.sender_node_id = sender_node_id;
+    out.message_id = message_id;
+    out.payload.assign(payload.begin(), payload.end());
+    return true;
+}
+
+bool general_info_pulling::open_protocol_sockets()
+{
+    close_protocol_sockets();
+
+    multicast_fd_ = ::socket(AF_INET, SOCK_DGRAM, 0);
+    if (multicast_fd_ < 0) {
+        ccdb::utils::print<ccdb::utils::is_error>("socket(multicast): ", strerror(errno), '\n');
+        return false;
+    }
+
+    const int reuse = 1;
+    if (::setsockopt(multicast_fd_, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
         ccdb::utils::print<ccdb::utils::is_error>("setsockopt(SO_REUSEADDR): ", strerror(errno), '\n');
-        close(fd);
-        return;
+        close_protocol_sockets();
+        return false;
     }
 
-    sockaddr_in local{};
+    sockaddr_in local { };
     local.sin_family = AF_INET;
     local.sin_port = htons(PORT);
     local.sin_addr.s_addr = htonl(INADDR_ANY);
-
-    if (bind(fd, reinterpret_cast<sockaddr*>(&local), sizeof(local)) < 0) {
-        ccdb::utils::print<ccdb::utils::is_error>("bind: ", strerror(errno), '\n');
-        close(fd);
-        return;
+    if (::bind(multicast_fd_, reinterpret_cast<sockaddr*>(&local), sizeof(local)) < 0) {
+        ccdb::utils::print<ccdb::utils::is_error>("bind(multicast): ", strerror(errno), '\n');
+        close_protocol_sockets();
+        return false;
     }
 
-    ip_mreq mreq{};
-
-    if (inet_pton(AF_INET, MULTICAST_GROUP, &mreq.imr_multiaddr) != 1) {
+    ip_mreq membership { };
+    if (::inet_pton(AF_INET, MULTICAST_GROUP, &membership.imr_multiaddr) != 1) {
         ccdb::utils::print<ccdb::utils::is_error>("Invalid multicast address\n");
-        close(fd);
-        return;
+        close_protocol_sockets();
+        return false;
     }
-
-    mreq.imr_interface.s_addr = htonl(INADDR_ANY);
-
-    if (setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) {
+    membership.imr_interface.s_addr = htonl(INADDR_ANY);
+    if (::setsockopt(multicast_fd_, IPPROTO_IP, IP_ADD_MEMBERSHIP, &membership, sizeof(membership)) < 0) {
         ccdb::utils::print<ccdb::utils::is_error>("IP_ADD_MEMBERSHIP: ", strerror(errno), '\n');
-        close(fd);
-        return;
+        close_protocol_sockets();
+        return false;
     }
 
-    ccdb::utils::print("CCDB group sync address: ", MULTICAST_GROUP, ":", PORT, "\n");
-
-    while (*running)
-    {
-        MessageStructure buffer { };
-        sockaddr_in sender { };
-        socklen_t sender_len = sizeof(sender);
-
-        if (const ssize_t n = recvfrom(fd, &buffer, sizeof(buffer), 0, reinterpret_cast<sockaddr*>(&sender), &sender_len); n != sizeof(buffer)) {
-            ccdb::utils::print<ccdb::utils::is_error>("recvfrom: ", strerror(errno), '\n');
-            continue;
-        }
-
-        char sender_ip[INET_ADDRSTRLEN]{};
-        inet_ntop(AF_INET, &sender.sin_addr, sender_ip, sizeof(sender_ip));
-        std::stringstream ss; ss << sender_ip << ":" << ntohs(sender.sin_port);
-        if (!handler(ss.str(), buffer)) break;
+    tx_fd_ = ::socket(AF_INET, SOCK_DGRAM, 0);
+    if (tx_fd_ < 0) {
+        ccdb::utils::print<ccdb::utils::is_error>("socket(tx): ", strerror(errno), '\n');
+        close_protocol_sockets();
+        return false;
     }
 
-    close(fd);
+    sockaddr_in tx_local { };
+    tx_local.sin_family = AF_INET;
+    tx_local.sin_port = htons(0);
+    tx_local.sin_addr.s_addr = htonl(INADDR_ANY);
+    if (::bind(tx_fd_, reinterpret_cast<sockaddr*>(&tx_local), sizeof(tx_local)) < 0) {
+        ccdb::utils::print<ccdb::utils::is_error>("bind(tx): ", strerror(errno), '\n');
+        close_protocol_sockets();
+        return false;
+    }
+
+    const unsigned char ttl = 1;
+    const unsigned char loop = 1;
+    if (::setsockopt(tx_fd_, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) < 0 ||
+        ::setsockopt(tx_fd_, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop)) < 0) {
+        ccdb::utils::print<ccdb::utils::is_error>("multicast tx options: ", strerror(errno), '\n');
+        close_protocol_sockets();
+        return false;
+    }
+
+    auto make_nonblocking = [](const int fd) -> bool {
+        const int flags = ::fcntl(fd, F_GETFL, 0);
+        return flags >= 0 && ::fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0;
+    };
+    if (!make_nonblocking(multicast_fd_) || !make_nonblocking(tx_fd_)) {
+        ccdb::utils::print<ccdb::utils::is_error>("fcntl(O_NONBLOCK): ", strerror(errno), '\n');
+        close_protocol_sockets();
+        return false;
+    }
+
+    sockaddr_in actual_tx { };
+    socklen_t actual_tx_len = sizeof(actual_tx);
+    if (::getsockname(tx_fd_, reinterpret_cast<sockaddr*>(&actual_tx), &actual_tx_len) < 0) {
+        ccdb::utils::print<ccdb::utils::is_error>("getsockname(tx): ", strerror(errno), '\n');
+        close_protocol_sockets();
+        return false;
+    }
+    tx_port_ = ntohs(actual_tx.sin_port);
+
+    ccdb::utils::print("CCDB group sync address: ", MULTICAST_GROUP, ":", PORT,
+        " (ACK port ", tx_port_, ")\n");
+    return true;
 }
 
-template <typename MessageStructure>
-static void broadcast_sender(std::atomic_bool * running, const std::function<MessageStructure()> & handler)
+void general_info_pulling::close_protocol_sockets()
 {
-    const int fd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (fd < 0) {
-        ccdb::utils::print<ccdb::utils::is_error>("socket: ", strerror(errno), '\n');
-        return;
+    if (multicast_fd_ >= 0)
+    {
+        ip_mreq membership { };
+        if (::inet_pton(AF_INET, MULTICAST_GROUP, &membership.imr_multiaddr) == 1) {
+            membership.imr_interface.s_addr = htonl(INADDR_ANY);
+            (void)::setsockopt(multicast_fd_, IPPROTO_IP, IP_DROP_MEMBERSHIP, &membership, sizeof(membership));
+        }
+        ::close(multicast_fd_);
+        multicast_fd_ = -1;
     }
 
-    // TTL = 1 => keep multicast on local network
-    if (constexpr int ttl = 1; setsockopt(fd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) < 0) {
-        ccdb::utils::print<ccdb::utils::is_error>("IP_MULTICAST_TTL: ", strerror(errno), '\n');
-        close(fd);
-        return;
+    if (tx_fd_ >= 0) {
+        ::close(tx_fd_);
+        tx_fd_ = -1;
     }
+    tx_port_ = 0;
+}
 
-    if (constexpr int loop = 1; setsockopt(fd, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop)) < 0) {
-        ccdb::utils::print<ccdb::utils::is_error>("IP_MULTICAST_LOOP: ", strerror(errno), '\n');
-        close(fd);
-        return;
-    }
+bool general_info_pulling::send_multicast_packet(const packet_type_t type, const std::uint64_t message_id,
+    const std::span<const std::uint8_t> payload)
+{
+    const auto wire = serialize_packet(type, message_id, payload);
+    if (wire.empty() || tx_fd_ < 0) return false;
 
-    sockaddr_in destination{};
+    sockaddr_in destination { };
     destination.sin_family = AF_INET;
     destination.sin_port = htons(PORT);
+    if (::inet_pton(AF_INET, MULTICAST_GROUP, &destination.sin_addr) != 1) return false;
 
-    if (inet_pton(AF_INET, MULTICAST_GROUP, &destination.sin_addr) != 1)
+    std::lock_guard lock(network_send_mtx_);
+    const auto n = ::sendto(tx_fd_, wire.data(), wire.size(), 0,
+        reinterpret_cast<const sockaddr*>(&destination), sizeof(destination));
+    if (n != static_cast<ssize_t>(wire.size())) {
+        if (n < 0) ccdb::utils::print<ccdb::utils::is_error>("sendto(multicast): ", strerror(errno), '\n');
+        else ccdb::utils::print<ccdb::utils::is_error>("sendto(multicast): short UDP send\n");
+        return false;
+    }
+    return true;
+}
+
+bool general_info_pulling::send_unicast_packet(const sockaddr_in& destination, const packet_type_t type,
+    const std::uint64_t message_id)
+{
+    const auto wire = serialize_packet(type, message_id, { });
+    if (wire.empty() || tx_fd_ < 0) return false;
+
+    std::lock_guard lock(network_send_mtx_);
+    const auto n = ::sendto(tx_fd_, wire.data(), wire.size(), 0,
+        reinterpret_cast<const sockaddr*>(&destination), sizeof(destination));
+    if (n != static_cast<ssize_t>(wire.size())) {
+        if (n < 0) ccdb::utils::print<ccdb::utils::is_error>("sendto(unicast): ", strerror(errno), '\n');
+        else ccdb::utils::print<ccdb::utils::is_error>("sendto(unicast): short UDP send\n");
+        return false;
+    }
+    return true;
+}
+
+void general_info_pulling::refresh_peer(const std::uint64_t peer_id, const sockaddr_in& endpoint)
+{
+    if (peer_id == 0 || peer_id == node_id_.load()) return;
+    std::lock_guard lock(peer_mtx_);
+    peers_[peer_id] = peer_t { endpoint, std::chrono::steady_clock::now() };
+}
+
+void general_info_pulling::remove_peer(const std::uint64_t peer_id)
+{
     {
-        ccdb::utils::print<ccdb::utils::is_error>("Invalid multicast address\n");
-        close(fd);
-        return;
+        std::lock_guard lock(peer_mtx_);
+        peers_.erase(peer_id);
     }
 
-    while (*running)
+    bool changed = false;
     {
-        const auto message = handler();
-        const ssize_t n = sendto(fd, &message, sizeof(message), 0,
-            reinterpret_cast<sockaddr*>(&destination), sizeof(destination));
+        std::lock_guard lock(pending_mtx_);
+        for (auto& pending : pending_sends_ | std::views::values) {
+            changed = pending.waiting_for.erase(peer_id) > 0 || changed;
+        }
+    }
+    if (changed) pending_cv_.notify_all();
+}
 
-        if (n != sizeof(message)) {
-            ccdb::utils::print<ccdb::utils::is_error>("sendto: ", strerror(errno), '\n');
-            close(fd);
-            return;
+void general_info_pulling::prune_peers()
+{
+    const auto now = std::chrono::steady_clock::now();
+    std::vector<std::uint64_t> expired;
+    {
+        std::lock_guard lock(peer_mtx_);
+        for (auto it = peers_.begin(); it != peers_.end();)
+        {
+            if (now - it->second.last_seen > peer_timeout_) {
+                expired.push_back(it->first);
+                it = peers_.erase(it);
+            } else {
+                ++it;
+            }
         }
     }
 
-    close(fd);
+    if (!expired.empty())
+    {
+        bool changed = false;
+        {
+            std::lock_guard lock(pending_mtx_);
+            for (auto& pending : pending_sends_ | std::views::values) {
+                for (const auto peer_id : expired) changed = pending.waiting_for.erase(peer_id) > 0 || changed;
+            }
+        }
+        if (changed) pending_cv_.notify_all();
+    }
+}
+
+void general_info_pulling::prune_recent_messages()
+{
+    const auto now = std::chrono::steady_clock::now();
+    std::lock_guard lock(dedup_mtx_);
+    for (auto it = recent_messages_.begin(); it != recent_messages_.end();) {
+        if (now - it->second > dedup_timeout_) it = recent_messages_.erase(it);
+        else ++it;
+    }
+}
+
+bool general_info_pulling::mark_message_first_seen(const std::uint64_t sender_node_id,
+    const std::uint64_t message_id)
+{
+    const auto now = std::chrono::steady_clock::now();
+    const message_key_t key { sender_node_id, message_id };
+    std::lock_guard lock(dedup_mtx_);
+
+    for (auto it = recent_messages_.begin(); it != recent_messages_.end();) {
+        if (now - it->second > dedup_timeout_) it = recent_messages_.erase(it);
+        else ++it;
+    }
+
+    const auto [_, inserted] = recent_messages_.emplace(key, now);
+    return inserted;
+}
+
+void general_info_pulling::regenerate_node_identity()
+{
+    const auto previous = node_id_.load();
+    std::uint64_t next = previous;
+    while (next == 0 || next == previous) next = random_nonzero_u64();
+    node_id_.store(next);
+}
+
+std::unordered_set<std::uint64_t> general_info_pulling::snapshot_peer_ids()
+{
+    prune_peers();
+    std::unordered_set<std::uint64_t> result;
+    std::lock_guard lock(peer_mtx_);
+    result.reserve(peers_.size());
+    for (const auto peer_id : peers_ | std::views::keys) result.insert(peer_id);
+    return result;
+}
+
+std::uint64_t general_info_pulling::next_message_id()
+{
+    auto value = message_counter_.fetch_add(1) + 1;
+    if (value == 0) value = message_counter_.fetch_add(1) + 1;
+    return value;
+}
+
+void general_info_pulling::handle_packet(const decoded_packet_t& packet, const sockaddr_in& source)
+{
+    const auto local_id = node_id_.load();
+    if (packet.sender_node_id == local_id)
+    {
+        // Multicast loopback of our own packet has the same ephemeral source port.
+        if (ntohs(source.sin_port) == tx_port_) return;
+
+        // Another endpoint claiming our 64-bit ID: regenerate and advertise immediately.
+        regenerate_node_identity();
+        (void)send_multicast_packet(packet_type_t::hello);
+    }
+
+    if (packet.sender_node_id == node_id_.load()) return;
+
+    switch (packet.type)
+    {
+        case packet_type_t::discover:
+        {
+            refresh_peer(packet.sender_node_id, source);
+            static thread_local std::mt19937 rng(std::random_device{}());
+            std::uniform_int_distribution<int> jitter_ms(5, 30);
+            const auto due = std::chrono::steady_clock::now() + std::chrono::milliseconds(jitter_ms(rng));
+            if (scheduled_hello_ == std::chrono::steady_clock::time_point { } || due < scheduled_hello_) {
+                scheduled_hello_ = due;
+            }
+            break;
+        }
+        case packet_type_t::hello:
+            refresh_peer(packet.sender_node_id, source);
+            break;
+
+        case packet_type_t::bye:
+            remove_peer(packet.sender_node_id);
+            break;
+
+        case packet_type_t::ack:
+        {
+            refresh_peer(packet.sender_node_id, source);
+            bool changed = false;
+            {
+                std::lock_guard lock(pending_mtx_);
+                if (const auto it = pending_sends_.find(packet.message_id); it != pending_sends_.end()) {
+                    changed = it->second.waiting_for.erase(packet.sender_node_id) > 0;
+                }
+            }
+            if (changed) pending_cv_.notify_all();
+            break;
+        }
+
+        case packet_type_t::data:
+        {
+            refresh_peer(packet.sender_node_id, source);
+            const bool first_seen = mark_message_first_seen(packet.sender_node_id, packet.message_id);
+            if (first_seen)
+            {
+                notifications_t decoded { };
+                std::memcpy(&decoded, packet.payload.data(), sizeof(decoded));
+                notifications.push(decoded);
+            }
+
+            // Duplicate DATA is deliberately ACKed again, but never delivered twice.
+            (void)send_unicast_packet(source, packet_type_t::ack, packet.message_id);
+            break;
+        }
+    }
+}
+
+void general_info_pulling::receive_ready_datagram(const int fd)
+{
+    std::array<std::uint8_t, 512> buffer { };
+    iovec iov { buffer.data(), buffer.size() };
+    sockaddr_in source { };
+    msghdr message { };
+    message.msg_name = &source;
+    message.msg_namelen = sizeof(source);
+    message.msg_iov = &iov;
+    message.msg_iovlen = 1;
+
+    ssize_t n;
+    do {
+        n = ::recvmsg(fd, &message, 0);
+    } while (n < 0 && errno == EINTR);
+
+    if (n < 0)
+    {
+        if (errno != EAGAIN && errno != EWOULDBLOCK && errno != ECONNREFUSED) {
+            ccdb::utils::print<ccdb::utils::is_error>("recvmsg: ", strerror(errno), '\n');
+        }
+        return;
+    }
+
+    if ((message.msg_flags & MSG_TRUNC) != 0) return;
+    if (message.msg_namelen < sizeof(sockaddr_in) || source.sin_family != AF_INET) return;
+
+    decoded_packet_t packet { };
+    const auto bytes = std::span<const std::uint8_t>(buffer.data(), static_cast<std::size_t>(n));
+    if (!parse_packet(bytes, packet)) return;
+    handle_packet(packet, source);
+}
+
+void general_info_pulling::network_receiver_loop()
+{
+    ccdb::utils::set_thread_name("Group:UDP");
+    auto next_hello = std::chrono::steady_clock::now() + hello_interval_;
+    auto next_housekeeping = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+
+    while (keep_pull_continuous_updates.load() && !force_quit.load())
+    {
+        pollfd fds[2] = {
+            { multicast_fd_, POLLIN, 0 },
+            { tx_fd_, POLLIN, 0 },
+        };
+
+        const int result = ::poll(fds, 2, 100);
+        if (result < 0)
+        {
+            if (errno == EINTR) continue;
+            if (keep_pull_continuous_updates.load()) {
+                ccdb::utils::print<ccdb::utils::is_error>("poll(group): ", strerror(errno), '\n');
+            }
+            break;
+        }
+
+        if (result > 0)
+        {
+            if ((fds[0].revents & (POLLIN | POLLERR)) != 0) receive_ready_datagram(multicast_fd_);
+            if ((fds[1].revents & (POLLIN | POLLERR)) != 0) receive_ready_datagram(tx_fd_);
+            if ((fds[0].revents & POLLNVAL) != 0 || (fds[1].revents & POLLNVAL) != 0) break;
+        }
+
+        const auto now = std::chrono::steady_clock::now();
+        if (scheduled_hello_ != std::chrono::steady_clock::time_point { } && now >= scheduled_hello_)
+        {
+            (void)send_multicast_packet(packet_type_t::hello);
+            scheduled_hello_ = { };
+        }
+
+        if (now >= next_hello)
+        {
+            (void)send_multicast_packet(packet_type_t::hello);
+            next_hello = now + hello_interval_;
+        }
+
+        if (now >= next_housekeeping)
+        {
+            prune_peers();
+            prune_recent_messages();
+            next_housekeeping = now + std::chrono::seconds(1);
+        }
+    }
+}
+
+void general_info_pulling::notify_all(const notifications_t& msg)
+{
+    static_assert(sizeof(notifications_t) == 255, "Unexpected notification wire size");
+    std::unique_lock send_lock(notification_send_mtx_);
+    if (tx_fd_ < 0 || !keep_pull_continuous_updates.load() || force_quit.load()) return;
+
+    const auto message_id = next_message_id();
+    const auto* payload_ptr = reinterpret_cast<const std::uint8_t*>(&msg);
+    const auto payload = std::span<const std::uint8_t>(payload_ptr, sizeof(msg));
+    const auto peers = snapshot_peer_ids();
+
+    if (!peers.empty())
+    {
+        std::lock_guard lock(pending_mtx_);
+        pending_sends_[message_id] = pending_send_t { peers };
+    }
+
+    static thread_local std::mt19937 jitter_rng(std::random_device{}());
+    for (std::size_t attempt = 0; attempt <= max_retries_; ++attempt)
+    {
+        if (!keep_pull_continuous_updates.load() || force_quit.load()) break;
+        (void)send_multicast_packet(packet_type_t::data, message_id, payload);
+
+        if (peers.empty()) break;
+
+        const auto factor = static_cast<std::int64_t>(1ULL << std::min<std::size_t>(attempt, 3));
+        auto delay = retry_base_delay_ * factor;
+        if (delay > std::chrono::milliseconds(600)) delay = std::chrono::milliseconds(600);
+        std::uniform_int_distribution<int> jitter(0, std::max(1, static_cast<int>(delay.count() / 5)));
+        delay += std::chrono::milliseconds(jitter(jitter_rng));
+
+        std::unique_lock pending_lock(pending_mtx_);
+        const bool complete_or_stopped = pending_cv_.wait_for(pending_lock, delay, [&] {
+            if (!keep_pull_continuous_updates.load() || force_quit.load()) return true;
+            const auto it = pending_sends_.find(message_id);
+            return it == pending_sends_.end() || it->second.waiting_for.empty();
+        });
+
+        if (complete_or_stopped) break;
+    }
+
+    {
+        std::lock_guard lock(pending_mtx_);
+        pending_sends_.erase(message_id);
+    }
+}
+
+general_info_pulling::general_info_pulling(const std::string& url, const std::string& token): backend_client(url, token)
+{
+    ccdb_multicast_watcher = std::thread([this]
+    {
+        while (alive)
+        {
+            try
+            {
+                const auto json = receiveNotification();
+                if (json.contains("payload") && json["payload"] == "Switch loglevel")
+                {
+                    const auto loglevel = std::string(json["loglevel"]);
+                    nlohmann::json log = {
+                        {"type", "error"},
+                        {"payload",
+                            "Loglevel is changed by a CCDB within the local network! "
+                            "Restarting CCDB general info puller... (loglevel=" + loglevel + ")"},
+                    };
+                    update_from_logs(log.dump());
+                    stop_continuous_updates();
+                    start_continuous_updates();
+                }
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+            catch (std::exception & e)
+            {
+                nlohmann::json log = {
+                    {"type", "error"},
+                    {"payload", e.what()},
+                };
+                update_from_logs(log.dump());
+            }
+        }
+    });
+}
+
+general_info_pulling::~general_info_pulling()
+{
+    alive = false;
+    stop_continuous_updates();
+    if (ccdb_multicast_watcher.joinable()) ccdb_multicast_watcher.join();
 }
 
 void general_info_pulling::update_from_traffic(const std::string& info)
@@ -338,122 +893,6 @@ void general_info_pulling::update_from_memory(const std::string& info)
     } catch (...) { }
 }
 
-std::deque<general_info_pulling::basic_msg_type>
-general_info_pulling::get_response(const std::function<bool(basic_msg_type)>& qualify)
-{
-    std::deque < basic_msg_type > pack;
-    int pSize = -1;
-    do
-    {
-        pSize = static_cast<int>(pack.size());
-        if (const auto it = msg_buffer_recv.wait_for(100); it && qualify(*it)) {
-            pack.push_back(*it);
-        } else if (it) {
-            msg_buffer_recv.push(*it);
-        } else if (!it) break;
-    } while (pack.size() > pSize);
-    std::ranges::sort(pack);
-    const auto [beg, end] = std::ranges::unique(pack);
-    pack.erase(beg, end);
-    return pack;
-}
-
-void general_info_pulling::notify_all(const notifications_t& msg)
-{
-    static_assert(sizeof(notifications_t) <= 255, "Oversized pack");
-    // 1. query available responses from network
-    messages.push(HAY_WHO_THE_FUCK_ARE_YOU_GUYS);
-
-    std::deque < basic_msg_type > ids = get_response([this](const auto it)->bool {
-        return (it & 0xFFFFFFFF00000000) == HELLO_I_AM && (it & 0xFFFF) != 0 && (it & 0xFFFF) != id;
-    });
-
-    std::ranges::for_each(ids, [](basic_msg_type & id) {
-        id = id & 0xFFFF;
-    });
-
-    const auto * pointer = reinterpret_cast<const std::uint8_t *>(&msg);
-    uint8_t offset = 0;
-    ++g_packSeq;
-    const auto pkg = g_packSeq.load();
-    while (offset < sizeof(notifications_t))
-    {
-        // send pack
-        for (int i = 0; i < 5; i++)
-        {
-            for (const auto & id_ : ids)
-            {
-                const basic_msg_type pkgS   = (static_cast<basic_msg_type>(pkg) << 48); // 56-48
-                const basic_msg_type sender = (static_cast<basic_msg_type>(id.load() & 0xFFFF) << 32); // 48-32
-                const basic_msg_type recver = static_cast<basic_msg_type>(static_cast<std::uint16_t>(id_ & 0xFFFF) << 16) & 0xFFFF0000 ; // 32-16
-                const basic_msg_type data   = (offset << 8) | pointer[offset]; // 16-0
-                // 0x7A00 0000 0000 0000
-                const basic_msg_type pack = HAY_YO_MESSAGE_PACK_8BIT_HERE | pkgS | sender | recver | data;
-                messages.push(pack);
-            }
-        }
-
-        offset++;
-    }
-}
-
-void general_info_pulling::get_notifications()
-{
-    while (keep_pull_continuous_updates)
-    {
-        std::map < int, basic_msg_type > pack_data;
-        int pkg = -1; bool session_dead = false;
-        const auto start = std::chrono::steady_clock::now();
-        while (keep_pull_continuous_updates && pack_data.size() < sizeof(notifications_t))
-        {
-            // get packs
-            (void)get_response([&](const auto it)->bool
-            {
-                if ((it & 0xFF00000000000000) == HAY_YO_MESSAGE_PACK_8BIT_HERE)
-                {
-                    const auto packSeq   = (it & 0x00FF000000000000) >> (12 * 4);
-                    const auto sender    = (it & 0x0000FFFF00000000) >> 32;
-                    const auto receiver  = (it & 0x00000000FFFF0000) >> 16;
-                    const auto numOfPack = (it & 0x000000000000FF00) >> 8;
-                    const auto checksum  = it & 0xFF;
-                    if (receiver == id && (pkg < 0 || (pkg > 0 && pkg == packSeq)) && sender != id)
-                    {
-                        if (pkg < 0) {
-                            pkg = packSeq;
-                        }
-
-                        pack_data.emplace(numOfPack, it);
-                        return true;
-                    }
-                }
-
-                return false;
-            });
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            if (const auto now = std::chrono::steady_clock::now();
-                std::chrono::duration_cast<std::chrono::seconds>(now -  start).count() > 3)
-            {
-                // abandon session
-                session_dead = true;
-                break;
-            }
-        }
-
-        if (!session_dead)
-        {
-            notifications_t this_session { };
-            std::ranges::for_each(pack_data | std::views::values, [&this_session](basic_msg_type & it)
-            {
-                const auto numOfPack = (it & 0x000000000000FF00) >> 8;
-                const auto checksum  = it & 0xFF;
-                std::memcpy(reinterpret_cast<uint8_t*>(&this_session) + numOfPack, &checksum, 1);
-            });
-            notifications.push(this_session);
-        }
-    }
-}
-
 void general_info_pulling::pull_continuous_updates()
 {
     std::vector < std::pair < std::shared_ptr < std::atomic_bool >, std::thread > > thread_pool;
@@ -590,22 +1029,45 @@ void general_info_pulling::pull_continuous_updates()
 
 void general_info_pulling::stop_continuous_updates()
 {
-    if (keep_pull_continuous_updates) {
-        keep_pull_continuous_updates = false;
-        backend_client.abort();
-        messages.push(BYE_AND_I_WAS | id.load());
-        std::ranges::for_each(pull_continuous_updates_worker, [](std::thread & T0)
-        {
-            if (T0.joinable()) T0.join();
-        });
+    if (!keep_pull_continuous_updates.load()) return;
+
+    if (tx_fd_ >= 0 && node_id_.load() != 0) {
+        (void)send_multicast_packet(packet_type_t::bye);
+    }
+
+    keep_pull_continuous_updates.store(false);
+    backend_client.abort();
+    pending_cv_.notify_all();
+
+    if (network_receiver_thread_.joinable()) network_receiver_thread_.join();
+
+    std::ranges::for_each(pull_continuous_updates_worker, [](std::thread& worker)
+    {
+        if (worker.joinable()) worker.join();
+    });
+    pull_continuous_updates_worker.clear();
+
+    close_protocol_sockets();
+
+    {
+        std::lock_guard lock(peer_mtx_);
+        peers_.clear();
+    }
+    {
+        std::lock_guard lock(pending_mtx_);
+        pending_sends_.clear();
+    }
+    {
+        std::lock_guard lock(dedup_mtx_);
+        recent_messages_.clear();
     }
 }
 
 void general_info_pulling::start_continuous_updates()
 {
-    keep_pull_continuous_updates = true;
+    if (keep_pull_continuous_updates.exchange(true)) return;
 
-    pull_continuous_updates_worker.emplace_back([&]
+    pull_continuous_updates_worker.emplace_back([this]
     {
         try {
             ccdb::utils::set_thread_name("Puller");
@@ -617,64 +1079,26 @@ void general_info_pulling::start_continuous_updates()
         }
     });
 
-    // get to know who is in the group
-    const auto ME1 = static_cast<uint64_t>(HELLO_I_AM) | id.load();
-    messages.push(ME1);
-    messages.push(HAY_WHO_THE_FUCK_ARE_YOU_GUYS);
+    regenerate_node_identity();
+    message_counter_.store(random_nonzero_u64());
 
-    pull_continuous_updates_worker.emplace_back([&]
+    if (!open_protocol_sockets())
     {
-        ccdb::utils::set_thread_name("Group:Sender");
-        broadcast_sender<basic_msg_type>(&keep_pull_continuous_updates, [this]->basic_msg_type {
-            const basic_msg_type msg = messages.wait();
-            std::lock_guard<std::mutex> lock(msg_buffer_each_cancelling_mtx);
-            msg_buffer_each_cancelling.push_back(msg);
-            return msg;
-        });
-    });
+        ccdb::utils::print<ccdb::utils::is_error>(
+            "CCDB UDP group synchronization disabled because sockets could not be initialized.\n");
+        return;
+    }
 
-    pull_continuous_updates_worker.emplace_back([&]
-    {
-        ccdb::utils::set_thread_name("Group:Receiver");
-        broadcast_receiver<basic_msg_type>(&keep_pull_continuous_updates,
-            [this](const std::string & sender, const basic_msg_type & msg)->bool
-        {
-            if (msg == HAY_WHO_THE_FUCK_ARE_YOU_GUYS) {
-                messages.push(HELLO_I_AM | id.load());
-            } else {
-                msg_buffer_recv.push(msg);
-            }
-
-            return true;
-        });
-    });
-
-    pull_continuous_updates_worker.emplace_back([&]
-    {
+    network_receiver_thread_ = std::thread([this] {
         try {
-            ccdb::utils::set_thread_name("Group:Notifications");
-            get_notifications();
-        }
-        catch (const std::exception &) {
+            network_receiver_loop();
+        } catch (const std::exception& e) {
+            ccdb::utils::print<ccdb::utils::is_error>("Group receiver: ", e.what(), '\n');
         }
     });
 
-    std::deque<basic_msg_type> ids;
-    uint16_t my_id = 0;
-    do
-    {
-        messages.push(HAY_WHO_THE_FUCK_ARE_YOU_GUYS);
-        ids = get_response([](const basic_msg_type msg)->bool {
-            return ((msg & 0xFFFFFFFF00000000) == HELLO_I_AM && (msg & 0xFFFF) != 0);
-        });
-
-        // get a random name
-        std::random_device dev;
-        std::mt19937 rng(dev());
-        std::uniform_int_distribution<std::mt19937::result_type> dist6(0, UINT16_MAX);
-        my_id = dist6(rng);
-    } while (std::ranges::find(ids, my_id) != ids.end());
-    id = my_id;
+    (void)send_multicast_packet(packet_type_t::hello);
+    (void)send_multicast_packet(packet_type_t::discover);
 }
 
 void general_info_pulling::update_proxy_list()
@@ -912,3 +1336,103 @@ std::string general_info_pulling::get_version() const
     backend_client.get_info_no_instance("version", [&](const std::string & r){ ret = r; });
     return ret;
 }
+
+void general_info_pulling::sendNotification(const std::vector<uint8_t> & data)
+{
+    uint64_t pack_num = data.size() / sizeof(notifications_t::body) + (data.size() % sizeof(notifications_t::body) == 0 ? 0 : 1);
+    std::random_device dev;
+    std::mt19937 rng(dev());
+    std::uniform_int_distribution<std::mt19937::result_type> dist6(0, UINT64_MAX);
+    ccdb::utils::CRC64 crc64; crc64.update(data.data(), data.size());
+    const uint64_t packName = crc64.get_checksum() ^ dist6(rng);
+
+    for (uint64_t i = 0; i < pack_num; i++)
+    {
+        notifications_t PartialNotifications { };
+        const uint64_t timestamp = std::chrono::steady_clock::now().time_since_epoch().count();
+        std::memcpy(&PartialNotifications.header.timestamp, &timestamp, sizeof(timestamp));
+        std::memcpy(&PartialNotifications.header.sequence, &i, sizeof(i));
+        std::memcpy(&PartialNotifications.header.overall_sequence_size, &pack_num, sizeof(pack_num));
+        std::memcpy(&PartialNotifications.header.packName, &packName, sizeof(packName));
+        static_assert(
+                   sizeof(timestamp) == sizeof(general_info_pulling::notifications_t::header.timestamp)
+                && sizeof(i) == sizeof(general_info_pulling::notifications_t::header.sequence)
+                && sizeof(pack_num) == sizeof(general_info_pulling::notifications_t::header.overall_sequence_size)
+                && sizeof(packName) == sizeof(general_info_pulling::notifications_t::header.packName),
+            "Invalid size");
+        const char * data_ = reinterpret_cast<const char *>(data.data()) + i * sizeof(general_info_pulling::notifications_t::body);
+        const auto len = i == pack_num - 1 ? data.size() % sizeof(general_info_pulling::notifications_t::body) :
+            sizeof(general_info_pulling::notifications_t::body);
+        PartialNotifications.header.size = static_cast<uint8_t>(len);
+        std::memcpy(&PartialNotifications.body, data_, len);
+        notify_all(PartialNotifications);
+    }
+}
+
+void general_info_pulling::receiveNotification(std::vector<uint8_t> & data)
+{
+    std::map<uint64_t, notifications_t, std::less<>> SessionNotifications;
+    std::optional<notifications_t> notification;
+    uint64_t packName { }; bool init = false;
+    uint64_t packSize { };
+    do
+    {
+        notification = notifications.wait_for(1000);
+        if (notification)
+        {
+            uint64_t packname_cur, packSize_cur, pack_cur;
+            std::memcpy(&packname_cur, &notification->header.packName, sizeof(packName));
+            std::memcpy(&packSize_cur, &notification->header.overall_sequence_size, sizeof(packSize));
+            std::memcpy(&pack_cur, &notification->header.sequence, sizeof(pack_cur));
+
+            if (!init)
+            {
+                init = true;
+                packName = packname_cur;
+                packSize = packSize_cur;
+                SessionNotifications.emplace(pack_cur, *notification);
+            }
+            else if (packName == packname_cur)
+            {
+                SessionNotifications.emplace(pack_cur, *notification);
+            }
+            else
+            {
+                notifications.push(*notification); // put it back
+            }
+
+        }
+    } while (notification && SessionNotifications.size() < packSize);
+
+    // repack all data
+    if (SessionNotifications.size() == packSize)
+    {
+        data.clear();
+        data.reserve(packSize * sizeof(general_info_pulling::notifications_t::body));
+        for (const auto & [header_, body_] : SessionNotifications | std::views::values)
+        {
+            data.resize(data.size() + header_.size);
+            std::memcpy(data.data() + data.size() - header_.size, &body_.data, header_.size);
+        }
+    }
+}
+
+nlohmann::json general_info_pulling::receiveNotification()
+{
+    std::vector<uint8_t> data;
+    receiveNotification(data);
+    if (data.empty()) return {};
+    std::string str; str.resize(data.size());
+    std::memcpy(str.data(), data.data(), data.size());
+    return {str};
+}
+
+void general_info_pulling::sendNotification(const nlohmann::json& json)
+{
+    std::vector<uint8_t> data;
+    const auto & dump = json.dump();
+    data.resize(dump.size());
+    std::memcpy(data.data(), dump.data(), dump.size());
+    sendNotification(data);
+}
+

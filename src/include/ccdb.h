@@ -290,7 +290,7 @@ namespace ccdb
         void set_vgroup(const std::vector<std::string> & command_vector);
         void set_chain_parser(const std::vector<std::string> & command_vector);
         void set_allowlan(const std::vector<std::string> & command_vector) const;
-        void set_log_level(const std::vector<std::string> & command_vector) const;
+        void set_log_level(const std::vector<std::string> & command_vector);
         void set_sort_by(const std::vector<std::string> & command_vector);
         void set_sort_reverse(const std::vector<std::string> & command_vector);
         void set_filter_reverse(const std::vector<std::string> & command_vector);
@@ -316,8 +316,6 @@ namespace ccdb
         void map_proxy_chain();
         void ccdbrc();
         void reload(const std::vector<std::string> &) const;
-        void sendNotification(const std::vector<std::string> &);
-        void receiveNotification();
 
         /// Input watcher that sets running flag when q is pressed
         /// @param name Thread name

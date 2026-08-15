@@ -647,12 +647,6 @@ void ccdb::ccdb::init()
             {
                 print(backend_instance.generic_post("/cache/fakeip/flush"), "\n");
             }
-            else if (command_vector.front() == "recvNotification" && command_vector.size() == 1) {
-                receiveNotification();
-            }
-            else if (command_vector.front() == "sendNotification") {
-                sendNotification(command_vector);
-            }
             else if (command_vector.front() == "set")
             {
                 // set mode [MODE]

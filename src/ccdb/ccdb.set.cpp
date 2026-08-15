@@ -115,12 +115,18 @@ void ccdb::ccdb::set_allowlan(const std::vector<std::string> &command_vector) co
     }
 }
 
-void ccdb::ccdb::set_log_level(const std::vector<std::string> &command_vector) const
+void ccdb::ccdb::set_log_level(const std::vector<std::string> &command_vector)
 {
     if (!backend_instance.modify_config(R"({ "log-level": ")" + command_vector[2] + R"(" })")) {
         print<is_error>("Failed to modify config\n");
         if (execute_and_no_interactive) throw std::runtime_error("");
     }
+
+    const nlohmann::json json = {
+        { "payload", "Switch loglevel" },
+        { "loglevel", command_vector[2] }
+    };
+    backend_instance.sendNotification(json);
 }
 
 void ccdb::ccdb::set_sort_by(const std::vector<std::string> &command_vector)
@@ -275,121 +281,39 @@ void ccdb::ccdb::reload(const std::vector<std::string> & cmd) const
     }
 }
 
-void ccdb::ccdb::sendNotification(const std::vector<std::string>& vec)
+static void xxd(const std::vector<uint8_t> & data)
 {
-    std::stringstream ss;
-    std::ranges::for_each(vec, [&ss](const auto & s){ ss << s << ":"; });
-    std::string data = ss.str();
-    uint64_t pack_num =
-        data.size() / sizeof(general_info_pulling::notifications_t::body)
-        + (data.size() % sizeof(general_info_pulling::notifications_t::body) == 0 ? 0 : 1);
-    std::random_device dev;
-    std::mt19937 rng(dev());
-    std::uniform_int_distribution<std::mt19937::result_type> dist6(0, UINT64_MAX);
-    CRC64 crc64; crc64.update(reinterpret_cast<uint8_t*>(data.data()), data.size());
-    const uint64_t packName = crc64.get_checksum() ^ dist6(rng);
-
-    for (uint64_t i = 0; i < pack_num; i++)
+    for (uint64_t i = 0; i < data.size();)
     {
-        general_info_pulling::notifications_t notifications { };
-        const uint64_t timestamp = std::chrono::steady_clock::now().time_since_epoch().count();
-        std::memcpy(&notifications.header.timestamp, &timestamp, sizeof(timestamp));
-        std::memcpy(&notifications.header.sequence, &i, sizeof(i));
-        std::memcpy(&notifications.header.overall_sequence_size, &pack_num, sizeof(pack_num));
-        std::memcpy(&notifications.header.packName, &packName, sizeof(packName));
-        static_assert(
-                   sizeof(timestamp) == sizeof(general_info_pulling::notifications_t::header.timestamp)
-                && sizeof(i) == sizeof(general_info_pulling::notifications_t::header.sequence)
-                && sizeof(pack_num) == sizeof(general_info_pulling::notifications_t::header.overall_sequence_size)
-                && sizeof(packName) == sizeof(general_info_pulling::notifications_t::header.packName),
-            "Invalid size");
-        const char * data_ = data.data() + i * sizeof(general_info_pulling::notifications_t::body);
-        const auto len = i == pack_num - 1 ? data.size() % sizeof(general_info_pulling::notifications_t::body) :
-            sizeof(general_info_pulling::notifications_t::body);
-        notifications.header.size = static_cast<uint8_t>(len);
-        std::memcpy(&notifications.body, data_, len);
-        backend_instance.notify_all(notifications);
+        if (i != 0) std::cout << std::endl;
+        std::cout << std::setw(16) << std::setfill('0') << std::hex << i << " ";
+
+        constexpr uint64_t line_size = 16;
+        constexpr uint64_t group_size = line_size / 2;
+        static_assert((line_size & 0x01) == 0, "Must be even");
+        const auto len = std::min(data.size() - i, line_size);
+
+        // hex
+        for (uint64_t j = 0; j < len; j++)
+        {
+            if (j == group_size || j == line_size) std::cout << " ";
+            std::cout << std::hex << static_cast<int>(data[i + j]);
+        }
+
+        // ascii
+        for (uint64_t j = 0; j < len; j++)
+        {
+            if (j == group_size) std::cout << " ";
+            if (std::isprint(data[i + j])) {
+                std::cout << static_cast<char>(data[i + j]);
+            } else {
+                std::cout << '.';
+            }
+        }
+
+        i += len;
     }
+
+    std::cout << std::endl;
 }
 
-void ccdb::ccdb::receiveNotification()
-{
-    std::map<uint64_t, general_info_pulling::notifications_t, std::less<>> notifications;
-    std::optional<general_info_pulling::notifications_t> notification;
-    uint64_t packName { }; bool init = false;
-    uint64_t packSize { };
-    do
-    {
-        notification = backend_instance.notifications.wait_for(1000);
-        if (notification)
-        {
-            uint64_t packname_cur, packSize_cur, pack_cur;
-            std::memcpy(&packname_cur, &notification->header.packName, sizeof(packName));
-            std::memcpy(&packSize_cur, &notification->header.overall_sequence_size, sizeof(packSize));
-            std::memcpy(&pack_cur, &notification->header.sequence, sizeof(pack_cur));
-
-            if (!init)
-            {
-                init = true;
-                packName = packname_cur;
-                packSize = packSize_cur;
-                notifications.emplace(pack_cur, *notification);
-            }
-            else if (packName == packname_cur)
-            {
-                notifications.emplace(pack_cur, *notification);
-            }
-            else
-            {
-                backend_instance.notifications.push(*notification); // put it back
-            }
-
-        }
-    } while (notification && notifications.size() < packSize);
-
-    // repack all data
-    if (notifications.size() == packSize)
-    {
-        std::vector<uint8_t> data;
-        data.reserve(packSize * sizeof(general_info_pulling::notifications_t::body));
-        for (const auto & [header_, body_] : notifications | std::views::values)
-        {
-            data.resize(data.size() + header_.size);
-            std::memcpy(data.data() + data.size() - header_.size, &body_.data, header_.size);
-        }
-
-        // data reconstructed
-        for (uint64_t i = 0; i < data.size();)
-        {
-            if (i != 0) std::cout << std::endl;
-            std::cout << std::setw(16) << std::setfill('0') << std::hex << i << " ";
-
-            constexpr uint64_t line_size = 16;
-            constexpr uint64_t group_size = line_size / 2;
-            static_assert((line_size & 0x01) == 0, "Must be even");
-            const auto len = std::min(data.size() - i, line_size);
-
-            // hex
-            for (uint64_t j = 0; j < len; j++)
-            {
-                if (j == group_size) std::cout << " ";
-                std::cout << std::hex << static_cast<int>(data[i + j]);
-            }
-
-            // ascii
-            for (uint64_t j = 0; j < len; j++)
-            {
-                if (j == group_size) std::cout << " ";
-                if (std::isprint(data[i + j])) {
-                    std::cout << static_cast<char>(data[i + j]);
-                } else {
-                    std::cout << '.';
-                }
-            }
-
-            i += len;
-        }
-
-        std::cout << std::endl;
-    }
-}
