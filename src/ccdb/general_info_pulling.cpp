@@ -741,12 +741,20 @@ void general_info_pulling::notify_all(const notifications_t& msg)
 
 general_info_pulling::general_info_pulling(const std::string& url, const std::string& token): backend_client(url, token)
 {
-    if (std::string scheme, host, path; ccdb::utils::parse_url(url, scheme, host, path)) {
-        host = host.substr(0, host.find_last_of(':'));
-        if (const auto local_vec = find_local(host.c_str()); !local_vec.empty()) {
-            ccdb::utils::print("Local IP=", local_vec.front().first, ", interface=", local_vec.front().second, "\n");
-            interface_str = local_vec.front().first;
+    const auto CCDB_SYNC_ADDRESS_BIND_TO = ccdb::utils::getenv("CCDB_SYNC_ADDRESS_BIND_TO");
+    if (!CCDB_SYNC_ADDRESS_BIND_TO.empty())
+    {
+        if (std::string scheme, host, path; ccdb::utils::parse_url(url, scheme, host, path)) {
+            host = host.substr(0, host.find_last_of(':'));
+            if (const auto local_vec = find_local(host.c_str()); !local_vec.empty()) {
+                ccdb::utils::print("Local IP=", local_vec.front().first, ", interface=", local_vec.front().second, "\n");
+                interface_str = local_vec.front().first;
+            }
         }
+    }
+    else
+    {
+        interface_str = CCDB_SYNC_ADDRESS_BIND_TO;
     }
 
     ccdb_multicast_watcher = std::thread([this]
