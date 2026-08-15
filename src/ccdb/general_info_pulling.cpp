@@ -691,6 +691,13 @@ general_info_pulling::general_info_pulling(const std::string& url, const std::st
                     stop_continuous_updates();
                     start_continuous_updates();
                 }
+                else if (json.contains("payload") && json["payload"] == "generic messages")
+                {
+                    nlohmann::json log = {
+                        {"type", "error"},
+                        {"payload", std::string(json["content"]) },
+                    };
+                }
 
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
@@ -1355,14 +1362,14 @@ void general_info_pulling::sendNotification(const std::vector<uint8_t> & data)
         std::memcpy(&PartialNotifications.header.overall_sequence_size, &pack_num, sizeof(pack_num));
         std::memcpy(&PartialNotifications.header.packName, &packName, sizeof(packName));
         static_assert(
-                   sizeof(timestamp) == sizeof(general_info_pulling::notifications_t::header.timestamp)
-                && sizeof(i) == sizeof(general_info_pulling::notifications_t::header.sequence)
-                && sizeof(pack_num) == sizeof(general_info_pulling::notifications_t::header.overall_sequence_size)
-                && sizeof(packName) == sizeof(general_info_pulling::notifications_t::header.packName),
+                   sizeof(timestamp) == sizeof(notifications_t::header.timestamp)
+                && sizeof(i) == sizeof(notifications_t::header.sequence)
+                && sizeof(pack_num) == sizeof(notifications_t::header.overall_sequence_size)
+                && sizeof(packName) == sizeof(notifications_t::header.packName),
             "Invalid size");
-        const char * data_ = reinterpret_cast<const char *>(data.data()) + i * sizeof(general_info_pulling::notifications_t::body);
-        const auto len = i == pack_num - 1 ? data.size() % sizeof(general_info_pulling::notifications_t::body) :
-            sizeof(general_info_pulling::notifications_t::body);
+        const char * data_ = reinterpret_cast<const char *>(data.data()) + i * sizeof(notifications_t::body);
+        const auto len = i == pack_num - 1 ? data.size() % sizeof(notifications_t::body) :
+            sizeof(notifications_t::body);
         PartialNotifications.header.size = static_cast<uint8_t>(len);
         std::memcpy(&PartialNotifications.body, data_, len);
         notify_all(PartialNotifications);

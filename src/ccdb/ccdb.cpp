@@ -647,6 +647,20 @@ void ccdb::ccdb::init()
             {
                 print(backend_instance.generic_post("/cache/fakeip/flush"), "\n");
             }
+            else if (command_vector.front() == "sendNotification" && command_vector.size() > 1)
+            {
+                std::stringstream ss;
+                for (uint64_t i = 1; i < command_vector.size(); ++i) {
+                    ss << command_vector[i] << " ";
+                }
+                std::string content = ss.str();
+                if (!content.empty()) content.pop_back();
+                const nlohmann::json log = {
+                    {"payload", "generic messages"},
+                    {"content", content },
+                };
+                backend_instance.sendNotification(log);
+            }
             else if (command_vector.front() == "set")
             {
                 // set mode [MODE]
@@ -759,18 +773,6 @@ void ccdb::ccdb::init()
         };
 
         try {
-            // if (special_filler == "[GROUP]") {
-                // return {}; // escape(get_groups());
-            // }
-            // else if (special_filler == "[PROXY]") {
-                // return {};
-                // std::string group;
-                // if (args.size() >= 3) {
-                //     group = args[2];
-                // }
-                // return escape(get_endpoints(group));
-            // }
-            // else
             if (special_filler == "[VGROUP]") {
                 return escape(get_vgroups());
             }
@@ -1001,6 +1003,12 @@ void ccdb::ccdb::init()
 
         return { };
     };
+
+    const nlohmann::json log = {
+        {"payload", "generic messages"},
+        {"content", "New CCDB client joined the network." },
+    };
+    backend_instance.sendNotification(log);
 }
 
 ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::string latency_url_, const bool fast_shutdown)
