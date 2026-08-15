@@ -295,7 +295,7 @@ public:
     void sendNotification(const std::vector<uint8_t> &);
     void sendNotification(const nlohmann::json & json);
     void receiveNotification(std::vector<uint8_t> &);
-    nlohmann::json receiveNotification();
+    std::string receiveNotification();
 
 protected:
     // need continuous updates

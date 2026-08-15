@@ -677,26 +677,32 @@ general_info_pulling::general_info_pulling(const std::string& url, const std::st
         {
             try
             {
-                const auto json = receiveNotification();
-                if (json.contains("payload") && json["payload"] == "Switch loglevel")
+                if (const auto str = receiveNotification(); !str.empty())
                 {
-                    const auto loglevel = std::string(json["loglevel"]);
-                    nlohmann::json log = {
-                        {"type", "error"},
-                        {"payload",
-                            "Loglevel is changed by a CCDB within the local network! "
-                            "Restarting CCDB general info puller... (loglevel=" + loglevel + ")"},
-                    };
-                    update_from_logs(log.dump());
-                    stop_continuous_updates();
-                    start_continuous_updates();
-                }
-                else if (json.contains("payload") && json["payload"] == "generic messages")
-                {
-                    nlohmann::json log = {
-                        {"type", "error"},
-                        {"payload", std::string(json["content"]) },
-                    };
+                    if (const nlohmann::json json = json::parse(str); json.contains("payload"))
+                    {
+                        if (const auto payload = std::string(json["payload"]); payload == "Switch loglevel")
+                        {
+                            const auto loglevel = std::string(json["loglevel"]);
+                            nlohmann::json log = {
+                                    {"type", "info"},
+                                    {"payload",
+                                        "Loglevel is changed by a CCDB within the local network! "
+                                        "Restarting CCDB general info puller... (loglevel=" + loglevel + ")"},
+                            };
+                            update_from_logs(log.dump());
+                            stop_continuous_updates();
+                            start_continuous_updates();
+                        }
+                        else if (payload == "generic messages")
+                        {
+                            const nlohmann::json log = {
+                                    {"type", "info"},
+                                    {"payload", std::string(json["content"]) },
+                            };
+                            update_from_logs(log.dump());
+                        }
+                    }
                 }
 
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -1412,7 +1418,7 @@ void general_info_pulling::receiveNotification(std::vector<uint8_t> & data)
     } while (notification && SessionNotifications.size() < packSize);
 
     // repack all data
-    if (SessionNotifications.size() == packSize)
+    if (packSize > 0 && SessionNotifications.size() == packSize)
     {
         data.clear();
         data.reserve(packSize * sizeof(general_info_pulling::notifications_t::body));
@@ -1424,7 +1430,7 @@ void general_info_pulling::receiveNotification(std::vector<uint8_t> & data)
     }
 }
 
-nlohmann::json general_info_pulling::receiveNotification()
+std::string general_info_pulling::receiveNotification()
 {
     std::vector<uint8_t> data;
     receiveNotification(data);
