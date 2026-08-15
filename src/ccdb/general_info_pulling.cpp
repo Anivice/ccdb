@@ -50,8 +50,8 @@
 #include "utils.h"
 #include "httplib.h"
 
-static std::string MULTICAST_GROUP_CXX_STR;
-static const char* MULTICAST_GROUP = "239.255.0.1";
+static std::string interface_str;
+static constexpr const auto * MULTICAST_GROUP = "239.255.0.1";
 static constexpr std::uint16_t PORT = 49361;
 
 static bool addr_to_string(sockaddr *sa, char *buf, const size_t buflen)
@@ -318,7 +318,8 @@ bool general_info_pulling::open_protocol_sockets()
         close_protocol_sockets();
         return false;
     }
-    membership.imr_interface.s_addr = htonl(INADDR_ANY);
+    if (interface_str.empty()) membership.imr_interface.s_addr = htonl(INADDR_ANY);
+    else inet_pton(AF_INET, interface_str.c_str(), &membership.imr_interface);
     if (::setsockopt(multicast_fd_, IPPROTO_IP, IP_ADD_MEMBERSHIP, &membership, sizeof(membership)) < 0) {
         ccdb::utils::print<ccdb::utils::is_error>("IP_ADD_MEMBERSHIP: ", strerror(errno), '\n');
         close_protocol_sockets();
@@ -379,7 +380,8 @@ void general_info_pulling::close_protocol_sockets()
     {
         ip_mreq membership { };
         if (::inet_pton(AF_INET, MULTICAST_GROUP, &membership.imr_multiaddr) == 1) {
-            membership.imr_interface.s_addr = htonl(INADDR_ANY);
+            if (interface_str.empty()) membership.imr_interface.s_addr = htonl(INADDR_ANY);
+            else inet_pton(AF_INET, interface_str.c_str(), &membership.imr_interface);
             (void)::setsockopt(multicast_fd_, IPPROTO_IP, IP_DROP_MEMBERSHIP, &membership, sizeof(membership));
         }
         ::close(multicast_fd_);
@@ -743,8 +745,7 @@ general_info_pulling::general_info_pulling(const std::string& url, const std::st
         host = host.substr(0, host.find_last_of(':'));
         if (const auto local_vec = find_local(host.c_str()); !local_vec.empty()) {
             ccdb::utils::print("Local IP=", local_vec.front().first, ", interface=", local_vec.front().second, "\n");
-            MULTICAST_GROUP_CXX_STR = local_vec.front().first;
-            MULTICAST_GROUP = MULTICAST_GROUP_CXX_STR.c_str();
+            interface_str = local_vec.front().first;
         }
     }
 
