@@ -42,85 +42,14 @@
 #include <unistd.h>
 #include <cerrno>
 #include <cstring>
-#include <net/if.h>
-#include <ifaddrs.h>
 #include "print.h"
 #include "general_info_pulling.h"
 #include "Readline.h"
 #include "utils.h"
 #include "httplib.h"
 
-static std::string interface_str;
-static constexpr const auto * MULTICAST_GROUP = "239.255.0.1";
+static constexpr const char* MULTICAST_GROUP = "239.255.0.1";
 static constexpr std::uint16_t PORT = 49361;
-
-static bool addr_to_string(sockaddr *sa, char *buf, const size_t buflen)
-{
-    if (sa->sa_family == AF_INET) {
-        const auto *sin = reinterpret_cast<struct sockaddr_in *>(sa);
-        inet_ntop(AF_INET, &sin->sin_addr, buf, buflen);
-        return true;
-    } else if (sa->sa_family == AF_INET6) {
-        const auto *sin6 = reinterpret_cast<struct sockaddr_in6 *>(sa);
-        inet_ntop(AF_INET6, &sin6->sin6_addr, buf, buflen);
-        return true;
-    } else {
-        return false;
-    }
-}
-
-static bool is_same_network(sockaddr *addr, sockaddr *mask, const char *target_ip)
-{
-    if (addr->sa_family != AF_INET) {
-        return false; // ipv6 sucks, also it's for local network
-    }
-
-    const auto *addr_in = reinterpret_cast<struct sockaddr_in *>(addr);
-    const auto *mask_in = reinterpret_cast<struct sockaddr_in *>(mask);
-
-    const uint32_t ip = ntohl(addr_in->sin_addr.s_addr);
-    const uint32_t netmask = ntohl(mask_in->sin_addr.s_addr);
-    const uint32_t network = ip & netmask;
-
-    // Convert target IP to binary
-    in_addr target_bin{};
-    if (inet_pton(AF_INET, target_ip, &target_bin) != 1) {
-        return false; // invalid target
-    }
-    uint32_t target = ntohl(target_bin.s_addr);
-    uint32_t target_network = target & netmask;
-
-    return network == target_network;
-}
-
-static std::vector<std::pair<std::string, std::string>> find_local(const char *target_ip)
-{
-    std::vector<std::pair<std::string, std::string>> ret;
-    ifaddrs *ifaddr;
-
-    if (getifaddrs(&ifaddr) == -1) {
-        ccdb::utils::print<ccdb::utils::is_error>("getifaddrs: ", std::strerror(errno), "\n");
-        return { };
-    }
-
-    for (const ifaddrs * ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next)
-    {
-        if (ifa->ifa_addr == nullptr) continue;
-        if (ifa->ifa_addr->sa_family == AF_INET)
-        {
-            if (ifa->ifa_netmask == nullptr) continue;
-            char addr_str[INET_ADDRSTRLEN];
-            addr_to_string(ifa->ifa_addr, addr_str, sizeof(addr_str));
-
-            if (is_same_network(ifa->ifa_addr, ifa->ifa_netmask, target_ip)) {
-                ret.emplace_back(addr_str, ifa->ifa_name);
-            }
-        }
-    }
-
-    freeifaddrs(ifaddr);
-    return ret;
-}
 
 std::size_t general_info_pulling::message_key_hash_t::operator()(const message_key_t& key) const noexcept
 {
@@ -318,8 +247,7 @@ bool general_info_pulling::open_protocol_sockets()
         close_protocol_sockets();
         return false;
     }
-    if (interface_str.empty()) membership.imr_interface.s_addr = htonl(INADDR_ANY);
-    else inet_pton(AF_INET, interface_str.c_str(), &membership.imr_interface);
+    membership.imr_interface.s_addr = htonl(INADDR_ANY);
     if (::setsockopt(multicast_fd_, IPPROTO_IP, IP_ADD_MEMBERSHIP, &membership, sizeof(membership)) < 0) {
         ccdb::utils::print<ccdb::utils::is_error>("IP_ADD_MEMBERSHIP: ", strerror(errno), '\n');
         close_protocol_sockets();
@@ -371,6 +299,8 @@ bool general_info_pulling::open_protocol_sockets()
     }
     tx_port_ = ntohs(actual_tx.sin_port);
 
+    ccdb::utils::print("CCDB group sync address: ", MULTICAST_GROUP, ":", PORT,
+        " (ACK port ", tx_port_, ")\n");
     return true;
 }
 
@@ -380,8 +310,7 @@ void general_info_pulling::close_protocol_sockets()
     {
         ip_mreq membership { };
         if (::inet_pton(AF_INET, MULTICAST_GROUP, &membership.imr_multiaddr) == 1) {
-            if (interface_str.empty()) membership.imr_interface.s_addr = htonl(INADDR_ANY);
-            else inet_pton(AF_INET, interface_str.c_str(), &membership.imr_interface);
+            membership.imr_interface.s_addr = htonl(INADDR_ANY);
             (void)::setsockopt(multicast_fd_, IPPROTO_IP, IP_DROP_MEMBERSHIP, &membership, sizeof(membership));
         }
         ::close(multicast_fd_);
@@ -739,80 +668,6 @@ void general_info_pulling::notify_all(const notifications_t& msg)
     }
 }
 
-general_info_pulling::general_info_pulling(const std::string& url, const std::string& token): backend_client(url, token)
-{
-    const auto CCDB_SYNC_ADDRESS_BIND_TO = ccdb::utils::getenv("CCDB_SYNC_ADDRESS_BIND_TO");
-    if (CCDB_SYNC_ADDRESS_BIND_TO.empty())
-    {
-        if (std::string scheme, host, path; ccdb::utils::parse_url(url, scheme, host, path)) {
-            host = host.substr(0, host.find_last_of(':'));
-            if (const auto local_vec = find_local(host.c_str()); !local_vec.empty()) {
-                ccdb::utils::print("Local IP=", local_vec.front().first, ", interface=", local_vec.front().second, "\n");
-                interface_str = local_vec.front().first;
-            }
-        }
-    }
-    else if (CCDB_SYNC_ADDRESS_BIND_TO != "ADDR_ANY")
-    {
-        interface_str = CCDB_SYNC_ADDRESS_BIND_TO;
-    }
-
-    ccdb_multicast_watcher = std::thread([this]
-    {
-        while (alive)
-        {
-            try
-            {
-                if (const auto str = receiveNotification(); !str.empty())
-                {
-                    if (const nlohmann::json json = json::parse(str); json.contains("payload"))
-                    {
-                        if (const auto payload = std::string(json["payload"]); payload == "Switch loglevel")
-                        {
-                            const auto loglevel = std::string(json["loglevel"]);
-                            nlohmann::json log = {
-                                    {"type", "info"},
-                                    {"payload",
-                                        "Loglevel is changed by a CCDB within the local network! "
-                                        "Restarting CCDB general info puller... (loglevel=" + loglevel + ")"},
-                            };
-                            update_from_logs(log.dump());
-                            stop_continuous_updates();
-                            start_continuous_updates();
-                        }
-                        else if (payload == "generic messages")
-                        {
-                            const nlohmann::json log = {
-                                    {"type", "info"},
-                                    // remove control codes from online clients
-                                    {"payload", ccdb::utils::strip_color(std::string(json["content"])) },
-                            };
-                            update_from_logs(log.dump());
-                        }
-                    }
-                }
-
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            }
-            catch (std::exception & e)
-            {
-                nlohmann::json log = {
-                    {"type", "error"},
-                    {"payload", e.what()},
-                };
-                update_from_logs(log.dump());
-            }
-        }
-    });
-}
-
-general_info_pulling::~general_info_pulling()
-{
-    alive = false;
-    stop_continuous_updates();
-    if (ccdb_multicast_watcher.joinable()) ccdb_multicast_watcher.join();
-}
-
 void general_info_pulling::update_from_traffic(const std::string& info)
 {
     try {
@@ -993,6 +848,7 @@ void general_info_pulling::update_from_memory(const std::string& info)
     } catch (...) { }
 }
 
+
 void general_info_pulling::pull_continuous_updates()
 {
     std::vector < std::pair < std::shared_ptr < std::atomic_bool >, std::thread > > thread_pool;
@@ -1126,6 +982,7 @@ void general_info_pulling::pull_continuous_updates()
 
     return { _group, _lat };
 }
+
 
 void general_info_pulling::stop_continuous_updates()
 {
@@ -1436,103 +1293,3 @@ std::string general_info_pulling::get_version() const
     backend_client.get_info_no_instance("version", [&](const std::string & r){ ret = r; });
     return ret;
 }
-
-void general_info_pulling::sendNotification(const std::vector<uint8_t> & data)
-{
-    uint64_t pack_num = data.size() / sizeof(notifications_t::body) + (data.size() % sizeof(notifications_t::body) == 0 ? 0 : 1);
-    std::random_device dev;
-    std::mt19937 rng(dev());
-    std::uniform_int_distribution<std::mt19937::result_type> dist6(0, UINT64_MAX);
-    ccdb::utils::CRC64 crc64; crc64.update(data.data(), data.size());
-    const uint64_t packName = crc64.get_checksum() ^ dist6(rng);
-
-    for (uint64_t i = 0; i < pack_num; i++)
-    {
-        notifications_t PartialNotifications { };
-        const uint64_t timestamp = std::chrono::steady_clock::now().time_since_epoch().count();
-        std::memcpy(&PartialNotifications.header.timestamp, &timestamp, sizeof(timestamp));
-        std::memcpy(&PartialNotifications.header.sequence, &i, sizeof(i));
-        std::memcpy(&PartialNotifications.header.overall_sequence_size, &pack_num, sizeof(pack_num));
-        std::memcpy(&PartialNotifications.header.packName, &packName, sizeof(packName));
-        static_assert(
-                   sizeof(timestamp) == sizeof(notifications_t::header.timestamp)
-                && sizeof(i) == sizeof(notifications_t::header.sequence)
-                && sizeof(pack_num) == sizeof(notifications_t::header.overall_sequence_size)
-                && sizeof(packName) == sizeof(notifications_t::header.packName),
-            "Invalid size");
-        const char * data_ = reinterpret_cast<const char *>(data.data()) + i * sizeof(notifications_t::body);
-        const auto len = i == pack_num - 1 ? data.size() % sizeof(notifications_t::body) :
-            sizeof(notifications_t::body);
-        PartialNotifications.header.size = static_cast<uint8_t>(len);
-        std::memcpy(&PartialNotifications.body, data_, len);
-        notify_all(PartialNotifications);
-    }
-}
-
-void general_info_pulling::receiveNotification(std::vector<uint8_t> & data)
-{
-    std::map<uint64_t, notifications_t, std::less<>> SessionNotifications;
-    std::optional<notifications_t> notification;
-    uint64_t packName { }; bool init = false;
-    uint64_t packSize { };
-    do
-    {
-        notification = notifications.wait_for(1000);
-        if (notification)
-        {
-            uint64_t packname_cur, packSize_cur, pack_cur;
-            std::memcpy(&packname_cur, &notification->header.packName, sizeof(packName));
-            std::memcpy(&packSize_cur, &notification->header.overall_sequence_size, sizeof(packSize));
-            std::memcpy(&pack_cur, &notification->header.sequence, sizeof(pack_cur));
-
-            if (!init)
-            {
-                init = true;
-                packName = packname_cur;
-                packSize = packSize_cur;
-                SessionNotifications.emplace(pack_cur, *notification);
-            }
-            else if (packName == packname_cur)
-            {
-                SessionNotifications.emplace(pack_cur, *notification);
-            }
-            else
-            {
-                notifications.push(*notification); // put it back
-            }
-
-        }
-    } while (notification && SessionNotifications.size() < packSize);
-
-    // repack all data
-    if (packSize > 0 && SessionNotifications.size() == packSize)
-    {
-        data.clear();
-        data.reserve(packSize * sizeof(general_info_pulling::notifications_t::body));
-        for (const auto & [header_, body_] : SessionNotifications | std::views::values)
-        {
-            data.resize(data.size() + header_.size);
-            std::memcpy(data.data() + data.size() - header_.size, &body_.data, header_.size);
-        }
-    }
-}
-
-std::string general_info_pulling::receiveNotification()
-{
-    std::vector<uint8_t> data;
-    receiveNotification(data);
-    if (data.empty()) return {};
-    std::string str; str.resize(data.size());
-    std::memcpy(str.data(), data.data(), data.size());
-    return {str};
-}
-
-void general_info_pulling::sendNotification(const nlohmann::json& json)
-{
-    std::vector<uint8_t> data;
-    const auto & dump = json.dump();
-    data.resize(dump.size());
-    std::memcpy(data.data(), dump.data(), dump.size());
-    sendNotification(data);
-}
-
