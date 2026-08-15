@@ -1392,3 +1392,61 @@ void general_info_pulling::sendNotification(const nlohmann::json& json)
     std::memcpy(data.data(), dump.data(), dump.size());
     sendNotification(data);
 }
+
+general_info_pulling::~general_info_pulling()
+{
+    alive = false;
+    stop_continuous_updates();
+    if (ccdb_multicast_watcher.joinable()) ccdb_multicast_watcher.join();
+}
+
+general_info_pulling::general_info_pulling(const std::string& url, const std::string& token): backend_client(url, token)
+{
+    ccdb_multicast_watcher = std::thread([this]
+    {
+        while (alive)
+        {
+            try
+            {
+                if (const auto str = receiveNotification(); !str.empty())
+                {
+                    if (const nlohmann::json json = json::parse(str); json.contains("payload"))
+                    {
+                        if (const auto payload = std::string(json["payload"]); payload == "Switch loglevel")
+                        {
+                            const auto loglevel = std::string(json["loglevel"]);
+                            nlohmann::json log = {
+                                    {"type", "info"},
+                                    {"payload",
+                                        "Loglevel is changed by a CCDB within the local network! "
+                                        "Restarting CCDB general info puller... (loglevel=" + loglevel + ")"},
+                            };
+                            update_from_logs(log.dump());
+                            stop_continuous_updates();
+                            start_continuous_updates();
+                        }
+                        else if (payload == "generic messages")
+                        {
+                            const nlohmann::json log = {
+                                    {"type", "info"},
+                                    // remove control codes from online clients
+                                    {"payload", ccdb::utils::strip_color(std::string(json["content"])) },
+                            };
+                            update_from_logs(log.dump());
+                        }
+                    }
+                }
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+            catch (std::exception & e)
+            {
+                nlohmann::json log = {
+                    {"type", "error"},
+                    {"payload", e.what()},
+                };
+                update_from_logs(log.dump());
+            }
+        }
+    });
+}
