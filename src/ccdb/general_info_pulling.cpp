@@ -752,7 +752,7 @@ general_info_pulling::general_info_pulling(const std::string& url, const std::st
             }
         }
     }
-    else
+    else if (CCDB_SYNC_ADDRESS_BIND_TO != "ADDRANY")
     {
         interface_str = CCDB_SYNC_ADDRESS_BIND_TO;
     }
