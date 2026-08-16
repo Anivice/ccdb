@@ -288,22 +288,6 @@ std::vector<std::uint8_t> general_info_pulling::serialize_packet(const packet_ty
         if (type != packet_type_t::ack && message_id != 0) return { };
     }
 
-    if (!bind_socket_to_device(multicast_fd_, multicast_interface)) {
-        close_protocol_sockets();
-        throw std::runtime_error("Failed to bind. Consider CCDB_SYNC_ADDRESS_BIND_TO=ADDR_ANY");
-    }
-
-#ifdef IP_MULTICAST_ALL
-    constexpr int multicast_all = 0;
-    if (::setsockopt(multicast_fd_, IPPROTO_IP, IP_MULTICAST_ALL,
-        &multicast_all, sizeof(multicast_all)) < 0)
-    {
-        ccdb::utils::print<ccdb::utils::is_error>("IP_MULTICAST_ALL: ", strerror(errno), '\n');
-        close_protocol_sockets();
-        throw std::runtime_error("Failed to bind. Consider CCDB_SYNC_ADDRESS_BIND_TO=ADDR_ANY");
-    }
-#endif
-
     std::vector<std::uint8_t> wire(protocol_header_size_ + payload.size(), 0);
     write_u32(wire, 0, protocol_magic_);
     wire[4] = protocol_version_;
@@ -387,6 +371,25 @@ bool general_info_pulling::open_protocol_sockets()
         close_protocol_sockets();
         return false;
     }
+
+    // Device binding is socket initialization state. Configure it once here;
+    // never re-apply SO_BINDTODEVICE while serializing or sending packets.
+    if (!bind_socket_to_device(multicast_fd_, multicast_interface)) {
+        close_protocol_sockets();
+        return false;
+    }
+
+#ifdef IP_MULTICAST_ALL
+    // Only deliver multicast groups explicitly joined by this socket.
+    const int multicast_all = 0;
+    if (::setsockopt(multicast_fd_, IPPROTO_IP, IP_MULTICAST_ALL,
+        &multicast_all, sizeof(multicast_all)) < 0)
+    {
+        ccdb::utils::print<ccdb::utils::is_error>("IP_MULTICAST_ALL: ", strerror(errno), '\n');
+        close_protocol_sockets();
+        return false;
+    }
+#endif
 
     sockaddr_in local { };
     local.sin_family = AF_INET;

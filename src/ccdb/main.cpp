@@ -314,16 +314,12 @@ int main(int argc, char ** argv)
         CCDB_SYNC_ADDRESS_BIND_TO.empty())
         {
             if (std::string scheme, host, path;
-                getuid() == 0 &&
-                // binding to device requires root privilege for most Linux distros, or
-                // setcap cap_net_admin,cap_net_raw+ep /path/to/ccdb,
-                // but usually you NEED root. some weird issues can also occurr
                 utils::parse_url(backend, scheme, host, path))
             {
                 host = host.substr(0, host.find_last_of(':'));
                 const auto dev = find_target_ip(host.c_str());
                 ::setenv("CCDB_SYNC_ADDRESS_BIND_TO", dev.c_str(), 1);
-                utils::print("Automatically bind sync device to ", dev, "\n");
+                utils::print("Setting CCDB_SYNC_ADDRESS_BIND_TO=", dev, " since backend is reachable from here.\n");
             }
             else
             {
