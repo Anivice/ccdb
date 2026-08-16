@@ -365,6 +365,8 @@ namespace ccdb::utils
     /// Mihomo backend time string to UNIX timestamp
     unsigned long long get_time(std::string time);
 
+    std::string getTimeNow();
+
     /// timepoint to localtime string
     /// @param tp Timepoint
     /// @return localtime string

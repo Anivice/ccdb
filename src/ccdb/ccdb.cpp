@@ -661,6 +661,9 @@ void ccdb::ccdb::init()
                 };
                 backend_instance.sendNotification(log);
             }
+            else if (command_vector.front() == "chat" && command_vector.size() == 2) {
+                chat(command_vector);
+            }
             else if (command_vector.front() == "set")
             {
                 // set mode [MODE]

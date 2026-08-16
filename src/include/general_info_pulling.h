@@ -337,6 +337,7 @@ public:
 
     std::atomic < uint64_t > current_memory_in_use_by_mihomo = 0;
     std::atomic < uint64_t > current_memory_limit_by_mihomo = 0;
+    ccdb::NotificationType<std::string> chat;
 };
 
 #endif //SRC_GENERAL_INFO_PULLING_H

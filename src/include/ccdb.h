@@ -121,6 +121,10 @@ namespace ccdb
             utils::get_text("Time"), utils::get_text("Level"), utils::get_text("Log")
         };
 
+        const std::vector<std::string> chat_titles = {
+            utils::get_text("Time"), utils::get_text("User"), utils::get_text("Message")
+        };
+
         bool reverse_filter_list = false; // reverse white list
         tsl::hopscotch_map < uint64_t, std::string > filter_patterns; // Regex filter patterns for `get connections`
         std::atomic_int sort_by = -1; // get connections table: sort by which column
@@ -316,6 +320,7 @@ namespace ccdb
         void map_proxy_chain();
         void ccdbrc();
         void reload(const std::vector<std::string> &) const;
+        void chat(const std::vector<std::string> &);
 
         /// Input watcher that sets running flag when q is pressed
         /// @param name Thread name
@@ -401,7 +406,8 @@ namespace ccdb
         using OverrideColorType = tsl::hopscotch_map<uint64_t, std::string>;
         template < typename ContainerType, typename ConstantIteratorType, typename ScopeType > // = std::pair<ConstantIteratorType, ConstantIteratorType> >
         requires (std::is_same_v<ScopeType, std::pair<ConstantIteratorType, ConstantIteratorType>> && Iterator<ConstantIteratorType>)
-        void continuous_table(const bool banner, const std::vector < bool > & do_col_hide, const std::vector<int> alignment,
+        void continuous_table(const bool banner, const std::vector < bool > & do_col_hide,
+            const std::vector<int> & alignment,
             const CommandType < ContainerType, ScopeType > & CommandMap,
             const std::function<ScopeType(session_compliment_data_t *)> & ReturnContent,
             const std::function<String(message_type_t, const ContainerType & current_focus)> & GenerateBanner,
@@ -410,8 +416,8 @@ namespace ccdb
             const std::function<void(const ContainerType *)> & PressKey_P,
             const std::function<void(const ContainerType *)> & PressKey_K,
             const std::function<std::vector<String>()> & GetTitleForCurrentSession,
-            const std::function<std::vector<std::vector<String>>(const ScopeType &)> & GetTableValueForCurrentSession,
-            const std::function<void()> & FrameVisitEach
+            const std::function<void(const ScopeType &, std::vector<std::vector<String>> &)> & GetTableValueForCurrentSession,
+            const std::function<void(session_compliment_data_t *)> & FrameVisitEach
         )
         {
             using namespace ::ccdb::utils;
@@ -536,7 +542,8 @@ namespace ccdb
                 search_matches.clear();
                 search_matches.clear();
                 const auto keys = GetTitleForCurrentSession();
-                const auto values = GetTableValueForCurrentSession(content);
+                std::vector<std::vector<String>> values;
+                GetTableValueForCurrentSession(content, values);
                 const auto contentSize = values.size();
                 {
                     int index = 0;
@@ -985,7 +992,7 @@ namespace ccdb
                 const int local_atm_focus = atm_focus;
                 const int local_tab_suggestion = tab_suggestion_requested;
                 if (lock_to_max) leading_spaces_ = max_leading_spaces_.load();
-                FrameVisitEach();
+                FrameVisitEach(&compliment_data);
 
                 for (int i = 0; i < screen_refresh_interval_in_ms / 10; i++)
                 {

@@ -32,8 +32,6 @@ using namespace ccdb::utils;
 void ccdb::ccdb::get_log()
 {
     std::vector < bool > do_col_hide; do_col_hide.resize(log_titles.size(), false);
-    std::string focused_log; // crc64 of focused log entry
-    std::string last_checked_log;
     decltype(logPullerNoFilter) lines_local_incrimination;
     decltype(logPullerNoFilter) log_local_incrimination;
 
@@ -148,16 +146,15 @@ void ccdb::ccdb::get_log()
         [&pause_log_update](const auto *) { pause_log_update = !pause_log_update; },
         [](const auto *) {},
         [&]->std::vector<std::string> { return {log_titles.begin(), log_titles.end()}; },
-        [](const ScopeType & logs)->std::vector<std::vector<std::string>>
+        [](const ScopeType & logs, std::vector<std::vector<std::string>> & ret)
         {
-            std::vector<std::vector<std::string>> ret;
             ret.reserve(logs.second - logs.first);
             std::for_each(logs.first, logs.second, [&ret](const log_frame_t & log) {
                 ret.emplace_back(std::vector {log[0], log[1], log[2]});
             });
             return ret;
         },
-        []{});
+        [](session_compliment_data_t *){});
 }
 
 void ccdb::ccdb::get_logLevel() const

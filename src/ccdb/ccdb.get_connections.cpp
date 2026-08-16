@@ -500,9 +500,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
             return title_this_session;
         },
-        [](const auto & current_frame)
+        [](const auto & current_frame, std::vector < std::vector < std::string > > & table_vals)
         {
-            std::vector < std::vector < std::string > > table_vals;
             std::for_each(current_frame.first, current_frame.second, [&](const auto & connection)
             {
                 table_vals.push_back({
@@ -520,10 +519,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     connection.connection_data.chainName,
                 });
             });
-
-            return table_vals;
         },
-        [&]
+        [&](session_compliment_data_t *)
         {
             sort_by_local = sort_by;
             reverse_sort_local = sort_reverse;

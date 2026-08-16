@@ -24,7 +24,6 @@
 #include <sstream>
 #include <string>
 #include <cctype>
-#include <iostream>
 #include <chrono>
 #include <fstream>
 #include <functional>
@@ -53,13 +52,16 @@
 static constexpr const auto * MULTICAST_GROUP = "239.255.0.1";
 static constexpr std::uint16_t PORT = 49361;
 
-struct multicast_interface_t
+namespace
 {
-    bool any = true;
-    std::string name;
-    in_addr address { .s_addr = htonl(INADDR_ANY) };
-    unsigned int ifindex = 0;
-};
+    struct multicast_interface_t
+    {
+        bool any = true;
+        std::string name;
+        in_addr address { .s_addr = htonl(INADDR_ANY) };
+        unsigned int ifindex = 0;
+    };
+}
 
 static multicast_interface_t multicast_interface;
 static bool multicast_interface_config_valid = true;
@@ -939,6 +941,17 @@ general_info_pulling::general_info_pulling(const std::string& url, const std::st
                             };
                             update_from_logs(log.dump());
                         }
+                        else if (payload == "chat message")
+                        {
+                            const auto message = ccdb::utils::strip_color(std::string(json["content"]));
+                            const auto user = ccdb::utils::strip_color(std::string(json["user"]));
+                            const nlohmann::json chatMessage = {
+                                    { "message", message },
+                                    { "user", user },
+                                    { "time", ::ccdb::utils::getTimeNow() },
+                            };
+                            chat.push(chatMessage.dump());
+                        }
                     }
                 }
 
@@ -1061,7 +1074,7 @@ static std::string get_checksum(const std::vector < std::string > & line)
     const std::string str = ss.str();
     ccdb::utils::CRC64 crc64; crc64.update(reinterpret_cast<const uint8_t *>(str.data()), str.size());
     const auto checksum = crc64.get_checksum()
-        ^ static_cast<uint64_t>(dist6(rng)) ^ (static_cast<uint64_t>(dist6(rng)) | static_cast<uint64_t>(dist6(rng)));
+        ^ static_cast<uint64_t>(dist6(rng)) ^ (static_cast<uint64_t>(dist6(rng)) ^ static_cast<uint64_t>(dist6(rng)));
     res << std::hex << checksum;
     return res.str();
 }
@@ -1079,29 +1092,7 @@ void general_info_pulling::update_from_logs(const std::string& info)
             logs.erase(logs.begin());
         }
 
-    #if !((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
-        auto current_time_formatted = []()->std::string
-        {
-            const auto now = std::chrono::high_resolution_clock::now();
-            const std::time_t now_c = std::chrono::high_resolution_clock::to_time_t(now);
-            const std::tm now_tm = *std::localtime(&now_c); // potential thread-safety issue
-            const auto ms = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()) % 1000000000ull;
-            std::ostringstream oss;
-            oss << std::put_time(&now_tm, "%Y-%m-%d %H:%M:%S") << '.' << std::setfill('0') << std::setw(9) << ms.count();
-            return oss.str();
-        };
-    #endif
-
-        std::vector < std::string > line
-        {
-#if ((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
-            std::format("{:%Y-%m-%d %H:%M:%S}", std::chrono::high_resolution_clock::now()),
-    #else
-            current_time_formatted(),
-    #endif
-            type,
-            payload
-        };
+        std::vector line { ::ccdb::utils::getTimeNow(), type, payload };
 
         if (const std::string log_location = mihomo_output_log_location.get();
             !log_location.empty())
