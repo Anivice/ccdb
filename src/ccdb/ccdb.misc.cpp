@@ -394,49 +394,276 @@ void ccdb::ccdb::generic_input_watcher(const std::string &name, std::atomic_bool
     std::ranges::for_each(child_workers, [](auto &T){ if (T.joinable()) T.join(); });
 }
 
+namespace {
+
+using namespace std::chrono_literals;
+constexpr auto kInputSequenceTimeout = 50ms;
+
+class LegacyInputSequence {
+public:
+    LegacyInputSequence()
+    {
+        raw_.reserve(32);
+        encoded_.reserve(64);
+    }
+
+    void clear()
+    {
+        raw_.clear();
+        encoded_.clear();
+    }
+
+    [[nodiscard]] bool empty() const noexcept { return raw_.empty(); }
+    [[nodiscard]] const std::vector<int>& raw() const noexcept { return raw_; }
+    [[nodiscard]] const std::string& encoded() const noexcept { return encoded_; }
+
+    void push(const int c)
+    {
+        raw_.push_back(c);
+
+        // Preserve the old shortcut/config representation:
+        // ESC => "^[", printable => char, other => "^<decimal int>".
+        const auto uc = static_cast<unsigned char>(c);
+        if (std::isprint(uc)) {
+            encoded_.push_back(static_cast<char>(uc));
+        } else if (uc == 27U) {
+            encoded_ += "^[";
+        } else {
+            encoded_.push_back('^');
+            encoded_ += std::to_string(c);
+        }
+
+        if (ccdb::utils::getenv("SHOW_INPUT_TRACE") == "true") {
+            for (const int value : raw_) {
+                std::cerr << std::hex << value << ' ';
+            }
+            std::cerr << "\n --> STR: " << encoded_ << std::endl;
+        }
+    }
+
+    [[nodiscard]] bool matches(const std::string_view shortcut) const noexcept
+    {
+        if (shortcut.size() == 1) {
+            return raw_.size() == 1 && raw_.front() == shortcut.front();
+        }
+        return encoded_ == shortcut;
+    }
+
+    [[nodiscard]] bool contains_escape() const noexcept
+    {
+        return std::ranges::any_of(raw_, [](const int c) { return c == 27; });
+    }
+
+    [[nodiscard]] bool all_printable_or_tab() const noexcept
+    {
+        return !raw_.empty() &&
+               std::ranges::all_of(raw_, [](const int c) {
+                   return c == '\t' || std::isprint(static_cast<unsigned char>(c));
+               });
+    }
+
+private:
+    std::vector<int> raw_;
+    std::string encoded_;
+};
+
+struct MouseEvent {
+    std::uint64_t button{};
+    std::uint64_t x{};
+    std::uint64_t y{};
+    char final{};
+};
+
+[[nodiscard]] bool parse_u64(const std::string_view text, std::uint64_t& out) noexcept
+{
+    if (text.empty()) {
+        return false;
+    }
+
+    const char* first = text.data();
+    const char* last = first + text.size();
+    const auto [ptr, ec] = std::from_chars(first, last, out, 10);
+    return ec == std::errc{} && ptr == last;
+}
+
+// Parses the exact textual shape accepted by the old mouse regex:
+// ^[[<button;x;yM or ^[[<button;x;ym
+[[nodiscard]] std::optional<MouseEvent> parse_mouse(const std::string_view input) noexcept
+{
+    constexpr std::string_view prefix = "^[[<";
+    if (!input.starts_with(prefix) || input.size() <= prefix.size() + 1) {
+        return std::nullopt;
+    }
+
+    const char final = input.back();
+    if (final != 'M' && final != 'm') {
+        return std::nullopt;
+    }
+
+    const auto body = input.substr(prefix.size(), input.size() - prefix.size() - 1);
+    const auto sep1 = body.find(';');
+    if (sep1 == std::string_view::npos) {
+        return std::nullopt;
+    }
+
+    const auto sep2 = body.find(';', sep1 + 1);
+    if (sep2 == std::string_view::npos || body.find(';', sep2 + 1) != std::string_view::npos) {
+        return std::nullopt;
+    }
+
+    MouseEvent event;
+    event.final = final;
+    if (!parse_u64(body.substr(0, sep1), event.button) ||
+        !parse_u64(body.substr(sep1 + 1, sep2 - sep1 - 1), event.x) ||
+        !parse_u64(body.substr(sep2 + 1), event.y)) {
+        return std::nullopt;
+    }
+
+    return event;
+}
+
+[[nodiscard]] bool is_mouseish_escape(const std::string_view input) noexcept
+{
+    // Equivalent for this input representation to the old:
+    // ^\^\[\[.*[Mm]$
+    return input.size() >= 4 && input.starts_with("^[[") &&
+           (input.back() == 'M' || input.back() == 'm');
+}
+
+enum class InputAction {
+    None,
+    SearchNext,
+    SearchPrev,
+    ShowDetail,
+    KillConn,
+    Focus,
+    MoveLeft,
+    MoveRight,
+    MoveUp,
+    MoveDown,
+    ToStart,
+    ToEnd,
+    PageUp,
+    PageDown,
+    Sort0,
+    Sort1,
+    Sort2,
+    Sort3,
+    Sort4,
+    Sort5,
+    Sort6,
+    Sort7,
+    Sort8,
+    Sort9,
+    Sort10,
+    Sort11,
+    HighlightUp,
+    HighlightDown,
+};
+
+struct ShortcutBinding {
+    const char* name;
+    InputAction action;
+};
+
+constexpr std::array kPreMouseBindings{
+    ShortcutBinding{"ShowDetail", InputAction::ShowDetail},
+    ShortcutBinding{"KillConn", InputAction::KillConn},
+    ShortcutBinding{"Focus", InputAction::Focus},
+    ShortcutBinding{"MoveLeft", InputAction::MoveLeft},
+    ShortcutBinding{"MoveRight", InputAction::MoveRight},
+    ShortcutBinding{"MoveUp", InputAction::MoveUp},
+    ShortcutBinding{"MoveDown", InputAction::MoveDown},
+    ShortcutBinding{"ToStart", InputAction::ToStart},
+    ShortcutBinding{"ToEnd", InputAction::ToEnd},
+    ShortcutBinding{"PageUp", InputAction::PageUp},
+    ShortcutBinding{"PageDown", InputAction::PageDown},
+};
+
+constexpr std::array kPostMouseBindings{
+    ShortcutBinding{"SortBy0", InputAction::Sort0},
+    ShortcutBinding{"SortBy1", InputAction::Sort1},
+    ShortcutBinding{"SortBy2", InputAction::Sort2},
+    ShortcutBinding{"SortBy3", InputAction::Sort3},
+    ShortcutBinding{"SortBy4", InputAction::Sort4},
+    ShortcutBinding{"SortBy5", InputAction::Sort5},
+    ShortcutBinding{"SortBy6", InputAction::Sort6},
+    ShortcutBinding{"SortBy7", InputAction::Sort7},
+    ShortcutBinding{"SortBy8", InputAction::Sort8},
+    ShortcutBinding{"SortBy9", InputAction::Sort9},
+    ShortcutBinding{"SortBy10", InputAction::Sort10},
+    ShortcutBinding{"SortBy11", InputAction::Sort11},
+    ShortcutBinding{"HighlightUP", InputAction::HighlightUp},
+    ShortcutBinding{"HighlightDown", InputAction::HighlightDown},
+};
+
+[[nodiscard]] int sort_index(const InputAction action) noexcept
+{
+    switch (action) {
+        case InputAction::Sort0: return 0;
+        case InputAction::Sort1: return 1;
+        case InputAction::Sort2: return 2;
+        case InputAction::Sort3: return 3;
+        case InputAction::Sort4: return 4;
+        case InputAction::Sort5: return 5;
+        case InputAction::Sort6: return 6;
+        case InputAction::Sort7: return 7;
+        case InputAction::Sort8: return 8;
+        case InputAction::Sort9: return 9;
+        case InputAction::Sort10: return 10;
+        case InputAction::Sort11: return 11;
+        default: return -1;
+    }
+}
+
+} // namespace
+
 void ccdb::ccdb::get_conn_input_watcher(
-    std::atomic_bool * running_ptr,
-    std::atomic_int * leading_spaces_ptr,
-    const std::atomic_int * max_leading_spaces_ptr,
-    std::atomic_int * current_skip_lines_ptr,
-    const std::atomic_int * max_skip_lines_ptr,
-    std::atomic_int * mouse_x,
-    std::atomic_int * mouse_y,
-    std::atomic_bool * kill_signal_sent,
-    std::atomic_bool * refocus,
-    std::atomic_bool * show_detail,
-    std::atomic_int * sort_by_ptr,
-    std::atomic_int * focus_move,
-    const std::atomic_bool * pause,
-    std::atomic_bool * show_search,
-    ccdb_atomic_t < std::u32string > * search_content_buffer,
-    std::atomic_int * cursor_position,
-    std::atomic < search_move_t > * search_focus_move,
-    std::atomic_int * tab_suggestion_requested)
+    std::atomic_bool* running_ptr,
+    std::atomic_int* leading_spaces_ptr,
+    const std::atomic_int* max_leading_spaces_ptr,
+    std::atomic_int* current_skip_lines_ptr,
+    const std::atomic_int* max_skip_lines_ptr,
+    std::atomic_int* mouse_x,
+    std::atomic_int* mouse_y,
+    std::atomic_bool* kill_signal_sent,
+    std::atomic_bool* refocus,
+    std::atomic_bool* show_detail,
+    std::atomic_int* sort_by_ptr,
+    std::atomic_int* focus_move,
+    const std::atomic_bool* pause,
+    std::atomic_bool* show_search,
+    ccdb_atomic_t<std::u32string>* search_content_buffer,
+    std::atomic_int* cursor_position,
+    std::atomic<search_move_t>* search_focus_move,
+    std::atomic_int* tab_suggestion_requested)
 {
     set_thread_name("get/conn:input");
     interactive_verification();
-    std::atomic_bool & running = *running_ptr;
-    std::atomic_int & leading_spaces = *leading_spaces_ptr;
-    const std::atomic_int & max_leading_spaces = *max_leading_spaces_ptr;
-    std::atomic_int & current_skip_lines = *current_skip_lines_ptr;
-    const std::atomic_int & max_skip_lines = *max_skip_lines_ptr;
+
+    auto& running = *running_ptr;
+    auto& leading_spaces = *leading_spaces_ptr;
+    const auto& max_leading_spaces = *max_leading_spaces_ptr;
+    auto& current_skip_lines = *current_skip_lines_ptr;
+    const auto& max_skip_lines = *max_skip_lines_ptr;
+
     std::vector<std::thread> threads;
     auto sigint_status = watcher.make_status_watcher();
-    int tab_request;
 
-    // pull SIGINT every 50ms
-    threads.emplace_back([&] { while (running) {
+    threads.emplace_back([&] {
         set_thread_name("input:/Backend Force Quit Puller");
-        if (backend_instance.force_quit) { running = false; break; }
-        std::this_thread::sleep_for(std::chrono::milliseconds(50l));
-    } });
+        while (running) {
+            if (backend_instance.force_quit) {
+                running = false;
+                break;
+            }
+            std::this_thread::sleep_for(50ms);
+        }
+    });
 
-    threads.emplace_back([&]
-    {
+    threads.emplace_back([&] {
         set_thread_name("input:/SIGINT Puller");
-        while (running)
-        {
+        while (running) {
             if (const auto sig = sigint_status.wait(); sig == SIGINT || sig < 0) {
                 running = false;
                 break;
@@ -444,477 +671,401 @@ void ccdb::ccdb::get_conn_input_watcher(
         }
     });
 
-    auto ch_list_to_string = [](const std::vector < int > & list)->std::string
-    {
-        std::string str;
-        std::ranges::for_each(list, [&str](const int c)
-        {
-            if (const char cc = *reinterpret_cast<const char *>(&c); std::isprint(cc)) {
-                str.push_back(cc);
-            } else {
-                if (cc == 27) { // ESCAPE
-                    str += "^[";
-                } else {
-                    str += '^';
-                    str.append(std::to_string(c));
-                }
-            }
-
-            if (utils::getenv("SHOW_INPUT_TRACE") == "true")
-                std::cerr << std::hex << c << " ";
-        });
-
-        if (utils::getenv("SHOW_INPUT_TRACE") == "true")
-            std::cerr << "\n --> STR: " << str << std::endl;
-        return str;
-    };
-
-    namespace chrono = std::chrono;
-    const std::regex mouse_pattern(R"(^\^\[\[\<[\d]+\;([\d]+)\;([\d]+)[Mm]$)");
-    const std::regex mouse_scroll_down_pattern(R"(^\^\[\[\<65\;([\d]+)\;([\d]+)[Mm]$)");
-    const std::regex mouse_scroll_up_pattern(R"(^\^\[\[\<64\;([\d]+)\;([\d]+)[Mm]$)");
-    const std::regex escape_pattern(R"(^\^\[\[.*[Mm]$)");
-
-    std::vector <int> ch_list;
-
-    auto up = [&](const int row_step)
-    {
-        if (current_skip_lines > 0)
-        {
-            if (current_skip_lines > row_step) {
-                current_skip_lines -= row_step;
+    auto up = [&](const int step) {
+        if (current_skip_lines > 0) {
+            if (current_skip_lines > step) {
+                current_skip_lines -= step;
             } else {
                 current_skip_lines = 0;
             }
         }
     };
 
-    auto down = [&](const int row_step)
-    {
-        if (current_skip_lines < max_skip_lines)
-        {
-            if ((current_skip_lines + row_step) < max_skip_lines)
-            {
-                current_skip_lines += row_step;
+    auto down = [&](const int step) {
+        if (current_skip_lines < max_skip_lines) {
+            if ((current_skip_lines + step) < max_skip_lines) {
+                current_skip_lines += step;
             } else {
                 current_skip_lines = max_skip_lines.load();
             }
         }
     };
 
-    auto mouse_get_xy = [](const std::string& fmt, const std::regex & reg)->std::pair<int, int>
-    {
-        std::smatch match;
-        std::regex_match(fmt, match, reg);
-        std::vector<std::string> vec { match.begin(), match.end() };
-        if (vec.size() == 3) {
-            const auto x = convertToNumber<uint64_t>(vec[1]);
-            const auto y = convertToNumber<uint64_t>(vec[2]);
-            return { x, y };
-        }
-
-        return { -1, -1 };
-    };
-
-    auto set_mouse_xy = [&mouse_x, &mouse_y, &mouse_get_xy](const std::string& fmt, const std::regex & reg)
-    {
-        const auto [x, y] = mouse_get_xy(fmt, reg);
-        if (mouse_x) mouse_x->store(x);
-        if (mouse_y) mouse_y->store(y);
-    };
-
-    auto validation = [&](const std::string & str_buffer, const std::string & validation_string)->bool
-    {
-        if (validation_string.size() == 1) {
-            if (ch_list.size() == 1 && ch_list.front() == validation_string.front()) {
-                ch_list.clear();
-                return true;
-            }
-
-            return false;
-        }
-
-        if (str_buffer == validation_string) {
-            ch_list.clear();
-            return true;
-        }
-
-        return false;
-    };
-
-    auto hl_up=[&]
-    {
+    auto hl_up = [&] {
         if (focus_move) *focus_move = 2;
     };
 
-    auto hl_down=[&]
-    {
+    auto hl_down = [&] {
         if (focus_move) *focus_move = 1;
     };
 
-    NotificationType<char> buffer;
-    threads.emplace_back([&]
-    {
-        set_thread_name("input:/Reader");
-        char buf[4096]{ };
-        while (running)
-        {
-            if (!pause || !(pause && *pause))
-                if (const auto len = read_with_timeout(STDIN_FILENO, buf, sizeof(buf), 50); len != -1)
-                {
-                    for (int i = 0; i < len; ++i) {
-                        buffer.push(buf[i]);
+    auto execute_action = [&](const InputAction action) {
+        switch (action) {
+            case InputAction::SearchNext:
+                if (search_focus_move) *search_focus_move = SEARCH_MOVE_DOWN;
+                break;
+            case InputAction::SearchPrev:
+                if (search_focus_move) *search_focus_move = SEARCH_MOVE_UP;
+                break;
+            case InputAction::ShowDetail:
+                if (show_detail) *show_detail = true;
+                break;
+            case InputAction::KillConn:
+                if (kill_signal_sent) *kill_signal_sent = true;
+                break;
+            case InputAction::Focus:
+                if (refocus) *refocus = true;
+                break;
+            case InputAction::MoveLeft: {
+                const auto [row, col] = get_screen_row_col();
+                (void)row;
+                const int step = std::max(col / 8, 1);
+                if (leading_spaces > 0) {
+                    if (leading_spaces > step) {
+                        leading_spaces -= step;
+                    } else {
+                        leading_spaces = 0;
                     }
                 }
-
-            std::this_thread::sleep_for(std::chrono::microseconds(1));
+                break;
+            }
+            case InputAction::MoveRight: {
+                const auto [row, col] = get_screen_row_col();
+                (void)row;
+                const int step = std::max(col / 8, 1);
+                if (leading_spaces < max_leading_spaces) {
+                    if ((leading_spaces + step) < max_leading_spaces) {
+                        leading_spaces += step;
+                    } else {
+                        leading_spaces = max_leading_spaces.load();
+                    }
+                }
+                break;
+            }
+            case InputAction::MoveUp: {
+                const auto [row, col] = get_screen_row_col();
+                (void)col;
+                up(std::max(row / 8, 1));
+                break;
+            }
+            case InputAction::MoveDown: {
+                const auto [row, col] = get_screen_row_col();
+                (void)col;
+                down(std::max(row / 8, 1));
+                break;
+            }
+            case InputAction::ToStart:
+                leading_spaces = 0;
+                break;
+            case InputAction::ToEnd:
+                leading_spaces = max_leading_spaces.load();
+                break;
+            case InputAction::PageUp: {
+                const auto [row, col] = get_screen_row_col();
+                (void)col;
+                current_skip_lines -= std::max(row - 8, 1);
+                if (current_skip_lines < 0) current_skip_lines = 0;
+                break;
+            }
+            case InputAction::PageDown: {
+                const auto [row, col] = get_screen_row_col();
+                (void)col;
+                current_skip_lines += std::max(row - 8, 1);
+                if (current_skip_lines > max_skip_lines) {
+                    current_skip_lines = max_skip_lines.load();
+                }
+                break;
+            }
+            case InputAction::HighlightUp:
+                hl_up();
+                break;
+            case InputAction::HighlightDown:
+                hl_down();
+                break;
+            default:
+                if (const int index = sort_index(action); index >= 0 && sort_by_ptr) {
+                    *sort_by_ptr = index;
+                }
+                break;
         }
+    };
 
+    // Keep the existing NotificationType<char> instantiation for drop-in compatibility.
+    // (The -1 sentinel is signed-char dependent; see notes in the review.)
+    NotificationType<char> buffer;
+    threads.emplace_back([&] {
+        set_thread_name("input:/Reader");
+        char buf[4096]{};
+
+        while (running) {
+            if (pause && pause->load()) {
+                // The old 1 us sleep was effectively a busy-poll while paused.
+                std::this_thread::sleep_for(1ms);
+                continue;
+            }
+
+            if (const auto len = read_with_timeout(STDIN_FILENO, buf, sizeof(buf), 50); len != -1) {
+                for (std::size_t i = 0; i < static_cast<std::size_t>(len); ++i) {
+                    buffer.push(buf[i]);
+                }
+            }
+        }
         buffer.push(-1);
     });
 
+    LegacyInputSequence sequence;
     auto last_updated_time = std::chrono::steady_clock::now();
-    while (running)
-    {
+
+    while (running) {
         const auto ch = buffer.wait_for(50);
-        if (!ch)
-        {
-            ch_list.clear();
+        if (!ch) {
+            sequence.clear();
             continue;
         }
 
-        if (*ch == -1)
-        {
-            if (show_search && !*show_search) {
-                ch_list.clear();
-                continue;
-            }
+        if (*ch == -1 && show_search && !show_search->load()) {
+            sequence.clear();
+            continue;
         }
 
-        const auto [row, col] = get_screen_row_col();
-        const auto row_step = std::max(row / 8, 1);
-        const auto col_step = std::max(col / 8, 1);
-        const auto page_size = std::max(row - 8 /* list headers, etc. */, 1);
-        std::string str_buffer;
-        if (ch_list.empty())
-        {
-            if (*ch == '/' && show_search && !*show_search)
-            {
+        // Preserve the original immediate one-byte commands.
+        if (sequence.empty()) {
+            if (*ch == '/' && show_search && !show_search->load()) {
                 *show_search = true;
                 *cursor_position = 0;
                 search_content_buffer->set({});
                 continue;
             }
 
-            if (*ch == '\n' && show_search && *show_search)
-            {
+            if (*ch == '\n' && show_search && show_search->load()) {
                 *show_search = false;
                 search_content_buffer->set(search_content_buffer->get() + utf8_to_u32("\n"));
-                if (cursor_position) {
-                    *cursor_position = -1;
-                }
-
+                if (cursor_position) *cursor_position = -1;
                 continue;
             }
 
-            if ((!show_search || (show_search && !*show_search)) && (*ch == 'q' || *ch == 'Q'))
+            if ((!show_search || !show_search->load()) && (*ch == 'q' || *ch == 'Q')) {
                 break;
+            }
         }
 
         const auto now = std::chrono::steady_clock::now();
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_updated_time).count() > 50) {
-            ch_list.clear();
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_updated_time) >
+            kInputSequenceTimeout) {
+            sequence.clear();
         }
-
         last_updated_time = now;
-        if (*ch) ch_list.push_back(*ch);
-        str_buffer = ch_list_to_string(ch_list);
 
-        if (std::lock_guard<std::mutex> thread_mtx_kbd_shortcut(keyboard_shortcut_map_mtx);
-            show_search && *show_search)
-        {
-            if (validation(str_buffer, keyboard_shortcut_map.at("MoveLeft"))) // left arrow
-            {
-                if (cursor_position && *cursor_position > 0) {
-                    *cursor_position -= 1;
-                }
-            }
-            else if (validation(str_buffer, "^[e")) // exit
-            {
-                *show_search = false;
-                search_content_buffer->set({});
-                if (cursor_position) {
-                    *cursor_position = -1;
-                }
+        if (*ch) sequence.push(*ch);
 
-                continue;
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("MoveRight"))) // right arrow
+        // The old code kept a local str_buffer even after validation() cleared ch_list.
+        // Keep this frozen view to preserve that ordering quirk exactly.
+        const std::string encoded = sequence.encoded();
+        const bool search_mode = show_search && show_search->load();
+
+        if (search_mode) {
+            enum class SearchHead { None, Left, Exit, Right, Start, End };
+            SearchHead head = SearchHead::None;
+
             {
-                if (cursor_position && *cursor_position < search_content_buffer->get().length()) {
-                    *cursor_position += 1;
+                // The old lock covered the entire parser branch, including sleeps,
+                // regex work and output mutation. We only hold it while consulting
+                // keyboard_shortcut_map.
+                std::lock_guard<std::mutex> lock(keyboard_shortcut_map_mtx);
+                if (sequence.matches(keyboard_shortcut_map.at("MoveLeft"))) {
+                    head = SearchHead::Left;
+                } else if (sequence.matches("^[e")) {
+                    head = SearchHead::Exit;
+                } else if (sequence.matches(keyboard_shortcut_map.at("MoveRight"))) {
+                    head = SearchHead::Right;
+                } else if (sequence.matches(keyboard_shortcut_map.at("ToStart"))) {
+                    head = SearchHead::Start;
+                } else if (sequence.matches(keyboard_shortcut_map.at("ToEnd"))) {
+                    head = SearchHead::End;
                 }
             }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("ToStart"))) {
-                if (cursor_position) *cursor_position = 0;
+
+            if (head != SearchHead::None) {
+                sequence.clear();
+                switch (head) {
+                    case SearchHead::Left:
+                        if (cursor_position && *cursor_position > 0) *cursor_position -= 1;
+                        break;
+                    case SearchHead::Exit:
+                        *show_search = false;
+                        search_content_buffer->set({});
+                        if (cursor_position) *cursor_position = -1;
+                        continue;
+                    case SearchHead::Right:
+                        if (cursor_position &&
+                            static_cast<std::size_t>(cursor_position->load()) <
+                                search_content_buffer->get().length()) {
+                            *cursor_position += 1;
+                        }
+                        break;
+                    case SearchHead::Start:
+                        if (cursor_position) *cursor_position = 0;
+                        break;
+                    case SearchHead::End:
+                        if (cursor_position) {
+                            *cursor_position = static_cast<int>(search_content_buffer->get().length());
+                        }
+                        break;
+                    case SearchHead::None:
+                        break;
+                }
             }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("ToEnd"))) {
-                if (cursor_position) *cursor_position = static_cast<int>(search_content_buffer->get().length());
-            }
-            if (validation(str_buffer, "^[[3~")) // Delete
-            {
-                if (auto str = search_content_buffer->get(); !str.empty())
-                {
-                    if ((*cursor_position + 1) < str.length())
-                    {
-                        str.erase(*cursor_position + 1, 1); // cursor position does not change on Delete
+
+            // These were independent checks after the first search-mode chain.
+            if (encoded == "^[[3~") {
+                if (auto str = search_content_buffer->get(); !str.empty()) {
+                    if ((*cursor_position + 1) < static_cast<int>(str.length())) {
+                        str.erase(*cursor_position + 1, 1);
                     } else {
                         str.pop_back();
-                        *cursor_position = static_cast<int>(str.length()); // cursor position changes according to str len
+                        *cursor_position = static_cast<int>(str.length());
                     }
-
                     search_content_buffer->set(str);
                 }
-
-                ch_list.clear();
+                sequence.clear();
             }
-            if (validation(str_buffer, "^127")) // Backspace
-            {
-                if (auto str = search_content_buffer->get();
-                    *cursor_position > 0) // DEL
-                {
-                    if (*cursor_position < str.length()) {
+
+            if (encoded == "^127") {
+                if (auto str = search_content_buffer->get(); *cursor_position > 0) {
+                    if (*cursor_position < static_cast<int>(str.length())) {
                         str.erase(*cursor_position - 1, 1);
                         *cursor_position -= 1;
                     } else {
                         str.pop_back();
                         *cursor_position = static_cast<int>(str.length());
                     }
-
                     search_content_buffer->set(str);
                 }
-
-                ch_list.clear();
-            }
-            else if (std::regex_match(str_buffer, escape_pattern))
-            {
-                ch_list.clear();
-                // str_buffer.clear();
-                std::this_thread::sleep_for(std::chrono::milliseconds(10)); // wait 10ms to buffer all inputs
-                buffer.flush(); // discard all inputs
-            }
-            else if (!str_buffer.empty() && !(*ch == 27 || std::ranges::any_of(ch_list, [](const char c){ return c == 27; }))
-                && std::ranges::all_of(ch_list, [](const int c){ return std::isprint(c) || c == '\t'; }))
-            {
+                sequence.clear();
+            } else if (is_mouseish_escape(encoded)) {
+                // Deliberately preserved: removing this would change observable
+                // behavior because the old code drops queued bytes here.
+                sequence.clear();
+                std::this_thread::sleep_for(10ms);
+                buffer.flush();
+            } else if (!encoded.empty() && *ch != 27 && !sequence.contains_escape() &&
+                       sequence.all_printable_or_tab()) {
                 auto str = search_content_buffer->get();
-                std::ranges::for_each(ch_list, [&](const int c)
-                {
-                    if (c == '\t')
-                    {
-                        tab_request++;
-                    }
-                    else if (std::isprint(c))
-                    {
+                int tab_request = 0; // original variable was uninitialized (UB)
+
+                for (const int c : sequence.raw()) {
+                    if (c == '\t') {
+                        ++tab_request;
+                    } else if (std::isprint(static_cast<unsigned char>(c))) {
                         tab_request = 0;
-                        if (*cursor_position < str.length()) {
-                            str.insert(cursor_position->load(), 1, static_cast<std::u32string::value_type>(c));
+                        if (*cursor_position < static_cast<int>(str.length())) {
+                            str.insert(cursor_position->load(), 1,
+                                       static_cast<std::u32string::value_type>(c));
                             *cursor_position += 1;
                         } else {
                             str += static_cast<std::u32string::value_type>(c);
                             *cursor_position = static_cast<int>(str.length());
                         }
                     }
-                });
+                }
 
-                if (tab_suggestion_requested && tab_request == 1)
+                if (tab_suggestion_requested && tab_request == 1) {
                     *tab_suggestion_requested = 1;
-                else if (tab_suggestion_requested && tab_request >= 2)
+                } else if (tab_suggestion_requested && tab_request >= 2) {
                     *tab_suggestion_requested = 2;
-                // else if (tab_suggestion_requested) *tab_suggestion_requested = 0;
-                tab_request = 0;
+                }
+
                 search_content_buffer->set(str);
-                ch_list.clear();
+                sequence.clear();
+            }
+
+            continue;
+        }
+
+        InputAction primary = InputAction::None;
+        InputAction post_mouse = InputAction::None;
+        std::optional<MouseEvent> mouse_event;
+
+        // Fixed n/N win before configurable shortcuts, as before.
+        if (sequence.matches("n")) {
+            primary = InputAction::SearchNext;
+        } else if (sequence.matches("N")) {
+            primary = InputAction::SearchPrev;
+        } else {
+            // Preserve the original precedence under one short lock:
+            // pre-mouse shortcuts -> mouse -> sort/highlight shortcuts.
+            std::lock_guard<std::mutex> lock(keyboard_shortcut_map_mtx);
+
+            for (const auto& binding : kPreMouseBindings) {
+                if (sequence.matches(keyboard_shortcut_map.at(binding.name))) {
+                    primary = binding.action;
+                    break;
+                }
+            }
+
+            if (primary == InputAction::None) {
+                mouse_event = parse_mouse(encoded);
+                if (!mouse_event) {
+                    for (const auto& binding : kPostMouseBindings) {
+                        if (sequence.matches(keyboard_shortcut_map.at(binding.name))) {
+                            post_mouse = binding.action;
+                            break;
+                        }
+                    }
+                }
             }
         }
-        else
+
+        if (primary != InputAction::None) {
+            sequence.clear();
+            execute_action(primary);
+            continue;
+        }
+
+        if (mouse_event)
         {
-            if (validation(str_buffer, "n"))
-            {
-                if (search_focus_move) *search_focus_move = SEARCH_MOVE_DOWN;
-            }
-            else if (validation(str_buffer, "N"))
-            {
-                if (search_focus_move) *search_focus_move = SEARCH_MOVE_UP;
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("ShowDetail")))
-            {
-                if (show_detail) *show_detail = true;
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("KillConn")))
-            {
-                if (kill_signal_sent) *kill_signal_sent = true;
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("Focus")))
-            {
-                if (refocus) *refocus = true;
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("MoveLeft"))) // left arrow
-            {
-                if (leading_spaces > 0)
-                {
-                    if (leading_spaces > col_step) {
-                        leading_spaces -= col_step;
-                    } else {
-                        leading_spaces = 0;
-                    }
-                }
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("MoveRight"))) // right arrow
-            {
-                if (leading_spaces < max_leading_spaces)
-                {
-                    if ((leading_spaces + col_step) < max_leading_spaces)
-                    {
-                        leading_spaces += col_step;
-                    } else {
-                        leading_spaces = max_leading_spaces.load();
-                    }
-                }
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("MoveUp")))
-            {
-                up(row_step);
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("MoveDown")))
-            {
-                down(row_step);
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("ToStart")))
-            {
-                leading_spaces = 0;
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("ToEnd")))
-            {
-                leading_spaces = max_leading_spaces.load();
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("PageUp")))
-            {
-                current_skip_lines -= page_size;
-                if (current_skip_lines < 0) {
-                    current_skip_lines = 0;
-                }
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("PageDown")))
-            {
-                current_skip_lines += page_size;
-                if (current_skip_lines > max_skip_lines) {
-                    current_skip_lines = max_skip_lines.load();
-                }
-            }
-            else if (std::regex_match(str_buffer, mouse_scroll_down_pattern))
-            {
+            const bool follow_focus = utils::getenv("FOCUS_FOLLOW_MOUSE_SCROLLING") == "true";
+
+            if (mouse_event->button == 65U) {
                 if (reverse_mouse) {
                     down(get_line_size() / 8);
-                    if (utils::getenv("FOCUS_FOLLOW_MOUSE_SCROLLING") == "true") {
-                        hl_down();
-                    }
+                    if (follow_focus) hl_down();
                 } else {
                     up(get_line_size() / 8);
-                    if (utils::getenv("FOCUS_FOLLOW_MOUSE_SCROLLING") == "true") {
-                        hl_up();
-                    }
+                    if (follow_focus) hl_up();
                 }
-                if (refocus && utils::getenv("FOCUS_FOLLOW_MOUSE_SCROLLING") == "true") *refocus = true;
-                ch_list.clear();
-            }
-            else if (std::regex_match(str_buffer, mouse_scroll_up_pattern))
-            {
+                if (refocus && follow_focus) *refocus = true;
+            } else if (mouse_event->button == 64U) {
                 if (reverse_mouse) {
                     up(get_line_size() / 8);
-                    if (utils::getenv("FOCUS_FOLLOW_MOUSE_SCROLLING") == "true") {
-                        hl_up();
-                    }
+                    if (follow_focus) hl_up();
                 } else {
                     down(get_line_size() / 8);
-                    if (utils::getenv("FOCUS_FOLLOW_MOUSE_SCROLLING") == "true") {
-                        hl_down();
-                    }
+                    if (follow_focus) hl_down();
                 }
-                if (refocus && utils::getenv("FOCUS_FOLLOW_MOUSE_SCROLLING") == "true") *refocus = true;
-                ch_list.clear();
+                if (refocus && follow_focus) *refocus = true;
+            } else {
+                if (mouse_x) mouse_x->store(static_cast<int>(mouse_event->x));
+                if (mouse_y) mouse_y->store(static_cast<int>(mouse_event->y));
             }
-            else if (std::regex_match(str_buffer, mouse_pattern)) {
-                set_mouse_xy(str_buffer, mouse_pattern);
-                ch_list.clear();
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy0")))
-            {
-                if (sort_by_ptr) *sort_by_ptr = 0;
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy1")))
-            {
-                if (sort_by_ptr) *sort_by_ptr = 1;
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy2")))
-            {
-                if (sort_by_ptr) *sort_by_ptr = 2;
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy3")))
-            {
-                if (sort_by_ptr) *sort_by_ptr = 3;
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy4")))
-            {
-                if (sort_by_ptr) *sort_by_ptr = 4;
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy5")))
-            {
-                if (sort_by_ptr) *sort_by_ptr = 5;
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy6")))
-            {
-                if (sort_by_ptr) *sort_by_ptr = 6;
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy7")))
-            {
-                if (sort_by_ptr) *sort_by_ptr = 7;
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy8")))
-            {
-                if (sort_by_ptr) *sort_by_ptr = 8;
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy9")))
-            {
-                if (sort_by_ptr) *sort_by_ptr = 9;
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy10")))
-            {
-                if (sort_by_ptr) *sort_by_ptr = 10;
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("SortBy11")))
-            {
-                if (sort_by_ptr) *sort_by_ptr = 11;
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("HighlightUP")))
-            {
-                hl_up();
-            }
-            else if (validation(str_buffer, keyboard_shortcut_map.at("HighlightDown")))
-            {
-                hl_down();
-            }
-#ifdef __DEBUG__
-            else {
-                // std::cerr << str_buffer << std::endl;
-            }
-#endif //__DEBUG__
+
+            sequence.clear();
+            continue;
         }
+
+        if (post_mouse != InputAction::None) {
+            sequence.clear();
+            execute_action(post_mouse);
+        }
+        // Otherwise keep the partial/unrecognized sequence until the same 50 ms
+        // timeout used by the original parser. This preserves custom/escape
+        // sequence behavior rather than introducing a new prefix policy here.
     }
 
     running = false;
     sigint_status.stop();
-    std::ranges::for_each(threads, [](std::thread & T) {
-        if (T.joinable()) T.join();
+    std::ranges::for_each(threads, [](std::thread& thread) {
+        if (thread.joinable()) thread.join();
     });
 }
 
