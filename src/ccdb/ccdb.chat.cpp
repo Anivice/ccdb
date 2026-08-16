@@ -64,6 +64,7 @@ void ccdb::ccdb::chat(const std::vector<std::string> & vec)
     std::uniform_int_distribution<std::mt19937::result_type> dist6(0, UINT64_MAX);
 
     bool lockToLastLine = false;
+    bool skip_frame = false;
     using chatMessageType = decltype(chatMessages);
     using chatType = decltype(chatMessages)::value_type;
     using ConstItrType = chatMessageType::const_iterator;
@@ -111,6 +112,7 @@ void ccdb::ccdb::chat(const std::vector<std::string> & vec)
                         });
                         child_workers.clear();
                     }
+                    skip_frame = true;
                     return { };
                 },
             }
@@ -139,10 +141,16 @@ void ccdb::ccdb::chat(const std::vector<std::string> & vec)
                 ret.emplace_back(std::vector {chat[0], chat[1], chat[2]});
             });
         },
-        [&](const session_compliment_data_t * data)
+        [&](session_compliment_data_t * data)
         {
             if (lockToLastLine) {
                 *data->skip_lines_ = data->max_skip_lines_->load();
+            }
+
+            if (skip_frame)
+            {
+                skip_frame = false;
+                data->skip_frame = true;
             }
         }
     );

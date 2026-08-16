@@ -398,6 +398,7 @@ namespace ccdb
             std::atomic_int * skip_lines_;
             const std::atomic_int * max_skip_lines_;
             std::atomic_int * sort_by_from_watcher;
+            bool skip_frame;
         };
 
         // template <typename ContainerType> using ViewerType = std::vector < ContainerType >;
@@ -446,6 +447,7 @@ namespace ccdb
                 .skip_lines_ = &current_skip_lines_,
                 .max_skip_lines_ = &max_skip_lines_,
                 .sort_by_from_watcher = &sort_by_from_watcher_,
+                .skip_frame = false
             };
 
             HashType focused_id;
@@ -516,6 +518,7 @@ namespace ccdb
                     continue;
                 }
 
+                compliment_data.skip_frame = false;
                 content = ReturnContent(&compliment_data);
                 OverrideColorType color_code_overrides;
                 const auto leading_spaces = leading_spaces_.load();
@@ -996,7 +999,8 @@ namespace ccdb
 
                 for (int i = 0; i < screen_refresh_interval_in_ms / 10; i++)
                 {
-                    if (local_leading_spaces != leading_spaces_
+                    if (compliment_data.skip_frame
+                        || local_leading_spaces != leading_spaces_
                         || local_skip_lines != current_skip_lines_
                         || local_mouse_y != mouse_y_
                         || window_size_change
