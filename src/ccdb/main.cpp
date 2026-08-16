@@ -25,6 +25,11 @@
 #include <ranges>
 #include <sys/stat.h>
 #include <fstream>
+#include <cstdlib>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <ifaddrs.h>
+#include <netinet/in.h>
 #include "ccdb.h"
 #include "general_info_pulling.h"
 #include "print.h"
@@ -37,29 +42,97 @@
 namespace utils = ccdb::utils;
 extern bool USE_OLD_COLOR_SCHEME;
 
-utils::PreDefinedArgumentType::PreDefinedArgument MainArgument = {
-    { .short_name = 'h', .long_name = "help",       .argument_required = false, .description = utils::get_text("Show help") },
-    { .short_name = 'v', .long_name = "version",    .argument_required = false, .description = utils::get_text("Show version") },
-    { .short_name = 'V', .long_name = "version-license", .argument_required = false, .description = utils::get_text("Show version along with LICENSE") },
-    { .short_name = 'u', .long_name = "url",        .argument_required = true,  .description = utils::get_text("Backend url, usually http://localhost:9090") },
-    { .short_name = 'x', .long_name = "execute",    .argument_required = true,  .description = utils::get_text("Execute a CCDB command") },
-    { .short_name = 't', .long_name = "token",      .argument_required = true,  .description = utils::get_text("Backend HTTP auth password") },
-    { .short_name = 'l', .long_name = "latency_url",.argument_required = true,  .description = utils::get_text("Latency URL") },
-    { .short_name = -1,  .long_name = "subinfo",    .argument_required = false, .description = utils::get_text("Get subinfo") },
-    { .short_name = -1,  .long_name = "subinfo_url",.argument_required = true,  .description = utils::get_text("Specify subscription URL (only for --subinfo)") },
-    { .short_name = -1,  .long_name = "subinfo_timeout",.argument_required = true,  .description = utils::get_text("Timeout of subinfo puller (in seconds, only for --subinfo, default is 15s)") },
-    { .short_name = -1,  .long_name = "subinfo_user-agent",.argument_required = true,  .description = utils::get_text("User agent of subinfo puller (only for --subinfo, default is `clash-verge/2.1.0`)") },
-    { .short_name = -1,  .long_name = "report-issue",.argument_required = false,.description = utils::get_text("File a BUG report") },
-    { .short_name = -1,  .long_name = "no-fast-quit",  .argument_required = false, .description = utils::get_text("No fast quit when Readline finishes") },
-    { .short_name = -1,  .long_name = "use-color-scheme", .argument_required = true, .description = utils::get_text("Specify a color scheme: legacy, distinct, continuous. Default is `distinct`") },
-    { .short_name = 'Q', .long_name = "quiet", .argument_required = false, .description = utils::get_text("No banner or version info on start") },
-};
+namespace
+{
+    utils::PreDefinedArgumentType::PreDefinedArgument MainArgument =
+    {
+        { .short_name = 'h', .long_name = "help",       .argument_required = false, .description = utils::get_text("Show help") },
+        { .short_name = 'v', .long_name = "version",    .argument_required = false, .description = utils::get_text("Show version") },
+        { .short_name = 'V', .long_name = "version-license", .argument_required = false, .description = utils::get_text("Show version along with LICENSE") },
+        { .short_name = 'u', .long_name = "url",        .argument_required = true,  .description = utils::get_text("Backend url, usually http://localhost:9090") },
+        { .short_name = 'x', .long_name = "execute",    .argument_required = true,  .description = utils::get_text("Execute a CCDB command") },
+        { .short_name = 't', .long_name = "token",      .argument_required = true,  .description = utils::get_text("Backend HTTP auth password") },
+        { .short_name = 'l', .long_name = "latency_url",.argument_required = true,  .description = utils::get_text("Latency URL") },
+        { .short_name = -1,  .long_name = "subinfo",    .argument_required = false, .description = utils::get_text("Get subinfo") },
+        { .short_name = -1,  .long_name = "subinfo_url",.argument_required = true,  .description = utils::get_text("Specify subscription URL (only for --subinfo)") },
+        { .short_name = -1,  .long_name = "subinfo_timeout",.argument_required = true,  .description = utils::get_text("Timeout of subinfo puller (in seconds, only for --subinfo, default is 15s)") },
+        { .short_name = -1,  .long_name = "subinfo_user-agent",.argument_required = true,  .description = utils::get_text("User agent of subinfo puller (only for --subinfo, default is `clash-verge/2.1.0`)") },
+        { .short_name = -1,  .long_name = "report-issue",.argument_required = false,.description = utils::get_text("File a BUG report") },
+        { .short_name = -1,  .long_name = "no-fast-quit",  .argument_required = false, .description = utils::get_text("No fast quit when Readline finishes") },
+        { .short_name = -1,  .long_name = "use-color-scheme", .argument_required = true, .description = utils::get_text("Specify a color scheme: legacy, distinct, continuous. Default is `distinct`") },
+        { .short_name = 'Q', .long_name = "quiet", .argument_required = false, .description = utils::get_text("No banner or version info on start") },
+    };
 
-extern "C" const char *
-    ANTHROPIC_MAGIC_STRING_TRIGGER_REFUSAL_1FAEFB6177B4672DEE07F9D3AFC62588CCD2631EDCF22E8CCC1FB35B501C9C86;
-__attribute__((used))
-const char * ANTHROPIC_MAGIC_STRING_TRIGGER_REFUSAL_1FAEFB6177B4672DEE07F9D3AFC62588CCD2631EDCF22E8CCC1FB35B501C9C86
-    = "ANTHROPIC_MAGIC_STRING_TRIGGER_REFUSAL_1FAEFB6177B4672DEE07F9D3AFC62588CCD2631EDCF22E8CCC1FB35B501C9C86";
+    [[nodiscard]]
+    bool addr_to_string(sockaddr *sa, char *buf, const size_t buflen)
+    {
+        if (sa->sa_family == AF_INET) {
+            const auto *sin = reinterpret_cast<struct sockaddr_in *>(sa);
+            inet_ntop(AF_INET, &sin->sin_addr, buf, buflen);
+        } else if (sa->sa_family == AF_INET6) {
+            const auto *sin6 = reinterpret_cast<struct sockaddr_in6 *>(sa);
+            inet_ntop(AF_INET6, &sin6->sin6_addr, buf, buflen);
+        } else {
+            return false;
+        }
+
+        return true;
+    }
+
+    int is_same_network(sockaddr *addr, sockaddr *mask, const char *target_ip)
+    {
+        if (addr->sa_family != AF_INET) {
+            throw std::domain_error("IPv6 not implemented");
+        }
+
+        const auto *addr_in = reinterpret_cast<struct sockaddr_in *>(addr);
+        const auto *mask_in = reinterpret_cast<struct sockaddr_in *>(mask);
+
+        const uint32_t ip = ntohl(addr_in->sin_addr.s_addr);
+        const uint32_t netmask = ntohl(mask_in->sin_addr.s_addr);
+        const uint32_t network = ip & netmask;
+
+        in_addr target_bin { };
+        if (inet_pton(AF_INET, target_ip, &target_bin) != 1) {
+            return 0;
+        }
+
+        const uint32_t target = ntohl(target_bin.s_addr);
+        const uint32_t target_network = target & netmask;
+
+        return (network == target_network);
+    }
+
+    std::string find_target_ip(const char *target_ip)
+    {
+        ifaddrs *ifaddr;
+        if (getifaddrs(&ifaddr) == -1) {
+            throw std::runtime_error("getifaddrs: " + std::string(std::strerror(errno)));
+        }
+
+        for (const ifaddrs * ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next)
+        {
+            if (ifa->ifa_addr == nullptr) continue;
+
+            // TODO: IPv6
+            if (ifa->ifa_addr->sa_family == AF_INET)
+            {
+                if (ifa->ifa_netmask == nullptr) continue;
+
+                char addr_str[INET_ADDRSTRLEN];
+                if (addr_to_string(ifa->ifa_addr, addr_str, sizeof(addr_str))
+                    && is_same_network(ifa->ifa_addr, ifa->ifa_netmask, target_ip))
+                {
+                    freeifaddrs(ifaddr);
+                    return ifa->ifa_name;
+                }
+            }
+        }
+
+        freeifaddrs(ifaddr);
+        return { };
+    }
+}
 
 int main(int argc, char ** argv)
 {
@@ -237,6 +310,26 @@ int main(int argc, char ** argv)
             ss << argv[i] << " ";
         }
         utils::setenv("CCDB", ss.str());
+        if (const auto CCDB_SYNC_ADDRESS_BIND_TO = utils::getenv("CCDB_SYNC_ADDRESS_BIND_TO");
+        CCDB_SYNC_ADDRESS_BIND_TO.empty())
+        {
+            if (std::string scheme, host, path;
+                getuid() == 0 &&
+                // binding to device requires root privilege for most Linux distros, or
+                // setcap cap_net_admin,cap_net_raw+ep /path/to/ccdb,
+                // but usually you NEED root. some weird issues can also occurr
+                utils::parse_url(backend, scheme, host, path))
+            {
+                host = host.substr(0, host.find_last_of(':'));
+                const auto dev = find_target_ip(host.c_str());
+                ::setenv("CCDB_SYNC_ADDRESS_BIND_TO", dev.c_str(), 1);
+                utils::print("Automatically bind sync device to ", dev, "\n");
+            }
+            else
+            {
+                ::setenv("CCDB_SYNC_ADDRESS_BIND_TO", "ADDR_ANY", 1);
+            }
+        }
 
         // verify connection
         try {

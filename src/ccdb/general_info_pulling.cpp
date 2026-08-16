@@ -294,7 +294,7 @@ std::vector<std::uint8_t> general_info_pulling::serialize_packet(const packet_ty
     }
 
 #ifdef IP_MULTICAST_ALL
-    const int multicast_all = 0;
+    constexpr int multicast_all = 0;
     if (::setsockopt(multicast_fd_, IPPROTO_IP, IP_MULTICAST_ALL,
         &multicast_all, sizeof(multicast_all)) < 0)
     {
