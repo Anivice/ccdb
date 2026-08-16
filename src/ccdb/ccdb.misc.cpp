@@ -476,7 +476,6 @@ void ccdb::ccdb::get_conn_input_watcher(
     const std::regex escape_pattern(R"(^\^\[\[.*[Mm]$)");
 
     std::vector <int> ch_list;
-    char ch;
 
     auto up = [&](const int row_step)
     {
@@ -577,7 +576,14 @@ void ccdb::ccdb::get_conn_input_watcher(
     auto last_updated_time = std::chrono::steady_clock::now();
     while (running)
     {
-        if (ch = buffer.wait(); ch == -1)
+        const auto ch = buffer.wait_for(50);
+        if (!ch)
+        {
+            ch_list.clear();
+            continue;
+        }
+
+        if (*ch == -1)
         {
             if (show_search && !*show_search) {
                 ch_list.clear();
@@ -592,7 +598,7 @@ void ccdb::ccdb::get_conn_input_watcher(
         std::string str_buffer;
         if (ch_list.empty())
         {
-            if (ch == '/' && show_search && !*show_search)
+            if (*ch == '/' && show_search && !*show_search)
             {
                 *show_search = true;
                 *cursor_position = 0;
@@ -600,7 +606,7 @@ void ccdb::ccdb::get_conn_input_watcher(
                 continue;
             }
 
-            if (ch == '\n' && show_search && *show_search)
+            if (*ch == '\n' && show_search && *show_search)
             {
                 *show_search = false;
                 search_content_buffer->set(search_content_buffer->get() + utf8_to_u32("\n"));
@@ -611,7 +617,7 @@ void ccdb::ccdb::get_conn_input_watcher(
                 continue;
             }
 
-            if ((!show_search || (show_search && !*show_search)) && (ch == 'q' || ch == 'Q'))
+            if ((!show_search || (show_search && !*show_search)) && (*ch == 'q' || *ch == 'Q'))
                 break;
         }
 
@@ -621,7 +627,7 @@ void ccdb::ccdb::get_conn_input_watcher(
         }
 
         last_updated_time = now;
-        if (ch) ch_list.push_back(ch);
+        if (*ch) ch_list.push_back(*ch);
         str_buffer = ch_list_to_string(ch_list);
 
         if (std::lock_guard<std::mutex> thread_mtx_kbd_shortcut(keyboard_shortcut_map_mtx);
@@ -697,7 +703,7 @@ void ccdb::ccdb::get_conn_input_watcher(
                 std::this_thread::sleep_for(std::chrono::milliseconds(10)); // wait 10ms to buffer all inputs
                 buffer.flush(); // discard all inputs
             }
-            else if (!str_buffer.empty() && !(ch == 27 || std::ranges::any_of(ch_list, [](const char c){ return c == 27; }))
+            else if (!str_buffer.empty() && !(*ch == 27 || std::ranges::any_of(ch_list, [](const char c){ return c == 27; }))
                 && std::ranges::all_of(ch_list, [](const int c){ return std::isprint(c) || c == '\t'; }))
             {
                 auto str = search_content_buffer->get();
