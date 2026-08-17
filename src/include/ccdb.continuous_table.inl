@@ -529,7 +529,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
             || skip_lines_before < current_skip_lines);
         vector_size_last_time = static_cast<int64_t>(contentSize);
         skip_lines_before = current_skip_lines;
-        if (leading_spaces >= max_leading_spaces) {
+        if (leading_spaces >= max_leading_spaces && max_leading_spaces > 0) {
             lock_to_max = true;
         }
 

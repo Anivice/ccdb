@@ -20,6 +20,7 @@
 //
 
 #include <chrono>
+#include <cstddef>
 #include <thread>
 #include <algorithm>
 #include <cmath>
@@ -64,62 +65,46 @@ void ccdb::ccdb::nload(
 
     tsl::hopscotch_map < uint64_t /* span */, std::vector < std::string > > color_cache;
     tsl::hopscotch_map < uint64_t /* span */, uint64_t > color_scheme_rainbow_flow;
-    std::chrono::time_point<std::chrono::high_resolution_clock> last_refresh_time;
+    std::chrono::time_point<std::chrono::steady_clock> last_refresh_time;
 
-    auto generate_from_metric = [](const std::vector <float> & list, const int height)->std::vector < std::pair < int, int > >
+    auto generate_from_metric = [](const std::vector<float> & list, const int height)->std::vector<std::pair<int, int>>
     {
-        std::vector <float> image;
-        std::ranges::for_each(list, [&](const float f)
+        std::vector<std::pair<int, int>> meter_list;
+        meter_list.reserve(list.size());
+        const auto height_f = static_cast<float>(height);
+        for (const float f : list)
         {
-            image.push_back(f * static_cast<float>(height));
-        });
-
-        std::vector < std::pair < int, int > > meter_list;
-        for (const auto meter : image)
-        {
+            const float meter = f * height_f;
             const int full_blocks = static_cast<int>(meter);
             const int partial_block_percentage = static_cast<int>((meter - static_cast<float>(full_blocks)) * 100);
             meter_list.emplace_back(full_blocks, partial_block_percentage);
         }
-
         return meter_list;
     };
 
-    auto auto_clear = [](std::vector<uint64_t> & list, const uint64_t size)
+    auto auto_clear = [](std::vector<uint64_t> & list, const std::size_t size)
     {
-        std::ranges::reverse(list);
-        while (list.size() > size) {
-            list.pop_back();
-        }
-        std::ranges::reverse(list);
+        if (list.size() <= size) return;
+        list.erase(list.begin(), list.begin() + static_cast<std::ptrdiff_t>(list.size() - size));
     };
 
-    auto max_in_vec = [](const std::vector<uint64_t> & list_)->uint64_t
+    auto max_in_vec = [](const std::vector<uint64_t> & list)->uint64_t
     {
-        if (list_.empty()) return 0;
-        std::vector<uint64_t> list = list_;
-        std::ranges::sort(list, [](const uint64_t a, const uint64_t b) { return a > b; });
-        const uint64_t max_val = list.front();
-        return max_val;
+        if (list.empty()) return 0;
+        return *std::ranges::max_element(list);
     };
 
-    auto min_in_vec = [](const std::vector<uint64_t> & list_)->uint64_t
+    auto min_in_vec = [](const std::vector<uint64_t> & list)->uint64_t
     {
-        if (list_.empty()) return 0;
-        std::vector<uint64_t> list = list_;
-        std::ranges::sort(list, [](const uint64_t a, const uint64_t b) { return a < b; });
-        const uint64_t min_val = list.front();
-        return min_val;
+        if (list.empty()) return 0;
+        return *std::ranges::min_element(list);
     };
 
     auto avg_in_vec = [](const std::vector<uint64_t> & list)
     {
+        if (list.empty()) return 0.0;
         uint64_t sum = 0;
-        std::ranges::for_each(list, [&](const uint64_t i)
-        {
-            sum += i;
-        });
-
+        for (const uint64_t i : list) sum += i;
         return static_cast<double>(sum) / static_cast<double>(list.size());
     };
 
@@ -140,13 +125,13 @@ void ccdb::ccdb::nload(
         const std::vector<uint64_t> & list,
         uint64_t & max_speed_out_of_loop, uint64_t & min_speed_out_of_loop,
         const decltype(generate_from_metric({}, 0)) & metric_list,
-        const std::chrono::time_point<std::chrono::high_resolution_clock> start_time_point,
+        const std::chrono::time_point<std::chrono::steady_clock> start_time_point,
         const uint64_t total_bytes_since_started,
-        const uint64_t windows_space_local,
+        const int windows_space_local,
         std::ostringstream & frame,
         const std::string& info_col_color_codes)
     {
-        const auto now = std::chrono::high_resolution_clock::now();
+        const auto now = std::chrono::steady_clock::now();
         const auto time_escalated = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time_point).count();
         const auto min_speed = min_in_vec(list);
         const auto max_speed = max_in_vec(list);
@@ -161,11 +146,9 @@ void ccdb::ccdb::nload(
         const auto max_speed_overall_str = utils::value_to_speed(max_speed_out_of_loop);
         const auto avg_speed_on_page_str = utils::value_to_speed(static_cast<uint64_t>(avg_in_vec(list)));
         const auto avg_speed_overall_str = utils::value_to_speed(static_cast<long>(avg_speed_overall));
-        const auto max_pre_slash_content_len = max_in_vec({
-            // min_speed_on_page_str.length(),
-            max_speed_on_page_str.length(),
-            avg_speed_on_page_str.length()
-        });
+        const auto max_pre_slash_content_len = std::max(
+            static_cast<uint64_t>(max_speed_on_page_str.length()),
+            static_cast<uint64_t>(avg_speed_on_page_str.length()));
 
         auto generate_padding = [&max_pre_slash_content_len](const std::string & str)->std::string {
             return str + std::string(max_pre_slash_content_len - str.length(), ' ');
@@ -192,41 +175,32 @@ void ccdb::ccdb::nload(
         }
 
         int max_in_inf_list = 0;
-        std::ranges::for_each(metric_inf_list, [&](const auto & i)
+        std::vector<int> metric_inf_widths;
+        metric_inf_widths.reserve(metric_inf_list.size());
+        for (const auto & item : metric_inf_list)
         {
-            const auto len = UnicodeDisplayWidth::get_width_utf8(strip_color(i));
-            if (max_in_inf_list < len) {
-                max_in_inf_list = len;
-            }
-        });
+            const int len = UnicodeDisplayWidth::get_width_utf8(strip_color(item));
+            metric_inf_widths.push_back(len);
+            max_in_inf_list = std::max(max_in_inf_list, len);
+        }
 
-        std::ranges::for_each(metric_inf_list, [&](auto & i)
-        {
-            const auto len = UnicodeDisplayWidth::get_width_utf8(strip_color(i));
-            i = i + std::string(max_in_inf_list - len, ' ');
-        });
+        for (std::size_t i = 0; i < metric_inf_list.size(); ++i)
+            metric_inf_list[i].append(static_cast<std::size_t>(max_in_inf_list - metric_inf_widths[i]), ' ');
 
         info_list.reserve(metric_list.size());
         const int pre_info_list_size = metric_list_size >= 5 ? metric_list_size - 5 : 0;
         const int offset = pre_info_list_size;
+        for (int i = 0; i < pre_info_list_size; ++i)
+            info_list.emplace_back(metric_inf_list[i]);
         info_list.push_back(metric_inf_list[offset+0] + sprint("    Cur (P): ") + value_to_speed(*speed));
         info_list.push_back(metric_inf_list[offset+1] + sprint("    Min (P): ") + min_speed_on_page_str);
         info_list.push_back(metric_inf_list[offset+2] + sprint("  Max (P/O): ") + generate_padding(max_speed_on_page_str) + " / " + max_speed_overall_str);
         info_list.push_back(metric_inf_list[offset+3] + sprint("  Avg (P/O): ") + generate_padding(avg_speed_on_page_str) + " / " + avg_speed_overall_str);
         info_list.push_back(metric_inf_list[offset+4] + sprint("    Ttl (O): ") + value_to_size(*total));
 
-        std::ranges::reverse(info_list);
-        for (int i = pre_info_list_size - 1; i >= 0; --i) {
-            info_list.emplace_back(metric_inf_list[i]);
-        }
-        std::ranges::reverse(info_list);
-
-        std::vector<uint64_t> size_list;
-        for (const auto & str : info_list) {
-            size_list.push_back(UnicodeDisplayWidth::get_width_utf8(strip_color(str)));
-        }
-
-        const auto new_max_size = static_cast<int>(max_in_vec(size_list));
+        int new_max_size = 0;
+        for (const auto & item : info_list)
+            new_max_size = std::max(new_max_size, UnicodeDisplayWidth::get_width_utf8(strip_color(item)));
         if (col < info_space_size) {
             frame << color::color(0,0,0,5,0,0) << sprint("TOO SMALL") << std::endl;
             return;
@@ -234,7 +208,7 @@ void ccdb::ccdb::nload(
 
         if ((info_space_size_require_reset_on_next_frame
             && info_space_size > new_max_size
-            && new_max_size - info_space_size > 2)
+            && info_space_size - new_max_size > 2)
             || info_space_size < new_max_size)
         {
             info_space_size = new_max_size;
@@ -317,7 +291,7 @@ void ccdb::ccdb::nload(
                 frame << std::flush;
             }
 
-            if (current_height_on_screen <= info_list.size())
+            if (static_cast<std::size_t>(current_height_on_screen) <= info_list.size())
             {
                 frame << info_col_color_codes;
                 const auto index = info_list.size() - current_height_on_screen;
@@ -355,7 +329,7 @@ void ccdb::ccdb::nload(
         std::this_thread::sleep_for(std::chrono::milliseconds(100l));
     }
     const uint64_t upload_total_bytes_when_started = *total_upload, download_total_bytes_when_started = *total_download;
-    const auto now = std::chrono::high_resolution_clock::now();
+    const auto now = std::chrono::steady_clock::now();
     std::thread input_watcher(&ccdb::generic_input_watcher, this, "nload:/input", running);
 
     int info_space_size_before = info_space_size;
@@ -365,13 +339,13 @@ void ccdb::ccdb::nload(
     std::vector<std::thread> local_workers;
     struct line_view_tmp_data_t {
         uint64_t skipped_len = 0;
-        std::chrono::time_point<std::chrono::high_resolution_clock> last_accessed_time;
-        std::chrono::time_point<std::chrono::high_resolution_clock> last_skipped_len_time;
+        std::chrono::time_point<std::chrono::steady_clock> last_accessed_time;
+        std::chrono::time_point<std::chrono::steady_clock> last_skipped_len_time;
     };
     tsl::hopscotch_map < uint64_t, line_view_tmp_data_t > mapped_line_view_tmp_data;
     int last_skp_line_scrolling = 0;
-    auto last_skp_line_scrolling_timepoint = std::chrono::high_resolution_clock::now();
-    enum scroll_hit { Unset, UpdateTimepoint, UpdateState } scroll_hit_;
+    auto last_skp_line_scrolling_timepoint = std::chrono::steady_clock::now();
+    enum scroll_hit { Unset, UpdateTimepoint, UpdateState } scroll_hit_ = Unset;
 
     local_workers.emplace_back([&]
     {
@@ -394,28 +368,20 @@ void ccdb::ccdb::nload(
             up_speed_list.push_back(*upload_speed);
             down_speed_list.push_back(*download_speed);
 
-            auto_clear(up_speed_list, col - info_space_size);
-            auto_clear(down_speed_list, col - info_space_size);
+            const int history_width = col.load() - info_space_size.load();
+            const auto history_limit = static_cast<std::size_t>(std::max(history_width, 0));
+            auto_clear(up_speed_list, history_limit);
+            auto_clear(down_speed_list, history_limit);
 
             const auto max_up_num = static_cast<float>(max_in_vec(up_speed_list));
-            std::ranges::for_each(up_speed_list, [&](const uint64_t i) {
-                if (max_up_num != 0) {
-                    const auto val = static_cast<float>(i) / max_up_num;
-                    up_list.push_back(val);
-                } else {
-                    up_list.push_back(0);
-                }
-            });
+            up_list.reserve(up_speed_list.size());
+            for (const uint64_t i : up_speed_list)
+                up_list.push_back(max_up_num != 0 ? static_cast<float>(i) / max_up_num : 0.0f);
 
             const auto max_down_num = static_cast<float>(max_in_vec(down_speed_list));
-            std::ranges::for_each(down_speed_list, [&](const uint64_t i) {
-                if (max_down_num != 0) {
-                    const auto val = static_cast<float>(i) / max_down_num;
-                    down_list.push_back(val);
-                } else {
-                    down_list.push_back(0);
-                }
-            });
+            down_list.reserve(down_speed_list.size());
+            for (const uint64_t i : down_speed_list)
+                down_list.push_back(max_down_num != 0 ? static_cast<float>(i) / max_down_num : 0.0f);
 
             {
                 std::lock_guard<std::mutex> lock(state_lock);
@@ -445,7 +411,7 @@ void ccdb::ccdb::nload(
 
     while (*running)
     {
-        const auto now_in_loop = std::chrono::high_resolution_clock::now();
+        const auto now_in_loop = std::chrono::steady_clock::now();
         int conn_list_size = 0;
         std::ostringstream screen_str_frame;
         const int free_space = row - window_space * 2 - reserved_lines;
@@ -468,7 +434,7 @@ void ccdb::ccdb::nload(
             }
 
             std::string title = sprint("C++ Clash Dashboard:");
-            if (title.length() > col) title = title.substr(0, col);
+            if (title.length() > static_cast<std::size_t>(col)) title = title.substr(0, static_cast<std::size_t>(col));
             screen_str_frame << title << std::endl;
             screen_str_frame << color::color(5,3,3) << std::string(col, '=') << color::no_color() << std::endl;
             screen_str_frame << sprint("Incoming:") << std::endl;
@@ -515,6 +481,7 @@ void ccdb::ccdb::nload(
 
             {
                 std::vector<uint64_t> remove_list;
+                remove_list.reserve(mapped_line_view_tmp_data.size());
                 std::ranges::for_each(mapped_line_view_tmp_data, [&](const auto & frame_) {
                     if (std::chrono::duration_cast<std::chrono::seconds>(now_in_loop - frame_.second.last_accessed_time).count() > 5) {
                         remove_list.push_back(frame_.first);
@@ -525,9 +492,13 @@ void ccdb::ccdb::nload(
                     mapped_line_view_tmp_data.erase(hash);
                 });
 
-                std::lock_guard<std::mutex> lock_gud(*top_3_connections_using_most_speed_mtx);
-                conn_list_size = static_cast<int>(top_3_connections_using_most_speed.size());
-                std::ranges::for_each(top_3_connections_using_most_speed, [&](const std::string & line_)
+                std::vector<std::string> top_connections_snapshot;
+                {
+                    std::lock_guard<std::mutex> lock_gud(*top_3_connections_using_most_speed_mtx);
+                    top_connections_snapshot = top_3_connections_using_most_speed;
+                }
+                conn_list_size = static_cast<int>(top_connections_snapshot.size());
+                std::ranges::for_each(top_connections_snapshot, [&](const std::string & line_)
                 {
                     auto new_line = line_;
                     replace_all(new_line, "\n", " ");
@@ -541,11 +512,13 @@ void ccdb::ccdb::nload(
                     last_accessed_time = now_in_loop;
 
                     auto utf32 = utf8_to_u32(new_line);
-                    int now_skipped_size = 0;
-                    while (now_skipped_size < skipped_len) {
-                        now_skipped_size += UnicodeDisplayWidth::get_width_utf32({utf32.front()});
-                        utf32.erase(utf32.begin());
+                    uint64_t now_skipped_size = 0;
+                    std::size_t erase_count = 0;
+                    while (now_skipped_size < skipped_len && erase_count < utf32.size()) {
+                        now_skipped_size += static_cast<uint64_t>(UnicodeDisplayWidth::get_width_utf32({utf32[erase_count]}));
+                        ++erase_count;
                     }
+                    if (erase_count != 0) utf32.erase(0, erase_count);
                     const auto line_len = UnicodeDisplayWidth::get_width_utf32(utf32);
 
                     auto do_utf32_trim = [&]
@@ -613,11 +586,12 @@ void ccdb::ccdb::nload(
             }
 
             const auto subinfo = update_subinfo(subinfo_ball, threads);
-            if (const auto msg = sprint("* P: On this page, O: Overall", ", ", "-: Direct, x: Proxied", ", ",
+            const auto msg = sprint("* P: On this page, O: Overall", ", ", "-: Direct, x: Proxied", ", ",
                 "Backend memory usage: ", value_to_size(backend_instance.current_memory_in_use_by_mihomo), ", "
                 "Frontend memory usage: ", value_to_size(cur_mem_size()),
                 subinfo.empty() ? "" : ", " + subinfo);
-                col >= UnicodeDisplayWidth::get_width_utf8(msg))
+            const int msg_width = UnicodeDisplayWidth::get_width_utf8(msg);
+            if (col >= msg_width)
             {
                 screen_str_frame << color::color(5,5,5);
                 if (utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true") {
@@ -630,7 +604,7 @@ void ccdb::ccdb::nload(
                     }
                 }
 
-                screen_str_frame << msg << std::string(col - UnicodeDisplayWidth::get_width_utf8(msg), ' ');
+                screen_str_frame << msg << std::string(col - msg_width, ' ');
 
                 if (utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true")
                 {
@@ -669,14 +643,14 @@ void ccdb::ccdb::nload(
 
                     switch (scroll_hit_) {
                         case UpdateTimepoint:
-                            last_skp_line_scrolling_timepoint = std::chrono::high_resolution_clock::now();
+                            last_skp_line_scrolling_timepoint = std::chrono::steady_clock::now();
                             scroll_hit_ = UpdateState;
                             break;
                         default: ;
                     }
 
                     if (std::chrono::duration_cast<std::chrono::seconds>(
-                        std::chrono::high_resolution_clock::now() - last_skp_line_scrolling_timepoint).count() > 3)
+                        std::chrono::steady_clock::now() - last_skp_line_scrolling_timepoint).count() > 3)
                     {
                         last_skp_line_scrolling = 0;
                         scroll_hit_ = Unset;
@@ -757,7 +731,7 @@ void ccdb::ccdb::nload(const std::vector<std::string> & vec)
     std::string log_level_filter, log_content_filter;
 
     auto auto_assign = [&](const int id, std::string & filter) {
-        if (filter_patterns.contains(id)) filter = filter_patterns.at(id);
+        if (const auto it = filter_patterns.find(id); it != filter_patterns.end()) filter = it->second;
     };
 
     auto_assign(12, log_level_filter);
@@ -787,7 +761,12 @@ void ccdb::ccdb::nload(const std::vector<std::string> & vec)
             std::ranges::sort(conn, [](const general_info_pulling::connection_t & a,
                 const general_info_pulling::connection_t & b)->bool
             {
-                return (a.downloadSpeed + a.uploadSpeed) > (b.downloadSpeed + b.uploadSpeed);
+                const uint64_t a_low = a.downloadSpeed + a.uploadSpeed;
+                const uint64_t b_low = b.downloadSpeed + b.uploadSpeed;
+                const bool a_carry = a_low < a.downloadSpeed;
+                const bool b_carry = b_low < b.downloadSpeed;
+                if (a_carry != b_carry) return a_carry > b_carry;
+                return a_low > b_low;
             });
 
             if (conn.size() > 3) {
@@ -803,28 +782,26 @@ void ccdb::ccdb::nload(const std::vector<std::string> & vec)
                 c.host = c.processName.empty() ? c.host : (c.host + " (" + c.processName + ")");
                 c.host = c.networkType.empty() ? c.host : (c.host + " <" + c.networkType + ">");
                 c.host = c.host + " " + (c.chainName.find("DIRECT") != std::string::npos ? "- " : "x ");
-                if (max_host_len < UnicodeDisplayWidth::get_width_utf8(c.host)) {
-                    max_host_len = UnicodeDisplayWidth::get_width_utf8(c.host);
-                }
+                const int host_width = UnicodeDisplayWidth::get_width_utf8(c.host);
+                max_host_len = std::max(max_host_len, host_width);
 
                 {
                     const auto str = value_to_speed(c.uploadSpeed);
-                    if (max_upload_len < str.length()) {
-                        max_upload_len = static_cast<int>(str.length());
-                    }
+                    const int upload_width = static_cast<int>(str.length());
+                    max_upload_len = std::max(max_upload_len, upload_width);
                     c.chainName = str; // temp save
                 }
 
                 {
                     const auto str = value_to_speed(c.downloadSpeed);
-                    if (max_download_len < UnicodeDisplayWidth::get_width_utf8(str)) {
-                        max_download_len = UnicodeDisplayWidth::get_width_utf8(str);
-                    }
+                    const int download_width = UnicodeDisplayWidth::get_width_utf8(str);
+                    max_download_len = std::max(max_download_len, download_width);
                     c.destination = str; // temp save
                 }
             });
 
             std::vector<std::string> conn_str;
+            conn_str.reserve(conn.size());
             std::ranges::for_each(conn, [&](const general_info_pulling::connection_t & c)
             {
                 const std::string padding(max_host_len - UnicodeDisplayWidth::get_width_utf8(c.host), ' ');
@@ -848,27 +825,25 @@ void ccdb::ccdb::nload(const std::vector<std::string> & vec)
         }
         else
         {
-            auto log_str = backend_instance.get_logs();
-            std::ranges::reverse(log_str);
-            std::vector<std::string> str_logs, three_logs;
-            std::ranges::for_each(log_str, [&](const auto & pair_log) {
-                std::stringstream ss;
-                ss << pair_log[0] << " " << pair_log[1] << " " << pair_log[2];
-                str_logs.push_back(ss.str());
-            });
-
-            (void)std::ranges::any_of(str_logs, [&](const auto & log) ->bool
+            const auto log_str = backend_instance.get_logs();
+            std::vector<std::string> three_logs;
+            three_logs.reserve(3);
+            for (auto it = log_str.rbegin(); it != log_str.rend() && three_logs.size() < 3; ++it)
             {
+                const auto & pair_log = *it;
+                std::string log;
+                log.reserve(pair_log[0].size() + pair_log[1].size() + pair_log[2].size() + 2);
+                log += pair_log[0];
+                log += ' ';
+                log += pair_log[1];
+                log += ' ';
+                log += pair_log[2];
+
                 const auto filtered_out =
                     (if_filter_out(log, log_level_filter)
                         || if_filter_out(log, log_content_filter));
-
-                if (!filtered_out) {
-                    three_logs.push_back(log);
-                }
-
-                return three_logs.size() == 3;
-            });
+                if (!filtered_out) three_logs.push_back(std::move(log));
+            }
 
             std::lock_guard<std::mutex> lock_gud(lock);
             top_3_conn = three_logs;
