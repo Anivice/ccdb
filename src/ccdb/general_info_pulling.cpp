@@ -1068,7 +1068,7 @@ static std::string get_checksum(const std::vector < std::string > & line)
 {
     std::random_device dev;
     std::mt19937 rng(dev());
-    std::uniform_int_distribution<std::mt19937::result_type> dist6(0, UINT64_MAX);
+    std::uniform_int_distribution<std::mt19937::result_type> dist6(0, std::numeric_limits<std::mt19937::result_type>::max());
     std::stringstream ss, res;
     std::ranges::for_each(line, [&ss](const auto & l){ ss << l; });
     const std::string str = ss.str();
@@ -1583,7 +1583,7 @@ void general_info_pulling::sendNotification(const std::vector<uint8_t> & data)
     uint64_t pack_num = data.size() / sizeof(notifications_t::body) + (data.size() % sizeof(notifications_t::body) == 0 ? 0 : 1);
     std::random_device dev;
     std::mt19937 rng(dev());
-    std::uniform_int_distribution<std::mt19937::result_type> dist6(0, UINT64_MAX);
+    std::uniform_int_distribution<std::mt19937::result_type> dist6(0, std::numeric_limits<std::mt19937::result_type>::max());
     ccdb::utils::CRC64 crc64; crc64.update(data.data(), data.size());
     const uint64_t packName = crc64.get_checksum() ^ dist6(rng);
 

@@ -61,7 +61,7 @@ void ccdb::ccdb::chat(const std::vector<std::string> & vec)
     std::deque < std::thread > child_workers;
     std::random_device dev;
     std::mt19937 rng(dev());
-    std::uniform_int_distribution<std::mt19937::result_type> dist6(0, UINT64_MAX);
+    std::uniform_int_distribution<std::mt19937::result_type> dist6(0, std::numeric_limits<std::mt19937::result_type>::max());
 
     bool lockToLastLine = false;
     bool skip_frame = false;
