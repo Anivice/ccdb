@@ -480,10 +480,13 @@ struct MouseEvent {
         return false;
     }
 
-    const char* first = text.data();
-    const char* last = first + text.size();
-    const auto [ptr, ec] = std::from_chars(first, last, out, 10);
-    return ec == std::errc{} && ptr == last;
+    try
+    {
+        out = ccdb::utils::convertToNumber<std::uint64_t>(text);
+        return true;
+    } catch (const std::exception&) {
+        return false;
+    }
 }
 
 // Parses the exact textual shape accepted by the old mouse regex:

@@ -647,7 +647,7 @@ namespace ccdb::utils
 #endif
 
     template<typename T> requires std::is_integral_v<T>
-    T convertToNumber(const std::string & arg)
+    T convertToNumber(const std::string_view arg)
     {
         T value { };
 #if !((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
@@ -662,7 +662,7 @@ namespace ccdb::utils
         );
 
         if (ec != std::errc{} || ptr != arg.data() + arg.size()) {
-            throw std::invalid_argument("Invalid argument: " + arg);
+            throw std::invalid_argument("Invalid argument");
         }
 #endif
 
