@@ -40,7 +40,6 @@
 #include "versions.h"
 
 namespace utils = ccdb::utils;
-extern bool USE_OLD_COLOR_SCHEME;
 
 namespace
 {
@@ -221,7 +220,7 @@ int main(int argc, char ** argv)
         if (parsed.contains("use-color-scheme"))
         {
             if (const auto scheme = parsed.at("use-color-scheme"); scheme == "legacy") {
-                USE_OLD_COLOR_SCHEME = true;
+                ccdb::color::USE_OLD_COLOR_SCHEME = true;
             } else if (scheme == "distinct") {
                 sim::color_scheme = sim::RAINBOW_DISTINCT;
             } else if (scheme == "continuous") {

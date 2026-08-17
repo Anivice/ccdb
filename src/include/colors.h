@@ -116,6 +116,7 @@ namespace ccdb::color {
     using ColorSchemeCacheType = std::vector < std::pair < sim::Num, sim::NumPack_t > >;
     extern ColorSchemeCacheType local_color_cache;
     void export_color_scheme();
+    extern bool USE_OLD_COLOR_SCHEME;
 }
 
 #endif //CFS_COLORS_H

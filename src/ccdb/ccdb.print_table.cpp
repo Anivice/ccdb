@@ -30,7 +30,7 @@
 
 // --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;
-bool USE_OLD_COLOR_SCHEME = false;
+const auto YES_HIGHLIGHTER_LINE_COLOR_CODE = ccdb::utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true";
 
 static std::string generate_linear_handle(
     const int content_total,
@@ -109,11 +109,13 @@ namespace ccdb {
         ccdb_atomic_t < std::u32string > * search_line_boxContent_; // content for the buffer?
         std::atomic_int * cursor_position_in_search_box_; // cursor position for the buffer?
         const std::string color_line_hl_; // highlight color
-        const wchar_t cursor_ = utils::getenv("CURSOR").empty() ? L'█' : utils::getenv("CURSOR").front();
+        const std::u32string::value_type cursor_ =
+            utils::getenv("CURSOR").empty() ? L'█' :
+            utf8_to_u32(utils::getenv("CURSOR")).front();
         const int & matches_;
         const std::string & highlight_str_;
         const bool dry_run_;
-        const std::string color_scheme_ = USE_OLD_COLOR_SCHEME ?
+        const std::string color_scheme_ = color::USE_OLD_COLOR_SCHEME ?
             color::color(5,5,5,0,0,5) : color::color24(255,255,255,120,0,255);
 
         [[nodiscard]] std::u32string print_search_box() const
@@ -147,7 +149,7 @@ namespace ccdb {
                     }
                 }
 
-                if (utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true") {
+                if (YES_HIGHLIGHTER_LINE_COLOR_CODE) {
                     color::g_color_status_override = 0;
                 }
 
@@ -277,8 +279,8 @@ namespace ccdb {
 std::string ccdb::ccdb::print_table(
     std::vector<std::string> const &table_keys,
     std::vector<std::vector<std::string>> const &table_values,
-    bool muff_non_ascii,
-    bool seperator,
+    const bool muff_non_ascii,
+    const bool seperator,
     const std::vector<bool> &table_hide,
     uint64_t leading_offset,
     std::atomic_int *max_tailing_size_ptr,
@@ -307,7 +309,7 @@ std::string ccdb::ccdb::print_table(
         int current_line_index = 0;
         std::string color_line_hl = "\033[07m";
         int matches = 0;
-        if (utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") == "true") {
+        if (!YES_HIGHLIGHTER_LINE_COLOR_CODE) {
             color_line_hl = "";
         }
 
@@ -551,7 +553,7 @@ std::string ccdb::ccdb::print_table(
                     utf8_str = color + utf8_str;
                 }
 
-                if (utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true") {
+                if (YES_HIGHLIGHTER_LINE_COLOR_CODE) {
                     color::g_color_status_override = 0;
                 }
 
@@ -560,7 +562,7 @@ std::string ccdb::ccdb::print_table(
                     highlight_str,
                     color + (use_line_highlighter ? color_line_hl : ""),
                     matches,
-                    utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true" ? "\033[01;05;07m" : "")
+                    YES_HIGHLIGHTER_LINE_COLOR_CODE ? "\033[01;05;07m" : "")
                       << color::no_color();
                 color::g_color_status_override = -1;
                 if (endl) frame << std::endl;
@@ -595,7 +597,7 @@ std::string ccdb::ccdb::print_table(
                 << (static_cast<double>(current_line_index) / static_cast<double>(table_values.size())) * 100 << "%";
             const std::string ssa_str = ssa.str();
 
-            if (color::is_no_color() && utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true") {
+            if (color::is_no_color() && YES_HIGHLIGHTER_LINE_COLOR_CODE) {
                 color::g_color_status_override = 0;
                 frame << white_strip;
                 color::g_color_status_override = -1;
@@ -604,7 +606,7 @@ std::string ccdb::ccdb::print_table(
             frame << color::bg_color(5,5,5) << color::color(0,0,5)
                 << ssa_str;
 
-            if (color::is_no_color() && utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true") {
+            if (color::is_no_color() && YES_HIGHLIGHTER_LINE_COLOR_CODE) {
                 color::g_color_status_override = 0;
                 frame << color::no_color();
                 color::g_color_status_override = -1;
@@ -639,7 +641,7 @@ std::string ccdb::ccdb::print_table(
             if (override_it == color_code_overrides.end())
             {
                 // blue and black
-                if (USE_OLD_COLOR_SCHEME)
+                if (color::USE_OLD_COLOR_SCHEME)
                 {
                     if (current_line_index & 0x01) color_line = white_strip;
                     else color_line = color::color(5,5,5,0,0,5);

@@ -30,7 +30,6 @@
 
 // --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;
-extern bool USE_OLD_COLOR_SCHEME;
 void ccdb::ccdb::nload(
     const std::atomic<uint64_t> *total_upload, const std::atomic<uint64_t> *total_download,
     const std::atomic<uint64_t> *upload_speed, const std::atomic<uint64_t> *download_speed,
@@ -181,7 +180,7 @@ void ccdb::ccdb::nload(
                 static_cast<numeric_t>(metric_list_size - i - 1) / static_cast<numeric_t>(metric_list_size - 1);
             const auto current_value_ = static_cast<uint64_t>(std::round(static_cast<numeric_t>(max_speed) * ratio_));
             std::string color_line;
-            if (!USE_OLD_COLOR_SCHEME)
+            if (!color::USE_OLD_COLOR_SCHEME)
             {
                 const auto [red, green, blue] = sim::simulation_rainbow(sim::Span * ratio_ + sim::Begin);
                 color_line = color::color24(static_cast<int>(std::round(red)),
@@ -246,7 +245,7 @@ void ccdb::ccdb::nload(
         uint64_t * context = nullptr;
         const int start = col - info_space_size - static_cast<int>(metric_list.size());
         const uint64_t span = col - info_space_size - start;
-        if (!USE_OLD_COLOR_SCHEME) {
+        if (!color::USE_OLD_COLOR_SCHEME) {
             context = &color_scheme_rainbow_flow[span];
         }
         const uint64_t hash = span << 32 | (context ? *context : 0);
@@ -265,7 +264,7 @@ void ccdb::ccdb::nload(
             for (auto j = start; j < (col - info_space_size); ++j)
             {
                 const auto index = j - start; // starts from 0
-                if (!USE_OLD_COLOR_SCHEME)
+                if (!color::USE_OLD_COLOR_SCHEME)
                 {
                     if (color_cached_line == nullptr) {
                         color_cached_line = &color_cache[hash];

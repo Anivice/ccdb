@@ -38,6 +38,7 @@ sim::color_scheme_t sim::color_scheme = UNDEFINED;
 std::string sim::customized_color_command_calc;
 namespace ccdb::color {
     ColorSchemeCacheType local_color_cache;
+    bool USE_OLD_COLOR_SCHEME = false;
 }
 
 namespace sim
