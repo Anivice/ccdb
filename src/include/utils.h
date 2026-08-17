@@ -651,8 +651,8 @@ namespace ccdb::utils
     {
         T value { };
 #if !((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
-        if (!from_chars(arg.c_str(), arg.c_str() + arg.size(), value)) {
-            throw std::invalid_argument("Invalid argument: " + arg);
+        if (!from_chars(arg.data(), arg.data() + arg.size(), value)) {
+            throw std::invalid_argument("Invalid argument: ");
         }
 #else
         auto [ptr, ec] = std::from_chars(
