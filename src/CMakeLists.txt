@@ -387,10 +387,13 @@ target_compile_options(ccdb PRIVATE -fno-omit-frame-pointer -g3 -gdwarf-4 -fstac
 find_program(GIT_EXEC NAMES git REQUIRED)
 find_program(HEAD_EXEC NAMES head REQUIRED)
 
-execute_process(
+if(NOT DEFINED GIT_HASH)
+    execute_process(
         COMMAND /bin/sh -c "echo -n $(git ls-remote ${CMAKE_SOURCE_DIR}/.. HEAD | head -c 8)"
         OUTPUT_VARIABLE GIT_HASH
 )
+    set(GIT_HASH "${GIT_HASH}" CACHE STRING "${GIT_HASH}")
+endif()
 
 target_compile_definitions(ccdb PRIVATE GIT_HASH="${GIT_HASH}")
 
@@ -541,4 +544,13 @@ generate_from_resource_file(textDebugInfo
         ccdb.debug_info.h
         debugInfo false)
 
-add_library(debugInfo SHARED ccdb.debug_info.c ccdb.debug_info.h)
+add_custom_command(
+	OUTPUT empty.c
+	COMMAND touch empty.c
+	VERBATIM
+)
+
+add_library(debugInfo SHARED empty.c)
+target_link_libraries(debugInfo PRIVATE textDebugInfo)
+
+
