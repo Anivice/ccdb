@@ -30,6 +30,7 @@ using namespace ccdb::utils;
 
 void ccdb::ccdb::chat(const std::vector<std::string> & vec)
 {
+    if (!experimental_features) throw std::logic_error("CCDB_ENABLE_EXPERIMENTAL_FEATURES not enabled");
     std::vector < bool > do_col_hide; do_col_hide.resize(chat_titles.size(), false);
     std::deque < std::vector< std::string > > chatMessages, chatMessagesLocalCopy;
     std::mutex chatMutex;
@@ -162,4 +163,20 @@ void ccdb::ccdb::chat(const std::vector<std::string> & vec)
     std::ranges::for_each(child_workers, [](auto & T) {
         if (T.joinable()) T.join();
     });
+}
+
+void ccdb::ccdb::sendNotification(const std::vector<std::string>& command_vector)
+{
+    if (!experimental_features) throw std::logic_error("CCDB_ENABLE_EXPERIMENTAL_FEATURES not enabled");
+    std::stringstream ss;
+    for (uint64_t i = 1; i < command_vector.size(); ++i) {
+        ss << command_vector[i] << " ";
+    }
+    std::string content = ss.str();
+    if (!content.empty()) content.pop_back();
+    const nlohmann::json log = {
+        {"payload", "generic messages"},
+        {"content", content },
+    };
+    backend_instance.sendNotification(log);
 }

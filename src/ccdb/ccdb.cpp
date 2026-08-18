@@ -649,17 +649,7 @@ void ccdb::ccdb::init()
             }
             else if (command_vector.front() == "sendNotification" && command_vector.size() > 1)
             {
-                std::stringstream ss;
-                for (uint64_t i = 1; i < command_vector.size(); ++i) {
-                    ss << command_vector[i] << " ";
-                }
-                std::string content = ss.str();
-                if (!content.empty()) content.pop_back();
-                const nlohmann::json log = {
-                    {"payload", "generic messages"},
-                    {"content", content },
-                };
-                backend_instance.sendNotification(log);
+                sendNotification(command_vector);
             }
             else if (command_vector.front() == "chat" && command_vector.size() == 2) {
                 chat(command_vector);

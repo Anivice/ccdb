@@ -99,6 +99,7 @@ namespace ccdb
     class ccdb
     {
     private:
+        const bool experimental_features = utils::getenv("CCDB_ENABLE_EXPERIMENTAL_FEATURES") == "true";
         general_info_pulling backend_instance; // backend instance
 
         // get connections table: titles
@@ -321,6 +322,7 @@ namespace ccdb
         void ccdbrc();
         void reload(const std::vector<std::string> &) const;
         void chat(const std::vector<std::string> &);
+        void sendNotification(const std::vector<std::string> &);
 
         /// Input watcher that sets running flag when q is pressed
         /// @param name Thread name

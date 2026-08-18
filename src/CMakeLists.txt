@@ -366,6 +366,7 @@ add_executable(ccdb
         ccdb/ccdb.print_table.cpp       include/ccdb.h
         ccdb/ccdb.continuous_table.cpp
         ccdb/ccdb.chat.cpp
+        ccdb/ccdb.pprof.cpp
 
         versions.cpp                    include/versions.h
 )
