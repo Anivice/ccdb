@@ -1280,56 +1280,6 @@ void ccdb::utils::set_progress_bar(const progress_bar_state_t state, const int p
     }
 }
 
-#define BT_BUF_SIZE 100
-#ifdef __GLIBC__
-# include <execinfo.h>
-#endif
-
-std::string ccdb::utils::backtracer()
-{
-#ifdef __GLIBC__
-    std::stringstream ss;
-    void *buffer[BT_BUF_SIZE];
-
-    // Capture the current stack frames
-    const int nptrs = backtrace(buffer, BT_BUF_SIZE);
-    ss << ccdb::utils::sprint("Backtracer has ", nptrs, " frames\n");
-
-    // Translate addresses into human-readable strings (function names + offsets)
-    char** strings = backtrace_symbols(buffer, nptrs);
-    if (strings == nullptr) {
-        perror("backtrace_symbols");
-        exit(EXIT_FAILURE);
-    }
-
-    // Print the stack trace
-    ss << ccdb::utils::sprint("Stack trace:\n");
-    for (int i = 0; i < nptrs; i++) {
-        ss << "    #" << i << "  " << strings[i] << "\n";
-        const std::string str(strings[i]);
-        if (std::smatch matches; std::regex_search(str, matches, std::regex(R"(^\/.*\[(0x[\d|\w]+)\]$)")))
-        {
-            const std::string addr = matches[1].str();
-            std::vector < char > buff (512, 0);
-            const auto sz = readlink("/proc/self/exe", buff.data(), 512);
-            std::string proc_self { buff.begin(), buff.begin() + sz };
-            if (const auto status = ccdb::utils::exec_command2("/bin/sh",
-                "addr2line --demangle -f -p -a -e " + proc_self + " " + addr);
-                status.exit_status == 0)
-            {
-                ss << "        " << status.fd_stdout
-                   << (!status.fd_stdout.empty() ? (status.fd_stdout.back() == '\n' ? "" : "\n") : "\n");
-            }
-        }
-    }
-
-    free(strings);
-    return ss.str();
-#else
-    return { };
-#endif
-}
-
 static void encode_dump94(input_stream_t & in, output_stream_t & out)
 {
     using namespace ccdb::utils;
@@ -1539,6 +1489,10 @@ namespace
     {
         constexpr char thread_header[] = "\n================ THREAD ";
         constexpr char thread_header_end[] = " ================\n";
+        const auto * symbol_table = ccdb::init_crash_report.flatSymbolicTable_literal;
+        const auto symbol_table_size = ccdb::init_crash_report.flatSymbolicTable_Size_literal;
+        const auto landmark_in_sym = ccdb::init_crash_report.landmark_addr_in_symbol_map;
+        const int64_t offset = (int64_t)(&landmark) - static_cast<int64_t>(landmark_in_sym);
 
         write_literal(thread_header, sizeof(thread_header) - 1);
         print10(static_cast<uint64_t>(tid), STDERR_FILENO);
@@ -1561,12 +1515,18 @@ namespace
             if (unw_get_reg(&cursor, UNW_REG_IP, &ip) < 0)
                 break;
 
-            print16(static_cast<uint64_t>(ip), STDERR_FILENO);
+            if (const char * literal = ccdb::GetBacktrace(symbol_table, symbol_table_size, static_cast<int64_t>(ip) - offset);
+                literal != nullptr)
+            {
+                print16(static_cast<uint64_t>(ip), STDERR_FILENO);
+                write_literal(" #", 2);
+                write_literal(literal, strlen(literal));
+            } else {
+                print16(static_cast<uint64_t>(ip), STDERR_FILENO);
+            }
             write_literal("\n", 1);
 
-            const int ret = unw_step(&cursor);
-
-            if (ret <= 0)
+            if (const int ret = unw_step(&cursor); ret <= 0)
                 break;
         }
     }
@@ -1693,23 +1653,15 @@ namespace ccdb
             struct sigaction sa {};
             sa.sa_sigaction = thread_dump_handler;
             sa.sa_flags = SA_SIGINFO | SA_RESTART;
-
             sigemptyset(&sa.sa_mask);
-
-            sigaction(
-                DUMP_SIGNAL,
-                &sa,
-                nullptr
-            );
+            sigaction(DUMP_SIGNAL, &sa, nullptr);
         }
 
         {
             struct sigaction sa {};
             sa.sa_sigaction = fatal_signal_handler;
             sa.sa_flags = SA_SIGINFO;
-
             sigemptyset(&sa.sa_mask);
-
             constexpr int signals[] = {
                 SIGTERM,
                 SIGHUP,
@@ -1732,6 +1684,7 @@ namespace ccdb
         const uint64_t symbol)
     {
         uint64_t halfScope = 1;
+        uint64_t halfScopeHole = 0;
         const uint64_t minSym = symbolic_table[0].symval;
         const uint64_t maxSym = symbolic_table[symSize - 1].symval;
         const double ratio = static_cast<double>(symbol - minSym) / static_cast<double>(maxSym - minSym); // de-landmarked
@@ -1742,11 +1695,18 @@ namespace ccdb
             uint64_t previous = UINT64_MAX;
             const char * ret = nullptr;
             const auto startPoint = std::max(static_cast<int64_t>(guess - halfScope), static_cast<int64_t>(0));
-            const auto endPoint = std::max(guess + halfScope, symSize);
-            const init_crash_report_t::flatSymbolicTable_t * end = &symbolic_table[endPoint];
-            for (const init_crash_report_t::flatSymbolicTable_t * begin = &symbolic_table[startPoint];
-                begin != end; ++begin)
+            const auto endPoint = std::min(guess + halfScope, symSize);
+            const auto holeStartPoint = std::max(static_cast<int64_t>(guess - halfScopeHole), static_cast<int64_t>(0));
+            const auto holeEndPoint = std::min(guess + halfScopeHole, symSize);
+
+            const auto * begin = symbolic_table + startPoint;
+            const auto * end = symbolic_table + endPoint;
+            const auto * holeBegin = symbolic_table + holeStartPoint;
+            const auto * holeEnd = symbolic_table + holeEndPoint;
+
+            for (; begin < end; ++begin)
             {
+                if (begin == holeBegin) begin = holeEnd;
                 if (begin->symval > symbol && previous < symbol) {
                     return ret;
                 }
@@ -1760,6 +1720,7 @@ namespace ccdb
             }
 
             ++halfScope; // extend the search scope
+            ++halfScopeHole; // extend the hole (parts already searched)
         }
     }
 }

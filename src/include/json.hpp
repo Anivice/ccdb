@@ -7,7 +7,7 @@
 #define JSON_STR(x) JSON_STRX(x)
 #define JSON_ASSERT(x)                                                                                                  \
     if (!(x)) {                                                                                                         \
-        std::cerr << __FILE__ ":" JSON_STR(__LINE__) ": Assertion " #x " Failed!\n" + ccdb::utils::backtracer();        \
+        std::cerr << __FILE__ ":" JSON_STR(__LINE__) ": Assertion " #x " Failed!\n";                                    \
         std::abort();                                                                                                   \
     }
 #include "nlohmann/json.hpp"

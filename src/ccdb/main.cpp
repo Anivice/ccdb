@@ -31,6 +31,7 @@
 #include <ifaddrs.h>
 #include <netinet/in.h>
 #include <dlfcn.h>
+#include <cxxabi.h>
 #include "ccdb.h"
 #include "general_info_pulling.h"
 #include "print.h"
@@ -137,6 +138,16 @@ namespace
         freeifaddrs(ifaddr);
         return { };
     }
+
+    std::string demangle(const char* name)
+    {
+        int status = -4;
+        std::unique_ptr<char, void(*)(void*)> res {
+            abi::__cxa_demangle(name, nullptr, nullptr, &status),
+            std::free
+        };
+        return (status == 0) ? res.get() : name;
+    }
 }
 
 int main(int argc, char ** argv)
@@ -229,7 +240,7 @@ int main(int argc, char ** argv)
             }
 
             std::stringstream ss(objdump_raw);
-            std::vector<std::pair<uint64_t, std::string>> symbol_table;
+            std::deque <std::pair<uint64_t, std::string>> symbol_table;
             {
                 objdump_raw.clear();
                 //                  [addr         ][         ][l][          ][df][        ][*ABS*][      ][addr-         ][        ]
@@ -280,7 +291,7 @@ int main(int argc, char ** argv)
             uint64_t landmark_addr = 0;
             {
                 const std::regex r(R"(landmark: 0x([0-9|A-Z]+))");
-                const std::regex addr(R"(0x([0-9|A-Z]+))");
+                const std::regex addr(R"(0x([0-9|A-Z]+)(?: \#.*)?)");
                 const std::regex tr(R"(================ THREAD ([\d]+) ================)");
                 std::string line;
                 while (std::getline(std::cin, line))
@@ -311,10 +322,11 @@ int main(int argc, char ** argv)
                 utils::print("Tid: ", tid, "\n");
                 for (uint64_t i = 0; i < vec.size(); i++)
                 {
-                    utils::print("  #", i, ccdb::GetBacktrace(
-                        ccdb::init_crash_report.flatSymbolicTable.data(), ccdb::init_crash_report.flatSymbolicTable.size(),
-                        vec[i] - offset),
-                        "\n");
+                    const int64_t frame = static_cast<int64_t>(vec[i]) - offset;
+                    const char * sym_name = ccdb::GetBacktrace(ccdb::init_crash_report.flatSymbolicTable.data(), ccdb::init_crash_report.flatSymbolicTable.size(), frame);
+                    utils::print("  #", std::setw(6), std::setfill('0'), i, " -> ",
+                        std::setw(16), std::hex, std::setfill('0'), frame, ": ",
+                        sym_name == nullptr ? "???" : demangle(sym_name), "\n");
                 }
             }
 
@@ -458,9 +470,9 @@ int main(int argc, char ** argv)
             };
 
             if (!token.empty()) {
-                res = http_cli.Get("/configs", headers, resp);
+                res = http_cli.Get("/", headers, resp);
             } else {
-                res = http_cli.Get("/configs", resp);
+                res = http_cli.Get("/", resp);
             }
 
             if (!res) {
@@ -468,7 +480,8 @@ int main(int argc, char ** argv)
             }
 
             const auto json = json::parse(buffer);
-            const auto & port = json["port"]; // check for correctness
+            const auto & mihomo = std::string(json["hello"]); // check for correctness
+            if (!quiet && !parsed.contains("execute")) utils::print("Backend is ", mihomo, "\n");
         } catch (std::exception & e) {
             std::cerr << e.what() << std::endl;
             utils::print<utils::is_error>("Failed to communicate with the backend, either this is not a Mihomo control port, or you have the wrong password.", "\n");

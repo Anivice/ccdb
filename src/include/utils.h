@@ -233,8 +233,6 @@ namespace ccdb::utils
         return exec_command_2(cmd, vec, input);
     }
 
-    std::string backtracer();
-
     /// Check if pager is invokable
     /// @return true if available, false if not
     bool is_less_available();
@@ -740,6 +738,9 @@ namespace ccdb
 
         std::vector<flatSymbolicTable_t> flatSymbolicTable;
         uint64_t landmark_addr_in_symbol_map = UINT64_MAX;
+
+        flatSymbolicTable_t * flatSymbolicTable_literal = nullptr;
+        uint64_t flatSymbolicTable_Size_literal = 0;
         init_crash_report_t();
     };
 
