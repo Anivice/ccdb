@@ -30,17 +30,20 @@ jobs:
             build-essential \
             software-properties-common \
             apt-transport-https \
-            cmake make musl qemu-user qemu-user-static binfmt-support xxd git gettext
-          sudo update-binfmts --enable qemu-arm
-          sudo update-binfmts --enable qemu-aarch64
-          git clone https://github.com/Anivice/ccdb-toolchains toolchains
+            cmake make git gettext
 
       - name: Configure and Build
         run: |
           set -euo pipefail
-          bash -c 'for arch in x86_64 i686 i586 aarch64 armv7 armv7hf; do ./src/configure.sh $arch build_$arch $PWD/toolchains/toolchains; done' \
-            2>&1 | tee log.txt
-
+          mkdir build;
+          cd build
+          { cmake ../src -DDCCDB_COMPILE_WITH_IMG="True" \
+                       -DNCURSES_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
+                       -DREADLINE_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
+                       -DOPENSSL_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
+                       -DPERL_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
+                       -DTAR_MAKE_ENTIRE="-j$(nproc)" 2>&1 \
+            && make -j$(nproc); } | tee log.txt
       - name: Upload log artifact
         if: ${{ always() }}
         uses: actions/upload-artifact@v6
@@ -65,7 +68,10 @@ jobs:
 
       - name: Pack
         run: |
-          bash -c 'set -euo pipefail; for arch in x86_64 i686 i586 aarch64 armv7 armv7hf; do cp build_$arch/libccdb.debug_info.so libccdb.$arch.debug_info.so && cp build_$arch/libccdb.so libccdb.$arch.so && cp build_$arch/ccdb ccdb.$arch; done'
+          cp build/libccdb.so libccdb.debug_info.so
+          cp build/libccdb.so libccdb.so
+          cp build/ccdb.exe ccdb
+          strip ccdb libccdb.so
 
       - name: Compute tag
         if: ${{ github.event_name != 'pull_request' }}
@@ -92,18 +98,9 @@ jobs:
         shell: bash
         run: |
           files=(
-            ccdb.x86_64
-            ccdb.i686
-            ccdb.i586
-            ccdb.aarch64
-            ccdb.armv7
-            ccdb.armv7hf
-            ccdb.x86_64.debug_info
-            ccdb.i686.debug_info
-            ccdb.i586.debug_info
-            ccdb.aarch64.debug_info
-            ccdb.armv7.debug_info
-            ccdb.armv7hf.debug_info
+            ccdb
+            libccdb.so
+            libccdb.debug_info.so
           )
 
           if gh release view "${GIT_TAG}" >/dev/null 2>&1; then
