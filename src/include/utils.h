@@ -727,6 +727,25 @@ namespace ccdb
             condition_.notify_one();
         }
     };
+
+#ifdef ENABLE_CRASH_CATCHER
+    class init_crash_report_t
+    {
+    public:
+        struct flatSymbolicTable_t
+        {
+            uint64_t symval;
+            char name[256];
+        };
+
+        std::vector<flatSymbolicTable_t> flatSymbolicTable;
+        uint64_t landmark_addr_in_symbol_map = UINT64_MAX;
+        init_crash_report_t();
+    };
+
+    extern init_crash_report_t init_crash_report;
+    const char * GetBacktrace(const init_crash_report_t::flatSymbolicTable_t *, uint64_t /* sym map size */, uint64_t /* sym */);
+#endif
 }
 
 /// Automatic unpack from xxd with xxd naming convention

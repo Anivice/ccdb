@@ -4,6 +4,7 @@
    COLOR:    设置为`never`来禁用色彩码
    JQ:       设置JSON解释器，如果存在`jq`则默认为`jq`
    TABSIZE:  设置制表符大小，默认为4个空格
+   CURSOR:   设置搜索和命令的指针
    REVERSE_MOUSE: 设置为`true`时鼠标滚动逆向
    NO_0xFE0F_EXPAND_EMOJI: 修复Unicode 0xFE0F扩展。例如，"✈和✈️".
                            如果你看不出区别，或者出现Unicode处理BUG，
@@ -11,7 +12,6 @@
    DISABLE_SERVER_CERTIFICATE_VERIFICATION: 如果链接是https，拉取信息时会默认加载SSL，
                                             设置该环境变量为`true`可以跳过SSL证书认证
    SSL_CERTIFICATE: 如果链接是https， 使用该环境变量设置SSL证书位置
-   NOCOREDUMPCHECK: 禁止CCDB启动时进行崩溃信息收集
    NO_HIGHLIGHTER_LINE_COLOR_CODE: 即使已经设置COLOR为`n`， 在`get connections`里，高亮行依然带有ANSI颜色码。
                                    COLOR=n实际上将输出变为单色输出。
                                    如果你想完全禁用色彩码，设置NO_HIGHLIGHTER_LINE_COLOR_CODE为true。
@@ -21,9 +21,11 @@
                            禁用缓存会降低内存使用，但可能导致CPU时间消耗增多
                                                                       SCHEME_CACHE_SIZE
                 SCHEME_CACHE_SIZE: 着色器缓存大小。 预计最大缓存大小为          ∑ (i)
-                                                                           i=1
+                                                                          i=1
         SCHEME_CACHE_THREAD_COUNT: 着色器缓存线程数量。如果存在数据竞态关系，设置该环境变量为1。
    SCHEME_CACHE_DECIMAL_PRECISION: 着色器数据精确度。默认为16。
+   CCDB_ENABLE_EXPERIMENTAL_FEATURES: 开启CCDB的实验性功能。
+
 键盘快捷键:
   `get connections`: 拉取活跃连接有多个键盘快捷键:
         鼠标单击/Ctrl+UP/Ctrl+DOWN: 移动高亮

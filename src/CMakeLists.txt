@@ -440,7 +440,7 @@ target_link_libraries(libunwind::libunwind INTERFACE
 
 include_directories("${LIBUNWIND_INCLUDE_DIR}")
 target_link_libraries(ccdb PRIVATE libunwind::libunwind)
-target_compile_definitions(ccdb PRIVATE ENABLE_CRASH_CATCHER=1)
+target_compile_definitions(ccdb PRIVATE ENABLE_CRASH_CATCHER=1 UNW_LOCAL_ONLY=1)
 target_compile_options(ccdb PRIVATE -rdynamic)
 add_dependencies(ccdb LIBUNWIND)
 
@@ -526,3 +526,21 @@ endif ()
 if(CCDB_VERSION MATCHES [[^[0-9]+\.[0-9]+\.[0-9]+-rc[0-9]+$]])
     target_compile_definitions(ccdb PRIVATE RELEASE_CANDIDATE_PRE_RELEASE_BUILD=1)
 endif()
+
+find_program(OBJDUMP_EXEC NAMES objdump)
+find_program(SORT_EXEC NAMES sort)
+add_custom_command(
+        OUTPUT ${CMAKE_BINARY_DIR}/ccdb.debug_info.txt
+        COMMAND /bin/sh -c "${OBJDUMP_EXEC} -Tt ${CMAKE_BINARY_DIR}/ccdb > ${CMAKE_BINARY_DIR}/ccdb.debug_info.txt"
+        COMMENT "Generating object tracer..."
+        DEPENDS ccdb
+        VERBATIM
+)
+
+generate_from_resource_file(textDebugInfo
+        "${CMAKE_BINARY_DIR}/ccdb.debug_info.txt"
+        ccdb.debug_info.c
+        ccdb.debug_info.h
+        debugInfo false)
+
+add_library(debugInfo SHARED ccdb.debug_info.c ccdb.debug_info.h)

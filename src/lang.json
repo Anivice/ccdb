@@ -1168,5 +1168,100 @@
     "en"    : "Already the latest build (",
     "en_US" : "Already the latest build (",
     "zh_CN" : "已是最新版本 ("
+  },
+  {
+    "en"    : "Setting CCDB_SYNC_ADDRESS_BIND_TO=",
+    "en_US" : "Setting CCDB_SYNC_ADDRESS_BIND_TO=",
+    "zh_CN" : "设置 CCDB_SYNC_ADDRESS_BIND_TO="
+  },
+  {
+    "en"    : " since backend is reachable from here.\n",
+    "en_US" : " since backend is reachable from here.\n",
+    "zh_CN" : " 因为后端在该地址段。\n"
+  },
+  {
+    "en"    : "User",
+    "en_US" : "User",
+    "zh_CN" : "用户"
+  },
+  {
+    "en"    : "Message",
+    "en_US" : "Message",
+    "zh_CN" : "消息"
+  },
+  {
+    "en"    : "Backend memory usage",
+    "en_US" : "Backend memory usage",
+    "zh_CN" : "后端内存使用状况"
+  },
+  {
+    "en"    : "Backend memory info",
+    "en_US" : "Backend memory info",
+    "zh_CN" : "后端内存使用状况"
+  },
+  {
+    "en"    : "Get backend pprof",
+    "en_US" : "Get backend pprof",
+    "zh_CN" : "获取后端pprof"
+  },
+  {
+    "en"    : "Current living objects",
+    "en_US" : "Current living objects",
+    "zh_CN" : "现存活跃的对象"
+  },
+  {
+    "en"    : "Allocation profile since start",
+    "en_US" : "Allocation profile since start",
+    "zh_CN" : "自启动开始内存分配状况"
+  },
+  {
+    "en"    : "Current goroutine stacks",
+    "en_US" : "Current goroutine stacks",
+    "zh_CN" : "现在的 goroutine 栈"
+  },
+  {
+    "en"    : "Message",
+    "en_US" : "Message",
+    "zh_CN" : "消息"
+  },
+  {
+    "en"    : "OS thread stacks",
+    "en_US" : "OS thread stacks",
+    "zh_CN" : "操作系统现存栈"
+  },
+  {
+    "en"    : "Stack traces that led to blocking on synchronization primitives",
+    "en_US" : "Stack traces that led to blocking on synchronization primitives",
+    "zh_CN" : "导致阻塞的栈帧"
+  },
+  {
+    "en"    : "Stack traces of holders of contended mutexes",
+    "en_US" : "Stack traces of holders of contended mutexes",
+    "zh_CN" : "互斥锁栈帧"
+  },
+  {
+    "en"    : "CPU profile",
+    "en_US" : "CPU profile",
+    "zh_CN" : "CPU 使用记录采集"
+  },
+  {
+    "en"    : "Execution trace",
+    "en_US" : "Execution trace",
+    "zh_CN" : "栈帧"
+  },
+  {
+    "en"    : "Reload configuration",
+    "en_US" : "Reload configuration",
+    "zh_CN" : "重新刷新配置文件"
+  },
+  {
+    "en"    : "Send notification to all clients within the sync network",
+    "en_US" : "Send notification to all clients within the sync network",
+    "zh_CN" : "给所有在同步网络内的客户端发送消息"
+  },
+  {
+    "en"    : "Launch a chat window to talk to other clients within the network",
+    "en_US" : "Launch a chat window to talk to other clients within the network",
+    "zh_CN" : "开启聊天模式"
   }
 ]

@@ -30,6 +30,7 @@
 #include <sys/socket.h>
 #include <ifaddrs.h>
 #include <netinet/in.h>
+#include <dlfcn.h>
 #include "ccdb.h"
 #include "general_info_pulling.h"
 #include "print.h"
@@ -37,6 +38,7 @@
 #include "utils.h"
 #include "pull_subinfo.h"
 #include "LICENSE.h"
+#include "Readline.h"
 #include "versions.h"
 
 namespace utils = ccdb::utils;
@@ -60,6 +62,10 @@ namespace
         { .short_name = -1,  .long_name = "no-fast-quit",  .argument_required = false, .description = utils::get_text("No fast quit when Readline finishes") },
         { .short_name = -1,  .long_name = "use-color-scheme", .argument_required = true, .description = utils::get_text("Specify a color scheme: legacy, distinct, continuous. Default is `distinct`") },
         { .short_name = 'Q', .long_name = "quiet", .argument_required = false, .description = utils::get_text("No banner or version info on start") },
+#ifdef ENABLE_CRASH_CATCHER
+        { .short_name = -1,  .long_name = "backtrace", .argument_required = true, .description = utils::get_text("Load symbol table for CCDB") },
+        { .short_name = -1,  .long_name = "feedBacktrace", .argument_required = false, .description = utils::get_text("Print a symbol trace from CCDB crash report, requires `--backtrace`") },
+#endif //ENABLE_CRASH_CATCHER
     };
 
     [[nodiscard]]
@@ -135,36 +141,6 @@ namespace
 
 int main(int argc, char ** argv)
 {
-    {
-        // find coredump
-        if (utils::getenv("NOCOREDUMPCHECK") != "true" &&
-            utils::exec_command("/bin/sh", R"(coredumpctl list 2>/dev/null | grep -E '/ccdb\s+' >/dev/null 2>/dev/null)").exit_status == 0)
-        {
-            utils::exec_command("/bin/sh", R"(mkdir -p ~/.cache/ccdb/; coredumpctl list 2>/dev/null | grep -E '/ccdb\s+' | tail -n 1 | awk '{ print $1, $2, $3, $4, $5 }' > ~/.cache/ccdb/dump)");
-            const auto dest = utils::getenv("HOME") + "/.cache/ccdb/dump";
-            if (std::fstream infile (dest, std::ios::in); infile)
-            {
-                std::string time_dat, time_date, time_hour, time_zone, pid;
-                infile >> time_dat >> time_date >> time_hour >> time_zone >> pid; // systemd coredump
-                std::string time = time_date + "T" + time_hour + ".000000000" + (time_zone.size() == 1 ? "0" + time_zone : time_zone) + ":00";
-                const auto unix_time = utils::get_time(time);
-                if (const auto now = utils::get_timestamp();
-                    !std::filesystem::exists(utils::getenv("HOME") + "/.cache/ccdb/" + pid + ".tracer")
-                    && (now - unix_time) < 120)
-                {
-                    utils::print("CCDB crashed! Dumping tracer..."); std::cout.flush();
-                    utils::exec_command("/bin/sh", "thread apply all bt\nthread apply all bt full\n", "-c", "coredumpctl gdb " + pid + " > ~/.cache/ccdb/" + pid + ".tracer");
-                    utils::print("Tracer report is dumped under ~/.cache/ccdb/", pid, ".tracer\n");
-                    utils::print("\n\n\nIf you plan to file a BUG report, please attach the tracer report dumped as ~/.cache/ccdb/", pid, ".tracer\n\n\n");
-                    utils::print("You can disable this by setting NOCOREDUMPCHECK to true.\n");
-                }
-
-                infile.close();
-                std::filesystem::remove(dest);
-            }
-        }
-    }
-
     try
     {
         std::string token;
@@ -208,6 +184,143 @@ int main(int argc, char ** argv)
             utils::exec_command("/bin/sh", "xdg-open https://github.com/Anivice/ccdb/issues/new");
             return EXIT_SUCCESS;
         }
+
+        const bool quiet = parsed.contains("quiet");
+
+#ifdef ENABLE_CRASH_CATCHER
+        const bool feedBacktrace = parsed.contains("feedBacktrace");
+
+        if (parsed.contains("backtrace"))
+        {
+            // load symbol tables
+            const auto path = parsed.at("backtrace");
+            void* handle = dlopen(path.c_str(), RTLD_LAZY);
+            if (!handle) {
+                utils::print<utils::is_error>("dlopen failed: ", dlerror(), "\n");
+                return EXIT_FAILURE;
+            }
+
+            dlerror();
+            const auto* data_ptr = static_cast<unsigned char*>(dlsym(handle, "debugInfo"));
+            const char* error = dlerror();
+            if (error) {
+                utils::print<utils::is_error>("dlsym (my_data) failed: ", dlerror(), "\n");
+                dlclose(handle);
+                return EXIT_FAILURE;
+            }
+
+            const auto* len_ptr = static_cast<unsigned int*>(dlsym(handle, "debugInfo_len"));
+            error = dlerror();
+            if (error) {
+                utils::print<utils::is_error>("dlsym (my_data_len) failed: ", dlerror(), "\n");
+                dlclose(handle);
+                return EXIT_FAILURE;
+            }
+
+            std::string objdump_raw;
+            {
+                std::vector<uint8_t> compressed_symbol_table;
+                compressed_symbol_table.resize(*len_ptr);
+                std::memcpy(compressed_symbol_table.data(), data_ptr, compressed_symbol_table.size());
+                const auto decompressed_symbol_table_objdump = utils::decompress(compressed_symbol_table);
+                objdump_raw.resize(decompressed_symbol_table_objdump.size());
+                std::memcpy(objdump_raw.data(), decompressed_symbol_table_objdump.data(),
+                    decompressed_symbol_table_objdump.size());
+            }
+
+            std::stringstream ss(objdump_raw);
+            std::vector<std::pair<uint64_t, std::string>> symbol_table;
+            {
+                objdump_raw.clear();
+                //                  [addr         ][         ][l][          ][df][        ][*ABS*][      ][addr-         ][        ]
+                std::regex lr(R"(([0-9|A-Z|a-z]+)\s(?:\s+)?(\w+)\s(?:\s+)?(\w+)\s(?:\s+)?(.*)\s(?:\s+)?([0-9|A-Z|a-z]+)\s(?:\s+)?([\w|.]+)(?:\s+)?)");
+                bool start = false;
+                std::string line;
+                while (std::getline(ss, line))
+                {
+                    if (line.find("SYMBOL TABLE") != std::string::npos) {
+                        start = true;
+                    }
+
+                    if (std::smatch sm; start && std::regex_match(line, sm, lr) && sm.size() == 7)
+                    {
+                        const auto & sym_addr = sm[1].str();
+                        const auto & symbol = sm[6].str();
+                        const auto sym_addr_uint64 = std::strtoul(sym_addr.c_str(), nullptr, 16);
+                        symbol_table.emplace_back(sym_addr_uint64, symbol);
+                        if (symbol == "landmark") ccdb::init_crash_report.landmark_addr_in_symbol_map = sym_addr_uint64;
+                    }
+                }
+            }
+
+            if (!quiet && !parsed.contains("execute"))
+                utils::print("Loaded ", symbol_table.size(), " symbols from the symbolic file.\n");
+            std::ranges::sort(symbol_table, [](const auto & a, const auto & b) { return a.first < b.first; });
+
+            ccdb::init_crash_report.flatSymbolicTable.reserve(symbol_table.size());
+            for (const auto & [val, symbol] : symbol_table)
+            {
+                ccdb::init_crash_report_t::flatSymbolicTable_t table_entry{};
+                table_entry.symval = val;
+                std::memcpy(table_entry.name, symbol.data(), std::min(symbol.size(),
+                    static_cast<decltype(symbol.size())>(sizeof(table_entry.name) - 1)));
+                ccdb::init_crash_report.flatSymbolicTable.emplace_back(table_entry);
+            }
+        }
+
+        if (feedBacktrace)
+        {
+            if (ccdb::init_crash_report.flatSymbolicTable.empty() ||
+                ccdb::init_crash_report.landmark_addr_in_symbol_map == UINT64_MAX)
+            {
+                utils::print<utils::is_error>("No symbol table provided\n");
+            }
+
+            std::vector<std::pair<uint64_t, std::vector<uint64_t>>> backtraces;
+            uint64_t landmark_addr = 0;
+            {
+                const std::regex r(R"(landmark: 0x([0-9|A-Z]+))");
+                const std::regex addr(R"(0x([0-9|A-Z]+))");
+                const std::regex tr(R"(================ THREAD ([\d]+) ================)");
+                std::string line;
+                while (std::getline(std::cin, line))
+                {
+
+                    line = Readline::remove_leading_and_tailing_spaces(line);
+                    if (std::smatch sm; std::regex_search(line, sm, tr)) {
+                        const auto & str = sm[1].str();
+                        backtraces.emplace_back(std::strtoul(str.c_str(), nullptr, 16), std::vector<uint64_t>{});
+                    }
+
+                    if (std::smatch sm; std::regex_search(line, sm, addr)) {
+                        const auto & str = sm[1].str();
+                        backtraces.back().second.push_back(std::strtoul(str.c_str(), nullptr, 16));
+                    }
+
+                    if (std::smatch sm; !backtraces.empty() && std::regex_search(line, sm, r)) {
+                        const auto & landmark = sm[1].str();
+                        landmark_addr = std::strtoul(landmark.c_str(), nullptr, 16);
+                    }
+                }
+            }
+
+            const int64_t offset = static_cast<int64_t>(landmark_addr) -
+                static_cast<int64_t>(ccdb::init_crash_report.landmark_addr_in_symbol_map);
+            for (const auto & [tid, vec] : backtraces)
+            {
+                utils::print("Tid: ", tid, "\n");
+                for (uint64_t i = 0; i < vec.size(); i++)
+                {
+                    utils::print("  #", i, ccdb::GetBacktrace(
+                        ccdb::init_crash_report.flatSymbolicTable.data(), ccdb::init_crash_report.flatSymbolicTable.size(),
+                        vec[i] - offset),
+                        "\n");
+                }
+            }
+
+            return EXIT_SUCCESS;
+        }
+#endif
 
         if (parsed.contains("subinfo_timeout")) {
             timeout = utils::convertToNumber<int>(parsed.at("subinfo_timeout"));
@@ -299,7 +412,6 @@ int main(int argc, char ** argv)
             return EXIT_FAILURE;
         }
 
-        const bool quiet = parsed.contains("quiet");
         ////////////////////////////////////////////////////////////////////////////////////////
         if (!quiet && !parsed.contains("execute")) utils::print(g_version_string);
         if (!quiet && !parsed.contains("execute")) utils::print("Connecting to", " ", backend, "\n");

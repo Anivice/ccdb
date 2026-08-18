@@ -4,6 +4,7 @@ Environment:
    COLOR:    Set it to `never` to disable color codes.
    JQ:       Set JSON parser, default is `jq`, if available.
    TABSIZE:  Set tab size when printing tables, default is 4.
+   CURSOR:   Set cursor for print_table's search and embedded command strip.
    REVERSE_MOUSE: Reverse mouse scrolling direction when set to `true`.
    NO_0xFE0F_EXPAND_EMOJI: Fix Unicode processing issues for emoji space expand code, e.g., "✈" and "✈️".
                            If you cannot notice any differences of the above emojis, or there's weird Unicode processing bugs in your terminal,
@@ -11,7 +12,6 @@ Environment:
    DISABLE_SERVER_CERTIFICATE_VERIFICATION: TLS is enabled by default when URLs use HTTPS.
                                             Set this to `true` to skip server SSL certificate check (insecure).
    SSL_CERTIFICATE: When URLs are https, specify an SSL certificate location.
-   NOCOREDUMPCHECK: Disable CCDB crash info gathering on start up.
    NO_HIGHLIGHTER_LINE_COLOR_CODE: Even when setting COLOR to `n`, highlight line still has color codes to retain its
                                     basic function in `get connections`.
                                    COLOR=n is essentially a way to turn terminal into monocolor.
@@ -23,9 +23,11 @@ Environment:
                            This will cost more CPU time, with reduced memory use.
                                                                                             SCHEME_CACHE_SIZE
                 SCHEME_CACHE_SIZE: Cache size of the color scheme. The estimated size is          ∑ (i)
-                                                                                                  i=1
+                                                                                                 i=1
         SCHEME_CACHE_THREAD_COUNT: Cache generation thread. Should concurrancy be an issue, set this to 1.
    SCHEME_CACHE_DECIMAL_PRECISION: Decimal precision for each step. Default is 16.
+   CCDB_ENABLE_EXPERIMENTAL_FEATURES: Enable experimental features in CCDB.
+
 Keyboard Shortcuts:
   `get connections`: Get connections has multiple keyboard shortcuts:
      Mouse Click/Ctrl+UP/Ctrl+DOWN: Move highlight

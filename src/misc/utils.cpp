@@ -1449,6 +1449,21 @@ ssize_t ccdb::utils::cur_mem_size()
     return static_cast<ssize_t>(rss_bytes);
 }
 
+std::string ccdb::utils::getTimeNow()
+{
+#if !((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
+    const auto now = std::chrono::high_resolution_clock::now();
+    const std::time_t now_c = std::chrono::high_resolution_clock::to_time_t(now);
+    const std::tm now_tm = *std::localtime(&now_c); // potential thread-safety issue
+    const auto ms = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()) % 1000000000ull;
+    std::ostringstream oss;
+    oss << std::put_time(&now_tm, "%Y-%m-%d %H:%M:%S") << '.' << std::setfill('0') << std::setw(9) << ms.count();
+    return oss.str();
+#else
+    return std::format("{:%Y-%m-%d %H:%M:%S}", std::chrono::high_resolution_clock::now());
+#endif
+}
+
 #ifdef ENABLE_CRASH_CATCHER
 #ifndef _GNU_SOURCE
 # define _GNU_SOURCE
@@ -1466,7 +1481,7 @@ extern "C" __attribute__((visibility("default"))) void landmark() { }
 
 namespace
 {
-    void print(uint64_t num, const int fd, const int base, const char * dictionary, const char * prefix)
+    void print(uint64_t num, const int fd, const int base, const char * dictionary, const char * prefix) noexcept
     {
         char nums[256] { };
         int off = 0;
@@ -1481,78 +1496,272 @@ namespace
         }
     }
 
-    void print10(const uint64_t num, const int fd) {
+    void print10(const uint64_t num, const int fd) noexcept {
         print(num, fd, 10, "0123456789", nullptr);
     }
 
-    void print16(const uint64_t num, const int fd) {
+    void print16(const uint64_t num, const int fd) noexcept {
         print(num, fd, 16, "0123456789ABCDEF", "0x");
     }
 
-    void signal_handler(const int sig)
+    constexpr int DUMP_SIGNAL = SIGUSR2;
+    constexpr int MAX_FRAMES = 64;
+
+    constexpr uint64_t THREAD_DUMP_TIMEOUT_NS = 100'000'000ULL; // 100 ms
+
+    std::atomic<pid_t> dump_finished_tid { 0 };
+    std::atomic_flag fatal_handler_active = ATOMIC_FLAG_INIT;
+
+    static_assert(std::atomic<pid_t>::is_always_lock_free);
+
+    struct linux_dirent64
     {
-        unw_context_t ctx;
-        unw_cursor_t cursor;
+        uint64_t       d_ino;
+        int64_t        d_off;
+        unsigned short d_reclen;
+        unsigned char  d_type;
+        char           d_name[1];
+    };
 
-        unw_getcontext(&ctx);
-        unw_init_local(&cursor, &ctx);
 
-        uint64_t trace[64] { };
-        int idx = 0;
-        while (unw_step(&cursor) > 0 && idx < 64) {
-            unw_word_t ip;
-            unw_get_reg(&cursor, UNW_REG_IP, &ip);
-            trace[idx++] = ip;
-        }
-
-        constexpr char error_msg[] = "\n\nUnexpected signal captured, the signal and its trace will be printed in the following lines:\nSIG NUMBER: ";
-        constexpr char error_msg2[] = "\n================================== TRACER ==================================\n";
-        constexpr char error_msg3[] = "landmark: ";
-        (void)write(STDERR_FILENO, error_msg, sizeof(error_msg));
-        print10(sig, STDERR_FILENO);
-        (void)write(STDERR_FILENO, error_msg2, sizeof(error_msg2));
-        for (int i = 0; i < idx; i++) {
-            print16(trace[i], STDERR_FILENO);
-            if (i < idx - 1) (void)write(STDERR_FILENO, "\n", 1);
-        }
-        (void)write(STDERR_FILENO, error_msg2, sizeof(error_msg2));
-        (void)write(STDERR_FILENO, error_msg3, sizeof(error_msg3));
-        print16((uint64_t)&landmark, STDERR_FILENO);
-        (void)write(STDERR_FILENO, "\n", 1);
-        exit(128 + sig);
+    [[nodiscard]]
+    pid_t current_tid() noexcept
+    {
+        return static_cast<pid_t>(syscall(SYS_gettid));
     }
 
-    __attribute_used__
-    class init_crash_report_t
+    void write_literal(const char *str, const size_t len) noexcept
     {
-    public:
-        init_crash_report_t()
-        {
-            std::signal(SIGTERM, signal_handler);
-            std::signal(SIGHUP, signal_handler);
-            std::signal(SIGQUIT, signal_handler);
-            std::signal(SIGABRT, signal_handler);
-            std::signal(SIGSEGV, signal_handler);
-            // std::signal(SIGILL, signal_handler);
-            // std::signal(SIGBUS, signal_handler);
-            // std::signal(SIGFPE, signal_handler);
-            // std::signal(SIGTRAP, signal_handler);
-        }
-    } init_crash_report;
-}
-#endif //ENABLE_CRASH_CATCHER
+        (void)::write(STDERR_FILENO, str, len);
+    }
 
-std::string ccdb::utils::getTimeNow()
-{
-#if !((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
-    const auto now = std::chrono::high_resolution_clock::now();
-    const std::time_t now_c = std::chrono::high_resolution_clock::to_time_t(now);
-    const std::tm now_tm = *std::localtime(&now_c); // potential thread-safety issue
-    const auto ms = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()) % 1000000000ull;
-    std::ostringstream oss;
-    oss << std::put_time(&now_tm, "%Y-%m-%d %H:%M:%S") << '.' << std::setfill('0') << std::setw(9) << ms.count();
-    return oss.str();
-#else
-    return std::format("{:%Y-%m-%d %H:%M:%S}", std::chrono::high_resolution_clock::now());
-#endif
+    void dump_context(const pid_t tid, void *const context) noexcept
+    {
+        constexpr char thread_header[] = "\n================ THREAD ";
+        constexpr char thread_header_end[] = " ================\n";
+
+        write_literal(thread_header, sizeof(thread_header) - 1);
+        print10(static_cast<uint64_t>(tid), STDERR_FILENO);
+        write_literal(thread_header_end, sizeof(thread_header_end) - 1);
+        auto *const unwind_context = static_cast<unw_context_t *>(context);
+
+        unw_cursor_t cursor {};
+
+        if (unw_init_local2(&cursor, unwind_context, UNW_INIT_SIGNAL_FRAME) < 0)
+        {
+            constexpr char msg[] = "<unw_init_local2 failed>\n";
+            write_literal(msg, sizeof(msg) - 1);
+            return;
+        }
+
+        for (int frame = 0; frame < MAX_FRAMES; ++frame)
+        {
+            unw_word_t ip = 0;
+
+            if (unw_get_reg(&cursor, UNW_REG_IP, &ip) < 0)
+                break;
+
+            print16(static_cast<uint64_t>(ip), STDERR_FILENO);
+            write_literal("\n", 1);
+
+            const int ret = unw_step(&cursor);
+
+            if (ret <= 0)
+                break;
+        }
+    }
+
+    void thread_dump_handler(int, siginfo_t *, void *context) noexcept
+    {
+        const pid_t tid = current_tid();
+        dump_context(tid, context);
+        dump_finished_tid.store(tid, std::memory_order_release);
+    }
+
+    [[nodiscard]]
+    uint64_t monotonic_ns() noexcept
+    {
+        timespec ts {};
+        if (::clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
+            return 0;
+        return
+            static_cast<uint64_t>(ts.tv_sec) * 1'000'000'000ULL +
+            static_cast<uint64_t>(ts.tv_nsec);
+    }
+
+    [[nodiscard]]
+    bool parse_tid(const char *str, pid_t &result) noexcept
+    {
+        uint64_t value = 0;
+        if (*str == '\0') return false;
+
+        while (*str)
+        {
+            const char c = *str++;
+            if (c < '0' || c > '9') return false;
+            value = value * 10 + static_cast<unsigned>(c - '0');
+            if (value > 0x7fffffffULL) return false;
+        }
+
+        result = static_cast<pid_t>(value);
+        return result > 0;
+    }
+
+
+    void dump_one_thread(const pid_t pid,const pid_t tid) noexcept
+    {
+        dump_finished_tid.store(0, std::memory_order_relaxed);
+        if (syscall(SYS_tgkill, pid, tid, DUMP_SIGNAL) != 0) {
+            return;
+        }
+
+        const uint64_t start = monotonic_ns();
+        while (dump_finished_tid.load(std::memory_order_acquire) != tid)
+        {
+            const uint64_t now = monotonic_ns();
+            if (start != 0 && now != 0 && now - start >= THREAD_DUMP_TIMEOUT_NS)
+            {
+                constexpr char msg[] = "<thread dump timed out: ";
+                constexpr char end[] = ">\n";
+                write_literal(msg, sizeof(msg) - 1);
+                print10(static_cast<uint64_t>(tid), STDERR_FILENO);
+                write_literal(end, sizeof(end) - 1);
+                break;
+            }
+        }
+    }
+
+    void dump_other_threads(const pid_t crashing_tid) noexcept
+    {
+        const auto pid = static_cast<pid_t>(syscall(SYS_getpid));
+        const int fd = ::open("/proc/self/task", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+        if (fd < 0) return;
+        alignas(8) char buffer[4096];
+
+        while (true)
+        {
+            const long size = syscall(SYS_getdents64, fd, buffer, sizeof(buffer));
+            if (size <= 0) break;
+            long offset = 0;
+            while (offset < size)
+            {
+                const auto *entry = reinterpret_cast<const linux_dirent64 *>(buffer + offset);
+                if (entry->d_reclen == 0 || offset + entry->d_reclen > size) {
+                    break;
+                }
+
+                pid_t tid = 0;
+
+                if (parse_tid(entry->d_name, tid) &&tid != crashing_tid) {
+                    dump_one_thread(pid, tid);
+                }
+
+                offset += entry->d_reclen;
+            }
+        }
+
+        (void)::close(fd);
+    }
+
+
+    void fatal_signal_handler(const int sig, siginfo_t *, void *context) noexcept
+    {
+        if (fatal_handler_active.test_and_set(std::memory_order_relaxed)) {
+            _exit(128 + sig);
+        }
+
+        const pid_t crashing_tid = current_tid();
+        constexpr char msg[] = "\n\n" "Unexpected signal captured.\n" "SIG NUMBER: ";
+        write_literal(msg, sizeof(msg) - 1);
+        print10(static_cast<uint64_t>(sig), STDERR_FILENO);
+        write_literal("\n", 1);
+        dump_context(crashing_tid, context);
+        dump_other_threads(crashing_tid);
+        constexpr char landmark_msg[] = "\n================ LANDMARK ================\n" "landmark: ";
+        write_literal(landmark_msg, sizeof(landmark_msg) - 1);
+        print16(reinterpret_cast<uint64_t>(&landmark), STDERR_FILENO);
+        write_literal("\n", 1);
+        _exit(128 + sig);
+    }
 }
+
+namespace ccdb
+{
+    init_crash_report_t::init_crash_report_t()
+    {
+        {
+            struct sigaction sa {};
+            sa.sa_sigaction = thread_dump_handler;
+            sa.sa_flags = SA_SIGINFO | SA_RESTART;
+
+            sigemptyset(&sa.sa_mask);
+
+            sigaction(
+                DUMP_SIGNAL,
+                &sa,
+                nullptr
+            );
+        }
+
+        {
+            struct sigaction sa {};
+            sa.sa_sigaction = fatal_signal_handler;
+            sa.sa_flags = SA_SIGINFO;
+
+            sigemptyset(&sa.sa_mask);
+
+            constexpr int signals[] = {
+                SIGTERM,
+                SIGHUP,
+                SIGQUIT,
+                SIGABRT,
+                SIGSEGV,
+                SIGFPE
+            };
+
+            for (const int sig : signals)
+                sigaction(sig, &sa, nullptr);
+        }
+    }
+
+    init_crash_report_t init_crash_report;
+
+    const char* GetBacktrace(
+        const init_crash_report_t::flatSymbolicTable_t * symbolic_table,
+        const uint64_t symSize,
+        const uint64_t symbol)
+    {
+        uint64_t halfScope = 1;
+        const uint64_t minSym = symbolic_table[0].symval;
+        const uint64_t maxSym = symbolic_table[symSize - 1].symval;
+        const double ratio = static_cast<double>(symbol - minSym) / static_cast<double>(maxSym - minSym); // de-landmarked
+        if (ratio > 1) return nullptr; // WTF?
+        const auto guess = static_cast<uint64_t>(ratio * static_cast<double>(symSize));
+        while (true)
+        {
+            uint64_t previous = UINT64_MAX;
+            const char * ret = nullptr;
+            const auto startPoint = std::max(static_cast<int64_t>(guess - halfScope), static_cast<int64_t>(0));
+            const auto endPoint = std::max(guess + halfScope, symSize);
+            const init_crash_report_t::flatSymbolicTable_t * end = &symbolic_table[endPoint];
+            for (const init_crash_report_t::flatSymbolicTable_t * begin = &symbolic_table[startPoint];
+                begin != end; ++begin)
+            {
+                if (begin->symval > symbol && previous < symbol) {
+                    return ret;
+                }
+
+                previous = begin->symval;
+                ret = begin->name;
+            }
+
+            if (startPoint == 0 && endPoint == symSize - 1) {
+                return nullptr; // already searched the whole map, give up
+            }
+
+            ++halfScope; // extend the search scope
+        }
+    }
+}
+
+#endif //ENABLE_CRASH_CATCHER

@@ -195,7 +195,7 @@ namespace Readline
 
     constexpr char g_base32_signature[] = "CCDBEVALENABLED_Base32_";
 
-    static std::string remove_leading_and_tailing_spaces(std::string text)
+    std::string remove_leading_and_tailing_spaces(std::string text)
     {
         if (text.empty()) return text;
         ccdb::utils::replace_all(text, "\t", "    ");
@@ -470,7 +470,7 @@ namespace Readline
         uint64_t max_command_length = 0;
         for_each([&](const NodeType& node, int depth)
         {
-            if (!node.name_.empty() && node.name_.front() != '[')
+            if (!node.name_.empty() && node.name_.front() != '[' && node.valid_)
             {
                 std::ostringstream oss;
                 if (depth & 0x01) depth++; // argument alignment

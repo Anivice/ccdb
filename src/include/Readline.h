@@ -175,7 +175,7 @@ namespace Readline
     extern int sig_pipe[2];
     extern volatile sig_atomic_t g_running;
     void set_nonblock(int fd);
-    static std::string remove_leading_and_tailing_spaces(std::string text);
+    std::string remove_leading_and_tailing_spaces(std::string text);
     extern std::string last_line;
     extern std::function<bool(const std::vector < std::string > &)> g_cmd_handler;
     void on_line(char * line);
