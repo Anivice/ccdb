@@ -1,0 +1,4 @@
+{
+    "EnableIf": "Build Flags: Experimental Features",
+    "Description": "Launch a chat window to talk to other clients within the network"
+}

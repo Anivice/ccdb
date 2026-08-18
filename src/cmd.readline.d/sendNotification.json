@@ -1,0 +1,4 @@
+{
+    "EnableIf": "Build Flags: Experimental Features",
+    "Description": "Send notification to all clients within the sync network"
+}

@@ -1,0 +1,4 @@
+{
+  "EnableIf": "Build Flags: Experimental Features",
+  "Description": "Export the custom color scheme binary cache"
+}

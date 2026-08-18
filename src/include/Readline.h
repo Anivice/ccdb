@@ -42,6 +42,7 @@ namespace Readline
         std::string help_text_;
         std::vector < std::unique_ptr < NodeType > > children_;
         NodeType * parent_ = nullptr;
+        bool valid_ = true;
     };
 
     struct frame_t {
@@ -52,6 +53,7 @@ namespace Readline
         tsl::hopscotch_map < std::string, std::string > help_map_;
         NodeType * entry_ = nullptr;
         CurrentStatusType status_ = NoOperation;
+        bool valid_ = true;
     };
 
     /// for_each handler, constraint it to be accepting only void(const Readline::NodeType&, int)
@@ -136,7 +138,7 @@ namespace Readline
         /// @param command_string command path
         /// @return acceptable commands
         /// @throws cfs::error::command_not_found Provided command path doesn't have a match
-        [[nodiscard]] std::vector < std::string > find_sub_commands(std::vector < std::string > command_string) const;
+        [[nodiscard]] std::vector < std::string > find_sub_commands(const std::vector<std::string> & command_string) const;
 
         /// get help
         /// @param command_string command path

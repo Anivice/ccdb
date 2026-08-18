@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-
+set -euo pipefail
 random_name()
 {
     seed=$((RANDOM % 10 + 1));

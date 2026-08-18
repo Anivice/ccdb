@@ -230,26 +230,26 @@ find_program(GREP_EXEC  grep    REQUIRED)
 find_program(CAT_EXEC   cat     REQUIRED)
 find_program(TAR_EXEC   tar     REQUIRED)
 
-function(generate_from_resource_file NAME RES OUT_CPP OUT_H XXD_NAME)
+function(generate_from_resource_file NAME RES OUT_CPP OUT_H XXD_NAME EVAL)
     set(_in   "${RES}")
     set(_outc "${CMAKE_CURRENT_BINARY_DIR}/${OUT_CPP}")
     set(_outh "${CMAKE_CURRENT_BINARY_DIR}/${OUT_H}")
 
     add_custom_command(
         OUTPUT "${_outc}" "${_outh}"
-        COMMAND "${CMAKE_SOURCE_DIR}/script/gen_header.sh" "${_outc}" "${_outh}" "${XXD_NAME}" "${_in}" "${CMAKE_CURRENT_BINARY_DIR}/compress" "${CMAKE_CURRENT_BINARY_DIR}/xxd"
-            DEPENDS "${_in}" "${CMAKE_SOURCE_DIR}/script/gen_header.sh" compress xxd
+        COMMAND "${CMAKE_SOURCE_DIR}/script/gen_header.sh" "${_outc}" "${_outh}" "${XXD_NAME}" "${_in}" "${CMAKE_CURRENT_BINARY_DIR}/compress" "${CMAKE_CURRENT_BINARY_DIR}/xxd" ${EVAL}
+        DEPENDS "${_in}" "${CMAKE_SOURCE_DIR}/script/gen_header.sh" "${CMAKE_SOURCE_DIR}/script/cmd.eval.sh" compress xxd
         VERBATIM
     )
 
     add_library(${NAME} STATIC "${_outc}" "${_outh}")
 endfunction()
 
-generate_from_resource_file(commandReadline "${CMAKE_SOURCE_DIR}/command.readline" command.readline.cpp command.readline.h command_readline)
-generate_from_resource_file(langJSON "${CMAKE_BINARY_DIR}/lang.json" lang.json.cpp lang.json.h lang_json)
-generate_from_resource_file(LICENSE "${CMAKE_SOURCE_DIR}/../LICENSE" LICENSE.cpp LICENSE.h LICENSE)
-generate_from_resource_file(img_8f87efc1c0d8fc8c "${CMAKE_SOURCE_DIR}/../img/8f87efc1c0d8fc8c.png" img_8f87efc1c0d8fc8c.cpp img_8f87efc1c0d8fc8c.h img_8f87efc1c0d8fc8c)
-generate_from_resource_file(ccdbrc "${CMAKE_SOURCE_DIR}/../ccdbrc.example" ccdbrc.cpp ccdbrc.h ccdbrc)
+generate_from_resource_file(commandReadline "${CMAKE_SOURCE_DIR}/command.readline" command.readline.cpp command.readline.h command_readline true)
+generate_from_resource_file(langJSON "${CMAKE_BINARY_DIR}/lang.json" lang.json.cpp lang.json.h lang_json false)
+generate_from_resource_file(LICENSE "${CMAKE_SOURCE_DIR}/../LICENSE" LICENSE.cpp LICENSE.h LICENSE false)
+generate_from_resource_file(img_8f87efc1c0d8fc8c "${CMAKE_SOURCE_DIR}/../img/8f87efc1c0d8fc8c.png" img_8f87efc1c0d8fc8c.cpp img_8f87efc1c0d8fc8c.h img_8f87efc1c0d8fc8c false)
+generate_from_resource_file(ccdbrc "${CMAKE_SOURCE_DIR}/../ccdbrc.example" ccdbrc.cpp ccdbrc.h ccdbrc false)
 
 add_custom_command(
         OUTPUT "${CMAKE_BINARY_DIR}/lang.json"
@@ -264,7 +264,7 @@ function(lang_add_help LANG)
     list(APPEND HelpLangs additionalHelp_${LANG})
     list(APPEND help_bag "${CMAKE_BINARY_DIR}/additional_help.${LANG}.cpp" "${CMAKE_BINARY_DIR}/additional_help.${LANG}.h")
     list(APPEND help_dep "${CMAKE_SOURCE_DIR}/additional_help/additional_help.${LANG}.txt")
-    generate_from_resource_file(additionalHelp_${LANG} "${CMAKE_SOURCE_DIR}/additional_help/additional_help.${LANG}.txt" additional_help.${LANG}.cpp additional_help.${LANG}.h additional_help_${LANG})
+    generate_from_resource_file(additionalHelp_${LANG} "${CMAKE_SOURCE_DIR}/additional_help/additional_help.${LANG}.txt" additional_help.${LANG}.cpp additional_help.${LANG}.h additional_help_${LANG} false)
     set(HelpLangs ${HelpLangs} PARENT_SCOPE)
     set(help_bag ${help_bag} PARENT_SCOPE)
 endfunction()
@@ -296,8 +296,8 @@ function(generate_from_resource_dir NAME RES OUT_CPP OUT_H XXD_NAME)
 
     add_custom_command(
             OUTPUT "${_outc}" "${_outh}"
-            COMMAND "${CMAKE_SOURCE_DIR}/script/gen_header.sh" "${_outc}" "${_outh}" "${XXD_NAME}" "${_in}.tar" "${CMAKE_CURRENT_BINARY_DIR}/compress" "${CMAKE_CURRENT_BINARY_DIR}/xxd"
-            DEPENDS "${_in}.tar" "${CMAKE_SOURCE_DIR}/script/gen_header.sh" compress xxd
+            COMMAND "${CMAKE_SOURCE_DIR}/script/gen_header.sh" "${_outc}" "${_outh}" "${XXD_NAME}" "${_in}.tar" "${CMAKE_CURRENT_BINARY_DIR}/compress" "${CMAKE_CURRENT_BINARY_DIR}/xxd" false
+            DEPENDS "${_in}.tar" "${CMAKE_SOURCE_DIR}/script/cmd.eval.sh" "${CMAKE_SOURCE_DIR}/script/gen_header.sh" compress xxd
             VERBATIM
     )
 
@@ -334,7 +334,7 @@ ExternalProject_Add(TAR
         DEPENDS Zterminfotar READLINE
 )
 
-generate_from_resource_file(tar.exe "${CMAKE_BINARY_DIR}/tar/install/bin/tar" tar.cpp tar.h tar_exe)
+generate_from_resource_file(tar.exe "${CMAKE_BINARY_DIR}/tar/install/bin/tar" tar.cpp tar.h tar_exe false)
 add_dependencies(tar.exe TAR)
 
 # CCDB
@@ -379,7 +379,6 @@ target_compile_options(ccdb PRIVATE -fno-omit-frame-pointer -g3 -gdwarf-4 -fstac
 
 find_program(GIT_EXEC NAMES git REQUIRED)
 find_program(HEAD_EXEC NAMES head REQUIRED)
-#find_program(DATE_EXEC NAMES date REQUIRED)
 
 add_custom_command(
         OUTPUT ${CMAKE_BINARY_DIR}/GIT_HASH
@@ -387,14 +386,7 @@ add_custom_command(
         VERBATIM
 )
 
-#add_custom_command(
-#        OUTPUT ${CMAKE_BINARY_DIR}/BUILD_DATE
-#        COMMAND /bin/sh -c "echo -n $(date '+%Y-%m-%d %H:%M:%S%Z')" > ${CMAKE_BINARY_DIR}/BUILD_DATE
-#        VERBATIM
-#)
-
-generate_from_resource_file(libGIT_HASH "${CMAKE_BINARY_DIR}/GIT_HASH" GIT_HASH.cpp GIT_HASH.h GIT_HASH)
-#generate_from_resource_file(libBUILD_DATE "${CMAKE_BINARY_DIR}/BUILD_DATE" BUILD_DATE.cpp BUILD_DATE.h BUILD_DATE)
+generate_from_resource_file(libGIT_HASH "${CMAKE_BINARY_DIR}/GIT_HASH" GIT_HASH.cpp GIT_HASH.h GIT_HASH false)
 target_link_libraries(ccdb PRIVATE libGIT_HASH) # libBUILD_DATE)
 
 # libunwind
@@ -432,31 +424,10 @@ set_target_properties(libunwind::libunwind_generic PROPERTIES
         INTERFACE_INCLUDE_DIRECTORIES   "${LIBUNWIND_INCLUDE_DIR}"
 )
 
-#add_library(libunwind::libunwind_ptrace STATIC IMPORTED GLOBAL)
-#set_target_properties(libunwind::libunwind_ptrace PROPERTIES
-#        IMPORTED_LOCATION               "${LIBUNWIND_LIB_DIR}/libunwind-ptrace.a"
-#        INTERFACE_INCLUDE_DIRECTORIES   "${LIBUNWIND_INCLUDE_DIR}"
-#)
-
-#add_library(libunwind::libunwind_setjmp STATIC IMPORTED GLOBAL)
-#set_target_properties(libunwind::libunwind_setjmp PROPERTIES
-#        IMPORTED_LOCATION               "${LIBUNWIND_LIB_DIR}/libunwind-setjmp.a"
-#        INTERFACE_INCLUDE_DIRECTORIES   "${LIBUNWIND_INCLUDE_DIR}"
-#)
-
-#add_library(libunwind::libunwind_coredump STATIC IMPORTED GLOBAL)
-#set_target_properties(libunwind::libunwind_coredump PROPERTIES
-#        IMPORTED_LOCATION               "${LIBUNWIND_LIB_DIR}/libunwind-coredump.a"
-#        INTERFACE_INCLUDE_DIRECTORIES   "${LIBUNWIND_INCLUDE_DIR}"
-#)
-
 # Bundle target consumers can link to
 add_library(libunwind::libunwind INTERFACE IMPORTED GLOBAL)
 target_link_libraries(libunwind::libunwind INTERFACE
         libunwind::libunwind_generic
-#        libunwind::libunwind_ptrace
-#        libunwind::libunwind_setjmp
-#        libunwind::libunwind_coredump
         libunwind::libunwind_main
 )
 

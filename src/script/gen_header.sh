@@ -7,7 +7,15 @@ _name="$3"
 _in="$4"
 _compress_cmd="$5"
 _xxd="$6"
+_eval="$7"
 compress_out=/tmp/"$(basename "${_in}").Z"
+SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+if $_eval; then
+    tmp=$(mktemp)
+    "$SCRIPT_DIR"/cmd.eval.sh "$_in" > $tmp;
+    _in=$tmp
+fi
 
 "$_compress_cmd" "${_in}" "$compress_out"
 "$_xxd" -i -n "$_name" < "${compress_out}" > "${_outc}"
@@ -26,3 +34,5 @@ def=$(sed -E 's/(.*)/\U\1/g' <<< "$(basename "$_outh")" | sed -E 's/([\.|\/|-])/
     echo
     echo "#endif //$def"
 } < "$_outc" > "$_outh"
+
+if $_eval; then rm "$_in"; fi

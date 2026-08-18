@@ -22,10 +22,114 @@
 #include <sstream>
 #include <cstring>
 #include <algorithm>
+#include <stdexcept>
+#include <string_view>
+#include <vector>
 #include "Readline.h"
 #include "readline.h"
 #include "command.readline.h"
 #include "print.h"
+
+namespace
+{
+[[nodiscard]]
+std::vector<std::uint8_t> base32_decode(std::string_view input)
+{
+    auto decode_char = [](char c) -> std::uint8_t
+    {
+        if (c >= 'A' && c <= 'Z')
+            return static_cast<std::uint8_t>(c - 'A');
+
+        if (c >= '2' && c <= '7')
+            return static_cast<std::uint8_t>(c - '2' + 26);
+
+        throw std::invalid_argument("invalid Base32 character");
+    };
+
+    if (input.empty())
+        return {};
+
+    const auto padding_pos = input.find('=');
+
+    std::size_t encoded_size = input.size();
+    std::size_t padding = 0;
+
+    if (padding_pos != std::string_view::npos)
+    {
+        encoded_size = padding_pos;
+        padding = input.size() - padding_pos;
+
+        for (std::size_t i = padding_pos; i < input.size(); ++i)
+        {
+            if (input[i] != '=')
+                throw std::invalid_argument("invalid Base32 padding");
+        }
+
+        if ((input.size() % 8) != 0)
+            throw std::invalid_argument("invalid Base32 length");
+
+        const std::size_t remainder = encoded_size % 8;
+
+        const bool valid_padding =
+            (remainder == 0 && padding == 0) ||
+            (remainder == 2 && padding == 6) ||
+            (remainder == 4 && padding == 4) ||
+            (remainder == 5 && padding == 3) ||
+            (remainder == 7 && padding == 1);
+
+        if (!valid_padding)
+            throw std::invalid_argument("invalid Base32 padding");
+    }
+    else
+    {
+        switch (encoded_size % 8)
+        {
+            case 0:
+            case 2:
+            case 4:
+            case 5:
+            case 7:
+                break;
+
+            default:
+                throw std::invalid_argument("invalid Base32 length");
+        }
+    }
+
+    std::vector<std::uint8_t> output;
+    output.reserve(encoded_size * 5 / 8);
+
+    std::uint32_t buffer = 0;
+    unsigned bits = 0;
+
+    for (std::size_t i = 0; i < encoded_size; ++i)
+    {
+        const auto value = decode_char(input[i]);
+
+        buffer = (buffer << 5) | value;
+        bits += 5;
+
+        if (bits >= 8)
+        {
+            bits -= 8;
+
+            output.push_back(
+                static_cast<std::uint8_t>((buffer >> bits) & 0xFF)
+            );
+        }
+
+        if (bits == 0)
+            buffer = 0;
+        else
+            buffer &= (1u << bits) - 1;
+    }
+
+    if (bits != 0 && buffer != 0)
+        throw std::invalid_argument("non-zero Base32 padding bits");
+
+    return output;
+}
+}
 
 namespace Readline
 {
@@ -33,7 +137,7 @@ namespace Readline
     {
         for (const auto & v : entry.children_)
         {
-            if (v->name_ == name) {
+            if (v->valid_ && v->name_ == name) {
                 return v.get();
             }
         }
@@ -55,62 +159,132 @@ namespace Readline
         return entry;
     }
 
-    void commandTemplateTree_t::construct(const std::string &command_description)
+    static std::string remove_comments(const std::string& text)
     {
-        /*
-             * { < command: < subcommand1: verb1, <subcommand1.1, verb1 > >, verb2, verb3, < subcommand2: verb1> >, # ignored util '\n'
-             *   < command2: [HSP], [CFSP] > }
-             */
+        std::string output;
+        output.reserve(text.size());
 
-        auto remove_comments = [](const std::string & text)->std::string
+        std::size_t line_begin = 0;
+
+        while (line_begin < text.size())
         {
-            std::stringstream ss(text), output;
-            std::string line;
-            while (std::getline(ss, line))
-            {
-                const auto pos = line.find_first_of('#');
-                if (pos != std::string::npos) {
-                    line = line.substr(0, pos);
-                }
+            const auto newline = text.find('\n', line_begin);
+            const auto line_end =
+                newline == std::string::npos
+                    ? text.size()
+                    : newline;
 
-                output << line << std::endl;
+            const auto comment = text.find('#', line_begin);
+            const auto content_end =
+                comment != std::string::npos && comment < line_end
+                    ? comment
+                    : line_end;
+
+            output.append(text, line_begin, content_end - line_begin);
+            output.push_back('\n');
+
+            if (newline == std::string::npos) {
+                break;
             }
 
-            return output.str();
-        };
+            line_begin = newline + 1;
+        }
 
-        std::stringstream ss(remove_comments(command_description));
-        std::vector < frame_t > stack;
+        return output;
+    }
+
+    constexpr char g_base32_signature[] = "CCDBEVALENABLED_Base32_";
+
+    static std::string remove_leading_and_tailing_spaces(std::string text)
+    {
+        if (text.empty()) return text;
+        ccdb::utils::replace_all(text, "\t", "    ");
+        const auto pos = text.find_first_not_of(' ');
+        if (pos == std::string::npos) return text;
+        std::string middle = text.substr(pos);
+        while (!middle.empty() && middle.back() == ' ') {
+            middle.pop_back();
+        }
+        return middle;
+    }
+
+    static bool validation(const std::string & valid)
+    {
+        if (valid.find_first_of(':') != std::string::npos)
+        {
+            const auto container = remove_leading_and_tailing_spaces(valid.substr(0, valid.find_first_of(':')));
+            const auto condition = remove_leading_and_tailing_spaces(valid.substr(valid.find_first_of(':') + 1));
+
+            if (container == "Build Flags")
+            {
+                if (condition == "Experimental Features")
+                {
+                    static const bool experimental_features = ccdb::utils::getenv("CCDB_ENABLE_EXPERIMENTAL_FEATURES") == "true";
+                    return experimental_features;
+                }
+            }
+        }
+        return false;
+    }
+
+    void commandTemplateTree_t::construct(const std::string& command_description)
+    {
+        std::vector<frame_t> stack;
         stack.emplace_back();
         stack.back().entry_ = &root;
         bool help_text_override = false;
-
-        char c;
-        while (ss && ((  c = static_cast<char>( ss.get())  )) )
+        for (const char c : remove_comments(command_description))
         {
-            if (c < 0x20) continue; // ignore '\n' and all
-            std::string & command_ = stack.back().command_;
-            std::string & verb_ = stack.back().verb_;
-            std::vector < std::string > & verbs_ = stack.back().verbs_;
-            std::string & help_text_ = stack.back().help_text_;
-            auto & help_map_ = stack.back().help_map_;
-            NodeType * entry = stack.back().entry_;
-            CurrentStatusType & status = stack.back().status_;
-
-            if (status == EndLoop) break;
-
-            if (help_text_override)
-            {
-                if (c != ')') {
-                    help_text_ += c;
-                } else {
-                    help_text_override = false;
-                }
-
+            if (c < 0x20 || c > 0x7e) {
                 continue;
             }
 
-            if (c == '(') {
+            auto& frame = stack.back();
+
+            auto& command   = frame.command_;
+            auto& verb      = frame.verb_;
+            auto& verbs     = frame.verbs_;
+            auto& help_text = frame.help_text_;
+            auto& help_map  = frame.help_map_;
+            auto& status    = frame.status_;
+            auto& valid    = frame.valid_;
+
+            NodeType* const entry = frame.entry_;
+
+            if (status == EndLoop) {
+                break;
+            }
+
+            if (help_text_override)
+            {
+                if (c != ')')
+                {
+                    help_text.push_back(c);
+                }
+                else
+                {
+                    help_text_override = false;
+                    // decode base32
+                    if (help_text.size() > (sizeof(g_base32_signature) - 1)
+                        && help_text.substr(0, sizeof(g_base32_signature) - 1) == g_base32_signature)
+                    {
+                        const auto data = base32_decode(help_text.substr(sizeof(g_base32_signature) - 1));
+                        const std::string json_str {(char*)data.data(), data.size()};
+                        const auto json = nlohmann::json::parse(json_str);
+                        if (json.contains("Description")) {
+                            help_text = json["Description"].get<std::string>();
+                        }
+
+                        if (json.contains("EnableIf")) {
+                            valid = validation(json["EnableIf"].get<std::string>());
+                        }
+                    }
+                }
+                continue;
+            }
+
+            if (c == '(')
+            {
                 help_text_override = true;
                 continue;
             }
@@ -119,81 +293,126 @@ namespace Readline
             {
                 case '{':
                     continue;
-                case '}': {
+
+                case '}':
+                {
                     status = EndLoop;
                     continue;
                 }
-                case '<': {
-                    const auto parent = entry;
-                    parent->children_.emplace_back(std::make_unique<NodeType>());
-                    const auto child = entry->children_.back().get();
+
+                case '<':
+                {
+                    auto* const parent = entry;
+
+                    parent->children_.emplace_back(
+                        std::make_unique<NodeType>()
+                    );
+
+                    auto* const child =
+                        parent->children_.back().get();
+
                     child->parent_ = parent;
-                    if (status == NoOperation) status = ReadingCommand;
+
+                    if (status == NoOperation) {
+                        status = ReadingCommand;
+                    }
 
                     stack.emplace_back();
+
                     stack.back().entry_ = child;
                     stack.back().status_ = ReadingCommand;
+
                     continue;
                 }
-                case ':': {
-                    if (!help_text_.empty()) {
-                        help_map_.emplace(command_, help_text_);
-                        help_text_.clear();
+
+                case ':':
+                {
+                    if (!help_text.empty())
+                    {
+                        help_map.emplace(command, help_text);
+                        help_text.clear();
                     }
+
                     status = ReadingVerbs;
                     continue;
                 }
-                case '>': {
-                    if (!verb_.empty()) {
-                        verbs_.push_back(verb_);
-                        help_map_.emplace(verb_, help_text_);
+
+                case '>':
+                {
+                    if (!verb.empty())
+                    {
+                        verbs.push_back(verb);
+                        help_map.emplace(verb, help_text);
                     }
 
-                    entry->help_text_ = help_map_[command_];
-                    entry->name_ = command_;
-                    for (const auto & v : verbs_)
+                    entry->help_text_ = help_map[command];
+                    entry->name_ = command;
+                    entry->valid_ = valid;
+
+                    for (const auto& v : verbs)
                     {
-                        entry->children_.emplace_back(std::make_unique< NodeType >(NodeType{
-                            .name_ = v,
-                            .help_text_ = help_map_[v],
-                            // .children_ = {},
-                            .parent_ = entry,
-                        }));
+                        entry->children_.emplace_back(
+                            std::make_unique<NodeType>(
+                                NodeType{
+                                    .name_ = v,
+                                    .help_text_ = help_map[v],
+                                    .parent_ = entry,
+                                }
+                            )
+                        );
                     }
 
                     stack.pop_back();
                     continue;
                 }
-                default: break;
+
+                default:
+                    break;
             }
 
             switch (status)
             {
-                case ReadingCommand: {
-                    if (c == ' ') continue;
-                    command_ += c;
+                case ReadingCommand:
+                {
+                    if (c == ' ') {
+                        continue;
+                    }
+
+                    command.push_back(c);
                     break;
                 }
 
                 case ReadingVerbs:
                 {
-                    if (c == ' ') continue;
-                    if (c != ',') {
-                        verb_ += c;
-                    } else if (!verb_.empty()) {
-                        verbs_.push_back(verb_);
-                        help_map_.emplace(verb_, help_text_);
-                        help_text_.clear();
-                        verb_.clear();
+                    if (c == ' ') {
+                        continue;
                     }
+
+                    if (c != ',')
+                    {
+                        verb.push_back(c);
+                    }
+                    else if (!verb.empty())
+                    {
+                        verbs.push_back(verb);
+                        help_map.emplace(verb, help_text);
+
+                        help_text.clear();
+                        verb.clear();
+                    }
+
                     break;
                 }
 
-                case NoOperation: {
+                case NoOperation:
                     continue;
-                }
 
-                default: std::cerr << "Unparsed character: `" << std::dec << c << "'\n";
+                default:
+                    std::cerr
+                        << "Unparsed character: `"
+                        << std::dec
+                        << c
+                        << "'\n";
             }
         }
     }
@@ -203,21 +422,20 @@ namespace Readline
         return Readline::find(root, command_string);
     }
 
-    std::vector<std::string> commandTemplateTree_t::find_sub_commands(std::vector<std::string> command_string) const
+    std::vector<std::string> commandTemplateTree_t::find_sub_commands(const std::vector<std::string> & command_string_) const
     {
+        std::deque<std::string> command_string {command_string_.begin(), command_string_.end()};
         if (std::ranges::any_of(command_string, [](const std::string & v){ return v == "|"; }))
         {
-            std::ranges::reverse(command_string);
             while (!command_string.empty() && command_string.back() != "|") {
-                command_string.pop_back();
+                command_string.pop_front();
             }
-            std::ranges::reverse(command_string);
         }
 
-        const auto * node = Readline::find(root, command_string);
+        const auto * node = Readline::find(root, std::vector<std::string>{command_string.begin(), command_string.end()});
         std::vector < std::string > result;
         for (const auto & v : node->children_) {
-            result.push_back(v->name_);
+            if (v->valid_) result.push_back(v->name_);
         }
 
         return result;
@@ -287,7 +505,7 @@ namespace Readline
 
     commandTemplateTree_t command_template_tree = convert_from_raw();
 
-    std::vector < std::string > current_verbs;
+    static std::vector < std::string > current_verbs;
     static char * arg_generator(const char *text, const int state)
     {
         std::vector<std::string> arg2_verbs = current_verbs;
@@ -649,19 +867,6 @@ namespace Readline
         rl_replace_line("", 1);   // empty line + clear undo
         rl_on_new_line();
         rl_redisplay();
-    }
-
-    static std::string remove_leading_and_tailing_spaces(std::string text)
-    {
-        if (text.empty()) return text;
-        ccdb::utils::replace_all(text, "\t", "    ");
-        const auto pos = text.find_first_not_of(' ');
-        if (pos == std::string::npos) return text;
-        std::string middle = text.substr(pos);
-        while (!middle.empty() && middle.back() == ' ') {
-            middle.pop_back();
-        }
-        return middle;
     }
 
     void handle_sigint_event()

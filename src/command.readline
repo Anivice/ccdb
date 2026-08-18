@@ -41,9 +41,22 @@
                                         9   (Destination IP),
                                         10  (Type),
                                         11  (Chains),
-            >,
-            # shot            (Use pager and pull the active connections once),
+            >
         >,
+        < memory (Backend memory usage):
+            < info (Backend memory info): [NONE] >,
+            < pprof (%cmd.readline.d/get.memory.pprof.json%):
+                heap (Current living objects),
+                allocs (Allocation profile since start),
+                goroutine (Current goroutine stacks),
+                threadcreate (OS thread stacks),
+                block(Stack traces that led to blocking on synchronization primitives),
+                mutex(Stack traces of holders of contended mutexes),
+                profile (CPU profile),
+                trace (Execution trace),
+                cmdline, symbol
+            >
+        >
         logSize             (Log buffer size),
         mode                (Proxy mode),
         log                 (Active backend logs),
@@ -114,14 +127,14 @@
     < ccdbrc (Print an example version of the ~/.ccdbrc): [NONE] >,
     < [ALIAS]: [ALIAS_ARGUMENT...] >,
     < clearLogs (Clear logs in the cache): [NONE] >,
-    < exportColorScheme (Export the custom color scheme binary cache): [NONE] >,
+    < exportColorScheme (%cmd.readline.d/exportColorScheme.json%): [NONE] >,
     < restartContinuousUpdates (Restart background continuous update workers): [NONE] >,
     < upgrade (Upgrade backend): core (Upgrade core), geo (Upgrade geoip), self (Upgrade ccdb), providerRules (Upgrade provider rules) >,
     < restart (Restart backend): [NONE] >,
     < flush (Flush fake-ip cache): [NONE] >,
     < reload (Reload configuration): [NONE] >, # reload configuration, can be provided by `reload [PATH]`
-    < sendNotification (Send notification to all clients within the sync network): [NONE] >,
-    < chat (Launch a chat window to talk to other clients within the network): [NONE] >,
+    < sendNotification (%cmd.readline.d/sendNotification.json%): [NONE] >,
+    < chat (%cmd.readline.d/chat.json%): [NONE] >,
 }
 
 # $ ssh me@localhost
