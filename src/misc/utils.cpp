@@ -1656,7 +1656,8 @@ namespace
         if (ccdb::init_crash_report.crash_log_destination_literal)
         {
             write(STDERR_FILENO, message_head1, sizeof(message_head1) - 1); // clear
-            if (ccdb::init_crash_report.additional_prefix_literal) {
+            if (ccdb::init_crash_report.additional_prefix_literal)
+            {
                 write(STDERR_FILENO, ccdb::init_crash_report.additional_prefix_literal,
                     ccdb::init_crash_report.additional_prefix_size);
             }
@@ -1685,29 +1686,6 @@ namespace ccdb
 {
     init_crash_report_t::init_crash_report_t()
     {
-        const auto crash_dir = getenv("HOME") + "/" + ".cache/ccdb/";
-        if (!std::filesystem::exists(crash_dir)) {
-            std::filesystem::create_directories(crash_dir);
-        }
-
-        const auto now = std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
-        crash_log_destination = crash_dir + "crash_" + now + ".txt";
-        crash_log_destination_literal = crash_log_destination.c_str();
-        out_fd = open((const char*)crash_log_destination_literal, O_CREAT | O_TRUNC | O_WRONLY, 0600);
-        if (out_fd < 0) {
-            out_fd = STDERR_FILENO;
-            crash_log_destination_literal = nullptr;
-        } else {
-            crash_log_destination_literal_size = crash_log_destination.size();
-#ifdef __USE_IMG__
-            std::ostringstream ss;
-            show_img(ss, get_img(), 250, 250);
-            additional_prefix = ss.str();
-            additional_prefix_literal = additional_prefix.c_str();
-            additional_prefix_size = additional_prefix.size();
-#endif
-        }
-
         {
             struct sigaction sa {};
             sa.sa_sigaction = thread_dump_handler;
@@ -1732,11 +1710,42 @@ namespace ccdb
 
             for (const int sig : signals)
                 sigaction(sig, &sa, nullptr);
+
+            init_thread = std::thread([&]
+            {
+                const auto crash_dir = getenv("HOME") + "/" + ".cache/ccdb/";
+                if (!std::filesystem::exists(crash_dir)) {
+                    std::filesystem::create_directories(crash_dir);
+                }
+
+                const auto now = std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+                crash_log_destination = crash_dir + "crash_" + now + ".txt";
+                crash_log_destination_literal = crash_log_destination.c_str();
+                out_fd = open((const char*)crash_log_destination_literal, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+                if (out_fd < 0) {
+                    out_fd = STDERR_FILENO;
+                    crash_log_destination_literal = nullptr;
+                } else {
+                    crash_log_destination_literal_size = crash_log_destination.size();
+#ifdef __USE_IMG__
+                    std::ostringstream ss;
+                    show_img(ss, get_img(), 250, 250);
+                    additional_prefix = ss.str();
+                    additional_prefix_literal = additional_prefix.c_str();
+                    additional_prefix_size = additional_prefix.size();
+#endif
+                }
+            });
+
+            if (getenv("CCDB_DISABLE_PARALLEL_INIT") == "true") {
+                init_thread.join();
+            }
         }
     }
 
     init_crash_report_t::~init_crash_report_t()
     {
+        if (init_thread.joinable()) init_thread.join();
         if (out_fd != STDERR_FILENO) close(out_fd);
         if (std::filesystem::exists(crash_log_destination)) {
             std::filesystem::remove(crash_log_destination);

@@ -732,6 +732,7 @@ namespace ccdb
     private:
         std::string crash_log_destination;
         std::string additional_prefix;
+        std::thread init_thread;
 
     public:
         struct flatSymbolicTable_t

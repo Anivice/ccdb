@@ -201,80 +201,92 @@ int main(int argc, char ** argv)
 #ifdef ENABLE_CRASH_CATCHER
         const bool feedBacktrace = parsed.contains("feedBacktrace");
 
+        std::thread load_backtrace;
         if (parsed.contains("backtrace"))
         {
-            // load symbol tables
-            const auto path = parsed.at("backtrace");
-            void* handle = dlopen(path.c_str(), RTLD_LAZY);
-            if (!handle) {
-                utils::print<utils::is_error>("dlopen failed: ", dlerror(), "\n");
-                return EXIT_FAILURE;
-            }
-
-            dlerror();
-            const auto* data_ptr = static_cast<unsigned char*>(dlsym(handle, "debugInfo"));
-            const char* error = dlerror();
-            if (error) {
-                utils::print<utils::is_error>("dlsym (my_data) failed: ", dlerror(), "\n");
-                dlclose(handle);
-                return EXIT_FAILURE;
-            }
-
-            const auto* len_ptr = static_cast<unsigned int*>(dlsym(handle, "debugInfo_len"));
-            error = dlerror();
-            if (error) {
-                utils::print<utils::is_error>("dlsym (my_data_len) failed: ", dlerror(), "\n");
-                dlclose(handle);
-                return EXIT_FAILURE;
-            }
-
-            std::string objdump_raw;
+            load_backtrace = std::thread([&]->void
             {
-                std::vector<uint8_t> compressed_symbol_table;
-                compressed_symbol_table.resize(*len_ptr);
-                std::memcpy(compressed_symbol_table.data(), data_ptr, compressed_symbol_table.size());
-                const auto decompressed_symbol_table_objdump = utils::decompress(compressed_symbol_table);
-                objdump_raw.resize(decompressed_symbol_table_objdump.size());
-                std::memcpy(objdump_raw.data(), decompressed_symbol_table_objdump.data(),
-                    decompressed_symbol_table_objdump.size());
-            }
-
-            std::istringstream ss(objdump_raw);
-            std::deque <std::pair<uint64_t, std::string>> symbol_table;
-            {
-                objdump_raw.clear();
-                //                  [addr         ][         ][l][          ][df][        ][*ABS*][      ][size          ][        ]
-                // std::regex lr(R"(([0-9|A-Z|a-z]+)\s(?:\s+)?(\w+)\s(?:\s+)?(\w+)\s(?:\s+)?(.*)\s(?:\s+)?([0-9|A-Z|a-z]+)\s(?:\s+)?([\w|.]+)(?:\s+)?)");
-                std::string line;
-                while (std::getline(ss, line))
-                {
-                    std::istringstream inSS(line);
-                    std::string sym_addr, _2, _3, _4, _5, symbol;
-                    inSS >> sym_addr >> _2 >> _3 >> _4 >> _5 >> symbol;
-                    if (sym_addr.empty() || symbol.empty()) continue; // not valid, skip
-                    const auto sym_addr_uint64 = std::strtoul(sym_addr.c_str(), nullptr, 16);
-                    symbol_table.emplace_back(sym_addr_uint64, symbol);
-                    if (symbol == "landmark") ccdb::init_crash_report.landmark_addr_in_symbol_map = sym_addr_uint64;
+                // load symbol tables
+                const auto path = parsed.at("backtrace");
+                void* handle = dlopen(path.c_str(), RTLD_LAZY);
+                if (!handle) {
+                    utils::print<utils::is_error>("dlopen failed: ", dlerror(), "\n");
+                    exit(EXIT_FAILURE);
                 }
-            }
 
-            if (!quiet && !parsed.contains("execute"))
-                utils::print("Loaded ", symbol_table.size(), " symbols from the symbolic file.\n");
-            std::ranges::sort(symbol_table, [](const auto & a, const auto & b) { return a.first < b.first; });
+                dlerror();
+                const auto* data_ptr = static_cast<unsigned char*>(dlsym(handle, "debugInfo"));
+                const char* error = dlerror();
+                if (error) {
+                    utils::print<utils::is_error>("dlsym (my_data) failed: ", dlerror(), "\n");
+                    dlclose(handle);
+                    exit(EXIT_FAILURE);
+                }
 
-            ccdb::init_crash_report.flatSymbolicTable.reserve(symbol_table.size());
-            for (const auto & [val, symbol] : symbol_table)
-            {
-                ccdb::init_crash_report_t::flatSymbolicTable_t table_entry{};
-                table_entry.symval = val;
-                std::memcpy(table_entry.name, symbol.data(), std::min(symbol.size(),
-                    static_cast<decltype(symbol.size())>(sizeof(table_entry.name) - 1)));
-                ccdb::init_crash_report.flatSymbolicTable.emplace_back(table_entry);
+                const auto* len_ptr = static_cast<unsigned int*>(dlsym(handle, "debugInfo_len"));
+                error = dlerror();
+                if (error) {
+                    utils::print<utils::is_error>("dlsym (my_data_len) failed: ", dlerror(), "\n");
+                    dlclose(handle);
+                    exit(EXIT_FAILURE);
+                }
+
+                std::string objdump_raw;
+                {
+                    std::vector<uint8_t> compressed_symbol_table;
+                    compressed_symbol_table.resize(*len_ptr);
+                    std::memcpy(compressed_symbol_table.data(), data_ptr, compressed_symbol_table.size());
+                    const auto decompressed_symbol_table_objdump = utils::decompress(compressed_symbol_table);
+                    objdump_raw.resize(decompressed_symbol_table_objdump.size());
+                    std::memcpy(objdump_raw.data(), decompressed_symbol_table_objdump.data(),
+                        decompressed_symbol_table_objdump.size());
+                }
+
+                std::istringstream ss(objdump_raw);
+                std::deque <std::pair<uint64_t, std::string>> symbol_table;
+                {
+                    objdump_raw.clear();
+                    //                  [addr         ][         ][l][          ][df][        ][*ABS*][      ][size          ][        ]
+                    // std::regex lr(R"(([0-9|A-Z|a-z]+)\s(?:\s+)?(\w+)\s(?:\s+)?(\w+)\s(?:\s+)?(.*)\s(?:\s+)?([0-9|A-Z|a-z]+)\s(?:\s+)?([\w|.]+)(?:\s+)?)");
+                    std::string line;
+                    while (std::getline(ss, line))
+                    {
+                        std::istringstream inSS(line);
+                        std::string sym_addr, _2, _3, _4, _5, symbol;
+                        inSS >> sym_addr >> _2 >> _3 >> _4 >> _5 >> symbol;
+                        if (sym_addr.empty() || symbol.empty()) continue; // not valid, skip
+                        const auto sym_addr_uint64 = std::strtoul(sym_addr.c_str(), nullptr, 16);
+                        symbol_table.emplace_back(sym_addr_uint64, symbol);
+                        if (symbol == "landmark") ccdb::init_crash_report.landmark_addr_in_symbol_map = sym_addr_uint64;
+                    }
+                }
+
+                if (!quiet && !parsed.contains("execute"))
+                    utils::print("Loaded ", symbol_table.size(), " symbols from the symbolic file.\n");
+                std::ranges::sort(symbol_table, [](const auto & a, const auto & b) { return a.first < b.first; });
+
+                ccdb::init_crash_report.flatSymbolicTable.reserve(symbol_table.size());
+                for (const auto & [val, symbol] : symbol_table)
+                {
+                    ccdb::init_crash_report_t::flatSymbolicTable_t table_entry{};
+                    table_entry.symval = val;
+                    std::memcpy(table_entry.name, symbol.data(), std::min(symbol.size(),
+                        static_cast<decltype(symbol.size())>(sizeof(table_entry.name) - 1)));
+                    ccdb::init_crash_report.flatSymbolicTable.emplace_back(table_entry);
+                }
+
+                ccdb::init_crash_report.flatSymbolicTable_literal = ccdb::init_crash_report.flatSymbolicTable.data();
+                ccdb::init_crash_report.flatSymbolicTable_Size_literal = ccdb::init_crash_report.flatSymbolicTable.size();
+            });
+
+            if (getenv("CCDB_DISABLE_PARALLEL_INIT") == "true") {
+                load_backtrace.join();
             }
         }
 
         if (feedBacktrace)
         {
+            if (load_backtrace.joinable()) load_backtrace.join();
             if (ccdb::init_crash_report.flatSymbolicTable.empty() ||
                 ccdb::init_crash_report.landmark_addr_in_symbol_map == UINT64_MAX)
             {
@@ -487,6 +499,8 @@ int main(int argc, char ** argv)
         } else {
             ccdb::ccdb ccdb(backend, token, latency_url, !parsed.contains("no-fast-quit"));
         }
+
+        if (load_backtrace.joinable()) load_backtrace.join();
     }
     catch (std::exception &e)
     {
