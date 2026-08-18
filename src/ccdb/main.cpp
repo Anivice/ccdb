@@ -279,8 +279,8 @@ int main(int argc, char ** argv)
                 ccdb::init_crash_report.flatSymbolicTable_Size_literal = ccdb::init_crash_report.flatSymbolicTable.size();
             });
 
-            if (getenv("CCDB_DISABLE_PARALLEL_INIT") == "true") {
-                load_backtrace.join();
+            if (utils::getenv("CCDB_DISABLE_PARALLEL_INIT") == "true") {
+                if (load_backtrace.joinable()) load_backtrace.join();
             }
         }
 

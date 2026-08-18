@@ -529,7 +529,7 @@ find_program(OBJDUMP_EXEC NAMES objdump)
 find_program(SORT_EXEC NAMES sort)
 add_custom_command(
         OUTPUT ${CMAKE_BINARY_DIR}/ccdb.debug_info.txt
-        COMMAND /bin/sh -c "${OBJDUMP_EXEC} -Tt ${CMAKE_BINARY_DIR}/ccdb > ${CMAKE_BINARY_DIR}/ccdb.debug_info.txt"
+        COMMAND /bin/sh -c "${OBJDUMP_EXEC} -Tt ${CMAKE_BINARY_DIR}/ccdb | grep .text > ${CMAKE_BINARY_DIR}/ccdb.debug_info.txt"
         COMMENT "Generating object tracer..."
         DEPENDS ccdb
         VERBATIM

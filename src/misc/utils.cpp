@@ -1518,17 +1518,16 @@ namespace
             if (unw_get_reg(&cursor, UNW_REG_IP, &ip) < 0)
                 break;
 
+            print16(static_cast<uint64_t>(ip), out_fd);
             if (symbol_table) {
                 if (const char * literal = ccdb::GetBacktrace(symbol_table, symbol_table_size, static_cast<int64_t>(ip) - offset);
                     literal != nullptr)
                 {
-                    print16(static_cast<uint64_t>(ip), out_fd);
                     write_literal(" #", 2);
                     write_literal(literal, strlen(literal));
                 }
-            } else {
-                print16(static_cast<uint64_t>(ip), out_fd);
             }
+
             write_literal("\n", 1);
 
             if (const int ret = unw_step(&cursor); ret <= 0)
