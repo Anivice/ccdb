@@ -546,8 +546,9 @@ generate_from_resource_file(textDebugInfo
 
 add_custom_command(
 	OUTPUT empty.c
-	COMMAND touch empty.c
+	COMMAND cp ccdb.debug_info.c empty.c
 	VERBATIM
+	DEPENDS ccdb.debug_info.c
 )
 
 add_library(debugInfo SHARED empty.c)

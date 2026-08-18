@@ -148,6 +148,15 @@ namespace
         };
         return (status == 0) ? res.get() : name;
     }
+
+    std::thread load_backtrace;
+    class autojoin {
+    public:
+        ~autojoin() {
+            if (load_backtrace.joinable()) 
+                load_backtrace.join();
+        }
+    } join;
 }
 
 int main(int argc, char ** argv)
@@ -201,7 +210,6 @@ int main(int argc, char ** argv)
 #ifdef ENABLE_CRASH_CATCHER
         const bool feedBacktrace = parsed.contains("feedBacktrace");
 
-        std::thread load_backtrace;
         if (parsed.contains("backtrace"))
         {
             load_backtrace = std::thread([&]->void
@@ -218,7 +226,7 @@ int main(int argc, char ** argv)
                 const auto* data_ptr = static_cast<unsigned char*>(dlsym(handle, "debugInfo"));
                 const char* error = dlerror();
                 if (error) {
-                    utils::print<utils::is_error>("dlsym (my_data) failed: ", dlerror(), "\n");
+                    utils::print<utils::is_error>("dlsym (debugInfo) failed: ", dlerror(), "\n");
                     dlclose(handle);
                     exit(EXIT_FAILURE);
                 }
@@ -226,7 +234,7 @@ int main(int argc, char ** argv)
                 const auto* len_ptr = static_cast<unsigned int*>(dlsym(handle, "debugInfo_len"));
                 error = dlerror();
                 if (error) {
-                    utils::print<utils::is_error>("dlsym (my_data_len) failed: ", dlerror(), "\n");
+                    utils::print<utils::is_error>("dlsym (debugIngo_lem) failed: ", dlerror(), "\n");
                     dlclose(handle);
                     exit(EXIT_FAILURE);
                 }
@@ -499,8 +507,6 @@ int main(int argc, char ** argv)
         } else {
             ccdb::ccdb ccdb(backend, token, latency_url, !parsed.contains("no-fast-quit"));
         }
-
-        if (load_backtrace.joinable()) load_backtrace.join();
     }
     catch (std::exception &e)
     {

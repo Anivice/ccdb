@@ -1677,6 +1677,7 @@ namespace
         write_literal(landmark_msg, sizeof(landmark_msg) - 1);
         print16(reinterpret_cast<uint64_t>(&landmark), out_fd);
         write_literal("\n", 1);
+        close(out_fd);
         _exit(128 + sig);
     }
 }
