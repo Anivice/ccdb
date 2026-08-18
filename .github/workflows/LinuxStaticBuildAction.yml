@@ -65,7 +65,7 @@ jobs:
 
       - name: Pack
         run: |
-          bash -c 'set -euo pipefail; for arch in x86_64 i686 i586 aarch64 armv7 armv7hf; do cp build_$arch/ccdb.debug_info ccdb.$arch.debug_info && cp build_$arch/libdebugInfo.so libdebugInfo.$arch.so && cp build_$arch/ccdb ccdb.$arch; done'
+          bash -c 'set -euo pipefail; for arch in x86_64 i686 i586 aarch64 armv7 armv7hf; do cp build_$arch/libccdb.debug_info.so libccdb.$arch.debug_info.so && cp build_$arch/libccdb.so libccdb.$arch.so && cp build_$arch/ccdb ccdb.$arch; done'
 
       - name: Compute tag
         if: ${{ github.event_name != 'pull_request' }}
