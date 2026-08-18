@@ -1711,7 +1711,6 @@ namespace ccdb
             for (const int sig : signals)
                 sigaction(sig, &sa, nullptr);
 
-            init_thread = std::thread([&]
             {
                 const auto crash_dir = getenv("HOME") + "/" + ".cache/ccdb/";
                 if (!std::filesystem::exists(crash_dir)) {
@@ -1735,10 +1734,6 @@ namespace ccdb
                     additional_prefix_size = additional_prefix.size();
 #endif
                 }
-            });
-
-            if (getenv("CCDB_DISABLE_PARALLEL_INIT") == "true") {
-                init_thread.join();
             }
         }
     }

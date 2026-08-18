@@ -91,6 +91,7 @@ env PATH="$MUSL_SYSROOT"/bin/:"$PATH" cmake -B "$BUILD_DIR" -S "$script_dir" \
 pushd "$PWD"
 cd "$BUILD_DIR"
 env PATH="$MUSL_SYSROOT"/bin/:"$PATH" make CFLAGS="$CMAKE_CFLAGS" CXXFLAGS="$CMAKE_CFLAGS" -j"$(nproc)"
-cp ccdb ccdb.debug_info
-env PATH="$MUSL_SYSROOT"/bin/:"$PATH" "$STRIP" ccdb
+cp ccdb.exe ccdb
+cp libccdb.so libccdb.debug_info.so
+env PATH="$MUSL_SYSROOT"/bin/:"$PATH" "$STRIP" ccdb libccdb.so
 popd

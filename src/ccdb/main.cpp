@@ -42,6 +42,9 @@
 #include "Readline.h"
 #include "versions.h"
 
+extern unsigned char debugInfo[] ;
+extern unsigned int debugInfo_len ;
+
 namespace utils = ccdb::utils;
 
 namespace
@@ -64,7 +67,7 @@ namespace
         { .short_name = -1,  .long_name = "use-color-scheme", .argument_required = true, .description = utils::get_text("Specify a color scheme: legacy, distinct, continuous. Default is `distinct`") },
         { .short_name = 'Q', .long_name = "quiet", .argument_required = false, .description = utils::get_text("No banner or version info on start") },
 #ifdef ENABLE_CRASH_CATCHER
-        { .short_name = -1,  .long_name = "backtrace", .argument_required = true, .description = utils::get_text("Load symbol table for CCDB") },
+        { .short_name = -1,  .long_name = "backtrace", .argument_required = false, .description = utils::get_text("Load symbol table for CCDB") },
         { .short_name = -1,  .long_name = "feedBacktrace", .argument_required = false, .description = utils::get_text("Print a symbol trace from CCDB crash report, requires `--backtrace`") },
 #endif //ENABLE_CRASH_CATCHER
     };
@@ -148,18 +151,9 @@ namespace
         };
         return (status == 0) ? res.get() : name;
     }
-
-    std::thread load_backtrace;
-    class autojoin {
-    public:
-        ~autojoin() {
-            if (load_backtrace.joinable()) 
-                load_backtrace.join();
-        }
-    } join;
 }
 
-int main(int argc, char ** argv)
+int main_(int argc, char ** argv)
 {
     try
     {
@@ -212,39 +206,11 @@ int main(int argc, char ** argv)
 
         if (parsed.contains("backtrace"))
         {
-            load_backtrace = std::thread([&]->void
             {
                 // load symbol tables
-                const auto path = parsed.at("backtrace");
-                void* handle = dlopen(path.c_str(), RTLD_LAZY);
-                if (!handle) {
-                    utils::print<utils::is_error>("dlopen failed: ", dlerror(), "\n");
-                    exit(EXIT_FAILURE);
-                }
-
-                dlerror();
-                const auto* data_ptr = static_cast<unsigned char*>(dlsym(handle, "debugInfo"));
-                const char* error = dlerror();
-                if (error) {
-                    utils::print<utils::is_error>("dlsym (debugInfo) failed: ", dlerror(), "\n");
-                    dlclose(handle);
-                    exit(EXIT_FAILURE);
-                }
-
-                const auto* len_ptr = static_cast<unsigned int*>(dlsym(handle, "debugInfo_len"));
-                error = dlerror();
-                if (error) {
-                    utils::print<utils::is_error>("dlsym (debugIngo_lem) failed: ", dlerror(), "\n");
-                    dlclose(handle);
-                    exit(EXIT_FAILURE);
-                }
-
                 std::string objdump_raw;
                 {
-                    std::vector<uint8_t> compressed_symbol_table;
-                    compressed_symbol_table.resize(*len_ptr);
-                    std::memcpy(compressed_symbol_table.data(), data_ptr, compressed_symbol_table.size());
-                    const auto decompressed_symbol_table_objdump = utils::decompress(compressed_symbol_table);
+                    const auto decompressed_symbol_table_objdump = utils::decompress({debugInfo, debugInfo + debugInfo_len});
                     objdump_raw.resize(decompressed_symbol_table_objdump.size());
                     std::memcpy(objdump_raw.data(), decompressed_symbol_table_objdump.data(),
                         decompressed_symbol_table_objdump.size());
@@ -260,8 +226,8 @@ int main(int argc, char ** argv)
                     while (std::getline(ss, line))
                     {
                         std::istringstream inSS(line);
-                        std::string sym_addr, _2, _3, _4, _5, symbol;
-                        inSS >> sym_addr >> _2 >> _3 >> _4 >> _5 >> symbol;
+                        std::string sym_addr, symbol;
+                        inSS >> sym_addr >> symbol;
                         if (sym_addr.empty() || symbol.empty()) continue; // not valid, skip
                         const auto sym_addr_uint64 = std::strtoul(sym_addr.c_str(), nullptr, 16);
                         symbol_table.emplace_back(sym_addr_uint64, symbol);
@@ -285,16 +251,11 @@ int main(int argc, char ** argv)
 
                 ccdb::init_crash_report.flatSymbolicTable_literal = ccdb::init_crash_report.flatSymbolicTable.data();
                 ccdb::init_crash_report.flatSymbolicTable_Size_literal = ccdb::init_crash_report.flatSymbolicTable.size();
-            });
-
-            if (utils::getenv("CCDB_DISABLE_PARALLEL_INIT") == "true") {
-                if (load_backtrace.joinable()) load_backtrace.join();
-            }
+            };
         }
 
         if (feedBacktrace)
         {
-            if (load_backtrace.joinable()) load_backtrace.join();
             if (ccdb::init_crash_report.flatSymbolicTable.empty() ||
                 ccdb::init_crash_report.landmark_addr_in_symbol_map == UINT64_MAX)
             {
