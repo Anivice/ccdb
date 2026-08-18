@@ -449,10 +449,11 @@ namespace ccdb::utils
         }
 #endif
 
-        std::optional < Value > get_cache(const Key & key)
+        std::optional < Value > get_cache(const Key & key, const bool lock = true)
         {
             if (!do_i_use_cache) return std::nullopt;
-            std::lock_guard<std::mutex> lock_guard(mtx_);
+            std::unique_ptr<std::lock_guard<std::mutex>> lock_guard;
+            if (lock) lock_guard = std::make_unique<std::lock_guard<std::mutex>>(mtx_);
 #ifdef __DEBUG__
             ++access_;
 #endif
@@ -482,10 +483,11 @@ namespace ccdb::utils
             return std::nullopt;
         }
 
-        void emplace_cache(const Key & key, const Value & value)
+        void emplace_cache(const Key & key, const Value & value, const bool lock = true)
         {
             if (!do_i_use_cache) return;
-            std::lock_guard<std::mutex> lock_guard(mtx_);
+            std::unique_ptr<std::lock_guard<std::mutex>> lock_guard;
+            if (lock) lock_guard = std::make_unique<std::lock_guard<std::mutex>>(mtx_);
             if (
     #ifdef __DEBUG__
                 cache_hits_.size() > cache_size_ * 1.5

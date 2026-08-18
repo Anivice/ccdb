@@ -587,7 +587,7 @@ void ccdb::ccdb::nload(
 
             const auto subinfo = update_subinfo(subinfo_ball, threads);
             const auto msg = sprint("* P: On this page, O: Overall", ", ", "-: Direct, x: Proxied", ", ",
-                "Backend memory usage: ", value_to_size(backend_instance.current_memory_in_use_by_mihomo), ", "
+                "Backend memory usage: ", value_to_size(backend_instance.current_memory_in_use_by_mihomo.load(std::memory_order_relaxed)), ", "
                 "Frontend memory usage: ", value_to_size(cur_mem_size()),
                 subinfo.empty() ? "" : ", " + subinfo);
             const int msg_width = UnicodeDisplayWidth::get_width_utf8(msg);

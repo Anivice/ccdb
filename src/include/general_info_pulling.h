@@ -336,8 +336,10 @@ public:
     void clearLogs() { std::lock_guard lock(logs_mutex); logs.clear(); }
 
     std::atomic < uint64_t > current_memory_in_use_by_mihomo = 0;
-    std::atomic < uint64_t > current_memory_limit_by_mihomo = 0;
+    // std::atomic < uint64_t > current_memory_limit_by_mihomo = 0;
     ccdb::NotificationType<std::string> chat;
+
+    void get_memory_pprof(const std::string & name, std::vector < char > & profiles);
 };
 
 #endif //SRC_GENERAL_INFO_PULLING_H

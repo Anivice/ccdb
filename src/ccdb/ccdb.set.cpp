@@ -127,6 +127,8 @@ void ccdb::ccdb::set_log_level(const std::vector<std::string> &command_vector)
         { "loglevel", command_vector[2] }
     };
     backend_instance.sendNotification(json);
+    backend_instance.stop_continuous_updates();
+    backend_instance.start_continuous_updates();
 }
 
 void ccdb::ccdb::set_sort_by(const std::vector<std::string> &command_vector)

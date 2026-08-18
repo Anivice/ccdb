@@ -637,10 +637,10 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
     watcher_.stop();
     print("\n\n", "Wait...\n", "Press Ctrl+C (^C) to end immediately.\n");
     wait_thread(child_workers);
-    if (const char* clear = capstr("clear")) {
-        std::cout.write(clear, static_cast<std::streamsize>(strlen(clear)));
-        std::cout.flush();
-    }
+    // if (const char* clear = capstr("clear")) {
+        // std::cout.write(clear, static_cast<std::streamsize>(strlen(clear)));
+        // std::cout.flush();
+    // }
 }
 
 #endif

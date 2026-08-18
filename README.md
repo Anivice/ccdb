@@ -57,88 +57,12 @@ CCDB depends on the following open-source libraries:
  - [stb_image - v2.30 - public domain image loader](http://nothings.org/stb)
  - CImg 3.7.5 (Embedded)
  - libtiv - Copyright © 2017-2023, Stefan Haustein, Aaron Liu (Embedded)
-
-## Features
-
-### CCDB provides
-
- - Immediately close all connections
- - Watch currently active connections
- - nload-like traffic updates 
- - Switch the proxy mode (between "direct", "global", and "rule")
- - Watch Mihomo backend logs
- - Test latencies
- - Pull Subscription usage info (You have to specify the subscription link in `~/.ccdbrc`)
- - Unicode proxy name handling (experimental)
- - Switch proxies in a pure console using numeric indices
- - SSL Parsing for clash subscription links for metric usage info
- - Shell parsing of `ccdb` command output
-
-> **Additional notes for numeric indices**:
-> **The console needs to be able to actually show Unicode characters**,
-> **otherwise** you might see placeholder glyphs, which makes the indices impossible to match to names.
-> There are many ways to achieve this,
-> but the simplest is using a bare-metal X display server like Xorg or XLibre paird with a terminal like Konsole.
+ - [Abseil - C++ Common Libraries 20260526.0](https://github.com/abseil/abseil-cpp/) (Embedded, required by RE2)
+ - [RE2, a regular expression library 2025-11-05](https://github.com/google/re2) (Embedded)
 
 ## Usage
 
 Use `help` command to see usage details.
-
-Syntax:
-
-```bash
-ccdb [Arguments [OPTIONS...]...]
-    -h,--help                Show help
-    -v,--version             Show version
-    -V,--version-license     Show version along with LICENSE
-    -u,--url [ARG]           Backend url, usually http://localhost:9090
-    -x,--execute [ARG]       Execute a CCDB command
-    -t,--token [ARG]         Backend HTTP auth password
-    -l,--latency_url [ARG]   Latency URL
-    --subinfo                Get subinfo
-    --subinfo_url [ARG]      Specify subscription URL (only for --subinfo)
-    --report-issue           File a BUG report
-    --no-fast-quit           No fast quit when Readline finishes
-```
-
-**Frequently Used Commands**:
-
-```bash
-...
-get connections                 : Pull Active connections
-closeConnections                : Close all connections
-nload                           : nload-like connection speed monitoring
-set mode [global, rule, direct] : Change proxy mode
-set vgroup [VGROUP] [VPROXY]    : Change endpoints in a proxy group using index
-mapProxyChain                   : Map out current proxy chain
-...
-```
-
-**Environment**:
-
-| Environment Variable                      | Descriptions                                                                                                                                                                                                                                                                                                                                                              |
-|-------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `PAGER`                                   | Specify a pager. Pager availability check is ignored when this environmental variable is set                                                                                                                                                                                                                                                                              |
-| `NOPAGER`                                 | Set this to 'y' and force ccdb to ignore pager                                                                                                                                                                                                                                                                                                                            |
-| `COLOR`                                   | Set it to `never` to disable color codes                                                                                                                                                                                                                                                                                                                                  |
-| `JQ`                                      | Set JSON parser, default is `jq`, if available                                                                                                                                                                                                                                                                                                                            |
-| `TABSIZE`                                 | Set tab size when printing tables, default is 4                                                                                                                                                                                                                                                                                                                           |
-| `REVERSE_MOUSE`                           | Reverse mouse scrolling direction when set to `true`                                                                                                                                                                                                                                                                                                                      |
-| `NO_0xFE0F_EXPAND_EMOJI`                  | Fix Unicode processing issues for emoji space expand code, e.g., "✈" and "✈️". If you cannot notice any differences of the above emojis, or there's wierd Unicode processing bugs in your terminal, you might want to set this to `true`.                                                                                                                                 |
-| `DISABLE_SERVER_CERTIFICATE_VERIFICATION` | TLS is enabled by default when URLs use HTTPS. Set this to `true` to skip server SSL certificate check (insecure).                                                                                                                                                                                                                                                        |
-| `SSL_CERTIFICATE`                         | When URLs are https, specify an SSL certificate location.                                                                                                                                                                                                                                                                                                                 |
-| `NOCOREDUMPCHECK`                         | Disable CCDB crash info gathering on start up                                                                                                                                                                                                                                                                                                                             |
-| `NO_HIGHLIGHTER_LINE_COLOR_CODE`          | Even when setting `COLOR` to `n`, highlight line still has color codes to retain its basic function in `get connections`. `COLOR=n` is essentially a way to turn terminal into monocolor. If you want to disable color codes completely, including highlight lines, set `NO_HIGHLIGHTER_LINE_COLOR_CODE` to `true`. Note that this will make highlighted lines invisible. |
-
-**Keyboard Shortcuts**:
-
-  - `get connections`: Get connections has multiple keyboard shortcuts:
-      * Mouse Click/Ctrl+UP/DOWN: Move highlight
-      * K: Kill the highlighted connection
-      * P: Print raw JSON from Mihomo core. If `jq` can be found, JSON will be parsed by jq
-      * F1-F12: Specify which column (0-11) to sort the table, press on the same column again to reverse the sort
-      * Ctrl+C: Abort the watcher
-      * /: Search and highlight
 
 Press Tab twice to list candidates in a command,
 this will list all the available candidates like proxy endpoints or groups,
@@ -210,7 +134,6 @@ as is shown in the following image.
 ### Example 3: Shell Parsing of `get config`
 
 CCDB supports shell parsing of its own command outputs.
-Unlike shells, "|" has to be surrounded by spaces, i.e., ` | ` (`[SPACE]|[SPACE]`).
 This can be useful for commands like `get config` to parse JSON on external utilities like `jq`.
 For example, you can select `dns-hijack` from the JSON reply from backend using 
 `get config | jq -r '.tun["dns-hijack"]'`:

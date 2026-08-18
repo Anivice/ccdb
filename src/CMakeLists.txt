@@ -337,6 +337,10 @@ ExternalProject_Add(TAR
 generate_from_resource_file(tar.exe "${CMAKE_BINARY_DIR}/tar/install/bin/tar" tar.cpp tar.h tar_exe false)
 add_dependencies(tar.exe TAR)
 
+set(RE2_INSTALL OFF CACHE BOOL "Disable re2 installation" FORCE)
+add_subdirectory(NonCMake/abseil-cpp-20260526.0)
+add_subdirectory(NonCMake/re2-2025-11-05)
+
 # CCDB
 add_executable(ccdb
         misc/Readline.cpp               include/Readline.h
@@ -374,7 +378,9 @@ target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAK
 target_compile_definitions(ccdb PRIVATE CCDB_VERSION="${CCDB_VERSION}" CPPHTTPLIB_OPENSSL_SUPPORT)
 target_link_libraries(ccdb PRIVATE
         AddiHelp langJSON commandReadline LICENSE Zterminfotar tar.exe ccdbrc
-        openssl::openssl libpsl::libpsl)
+        openssl::openssl libpsl::libpsl
+        re2::re2
+)
 add_dependencies(ccdb OPENSSL compress LIBPSL)
 target_compile_options(ccdb PRIVATE -fno-omit-frame-pointer -g3 -gdwarf-4 -fstack-protector-all)
 

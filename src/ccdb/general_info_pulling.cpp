@@ -1128,9 +1128,9 @@ void general_info_pulling::update_from_memory(const std::string& info)
     {
         const auto json = json::parse(info);
         const auto& inuse = json["inuse"];
-        const auto& oslimit = json["oslimit"];
-        current_memory_in_use_by_mihomo = inuse;
-        current_memory_limit_by_mihomo = oslimit;
+        // const auto& oslimit = json["oslimit"];
+        current_memory_in_use_by_mihomo.store(inuse, std::memory_order_relaxed);
+        // current_memory_limit_by_mihomo = oslimit;
     } catch (...) { }
 }
 
@@ -1507,6 +1507,15 @@ bool general_info_pulling::modify_config_int(const std::string &entry, const uin
 {
     const std::string json = "{\"" + entry + "\": " + std::to_string(val) +  "}";
     return modify_config(json);
+}
+
+void general_info_pulling::get_memory_pprof(const std::string& name, std::vector<char>& profiles)
+{
+    backend_client.get_info_no_instance("debug/pprof/" + name + "?debug=1", [&](const std::string & info)
+    {
+        profiles.resize(info.size());
+        std::memcpy(profiles.data(), info.data(), info.size());
+    });
 }
 
 std::string general_info_pulling::get_config() const

@@ -34,6 +34,8 @@
 #include "tsl/hopscotch_map.h"
 #include "utils.h"
 #include "print.h"
+#include "re2/re2.h"
+#include "re2/set.h"
 
 namespace ccdb
 {
@@ -99,6 +101,45 @@ namespace ccdb
     class ccdb
     {
     private:
+        template<typename T> struct function_return_type;
+
+        template<typename R, typename... Args>
+        struct function_return_type<std::function<R(Args...)>> {
+            using type = R;
+        };
+
+        template<typename T> using function_return_type_t = function_return_type<T>::type;
+
+        template <typename handler_t, typename returnType = function_return_type_t<handler_t> >
+        class RegexDispatcher
+        {
+        public:
+            RegexDispatcher(): regex_set_(RE2::Options{}, RE2::ANCHOR_BOTH) {}
+            bool add(const std::string& pattern, const handler_t & handler_)
+            {
+                std::string error;
+                const int id = regex_set_.Add(pattern, &error);
+                if (id < 0) return false;
+                handlers_.push_back(std::move(handler_));
+                return true;
+            }
+
+            bool compile() { return regex_set_.Compile(); }
+
+            template<typename... Args>
+            returnType dispatch(const std::string & input, const Args& ...args)
+            {
+                std::vector<int> matches;
+                if (!regex_set_.Match(input, &matches)) throw std::invalid_argument("Command not found");
+                const int id = *std::ranges::min_element(matches);
+                return handlers_[id](args...);
+            }
+
+        private:
+            RE2::Set regex_set_;
+            std::vector<handler_t> handlers_;
+        };
+
         const bool experimental_features = utils::getenv("CCDB_ENABLE_EXPERIMENTAL_FEATURES") == "true";
         general_info_pulling backend_instance; // backend instance
 
@@ -149,7 +190,8 @@ namespace ccdb
         int external_puller_command_time_out_ms = 10000;
         std::deque < std::vector<std::string> > logPullerNoFilter;
         enum log_level_t : uint8_t { ERROR = 1, DEBUG, WARNING, };
-        // tsl::hopscotch_map < std::string, log_level_t > logStatusSignsCache;
+        using handler_t = std::function<bool(const std::vector<std::string> &)>;
+        RegexDispatcher<handler_t> commandMatchesRegexCompiled;
 
         bool execute_and_no_interactive = false;
         std::atomic_bool reverse_mouse;

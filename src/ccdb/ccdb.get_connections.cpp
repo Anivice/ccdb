@@ -437,7 +437,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     append_msg("   ");
                     append_msg(sprint("Download speed: ") + value_to_speed(backend_instance.get_current_download_speed()));
                     append_msg("   ");
-                    append_msg(sprint("Backend memory usage: ") + value_to_size(backend_instance.current_memory_in_use_by_mihomo));
+                    append_msg(sprint("Backend memory usage: ") + value_to_size(backend_instance.current_memory_in_use_by_mihomo.load(std::memory_order_relaxed)));
                     append_msg("   ");
                     append_msg(sprint("Frontend memory usage: ") + value_to_size(cur_mem_size()));
                     append_msg("   ");

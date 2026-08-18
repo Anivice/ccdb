@@ -319,7 +319,7 @@ void ccdb::ccdb::init()
         if (ccdb_config && ccdb_config->config_signal_hash_map.contains(flag_definition))
         {
             const auto & result = ccdb_config->config_signal_hash_map.at(flag_definition);
-            const auto num = convertToNumber<uint64_t>(result);
+            const auto num = convertToNumber<int64_t>(result);
             if (!sanity_check(num)) {
                 throw std::invalid_argument("Sanity check failed for key `" + flag_definition + "`.");
             }
@@ -525,6 +525,117 @@ void ccdb::ccdb::init()
     backend_instance.start_continuous_updates();
     get_vecGroupProxy(false);
 
+    std::vector < std::pair < std::string, std::function<bool(const std::vector<std::string> &)> > > commandMatches;
+    commandMatches.reserve(128);
+    commandMatches.emplace_back("quit", [](const auto &){return false;});
+    commandMatches.emplace_back("exit", [](const auto &){return false;});
+    commandMatches.emplace_back(R"(nload(?: logcat)?)", [this](const auto & vec) { nload(vec); return true; });
+    commandMatches.emplace_back("reset", [](const auto &) { reset_terminal_mode_forcefully(); return true; });
+    commandMatches.emplace_back("ccdbrc", [this](const auto &) { ccdbrc(); return true; });
+    commandMatches.emplace_back("clearLogs", [this](const auto &) {
+        backend_instance.clearLogs();
+        logPullerNoFilter.clear();
+        return true;
+    });
+    commandMatches.emplace_back("help", [this](const auto &) { help(); return true; });
+    commandMatches.emplace_back(R"(\?)", [this](const auto &) { help(); return true; });
+    commandMatches.emplace_back("mapProxyChain", [this](const auto &) { map_proxy_chain(); return true; });
+    commandMatches.emplace_back("exportColorScheme", [](const auto &) { color::export_color_scheme(); return true; });
+
+    commandMatches.emplace_back(R"(get connections(?: hide [\d|,-]+)?)", [this](const auto &command_vector) { get_connections(command_vector); return true; });
+    commandMatches.emplace_back("get latency", [this](const auto &) { get_latency(); return true; });
+    commandMatches.emplace_back("get log", [this](const auto &) { get_log(); return true; });
+    commandMatches.emplace_back("get mode", [this](const auto &) { std::cout << backend_instance.get_current_mode() << std::endl; return true; });
+    commandMatches.emplace_back("get proxy", [this](const auto &) { get_proxy(); return true; });
+    commandMatches.emplace_back("get vecGroupProxy", [this](const auto &) { get_vecGroupProxy(); return true; });
+    commandMatches.emplace_back("get version", [this](const auto &)
+    {
+        std::cout << std::string(json::parse(backend_instance.get_version())["version"]) << std::endl;
+        return true;
+    });
+    commandMatches.emplace_back("get filter", [this](const auto &) { get_filter(); return true; });
+    commandMatches.emplace_back("get subinfo", [this](const auto &) { get_subinfo(); return true; });
+    commandMatches.emplace_back("get filter_reverse", [this](const auto &) { get_filter_reverse(); return true; });
+    commandMatches.emplace_back("get sort_reverse", [this](const auto &) { get_sort_reverse(); return true; });
+    commandMatches.emplace_back("get sort_by", [this](const auto &) { get_sort_by(); return true; });
+    commandMatches.emplace_back("get config", [this](const auto &) { get_config(); return true; });
+    commandMatches.emplace_back(R"(get latencyHistory(?: [\d|\s]+)?)", [this](const auto &command_vector) { get_latencyHistory(command_vector); return true; });
+    commandMatches.emplace_back("get logSize", [this](const auto &) { get_log_size(); return true; });
+    commandMatches.emplace_back("get loglevel", [this](const auto &) { get_logLevel(); return true; });
+    commandMatches.emplace_back("get rules", [this](const auto &) { get_rules(); return true; });
+    commandMatches.emplace_back("get providerRules", [this](const auto &) { get_providerRules(); return true; });
+
+    commandMatches.emplace_back(R"(upgrade (self|geo|providerRules|core))", [this](const auto &command_vector) { upgrade(command_vector); return true; });
+    commandMatches.emplace_back("restart", [this](const auto &)
+    {
+        const auto result = backend_instance.generic_post("/restart");
+        try {
+            print(std::string(json::parse(result)["status"]), "\n");
+        } catch (...) {
+            print(result, "\n");
+        }
+        return true;
+    });
+
+    commandMatches.emplace_back("flush", [this](const auto &)
+    {
+        print(backend_instance.generic_post("/cache/fakeip/flush"), "\n");
+        return true;
+    });
+
+    commandMatches.emplace_back(R"(sendNotification\s.(.*))", [this](const auto &command_vector)
+        { sendNotification(command_vector); return true; });
+    commandMatches.emplace_back(R"(chat [\w]+)", [this](const auto &command_vector) {
+        chat(command_vector);
+        return true;
+    });
+
+    commandMatches.emplace_back(R"(set mode (global|rule|direct))", [this](const auto &command_vector) { set_mode(command_vector); return true; });
+    commandMatches.emplace_back(R"(set vgroup [\d]+(?:\:.*)? [\d]+(?:\:.*)?)", [this](const auto &command_vector) { set_vgroup(command_vector); return true; });
+    commandMatches.emplace_back(R"(set chain_parser (on|off))", [this](const auto &command_vector) { set_chain_parser(command_vector); return true; });
+    commandMatches.emplace_back(R"(set allowlan (on|off))", [this](const auto &command_vector) { set_allowlan(command_vector); return true; });
+    commandMatches.emplace_back(R"(set loglevel (debug|info|warning|error))", [this](const auto &command_vector) { set_log_level(command_vector); return true; });
+    commandMatches.emplace_back(R"(set sort_by [\d]+)", [this](const auto &command_vector) { set_sort_by(command_vector); return true; });
+    commandMatches.emplace_back(R"(set sort_reverse (on|off))", [this](const auto &command_vector) { set_sort_reverse(command_vector); return true; });
+    commandMatches.emplace_back(R"(set filter_reverse (on|off))", [this](const auto &command_vector) { set_filter_reverse(command_vector); return true; });
+    commandMatches.emplace_back(R"(set filter [\d]+ .*)", [this](const auto &command_vector) { set_filter(command_vector); return true; });
+    commandMatches.emplace_back(R"(set port [\d]+)", [this](const auto &command_vector) { set_port(convertToNumber<int>(command_vector[2])); return true; });
+    commandMatches.emplace_back(R"(set socksport [\d]+)", [this](const auto &command_vector) { set_socksport(convertToNumber<int>(command_vector[2])); return true; });
+    commandMatches.emplace_back(R"(set redirport [\d]+)", [this](const auto &command_vector) { set_redirport(convertToNumber<int>(command_vector[2])); return true; });
+    commandMatches.emplace_back(R"(set tproxyport [\d]+)", [this](const auto &command_vector) { set_tproxyport(convertToNumber<int>(command_vector[2])); return true; });
+    commandMatches.emplace_back(R"(set mixedport [\d]+)", [this](const auto &command_vector) { set_mixedport(convertToNumber<int>(command_vector[2])); return true; });
+    commandMatches.emplace_back(R"(set logSize [\d]+)", [this](const auto &command_vector) { set_log_size(command_vector); return true; });
+
+    commandMatches.emplace_back("closeConnections", [this](const auto &) {
+        if (!backend_instance.close_all_connections()) {
+            if (execute_and_no_interactive) throw std::runtime_error(sprint("Failed to close all connections"));
+        }
+        return true;
+    });
+
+    commandMatches.emplace_back("restartContinuousUpdates", [this](const auto &)
+    {
+        backend_instance.stop_continuous_updates();
+        backend_instance.start_continuous_updates();
+        return true;
+    });
+
+    commandMatches.emplace_back("clearFilter", [this](const auto &) { clear_filter(); return true; });
+    commandMatches.emplace_back("reload(?: .*)?", [this](const auto &command_vector) { reload(command_vector); return true; });
+    commandMatches.emplace_back("apply", [this](const auto &) { apply(); return true; });
+    commandMatches.emplace_back("get memory pprof (allocs|block|cmdline|goroutine|heap|mutex|profile|symbol|threadcreate|trace)",
+    [this](const auto & vec) {
+        std::vector < char > dump;
+        backend_instance.get_memory_pprof(vec.back(), dump);
+        std::cout.write(dump.data(), static_cast<std::streamsize>(dump.size()));
+        return true;
+    });
+
+    std::ranges::for_each(commandMatches, [this](const auto & pair) {
+        commandMatchesRegexCompiled.add(pair.first, pair.second);
+    });
+    commandMatchesRegexCompiled.compile();
+
     handler = [this](const std::vector<std::string> & command_vector_)->bool
     {
         try {
@@ -563,186 +674,20 @@ void ccdb::ccdb::init()
                 return true;
             }
 
-            if (command_vector.front() == "quit" || command_vector.front() == "exit") {
-                return false;
-            }
+            // format command
+            std::stringstream command_ss;
+            for (const auto & command : command_vector) command_ss << command << " ";
+            std::string command_string = command_ss.str();
+            if (!command_string.empty()) command_string.pop_back();
 
-            if (command_vector.front() == "nload") {
-                nload(command_vector);
+            try {
+                return commandMatchesRegexCompiled.dispatch(command_string, command_vector);
             }
-            else if (command_vector.front() == "reset") {
-                reset_terminal_mode_forcefully();
-            }
-            else if (command_vector.front() == "ccdbrc") {
-                ccdbrc();
-            }
-            else if (command_vector.front() == "clearLogs") {
-                backend_instance.clearLogs();
-                logPullerNoFilter.clear();
-            }
-            else if ((command_vector.front() == "help") || (command_vector.front() == "?"))  {
-                help();
-            }
-            else if (command_vector.front() == "mapProxyChain")  {
-                map_proxy_chain();
-            }
-            else if (command_vector.front() == "exportColorScheme") {
-                color::export_color_scheme();
-            }
-            else if (command_vector.front() == "get" && command_vector.size() >= 2)
+            catch (std::exception &)
             {
-                if (command_vector[1] == "connections") {
-                    get_connections(command_vector);
-                } else if (command_vector[1] == "latency") {
-                    get_latency();
-                } else if (command_vector[1] == "log") {
-                    get_log();
-                } else if (command_vector[1] == "mode") {
-                    std::cout << backend_instance.get_current_mode() << std::endl;
-                } else if (command_vector[1] == "proxy") {
-                    get_proxy();
-                } else if (command_vector[1] == "vecGroupProxy") {
-                    get_vecGroupProxy();
-                } else if (command_vector[1] == "version") {
-                    std::cout << std::string(json::parse(backend_instance.get_version())["version"]) << std::endl;
-                } else if (command_vector[1] == "filter") {
-                    get_filter();
-                } else if (command_vector[1] == "subinfo") {
-                    get_subinfo();
-                } else if (command_vector[1] == "filter_reverse") {
-                    get_filter_reverse();
-                } else if (command_vector[1] == "sort_reverse") {
-                    get_sort_reverse();
-                } else if (command_vector[1] == "sort_by") {
-                    get_sort_by();
-                } else if (command_vector[1] == "config") {
-                    get_config();
-                } else if (command_vector[1] == "latencyHistory") {
-                    get_latencyHistory(command_vector);
-                } else if (command_vector[1] == "logSize") {
-                    get_log_size();
-                } else if (command_vector[1] == "loglevel") {
-                    get_logLevel();
-                } else if (command_vector[1] == "rules") {
-                    get_rules();
-                } else if (command_vector[1] == "providerRules") {
-                    get_providerRules();
-                } else {
-                    print<is_error>("Unknown command `", command_vector[1], "`\n");
-                    if (execute_and_no_interactive) throw std::runtime_error("");
-                }
-            }
-            else if (command_vector.front() == "upgrade" && command_vector.size() == 2) {
-                upgrade(command_vector);
-            }
-            else if (command_vector.front() == "restart" && command_vector.size() == 1) {
-                const auto result = backend_instance.generic_post("/restart");
-                try {
-                    print(std::string(json::parse(result)["status"]), "\n");
-                } catch (...) {
-                    print(result, "\n");
-                }
-            }
-            else if (command_vector.front() == "flush" && command_vector.size() == 1)
-            {
-                print(backend_instance.generic_post("/cache/fakeip/flush"), "\n");
-            }
-            else if (command_vector.front() == "sendNotification" && command_vector.size() > 1)
-            {
-                sendNotification(command_vector);
-            }
-            else if (command_vector.front() == "chat" && command_vector.size() == 2) {
-                chat(command_vector);
-            }
-            else if (command_vector.front() == "set")
-            {
-                // set mode [MODE]
-                if (command_vector.size() == 3 && command_vector[1] == "mode")  {
-                    set_mode(command_vector);
-                }
-                else if (command_vector.size() >= 2 && command_vector[1] == "group") { // set group [PROXY] [ENDPOINT]
-                    print<is_error>("This command is deprecated, use `set vgroup` instead\n");
-                }
-                else if (command_vector.size() == 4 && command_vector[1] == "vgroup") { // set vgroup [Vec PROXY] [Vec ENDPOINT]
-                    set_vgroup(command_vector);
-                }
-                else if (command_vector.size() == 3 && command_vector[1] == "chain_parser") { // set chain_parser on/off
-                    set_chain_parser(command_vector);
-                }
-                else if (command_vector.size() == 3 && command_vector[1] == "allowlan") { // set allow-lan on/off
-                    set_allowlan(command_vector);
-                }
-                else if (command_vector.size() == 3 && command_vector[1] == "loglevel") { // set loglevel debug/info/warning/error
-                    set_log_level(command_vector);
-                    backend_instance.stop_continuous_updates();
-                    backend_instance.start_continuous_updates();
-                }
-                else if (command_vector.size() == 3 && command_vector[1] == "sort_by") { // set sort_by [num]
-                    set_sort_by(command_vector);
-                }
-                else if (command_vector.size() == 3 && command_vector[1] == "sort_reverse") { // set sort_reverse on/off
-                    set_sort_reverse(command_vector);
-                }
-                else if (command_vector.size() == 3 && command_vector[1] == "filter_reverse") { // set filter_reverse on/off
-                    set_filter_reverse(command_vector);
-                }
-                else if (command_vector.size() == 4 && command_vector[1] == "filter") { // set filter [index] [pattern]
-                    set_filter(command_vector);
-                }
-                else if (command_vector.size() == 3 && command_vector[1] == "port")  {
-                    set_port(convertToNumber<int>(command_vector[2]));
-                }
-                else if (command_vector.size() == 3 && command_vector[1] == "socksport")  {
-                    set_socksport(convertToNumber<int>(command_vector[2]));
-                }
-                else if (command_vector.size() == 3 && command_vector[1] == "redirport")  {
-                    set_redirport(convertToNumber<int>(command_vector[2]));
-                }
-                else if (command_vector.size() == 3 && command_vector[1] == "tproxyport")  {
-                    set_tproxyport(convertToNumber<int>(command_vector[2]));
-                }
-                else if (command_vector.size() == 3 && command_vector[1] == "mixedport")  {
-                    set_mixedport(convertToNumber<int>(command_vector[2]));
-                }
-                else if (command_vector.size() == 3 && command_vector[1] == "logSize")  {
-                    set_log_size(command_vector);
-                }
-                else {
-                    if (command_vector.size() == 2) {
-                        print<is_error>("Unknown command `", command_vector[1], "` or invalid syntax\n");
-                        if (execute_and_no_interactive) throw std::runtime_error("");
-                    } else {
-                        print<is_error>("Malformed command\n");
-                        if (execute_and_no_interactive) throw std::runtime_error("");
-                    }
-                }
-            }
-            else if (command_vector.front() == "closeConnections") {
-                if (!backend_instance.close_all_connections()) {
-                    if (execute_and_no_interactive) throw std::runtime_error(sprint("Failed to close all connections"));
-                }
-            }
-            else if (command_vector.front() == "restartContinuousUpdates") {
-                backend_instance.stop_continuous_updates();
-                backend_instance.start_continuous_updates();
-            }
-            else if (command_vector.front() == "clearFilter") {
-                clear_filter();
-            }
-            else if (command_vector.front() == "reload") {
-                reload(command_vector);
-            }
-            else if (command_vector.front() == "apply") {
-                apply();
-            }
-            else {
-                print<is_error>("Unknown command `", command_vector.front(), "` or invalid syntax\n");
+                print<is_error>("Unknown command `", command_string, "` or invalid syntax\n");
                 if (execute_and_no_interactive) throw std::runtime_error("");
-            }
-
-            if (backend_instance.force_quit) {
-                if (execute_and_no_interactive) throw std::runtime_error("");
-                return false;
+                if (backend_instance.force_quit) return false;
             }
         } catch (std::exception & e) {
             std::cerr << e.what() << std::endl;
