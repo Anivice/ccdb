@@ -729,6 +729,10 @@ namespace ccdb
 #ifdef ENABLE_CRASH_CATCHER
     class init_crash_report_t
     {
+    private:
+        std::string crash_log_destination;
+        std::string additional_prefix;
+
     public:
         struct flatSymbolicTable_t
         {
@@ -741,7 +745,13 @@ namespace ccdb
 
         flatSymbolicTable_t * flatSymbolicTable_literal = nullptr;
         uint64_t flatSymbolicTable_Size_literal = 0;
+        const char * crash_log_destination_literal = nullptr;
+        size_t crash_log_destination_literal_size = 0;
+        const char * additional_prefix_literal = nullptr;
+        size_t additional_prefix_size = 0;
+
         init_crash_report_t();
+        ~init_crash_report_t();
     };
 
     extern init_crash_report_t init_crash_report;

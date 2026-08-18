@@ -239,28 +239,22 @@ int main(int argc, char ** argv)
                     decompressed_symbol_table_objdump.size());
             }
 
-            std::stringstream ss(objdump_raw);
+            std::istringstream ss(objdump_raw);
             std::deque <std::pair<uint64_t, std::string>> symbol_table;
             {
                 objdump_raw.clear();
-                //                  [addr         ][         ][l][          ][df][        ][*ABS*][      ][addr-         ][        ]
-                std::regex lr(R"(([0-9|A-Z|a-z]+)\s(?:\s+)?(\w+)\s(?:\s+)?(\w+)\s(?:\s+)?(.*)\s(?:\s+)?([0-9|A-Z|a-z]+)\s(?:\s+)?([\w|.]+)(?:\s+)?)");
-                bool start = false;
+                //                  [addr         ][         ][l][          ][df][        ][*ABS*][      ][size          ][        ]
+                // std::regex lr(R"(([0-9|A-Z|a-z]+)\s(?:\s+)?(\w+)\s(?:\s+)?(\w+)\s(?:\s+)?(.*)\s(?:\s+)?([0-9|A-Z|a-z]+)\s(?:\s+)?([\w|.]+)(?:\s+)?)");
                 std::string line;
                 while (std::getline(ss, line))
                 {
-                    if (line.find("SYMBOL TABLE") != std::string::npos) {
-                        start = true;
-                    }
-
-                    if (std::smatch sm; start && std::regex_match(line, sm, lr) && sm.size() == 7)
-                    {
-                        const auto & sym_addr = sm[1].str();
-                        const auto & symbol = sm[6].str();
-                        const auto sym_addr_uint64 = std::strtoul(sym_addr.c_str(), nullptr, 16);
-                        symbol_table.emplace_back(sym_addr_uint64, symbol);
-                        if (symbol == "landmark") ccdb::init_crash_report.landmark_addr_in_symbol_map = sym_addr_uint64;
-                    }
+                    std::istringstream inSS(line);
+                    std::string sym_addr, _2, _3, _4, _5, symbol;
+                    inSS >> sym_addr >> _2 >> _3 >> _4 >> _5 >> symbol;
+                    if (sym_addr.empty() || symbol.empty()) continue; // not valid, skip
+                    const auto sym_addr_uint64 = std::strtoul(sym_addr.c_str(), nullptr, 16);
+                    symbol_table.emplace_back(sym_addr_uint64, symbol);
+                    if (symbol == "landmark") ccdb::init_crash_report.landmark_addr_in_symbol_map = sym_addr_uint64;
                 }
             }
 
@@ -296,7 +290,6 @@ int main(int argc, char ** argv)
                 std::string line;
                 while (std::getline(std::cin, line))
                 {
-
                     line = Readline::remove_leading_and_tailing_spaces(line);
                     if (std::smatch sm; std::regex_search(line, sm, tr)) {
                         const auto & str = sm[1].str();
@@ -324,7 +317,7 @@ int main(int argc, char ** argv)
                 {
                     const int64_t frame = static_cast<int64_t>(vec[i]) - offset;
                     const char * sym_name = ccdb::GetBacktrace(ccdb::init_crash_report.flatSymbolicTable.data(), ccdb::init_crash_report.flatSymbolicTable.size(), frame);
-                    utils::print("  #", std::setw(6), std::setfill('0'), i, " -> ",
+                    utils::print("  #", std::setw(6), std::setfill('0'), std::dec, i, " -> ",
                         std::setw(16), std::hex, std::setfill('0'), frame, ": ",
                         sym_name == nullptr ? "???" : demangle(sym_name), "\n");
                 }

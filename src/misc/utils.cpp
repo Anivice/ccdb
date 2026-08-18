@@ -80,7 +80,9 @@ if (!(x)) {         \
 
 void ccdb::utils::printImg()
 {
-    show();
+    std::ios::sync_with_stdio(false);
+    show(std::cout);
+    std::ios::sync_with_stdio(true);
 }
 
 #endif //__USE_IMG__
@@ -1473,6 +1475,7 @@ namespace
         char           d_name[1];
     };
 
+    int out_fd = STDERR_FILENO;
 
     [[nodiscard]]
     pid_t current_tid() noexcept
@@ -1482,7 +1485,7 @@ namespace
 
     void write_literal(const char *str, const size_t len) noexcept
     {
-        (void)::write(STDERR_FILENO, str, len);
+        (void)::write(out_fd, str, len);
     }
 
     void dump_context(const pid_t tid, void *const context) noexcept
@@ -1495,7 +1498,7 @@ namespace
         const int64_t offset = (int64_t)(&landmark) - static_cast<int64_t>(landmark_in_sym);
 
         write_literal(thread_header, sizeof(thread_header) - 1);
-        print10(static_cast<uint64_t>(tid), STDERR_FILENO);
+        print10(static_cast<uint64_t>(tid), out_fd);
         write_literal(thread_header_end, sizeof(thread_header_end) - 1);
         auto *const unwind_context = static_cast<unw_context_t *>(context);
 
@@ -1515,14 +1518,16 @@ namespace
             if (unw_get_reg(&cursor, UNW_REG_IP, &ip) < 0)
                 break;
 
-            if (const char * literal = ccdb::GetBacktrace(symbol_table, symbol_table_size, static_cast<int64_t>(ip) - offset);
-                literal != nullptr)
-            {
-                print16(static_cast<uint64_t>(ip), STDERR_FILENO);
-                write_literal(" #", 2);
-                write_literal(literal, strlen(literal));
+            if (symbol_table) {
+                if (const char * literal = ccdb::GetBacktrace(symbol_table, symbol_table_size, static_cast<int64_t>(ip) - offset);
+                    literal != nullptr)
+                {
+                    print16(static_cast<uint64_t>(ip), out_fd);
+                    write_literal(" #", 2);
+                    write_literal(literal, strlen(literal));
+                }
             } else {
-                print16(static_cast<uint64_t>(ip), STDERR_FILENO);
+                print16(static_cast<uint64_t>(ip), out_fd);
             }
             write_literal("\n", 1);
 
@@ -1584,7 +1589,7 @@ namespace
                 constexpr char msg[] = "<thread dump timed out: ";
                 constexpr char end[] = ">\n";
                 write_literal(msg, sizeof(msg) - 1);
-                print10(static_cast<uint64_t>(tid), STDERR_FILENO);
+                print10(static_cast<uint64_t>(tid), out_fd);
                 write_literal(end, sizeof(end) - 1);
                 break;
             }
@@ -1630,16 +1635,47 @@ namespace
             _exit(128 + sig);
         }
 
+        constexpr char message_head1[] = "\033[H\033[2J\033[3J\n\n\n\n\n\n\n";
+        constexpr char message_head2[] =
+            " =========================================== FATAL ERROR =========================================== \n"
+            "Unfortunately, CCDB had encountered an unexpected error, and there is no known ways to recover.\n"
+            "Related trace file and its location will be shown after this general error message.\n"
+            "\n"
+            "If you don't care about the backtraces, but wish to report this error to the developer, use the command\n"
+            "        `ccdb --report-issue` to report the issue. \n"
+            "Be sure to attach the trace file if you wish to report.\n"
+            "\n"
+            "If you do care about backtraces, usually, the trace file would contain the frame addresses and,\n"
+            "if a symbol table is attached to CCDB before this incident, then the symbol will be shown as well.\n"
+            "If you didn't attach a symbol table, you can still feed the trace file back to ccdb using\n"
+            "        `ccdb --backtrace /path/to/libdebugInfo.so --feedBacktrace < /path/to/trace/file`\n"
+            "You can also use `addr2line` to trace the frame, but this better be done on the same build version\n"
+            "of the executable of `ccdb.debug_info`. The said executable can be obtained on GitHub:\n"
+            "        `https://github.com/Anivice/ccdb/releases/tag/ccdb.NightlyBuild." GIT_HASH "`\n\n"
+            " Trace file location: ";
+        if (ccdb::init_crash_report.crash_log_destination_literal)
+        {
+            write(STDERR_FILENO, message_head1, sizeof(message_head1) - 1); // clear
+            if (ccdb::init_crash_report.additional_prefix_literal) {
+                write(STDERR_FILENO, ccdb::init_crash_report.additional_prefix_literal,
+                    ccdb::init_crash_report.additional_prefix_size);
+            }
+            write(STDERR_FILENO, message_head2, sizeof(message_head2) - 1);
+            write(STDERR_FILENO, ccdb::init_crash_report.crash_log_destination_literal,
+                ccdb::init_crash_report.crash_log_destination_literal_size);
+            write(STDERR_FILENO, "\n", 1);
+        }
+
         const pid_t crashing_tid = current_tid();
         constexpr char msg[] = "\n\n" "Unexpected signal captured.\n" "SIG NUMBER: ";
         write_literal(msg, sizeof(msg) - 1);
-        print10(static_cast<uint64_t>(sig), STDERR_FILENO);
+        print10(static_cast<uint64_t>(sig), out_fd);
         write_literal("\n", 1);
         dump_context(crashing_tid, context);
         dump_other_threads(crashing_tid);
         constexpr char landmark_msg[] = "\n================ LANDMARK ================\n" "landmark: ";
         write_literal(landmark_msg, sizeof(landmark_msg) - 1);
-        print16(reinterpret_cast<uint64_t>(&landmark), STDERR_FILENO);
+        print16(reinterpret_cast<uint64_t>(&landmark), out_fd);
         write_literal("\n", 1);
         _exit(128 + sig);
     }
@@ -1649,6 +1685,29 @@ namespace ccdb
 {
     init_crash_report_t::init_crash_report_t()
     {
+        const auto crash_dir = getenv("HOME") + "/" + ".cache/ccdb/";
+        if (!std::filesystem::exists(crash_dir)) {
+            std::filesystem::create_directories(crash_dir);
+        }
+
+        const auto now = std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+        crash_log_destination = crash_dir + "crash_" + now + ".txt";
+        crash_log_destination_literal = crash_log_destination.c_str();
+        out_fd = open((const char*)crash_log_destination_literal, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+        if (out_fd < 0) {
+            out_fd = STDERR_FILENO;
+            crash_log_destination_literal = nullptr;
+        } else {
+            crash_log_destination_literal_size = crash_log_destination.size();
+#ifdef __USE_IMG__
+            std::ostringstream ss;
+            show_img(ss, get_img(), 250, 250);
+            additional_prefix = ss.str();
+            additional_prefix_literal = additional_prefix.c_str();
+            additional_prefix_size = additional_prefix.size();
+#endif
+        }
+
         {
             struct sigaction sa {};
             sa.sa_sigaction = thread_dump_handler;
@@ -1673,6 +1732,14 @@ namespace ccdb
 
             for (const int sig : signals)
                 sigaction(sig, &sa, nullptr);
+        }
+    }
+
+    init_crash_report_t::~init_crash_report_t()
+    {
+        if (out_fd != STDERR_FILENO) close(out_fd);
+        if (std::filesystem::exists(crash_log_destination)) {
+            std::filesystem::remove(crash_log_destination);
         }
     }
 

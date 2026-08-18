@@ -4,7 +4,6 @@
 #include "readline/readline.h"
 #include "json.hpp"
 #include "print.h"
-#include "GIT_HASH.h"
 #include "httplib.h"
 
 #define CCDB_VERSION_TO_TEXT(x) #x
@@ -37,9 +36,8 @@ const char * g_version_string = nullptr;
 class init_string_
 {
     const std::string version =
-        ccdb::utils::sprint("C++ Clash Dashboard Version ", CCDB_VERSION, " (commit ",
-                ccdb_utils_unpack_string(GIT_HASH), ", built on ",
-                __DATE__, ")\n") + version_suffix;
+        ccdb::utils::sprint("C++ Clash Dashboard Version ", CCDB_VERSION,
+            " (commit ", GIT_HASH, ", built on ", __DATE__, ")\n") + version_suffix;
 public:
     init_string_()
     {

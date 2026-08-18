@@ -4,7 +4,6 @@
 #include "print.h"
 #include <string>
 #include <vector>
-#include "GIT_HASH.h"
 #include "nlohmann/json.hpp"
 
 //Get current architecture, detects nearly every architecture. Coded by Freak
@@ -270,8 +269,9 @@ namespace
 }
 
 #ifdef __USE_IMG__
-void show_img(const std::vector<uint8_t> & image_data, int fixed_w, int fixed_h) noexcept;
+#include "libtiv.h"
 #endif
+
 std::vector<char> get_content(const int timeout)
 {
     std::string content;
@@ -286,7 +286,7 @@ std::vector<char> get_content(const int timeout)
 
     const auto json = nlohmann::json::parse(content);
     const auto hash = std::string(json["sha"]);
-    if (const auto current_hash = ccdb_utils_unpack_string(GIT_HASH); hash.substr(0, 8) == current_hash) {
+    if (hash.substr(0, 8) == GIT_HASH) {
         throw std::runtime_error(ccdb::utils::sprint("Already the latest build (", hash, ")"));
     }
 
@@ -310,8 +310,10 @@ std::vector<char> get_content(const int timeout)
         ccdb::utils::print("\r\n");
         const auto [h, w] = ccdb::utils::get_screen_row_col();
         const auto min_ = std::min(h, w) * 4;
-        show_img({res_avatar->body.begin(), res_avatar->body.end()},
+        std::ios::sync_with_stdio(false);  // apparently makes printing faster
+        show_img(std::cout, {res_avatar->body.begin(), res_avatar->body.end()},
             std::min(min_, 250), std::min(min_, 250));
+        std::ios::sync_with_stdio(true);
     }
 #endif  // __USE_IMG__
     ccdb::utils::print("\r\n\r\nGET: ", url_dest, "\r\n");

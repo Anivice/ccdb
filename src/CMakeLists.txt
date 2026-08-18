@@ -387,14 +387,12 @@ target_compile_options(ccdb PRIVATE -fno-omit-frame-pointer -g3 -gdwarf-4 -fstac
 find_program(GIT_EXEC NAMES git REQUIRED)
 find_program(HEAD_EXEC NAMES head REQUIRED)
 
-add_custom_command(
-        OUTPUT ${CMAKE_BINARY_DIR}/GIT_HASH
-        COMMAND /bin/sh -c "echo -n $(git ls-remote ${CMAKE_SOURCE_DIR}/.. HEAD | head -c 8)" > ${CMAKE_BINARY_DIR}/GIT_HASH
-        VERBATIM
+execute_process(
+        COMMAND /bin/sh -c "echo -n $(git ls-remote ${CMAKE_SOURCE_DIR}/.. HEAD | head -c 8)"
+        OUTPUT_VARIABLE GIT_HASH
 )
 
-generate_from_resource_file(libGIT_HASH "${CMAKE_BINARY_DIR}/GIT_HASH" GIT_HASH.cpp GIT_HASH.h GIT_HASH false)
-target_link_libraries(ccdb PRIVATE libGIT_HASH) # libBUILD_DATE)
+target_compile_definitions(ccdb PRIVATE GIT_HASH="${GIT_HASH}")
 
 # libunwind
 set(LIBUNWIND_MAKE_ENTIRE "${MAKE_EXECUTABLE} ${LIBUNWIND_MAKE_ADDITIONAL_FLAGS}")
