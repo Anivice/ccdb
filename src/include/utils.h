@@ -440,7 +440,7 @@ namespace ccdb::utils
     public:
 #ifdef __DEBUG__
         ~cache_w_freq_table_t() {
-            std::cout <<
+            std::cerr <<
                 "Cache type of < " << demangle<Key>() << ", " << demangle<Value>() << " >: "
                 "Cache size " << caches_.size() << ", "
                 "access " << access_ << " time(s), hit " << hit_ << " time(s), rate " <<

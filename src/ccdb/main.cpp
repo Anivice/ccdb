@@ -318,7 +318,8 @@ int main(int argc, char ** argv)
                 host = host.substr(0, host.find_last_of(':'));
                 const auto dev = find_target_ip(host.c_str());
                 ::setenv("CCDB_SYNC_ADDRESS_BIND_TO", dev.c_str(), 1);
-                utils::print("Setting CCDB_SYNC_ADDRESS_BIND_TO=", dev, " since backend is reachable from here.\n");
+                if (!quiet && !parsed.contains("execute"))
+                    utils::print("Setting CCDB_SYNC_ADDRESS_BIND_TO=", dev, " since backend is reachable from here.\n");
             }
             else
             {

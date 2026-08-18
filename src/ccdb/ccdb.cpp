@@ -623,11 +623,24 @@ void ccdb::ccdb::init()
     commandMatches.emplace_back("clearFilter", [this](const auto &) { clear_filter(); return true; });
     commandMatches.emplace_back("reload(?: .*)?", [this](const auto &command_vector) { reload(command_vector); return true; });
     commandMatches.emplace_back("apply", [this](const auto &) { apply(); return true; });
+    commandMatches.emplace_back("get memory info", [this](const auto &)
+    {
+        std::cout << value_to_size(backend_instance.current_memory_in_use_by_mihomo.load(std::memory_order_relaxed)) << std::endl;
+        return true;
+    });
+
     commandMatches.emplace_back("get memory pprof (allocs|block|cmdline|goroutine|heap|mutex|profile|symbol|threadcreate|trace)",
-    [this](const auto & vec) {
+    [this](const auto & vec)
+    {
+        if (!experimental_features) throw std::logic_error("CCDB_ENABLE_EXPERIMENTAL_FEATURES not enabled");
         std::vector < char > dump;
         backend_instance.get_memory_pprof(vec.back(), dump);
         std::cout.write(dump.data(), static_cast<std::streamsize>(dump.size()));
+        constexpr char endl[] = "¶\n";
+        if (!dump.empty() && dump.back() != '\n' && isatty(fileno(stdout))) {
+            std::cout.write(reinterpret_cast<const char*>(&endl), sizeof(endl) - 1);
+        }
+        std::cout.flush();
         return true;
     });
 

@@ -181,8 +181,6 @@ static bool bind_socket_to_device(const int fd, const multicast_interface_t& int
     if (::setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,
         interface.name.c_str(), static_cast<socklen_t>(interface.name.size() + 1)) < 0)
     {
-        ccdb::utils::print<ccdb::utils::is_error>(
-            "SO_BINDTODEVICE(", interface.name, "): ", std::strerror(errno), "\n");
         return false;
     }
     return true;
@@ -356,20 +354,34 @@ bool general_info_pulling::open_protocol_sockets()
     close_protocol_sockets();
     if (!multicast_interface_config_valid)
     {
-        ccdb::utils::print<ccdb::utils::is_error>(
-            "CCDB UDP group synchronization disabled: invalid CCDB_SYNC_ADDRESS_BIND_TO.\n");
+        const nlohmann::json json = {
+            {"type", "error"},
+            {"payload", "CCDB UDP group synchronization disabled: invalid CCDB_SYNC_ADDRESS_BIND_TO."}
+        };
+        update_from_logs(json.dump());
         return false;
     }
 
     multicast_fd_ = ::socket(AF_INET, SOCK_DGRAM, 0);
-    if (multicast_fd_ < 0) {
-        ccdb::utils::print<ccdb::utils::is_error>("socket(multicast): ", strerror(errno), '\n');
+    if (multicast_fd_ < 0)
+    {
+        const nlohmann::json json = {
+            {"type", "error"},
+            {"payload", "socket(multicast): " + std::string(strerror(errno)) }
+        };
+        update_from_logs(json.dump());
         return false;
     }
 
     const int reuse = 1;
-    if (::setsockopt(multicast_fd_, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
-        ccdb::utils::print<ccdb::utils::is_error>("setsockopt(SO_REUSEADDR): ", strerror(errno), '\n');
+    if (::setsockopt(multicast_fd_, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
+    {
+        const nlohmann::json json =
+        {
+            {"type", "error"},
+            {"payload", "setsockopt(SO_REUSEADDR): " + std::string(strerror(errno)) }
+        };
+        update_from_logs(json.dump());
         close_protocol_sockets();
         return false;
     }
@@ -383,11 +395,16 @@ bool general_info_pulling::open_protocol_sockets()
 
 #ifdef IP_MULTICAST_ALL
     // Only deliver multicast groups explicitly joined by this socket.
-    const int multicast_all = 0;
+    constexpr int multicast_all = 0;
     if (::setsockopt(multicast_fd_, IPPROTO_IP, IP_MULTICAST_ALL,
         &multicast_all, sizeof(multicast_all)) < 0)
     {
-        ccdb::utils::print<ccdb::utils::is_error>("IP_MULTICAST_ALL: ", strerror(errno), '\n');
+        const nlohmann::json json =
+        {
+            {"type", "error"},
+            {"payload", "IP_MULTICAST_ALL: " + std::string(strerror(errno)) }
+        };
+        update_from_logs(json.dump());
         close_protocol_sockets();
         return false;
     }
@@ -397,15 +414,27 @@ bool general_info_pulling::open_protocol_sockets()
     local.sin_family = AF_INET;
     local.sin_port = htons(PORT);
     local.sin_addr.s_addr = htonl(INADDR_ANY);
-    if (::bind(multicast_fd_, reinterpret_cast<sockaddr*>(&local), sizeof(local)) < 0) {
-        ccdb::utils::print<ccdb::utils::is_error>("bind(multicast): ", strerror(errno), '\n');
+    if (::bind(multicast_fd_, reinterpret_cast<sockaddr*>(&local), sizeof(local)) < 0)
+    {
+        const nlohmann::json json =
+        {
+            {"type", "error"},
+            {"payload", "bind(multicast): " + std::string(strerror(errno)) }
+        };
+        update_from_logs(json.dump());
         close_protocol_sockets();
         return false;
     }
 
     ip_mreqn membership { };
-    if (::inet_pton(AF_INET, MULTICAST_GROUP, &membership.imr_multiaddr) != 1) {
-        ccdb::utils::print<ccdb::utils::is_error>("Invalid multicast address\n");
+    if (::inet_pton(AF_INET, MULTICAST_GROUP, &membership.imr_multiaddr) != 1)
+    {
+        const nlohmann::json json =
+        {
+            {"type", "error"},
+            {"payload", "Invalid multicast address" }
+        };
+        update_from_logs(json.dump());
         close_protocol_sockets();
         return false;
     }
@@ -419,14 +448,25 @@ bool general_info_pulling::open_protocol_sockets()
     if (::setsockopt(multicast_fd_, IPPROTO_IP, IP_ADD_MEMBERSHIP,
         &membership, sizeof(membership)) < 0)
     {
-        ccdb::utils::print<ccdb::utils::is_error>("IP_ADD_MEMBERSHIP: ", strerror(errno), '\n');
+        const nlohmann::json json =
+        {
+            {"type", "error"},
+            {"payload", "IP_ADD_MEMBERSHIP: " + std::string(strerror(errno)) }
+        };
+        update_from_logs(json.dump());
         close_protocol_sockets();
         return false;
     }
 
     tx_fd_ = ::socket(AF_INET, SOCK_DGRAM, 0);
-    if (tx_fd_ < 0) {
-        ccdb::utils::print<ccdb::utils::is_error>("socket(tx): ", strerror(errno), '\n');
+    if (tx_fd_ < 0)
+    {
+        const nlohmann::json json =
+        {
+            {"type", "error"},
+            {"payload", "socket(tx): " + std::string(strerror(errno)) }
+        };
+        update_from_logs(json.dump());
         close_protocol_sockets();
         return false;
     }
@@ -442,8 +482,14 @@ bool general_info_pulling::open_protocol_sockets()
     tx_local.sin_addr = multicast_interface.any
         ? in_addr { .s_addr = htonl(INADDR_ANY) }
         : multicast_interface.address;
-    if (::bind(tx_fd_, reinterpret_cast<sockaddr*>(&tx_local), sizeof(tx_local)) < 0) {
-        ccdb::utils::print<ccdb::utils::is_error>("bind(tx): ", strerror(errno), '\n');
+    if (::bind(tx_fd_, reinterpret_cast<sockaddr*>(&tx_local), sizeof(tx_local)) < 0)
+    {
+        const nlohmann::json json =
+        {
+            {"type", "error"},
+            {"payload", "bind(tx): " + std::string(strerror(errno)) }
+        };
+        update_from_logs(json.dump());
         close_protocol_sockets();
         return false;
     }
@@ -455,7 +501,12 @@ bool general_info_pulling::open_protocol_sockets()
         outgoing.imr_ifindex = static_cast<int>(multicast_interface.ifindex);
         if (::setsockopt(tx_fd_, IPPROTO_IP, IP_MULTICAST_IF, &outgoing, sizeof(outgoing)) < 0)
         {
-            ccdb::utils::print<ccdb::utils::is_error>("IP_MULTICAST_IF: ", strerror(errno), '\n');
+            const nlohmann::json json =
+            {
+                {"type", "error"},
+                {"payload", "IP_MULTICAST_IF: " + std::string(strerror(errno)) }
+            };
+            update_from_logs(json.dump());
             close_protocol_sockets();
             return false;
         }
@@ -464,8 +515,14 @@ bool general_info_pulling::open_protocol_sockets()
     const unsigned char ttl = 1;
     const unsigned char loop = 1;
     if (::setsockopt(tx_fd_, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) < 0 ||
-        ::setsockopt(tx_fd_, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop)) < 0) {
-        ccdb::utils::print<ccdb::utils::is_error>("multicast tx options: ", strerror(errno), '\n');
+        ::setsockopt(tx_fd_, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop)) < 0)
+    {
+        const nlohmann::json json =
+        {
+            {"type", "error"},
+            {"payload", "multicast tx options: " + std::string(strerror(errno)) }
+        };
+        update_from_logs(json.dump());
         close_protocol_sockets();
         return false;
     }
@@ -474,27 +531,50 @@ bool general_info_pulling::open_protocol_sockets()
         const int flags = ::fcntl(fd, F_GETFL, 0);
         return flags >= 0 && ::fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0;
     };
-    if (!make_nonblocking(multicast_fd_) || !make_nonblocking(tx_fd_)) {
-        ccdb::utils::print<ccdb::utils::is_error>("fcntl(O_NONBLOCK): ", strerror(errno), '\n');
+    if (!make_nonblocking(multicast_fd_) || !make_nonblocking(tx_fd_))
+    {
+        const nlohmann::json json =
+        {
+            {"type", "error"},
+            {"payload", "fcntl(O_NONBLOCK): " + std::string(strerror(errno)) }
+        };
+        update_from_logs(json.dump());
         close_protocol_sockets();
         return false;
     }
 
     sockaddr_in actual_tx { };
     socklen_t actual_tx_len = sizeof(actual_tx);
-    if (::getsockname(tx_fd_, reinterpret_cast<sockaddr*>(&actual_tx), &actual_tx_len) < 0) {
-        ccdb::utils::print<ccdb::utils::is_error>("getsockname(tx): ", strerror(errno), '\n');
+    if (::getsockname(tx_fd_, reinterpret_cast<sockaddr*>(&actual_tx), &actual_tx_len) < 0)
+    {
+        const nlohmann::json json =
+        {
+            {"type", "error"},
+            {"payload", "getsockname(tx): " + std::string(strerror(errno)) }
+        };
+        update_from_logs(json.dump());
         close_protocol_sockets();
         return false;
     }
     tx_port_ = ntohs(actual_tx.sin_port);
 
-    if (multicast_interface.any) {
-        ccdb::utils::print("CCDB multicast interface: ADDR_ANY, tx-port=", tx_port_, "\n");
+    if (multicast_interface.any)
+    {
+        const nlohmann::json json =
+        {
+            {"type", "info"},
+            {"payload", "CCDB multicast interface: ADDR_ANY, tx-port=" + std::to_string(tx_port_) }
+        };
+        update_from_logs(json.dump());
     } else {
-        ccdb::utils::print("CCDB multicast interface: ", multicast_interface.name,
-            " (", ipv4_to_string(multicast_interface.address), ", ifindex=",
-            multicast_interface.ifindex, "), tx-port=", tx_port_, "\n");
+        const nlohmann::json json =
+        {
+            {"type", "info"},
+            {"payload", "CCDB multicast interface: " + multicast_interface.name + " ("
+                + ipv4_to_string(multicast_interface.address) + ", ifindex="
+                + std::to_string(multicast_interface.ifindex) + "), tx-port=" + std::to_string(tx_port_) }
+        };
+        update_from_logs(json.dump());
     }
 
     return true;
@@ -540,9 +620,26 @@ bool general_info_pulling::send_multicast_packet(const packet_type_t type, const
     std::lock_guard lock(network_send_mtx_);
     const auto n = ::sendto(tx_fd_, wire.data(), wire.size(), 0,
         reinterpret_cast<const sockaddr*>(&destination), sizeof(destination));
-    if (n != static_cast<ssize_t>(wire.size())) {
-        if (n < 0) ccdb::utils::print<ccdb::utils::is_error>("sendto(multicast): ", strerror(errno), '\n');
-        else ccdb::utils::print<ccdb::utils::is_error>("sendto(multicast): short UDP send\n");
+    if (n != static_cast<ssize_t>(wire.size()))
+    {
+        if (n < 0)
+        {
+            const nlohmann::json json =
+            {
+                {"type", "error"},
+                {"payload", "sendto(multicast): " + std::string(strerror(errno))}
+            };
+            update_from_logs(json.dump());
+        }
+        else
+        {
+            const nlohmann::json json =
+            {
+                {"type", "error"},
+                {"payload", "sendto(multicast): short UDP send, errno=" + std::string(strerror(errno))}
+            };
+            update_from_logs(json.dump());
+        }
         return false;
     }
     return true;
@@ -557,9 +654,26 @@ bool general_info_pulling::send_unicast_packet(const sockaddr_in& destination, c
     std::lock_guard lock(network_send_mtx_);
     const auto n = ::sendto(tx_fd_, wire.data(), wire.size(), 0,
         reinterpret_cast<const sockaddr*>(&destination), sizeof(destination));
-    if (n != static_cast<ssize_t>(wire.size())) {
-        if (n < 0) ccdb::utils::print<ccdb::utils::is_error>("sendto(unicast): ", strerror(errno), '\n');
-        else ccdb::utils::print<ccdb::utils::is_error>("sendto(unicast): short UDP send\n");
+    if (n != static_cast<ssize_t>(wire.size()))
+    {
+        if (n < 0)
+        {
+            const nlohmann::json json =
+            {
+                {"type", "error"},
+                {"payload", "sendto(unicast): " + std::string(strerror(errno))}
+            };
+            update_from_logs(json.dump());
+        }
+        else
+        {
+            const nlohmann::json json =
+            {
+                {"type", "error"},
+                {"payload", "sendto(unicast): short UDP send, errno=" + std::string(strerror(errno))}
+            };
+            update_from_logs(json.dump());
+        }
         return false;
     }
     return true;
@@ -756,8 +870,14 @@ void general_info_pulling::receive_ready_datagram(const int fd)
 
     if (n < 0)
     {
-        if (errno != EAGAIN && errno != EWOULDBLOCK && errno != ECONNREFUSED) {
-            ccdb::utils::print<ccdb::utils::is_error>("recvmsg: ", strerror(errno), '\n');
+        if (errno != EAGAIN && errno != EWOULDBLOCK && errno != ECONNREFUSED)
+        {
+            const nlohmann::json json =
+            {
+                {"type", "error"},
+                {"payload", "recvmsg: " + std::string(strerror(errno))}
+            };
+            update_from_logs(json.dump());
         }
         return;
     }
@@ -788,8 +908,14 @@ void general_info_pulling::network_receiver_loop()
         if (result < 0)
         {
             if (errno == EINTR) continue;
-            if (keep_pull_continuous_updates.load()) {
-                ccdb::utils::print<ccdb::utils::is_error>("poll(group): ", strerror(errno), '\n');
+            if (keep_pull_continuous_updates.load())
+            {
+                const nlohmann::json json =
+                {
+                    {"type", "error"},
+                    {"payload", "poll(group): " + std::string(strerror(errno))}
+                };
+                update_from_logs(json.dump());
             }
             break;
         }
@@ -880,9 +1006,13 @@ general_info_pulling::general_info_pulling(const std::string& url, const std::st
         {
             // Preserve a usable fallback if the host has no route to the multicast group yet.
             multicast_interface = { };
-            ccdb::utils::print<ccdb::utils::is_error>(
-                "Cannot auto-detect the multicast interface; falling back to ADDR_ANY. "
-                "Set CCDB_SYNC_ADDRESS_BIND_TO=<ifname|IPv4> to force an interface.\n");
+            const nlohmann::json json =
+            {
+                {"type", "error"},
+                {"payload", "Cannot auto-detect the multicast interface; falling back to ADDR_ANY. "
+                                "Set CCDB_SYNC_ADDRESS_BIND_TO=<ifname|IPv4> to force an interface."}
+            };
+            update_from_logs(json.dump());
         }
     }
     else
@@ -891,21 +1021,38 @@ general_info_pulling::general_info_pulling(const std::string& url, const std::st
             CCDB_SYNC_ADDRESS_BIND_TO, multicast_interface);
         if (!multicast_interface_config_valid)
         {
-            ccdb::utils::print<ccdb::utils::is_error>(
-                "Invalid CCDB_SYNC_ADDRESS_BIND_TO=", CCDB_SYNC_ADDRESS_BIND_TO,
-                ". Expected ADDR_ANY, a local interface name (for example eth0), "
-                "or a local IPv4 address.\n");
+            const nlohmann::json json =
+            {
+                {"type", "error"},
+                {"payload", "Invalid CCDB_SYNC_ADDRESS_BIND_TO=" + std::string(CCDB_SYNC_ADDRESS_BIND_TO) +
+                            ". Expected ADDR_ANY, a local interface name (for example eth0), "
+                            "or a local IPv4 address.\n"}
+            };
+            update_from_logs(json.dump());
         }
     }
 
     if (multicast_interface_config_valid)
     {
-        if (multicast_interface.any) {
-            ccdb::utils::print("CCDB_SYNC_ADDRESS_BIND_TO=ADDR_ANY\n");
-        } else {
-            ccdb::utils::print("CCDB_SYNC_ADDRESS_BIND_TO=", multicast_interface.name,
-                " (", ipv4_to_string(multicast_interface.address), ", ifindex=",
-                multicast_interface.ifindex, ")\n");
+        if (multicast_interface.any)
+        {
+            const nlohmann::json json =
+            {
+                {"type", "info"},
+                {"payload", "CCDB_SYNC_ADDRESS_BIND_TO=ADDR_ANY"}
+            };
+            update_from_logs(json.dump());
+        }
+        else
+        {
+            const nlohmann::json json =
+            {
+                {"type", "info"},
+                {"payload", "CCDB_SYNC_ADDRESS_BIND_TO=" + multicast_interface.name + " ("
+                                + ipv4_to_string(multicast_interface.address) + ", ifindex="
+                                + std::to_string(multicast_interface.ifindex) + ")" }
+            };
+            update_from_logs(json.dump());
         }
     }
 
@@ -1325,16 +1472,26 @@ void general_info_pulling::start_continuous_updates()
 
     if (!open_protocol_sockets())
     {
-        ccdb::utils::print<ccdb::utils::is_error>(
-            "CCDB UDP group synchronization disabled because sockets could not be initialized.\n");
+        const nlohmann::json json =
+        {
+            {"type", "error"},
+            {"payload",  "CCDB UDP group synchronization disabled because sockets could not be initialized."}
+        };
+        update_from_logs(json.dump());
         return;
     }
 
-    network_receiver_thread_ = std::thread([this] {
+    network_receiver_thread_ = std::thread([this]
+    {
         try {
             network_receiver_loop();
         } catch (const std::exception& e) {
-            ccdb::utils::print<ccdb::utils::is_error>("Group receiver: ", e.what(), '\n');
+            const nlohmann::json json =
+            {
+                {"type", "error"},
+                {"payload",  "Group receiver: " + std::string(e.what()) },
+            };
+            update_from_logs(json.dump());
         }
     });
 
