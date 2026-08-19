@@ -413,6 +413,11 @@ add_library(ccdb SHARED
         misc/Readline.cpp               include/Readline.h
         misc/color.cpp                  include/colors.h
         misc/utils.cpp                  include/utils.h
+        misc/utils.backtracer.cpp
+        misc/utils.gettext.cpp
+        misc/utils.terminal.cpp
+        misc/utils.string.cpp
+        misc/utils.time.cpp
         misc/execute.cpp
         misc/config.cpp                 include/config.h
         misc/args.cpp                   include/args.h
@@ -428,6 +433,7 @@ add_library(ccdb SHARED
         ccdb/main.cpp
         ccdb/ccdb.cpp
         ccdb/ccdb.misc.cpp
+        ccdb/ccdb.input.cpp
         ccdb/ccdb.get.cpp
         ccdb/ccdb.get_connections.cpp
         ccdb/ccdb.get_log.cpp

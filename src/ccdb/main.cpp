@@ -291,7 +291,7 @@ int main_(int argc, char ** argv)
                 static_cast<int64_t>(ccdb::init_crash_report.landmark_addr_in_symbol_map);
             for (const auto & [tid, vec] : backtraces)
             {
-                utils::print("Tid: ", tid, "\n");
+                utils::print("================ THREAD (", tid, ") ================\n");
                 for (uint64_t i = 0; i < vec.size(); i++)
                 {
                     const int64_t frame = static_cast<int64_t>(vec[i]) - offset;

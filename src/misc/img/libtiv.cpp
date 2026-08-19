@@ -128,7 +128,7 @@ namespace
 
     void printImage(std::basic_ostream<char> & oss,
         const cimg_library::CImg<unsigned char> &image,
-                    const int &flags)
+        const int &flags)
     {
         GetPixelFunction get_pixel = [&](int x, int y) -> unsigned long {
             return (((unsigned long) image(x, y, 0, 0)) << 16)
