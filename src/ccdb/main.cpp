@@ -155,6 +155,7 @@ namespace
 
 int main_(int argc, char ** argv)
 {
+    bool fastQuit = true;
     try
     {
         std::string token;
@@ -166,9 +167,13 @@ int main_(int argc, char ** argv)
         const utils::PreDefinedArgumentType PreDefinedArguments(MainArgument);
         utils::ArgumentParser ArgumentParser(argc, argv, PreDefinedArguments);
         const auto parsed = ArgumentParser.parse();
+
+        fastQuit = !parsed.contains("no-fast-quit");
+
         if (parsed.contains("help")) {
             utils::print(argv[0], " [OPTIONS [Arguments...]...]\n");
             std::cout << PreDefinedArguments.print_help();
+            if (fastQuit) _exit(EXIT_SUCCESS);
             return EXIT_SUCCESS;
         }
 
@@ -187,6 +192,7 @@ int main_(int argc, char ** argv)
                 }
             }
 
+            if (fastQuit) _exit(EXIT_SUCCESS);
             return EXIT_SUCCESS;
         }
 
@@ -196,6 +202,8 @@ int main_(int argc, char ** argv)
 #endif
             utils::print("Report issue here: ", "https://github.com/Anivice/ccdb/issues/new", "\n");
             utils::exec_command("/bin/sh", "xdg-open https://github.com/Anivice/ccdb/issues/new");
+
+            if (fastQuit) _exit(EXIT_SUCCESS);
             return EXIT_SUCCESS;
         }
 
@@ -303,6 +311,7 @@ int main_(int argc, char ** argv)
                 }
             }
 
+            if (fastQuit) _exit(EXIT_SUCCESS);
             return EXIT_SUCCESS;
         }
 #endif
@@ -352,6 +361,7 @@ int main_(int argc, char ** argv)
                 sub_url.empty())
             {
                 ccdb::utils::print<utils::is_error>("No subscription link provided!", "\n");
+                if (fastQuit) _exit(EXIT_FAILURE);
                 return EXIT_FAILURE;
             }
 
@@ -388,12 +398,14 @@ int main_(int argc, char ** argv)
                 , "\n"
             );
 
+            if (fastQuit) _exit(EXIT_SUCCESS);
             return EXIT_SUCCESS;
         }
 
         if (backend.empty()) {
             utils::print(argv[0], " [OPTIONS [Arguments...]...]\n");
             std::cout << PreDefinedArguments.print_help();
+            if (fastQuit) _exit(EXIT_FAILURE);
             return EXIT_FAILURE;
         }
 
@@ -458,6 +470,7 @@ int main_(int argc, char ** argv)
         } catch (std::exception & e) {
             std::cerr << e.what() << std::endl;
             utils::print<utils::is_error>("Failed to communicate with the backend, either this is not a Mihomo control port, or you have the wrong password.", "\n");
+            if (fastQuit) _exit(EXIT_FAILURE);
             return EXIT_FAILURE;
         }
 
@@ -471,8 +484,10 @@ int main_(int argc, char ** argv)
     catch (std::exception &e)
     {
         std::cerr << e.what() << std::endl;
+        if (fastQuit) _exit(EXIT_FAILURE);
         return EXIT_FAILURE;
     }
 
+    if (fastQuit) _exit(EXIT_FAILURE);
     return EXIT_SUCCESS;
 }

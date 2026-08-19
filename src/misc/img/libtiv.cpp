@@ -186,24 +186,16 @@ namespace
 #include "img_8f87efc1c0d8fc8c.h"
 #include "lzw6.h"
 
-static std::vector<uint8_t> out;
-static std::vector<uint8_t> img;
-
 std::vector<uint8_t> get_img()
 {
-    if (out.empty())
-    {
-        out.resize(img_8f87efc1c0d8fc8c_len);
-        std::memcpy(out.data(), img_8f87efc1c0d8fc8c, img_8f87efc1c0d8fc8c_len);
-    }
-
-    if (img.empty())
-    {
-        lzw::lzw<12> lzw(out, img);
-        lzw.decompress();
-        for (auto& c : img) {
-            c ^= 0x5A;
-        }
+    std::vector<uint8_t> out;
+    std::vector<uint8_t> img;
+    out.resize(img_8f87efc1c0d8fc8c_len);
+    std::memcpy(out.data(), img_8f87efc1c0d8fc8c, img_8f87efc1c0d8fc8c_len);
+    lzw::lzw<12> lzw(out, img);
+    lzw.decompress();
+    for (auto& c : img) {
+        c ^= 0x5A;
     }
 
     return img;
