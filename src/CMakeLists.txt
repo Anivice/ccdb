@@ -167,13 +167,13 @@ add_dependencies(icu4c::icu4c ICU)
 # libpsl
 
 set(LIBPSL_MAKE_ENTIRE "${MAKE_EXECUTABLE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" ${LIBPSL_MAKE_ADDITIONAL_FLAGS}")
-set(PSL_SRC_DEST ${CMAKE_CURRENT_BINARY_DIR}/libpsl/src)
+set(PSL_SRC_DEST ${CMAKE_BINARY_DIR}/NonCMake/libpsl)
 message(STATUS "LIBPSL: ${LIBPSL_MAKE_ENTIRE}")
 ExternalProject_Add(LIBPSL
-        PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/libpsl
+        PREFIX              ${CMAKE_BINARY_DIR}/libpsl
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/libpsl-0.22.0
-        INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/libpsl/install
-        CONFIGURE_COMMAND   /bin/sh -c "cp -r <SOURCE_DIR> ${PSL_SRC_DEST} && cd ${PSL_SRC_DEST} && autoreconf -f && env LIBS=-lstdc++ PKG_CONFIG_PATH=\"${ICU_PKGCONFIG_DIR}:$ENV{PKG_CONFIG_PATH}\" ${PSL_SRC_DEST}/configure --prefix=<INSTALL_DIR> --enable-runtime=libicu --disable-shared --enable-static ${LIBPSL_CONFIGURE_ADDITIONAL_FLAGS}"
+        INSTALL_DIR         ${CMAKE_BINARY_DIR}/libpsl/install
+        CONFIGURE_COMMAND   /bin/sh -c "rm -rf ${PSL_SRC_DEST}/ && mkdir -p ${PSL_SRC_DEST}/ && cp -r <SOURCE_DIR>/* ${PSL_SRC_DEST}/ && cd ${PSL_SRC_DEST} && autoreconf -f && env LIBS=-lstdc++ PKG_CONFIG_PATH=\"${ICU_PKGCONFIG_DIR}:$ENV{PKG_CONFIG_PATH}\" ${PSL_SRC_DEST}/configure --prefix=<INSTALL_DIR> --enable-runtime=libicu --disable-shared --enable-static ${LIBPSL_CONFIGURE_ADDITIONAL_FLAGS}"
         BUILD_COMMAND       /bin/sh -c "cd ${PSL_SRC_DEST} && ${LIBPSL_MAKE_ENTIRE} CC=\"${MAKE_CC_EXEC}\" CFLAGS=-fPIC CXXFLAGS=-fPIC CXX=\"${MAKE_CXX_EXEC}\""
         INSTALL_COMMAND     /bin/sh -c "cd ${PSL_SRC_DEST} && ${MAKE_EXECUTABLE} install ${LIBPSL_MAKE_INSTALL_ADDITIONAL_FLAGS}"
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libpsl.a
@@ -620,14 +620,6 @@ add_custom_command(
 add_executable(ccdb.exe ${CMAKE_BINARY_DIR}/main.cpp)
 target_link_libraries(ccdb.exe PRIVATE ccdb textDebugInfo)
 
-add_custom_target(show_libccdb.so ALL
-        COMMAND ldd ${CMAKE_BINARY_DIR}/libccdb.so
-        COMMAND /bin/sh -c "find . -name '*.a' -print0 | xargs -0 nm -A 2>/dev/null | grep -E '.*_74' || true"
-        COMMENT "Show ccdb dependencies"
-        DEPENDS ccdb
-        VERBATIM
-)
-
 find_program(PATCHELF_EXEC NAMES patchelf REQUIRED)
 add_custom_target(copy_ccdb ALL
         COMMAND cp ccdb.exe ccdb
@@ -635,7 +627,7 @@ add_custom_target(copy_ccdb ALL
         COMMAND ${PATCHELF_EXEC} --add-rpath $ORIGIN/lib ccdb
         COMMAND ${PATCHELF_EXEC} --add-rpath /usr/lib ccdb
         COMMAND ${PATCHELF_EXEC} --add-rpath /lib ccdb
-        DEPENDS ccdb.exe show_libccdb.so
+        DEPENDS ccdb.exe
         BYPRODUCTS ccdb
         VERBATIM
 )
