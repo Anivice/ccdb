@@ -45,13 +45,13 @@ jobs:
                        -DOPENSSL_LIB_EXPORT_PREFIX="lib64" \
                        -DPERL_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
                        -DTAR_MAKE_ENTIRE="-j$(nproc)" 2>&1 \
-            && make -j$(nproc) copy_ccdb; } | tee log.txt
+            && make -j$(nproc) copy_ccdb; } | tee /tmp/log.txt
       - name: Upload log artifact
         if: ${{ always() }}
         uses: actions/upload-artifact@v6
         with:
           name: build-log
-          path: log.txt
+          path: /tmp/log.txt
 
       - name: Open an Issue on Test Failure
         if: ${{ always() && failure() && github.event_name != 'pull_request' }}
