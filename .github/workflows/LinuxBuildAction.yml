@@ -45,7 +45,7 @@ jobs:
                        -DOPENSSL_LIB_EXPORT_PREFIX="lib64" \
                        -DPERL_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
                        -DTAR_MAKE_ENTIRE="-j$(nproc)" 2>&1 \
-            && make -j$(nproc); } | tee log.txt
+            && make -j$(nproc) copy_ccdb; } | tee log.txt
       - name: Upload log artifact
         if: ${{ always() }}
         uses: actions/upload-artifact@v6

@@ -627,7 +627,7 @@ add_custom_target(copy_ccdb ALL
         COMMAND ${PATCHELF_EXEC} --add-rpath $ORIGIN/lib ccdb
         COMMAND ${PATCHELF_EXEC} --add-rpath /usr/lib ccdb
         COMMAND ${PATCHELF_EXEC} --add-rpath /lib ccdb
-        DEPENDS ccdb.exe
+        DEPENDS ccdb.exe ccdb
         BYPRODUCTS ccdb
         VERBATIM
 )
