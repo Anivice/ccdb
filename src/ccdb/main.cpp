@@ -206,52 +206,50 @@ int main_(int argc, char ** argv)
 
         if (parsed.contains("backtrace"))
         {
+            // load symbol tables
+            std::string objdump_raw;
             {
-                // load symbol tables
-                std::string objdump_raw;
+                const auto decompressed_symbol_table_objdump = utils::decompress({debugInfo, debugInfo + debugInfo_len});
+                objdump_raw.resize(decompressed_symbol_table_objdump.size());
+                std::memcpy(objdump_raw.data(), decompressed_symbol_table_objdump.data(),
+                    decompressed_symbol_table_objdump.size());
+            }
+
+            std::istringstream ss(objdump_raw);
+            std::deque <std::pair<uint64_t, std::string>> symbol_table;
+            {
+                objdump_raw.clear();
+                //                  [addr         ][         ][l][          ][df][        ][*ABS*][      ][size          ][        ]
+                // std::regex lr(R"(([0-9|A-Z|a-z]+)\s(?:\s+)?(\w+)\s(?:\s+)?(\w+)\s(?:\s+)?(.*)\s(?:\s+)?([0-9|A-Z|a-z]+)\s(?:\s+)?([\w|.]+)(?:\s+)?)");
+                std::string line;
+                while (std::getline(ss, line))
                 {
-                    const auto decompressed_symbol_table_objdump = utils::decompress({debugInfo, debugInfo + debugInfo_len});
-                    objdump_raw.resize(decompressed_symbol_table_objdump.size());
-                    std::memcpy(objdump_raw.data(), decompressed_symbol_table_objdump.data(),
-                        decompressed_symbol_table_objdump.size());
+                    std::istringstream inSS(line);
+                    std::string sym_addr, symbol;
+                    inSS >> sym_addr >> symbol;
+                    if (sym_addr.empty() || symbol.empty()) continue; // not valid, skip
+                    const auto sym_addr_uint64 = std::strtoul(sym_addr.c_str(), nullptr, 16);
+                    symbol_table.emplace_back(sym_addr_uint64, symbol);
+                    if (symbol == "landmark") ccdb::init_crash_report.landmark_addr_in_symbol_map = sym_addr_uint64;
                 }
+            }
 
-                std::istringstream ss(objdump_raw);
-                std::deque <std::pair<uint64_t, std::string>> symbol_table;
-                {
-                    objdump_raw.clear();
-                    //                  [addr         ][         ][l][          ][df][        ][*ABS*][      ][size          ][        ]
-                    // std::regex lr(R"(([0-9|A-Z|a-z]+)\s(?:\s+)?(\w+)\s(?:\s+)?(\w+)\s(?:\s+)?(.*)\s(?:\s+)?([0-9|A-Z|a-z]+)\s(?:\s+)?([\w|.]+)(?:\s+)?)");
-                    std::string line;
-                    while (std::getline(ss, line))
-                    {
-                        std::istringstream inSS(line);
-                        std::string sym_addr, symbol;
-                        inSS >> sym_addr >> symbol;
-                        if (sym_addr.empty() || symbol.empty()) continue; // not valid, skip
-                        const auto sym_addr_uint64 = std::strtoul(sym_addr.c_str(), nullptr, 16);
-                        symbol_table.emplace_back(sym_addr_uint64, symbol);
-                        if (symbol == "landmark") ccdb::init_crash_report.landmark_addr_in_symbol_map = sym_addr_uint64;
-                    }
-                }
+            if (!quiet && !parsed.contains("execute"))
+                utils::print("Loaded ", symbol_table.size(), " symbols from the symbolic file.\n");
+            std::ranges::sort(symbol_table, [](const auto & a, const auto & b) { return a.first < b.first; });
 
-                if (!quiet && !parsed.contains("execute"))
-                    utils::print("Loaded ", symbol_table.size(), " symbols from the symbolic file.\n");
-                std::ranges::sort(symbol_table, [](const auto & a, const auto & b) { return a.first < b.first; });
+            ccdb::init_crash_report.flatSymbolicTable.reserve(symbol_table.size());
+            for (const auto & [val, symbol] : symbol_table)
+            {
+                ccdb::init_crash_report_t::flatSymbolicTable_t table_entry{};
+                table_entry.symval = val;
+                std::memcpy(table_entry.name, symbol.data(), std::min(symbol.size(),
+                    static_cast<decltype(symbol.size())>(sizeof(table_entry.name) - 1)));
+                ccdb::init_crash_report.flatSymbolicTable.emplace_back(table_entry);
+            }
 
-                ccdb::init_crash_report.flatSymbolicTable.reserve(symbol_table.size());
-                for (const auto & [val, symbol] : symbol_table)
-                {
-                    ccdb::init_crash_report_t::flatSymbolicTable_t table_entry{};
-                    table_entry.symval = val;
-                    std::memcpy(table_entry.name, symbol.data(), std::min(symbol.size(),
-                        static_cast<decltype(symbol.size())>(sizeof(table_entry.name) - 1)));
-                    ccdb::init_crash_report.flatSymbolicTable.emplace_back(table_entry);
-                }
-
-                ccdb::init_crash_report.flatSymbolicTable_literal = ccdb::init_crash_report.flatSymbolicTable.data();
-                ccdb::init_crash_report.flatSymbolicTable_Size_literal = ccdb::init_crash_report.flatSymbolicTable.size();
-            };
+            ccdb::init_crash_report.flatSymbolicTable_literal = ccdb::init_crash_report.flatSymbolicTable.data();
+            ccdb::init_crash_report.flatSymbolicTable_Size_literal = ccdb::init_crash_report.flatSymbolicTable.size();
         }
 
         if (feedBacktrace)

@@ -529,8 +529,8 @@ if(CCDB_VERSION MATCHES [[^[0-9]+\.[0-9]+\.[0-9]+-rc[0-9]+$]])
     target_compile_definitions(ccdb PRIVATE RELEASE_CANDIDATE_PRE_RELEASE_BUILD=1)
 endif()
 
-find_program(OBJDUMP_EXEC NAMES objdump)
-find_program(SORT_EXEC NAMES sort)
+find_program(OBJDUMP_EXEC NAMES objdump REQUIRED)
+find_program(SORT_EXEC NAMES sort REQUIRED)
 add_custom_command(
         OUTPUT ${CMAKE_BINARY_DIR}/ccdb.debug_info.txt
         COMMAND /bin/sh -c "${OBJDUMP_EXEC} -Tt ${CMAKE_BINARY_DIR}/libccdb.so | grep '\.text' | awk '{print $1, $NF}' | sort | uniq | grep -E '^[0-9|a-f|A-F]+' > ${CMAKE_BINARY_DIR}/ccdb.debug_info.txt"
@@ -554,3 +554,22 @@ add_custom_command(
 add_executable(ccdb.exe ${CMAKE_BINARY_DIR}/main.cpp)
 target_link_libraries(ccdb.exe PRIVATE ccdb textDebugInfo)
 
+add_custom_target(show_libccdb.so ALL
+        COMMAND ldd ${CMAKE_BINARY_DIR}/libccdb.so
+        COMMAND /bin/sh -c "find . -name '*.a' -print0 | xargs -0 nm -A 2>/dev/null | grep -E '.*_74' || true"
+        COMMENT "Show ccdb dependencies"
+        DEPENDS ccdb
+        VERBATIM
+)
+
+find_program(PATCHELF_EXEC NAMES patchelf REQUIRED)
+add_custom_target(copy_ccdb ALL
+        COMMAND cp ccdb.exe ccdb
+        COMMAND ${PATCHELF_EXEC} --set-rpath $ORIGIN ccdb
+        COMMAND ${PATCHELF_EXEC} --add-rpath $ORIGIN/lib ccdb
+        COMMAND ${PATCHELF_EXEC} --add-rpath /usr/lib ccdb
+        COMMAND ${PATCHELF_EXEC} --add-rpath /lib ccdb
+        DEPENDS ccdb.exe show_libccdb.so
+        BYPRODUCTS ccdb
+        VERBATIM
+)
