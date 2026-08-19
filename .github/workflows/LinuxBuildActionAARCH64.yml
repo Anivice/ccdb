@@ -41,8 +41,8 @@ jobs:
                        -DNCURSES_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
                        -DREADLINE_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
                        -DOPENSSL_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
-                       -DOPENSSL_TARGET="linux-x86_64" \
-                       -DOPENSSL_LIB_EXPORT_PREFIX="lib64" \
+                       -DOPENSSL_TARGET="linux-aarch64" \
+                       -DOPENSSL_LIB_EXPORT_PREFIX="lib" \
                        -DPERL_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
                        -DTAR_MAKE_ENTIRE="-j$(nproc)" 2>&1 \
             && make -j$(nproc) copy_ccdb; } | tee /tmp/log.txt
