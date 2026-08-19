@@ -631,3 +631,4 @@ add_custom_target(copy_ccdb ALL
         BYPRODUCTS ccdb
         VERBATIM
 )
+add_dependencies(copy_ccdb ccdb.exe ccdb)
