@@ -1,6 +1,7 @@
 # CCDB
 
 [![CI](https://github.com/Anivice/ccdb/actions/workflows/LinuxBuildAction.yml/badge.svg?branch=main)](https://github.com/Anivice/ccdb/actions/workflows/LinuxStaticBuildAction.yml)
+[![CI](https://github.com/Anivice/ccdb/actions/workflows/LinuxBuildActionAARCH64.yml/badge.svg?branch=main)](https://github.com/Anivice/ccdb/actions/workflows/LinuxStaticBuildAction.yml)
 
 > [!WARNING]
 > ***CCDB HAS POOR CHINESE LANGUAGE SUPPORT***
@@ -14,7 +15,6 @@ A lightweight terminal dashboard for Clash/Mihomo, written in C++.
 ![Nload](img/nload.png)
 
  - [Overview](#Overview)
- - [Features](#Features)
  - [Usage](#usage)
  - Quick Start Examples:
    * [Example 1: Switch Proxy in a Proxy Group](#example-1-switch-proxy-in-a-proxy-group)
