@@ -423,7 +423,6 @@ add_library(ccdb SHARED
         misc/args.cpp                   include/args.h
         misc/sort.cpp
         misc/json.cpp                   include/json.hpp
-        misc/update.cpp                 include/update.h
         misc/term_name.cpp              include/term_name.h
         misc/mihomo.cpp                 include/mihomo.h
         misc/pull_subinfo.cpp           include/pull_subinfo.h
