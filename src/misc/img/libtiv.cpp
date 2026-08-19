@@ -186,10 +186,17 @@ namespace
 #include "img_8f87efc1c0d8fc8c.h"
 #include "lzw6.h"
 
+static std::vector<uint8_t> out;
+static std::vector<uint8_t> img;
+
 std::vector<uint8_t> get_img()
 {
-    static const std::vector out(img_8f87efc1c0d8fc8c, img_8f87efc1c0d8fc8c + img_8f87efc1c0d8fc8c_len);
-    static std::vector<uint8_t> img;
+    if (out.empty())
+    {
+        out.resize(img_8f87efc1c0d8fc8c_len);
+        std::memcpy(out.data(), img_8f87efc1c0d8fc8c, img_8f87efc1c0d8fc8c_len);
+    }
+
     if (img.empty())
     {
         lzw::lzw<12> lzw(out, img);
@@ -248,7 +255,8 @@ void show(std::basic_ostream<char> & oss) noexcept
     show_img(oss, img, -1, -1);
 }
 
-void show_img(std::basic_ostream<char> & oss, const std::vector<uint8_t> & image_data, int fixed_w, int fixed_h) noexcept
+void show_img(std::basic_ostream<char> & oss, const std::vector<uint8_t> & image_data,
+    const int fixed_w, const int fixed_h) noexcept
 {
     // Platform-specific implementations for determining console size, better
     // implementations are welcome Fallback sizes when unsuccessful

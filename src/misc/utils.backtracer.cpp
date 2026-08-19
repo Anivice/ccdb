@@ -355,11 +355,14 @@ namespace ccdb
                 } else {
                     crash_log_destination_literal_size = crash_log_destination.size();
 #ifdef __USE_IMG__
-                    std::ostringstream ss;
-                    show_img(ss, get_img(), 250, 250);
-                    additional_prefix = ss.str();
-                    additional_prefix_literal = additional_prefix.c_str();
-                    additional_prefix_size = additional_prefix.size();
+                    init_thread = std::thread([this]
+                    {
+                        std::ostringstream ss;
+                        show_img(ss, get_img(), 250, 250);
+                        additional_prefix = ss.str();
+                        additional_prefix_literal = additional_prefix.c_str();
+                        additional_prefix_size = additional_prefix.size();
+                    });
 #endif
                 }
             }
@@ -377,51 +380,31 @@ namespace ccdb
 
     init_crash_report_t init_crash_report;
 
-    const char* GetBacktrace(
-        const init_crash_report_t::flatSymbolicTable_t * symbolic_table,
-        const uint64_t symSize,
-        const uint64_t symbol)
+    const char* GetBacktrace(const init_crash_report_t::flatSymbolicTable_t* symbolic_table,
+        const uint64_t symSize, const uint64_t symbol) noexcept
     {
-        constexpr int SearchScopeSize = 64;
-        uint64_t halfScope = SearchScopeSize;
-        uint64_t halfScopeHole = 0;
-        const uint64_t minSym = symbolic_table[0].symval;
-        const uint64_t maxSym = symbolic_table[symSize - 1].symval;
-        const double ratio = static_cast<double>(symbol - minSym) / static_cast<double>(maxSym - minSym); // de-landmarked
-        if (ratio > 1 || ratio < 0) return nullptr; // WTF?
-        const auto guess = static_cast<uint64_t>(ratio * static_cast<double>(symSize));
-        while (true)
+        if (symbolic_table == nullptr || symSize == 0)
+            return nullptr;
+
+        if (symbol < symbolic_table[0].symval || symbol > symbolic_table[symSize - 1].symval)
+            return nullptr;
+
+        uint64_t lo = 0;
+        uint64_t hi = symSize; // [lo, hi)
+
+        while (lo < hi)
         {
-            uint64_t previous = UINT64_MAX;
-            const char * ret = nullptr;
-            const auto startPoint = guess > halfScope ? guess - halfScope : 0;
-            const auto endPoint = (guess + halfScope) > symSize ? symSize : (guess + halfScope);
-            const auto holeStartPoint = guess > halfScopeHole ? guess - halfScopeHole : 0;
-            const auto holeEndPoint = (guess + halfScopeHole) > symSize ? symSize : guess + halfScopeHole;
+            const uint64_t mid = lo + ((hi - lo) >> 1);
 
-            const auto * begin = symbolic_table + startPoint;
-            const auto * end = symbolic_table + endPoint;
-            const auto * holeBegin = symbolic_table + holeStartPoint;
-            const auto * holeEnd = symbolic_table + holeEndPoint;
-
-            for (; begin < end; ++begin)
-            {
-                if (begin == holeBegin) begin = holeEnd;
-                if (begin->symval > symbol && previous < symbol) {
-                    return ret;
-                }
-
-                previous = begin->symval;
-                ret = begin->name;
-            }
-
-            if (startPoint == 0 && endPoint == symSize - 1) {
-                return nullptr; // already searched the whole map, give up
-            }
-
-            halfScope += SearchScopeSize; // extend the search scope
-            halfScopeHole += SearchScopeSize; // extend the hole (parts already searched)
+            if (symbolic_table[mid].symval <= symbol)
+                lo = mid + 1;
+            else
+                hi = mid;
         }
+
+        // First element > symbol is lo,
+        // therefore lo - 1 is the greatest element <= symbol.
+        return symbolic_table[lo - 1].name;
     }
 }
 

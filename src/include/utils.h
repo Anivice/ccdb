@@ -741,12 +741,6 @@ namespace ccdb
             char name[256];
         };
 
-        // ok. here we slice the big, big map of flatSymbolicTable into 512 pieces
-        // each piece, [0, 1), [1, 2), ..., [511, 512) has an interval
-        // the slice is flat sliced, and the interval of the symbol would indicate the
-        // we only use this when flatSymbolicTable > 4096
-        uint64_t distribution_overview[512]{};
-        double flat_interval_space_for_each_slice{};
         std::vector<flatSymbolicTable_t> flatSymbolicTable;
         uint64_t landmark_addr_in_symbol_map = UINT64_MAX;
 
@@ -762,7 +756,7 @@ namespace ccdb
     };
 
     extern init_crash_report_t init_crash_report;
-    const char * GetBacktrace(const init_crash_report_t::flatSymbolicTable_t *, uint64_t /* sym map size */, uint64_t /* sym */);
+    const char * GetBacktrace(const init_crash_report_t::flatSymbolicTable_t *, uint64_t /* sym map size */, uint64_t /* sym */) noexcept;
 #endif
 }
 

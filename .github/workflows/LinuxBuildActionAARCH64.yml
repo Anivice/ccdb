@@ -38,14 +38,9 @@ jobs:
           mkdir build;
           cd build
           { cmake ../src -DDCCDB_COMPILE_WITH_IMG="True" \
-                       -DNCURSES_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
-                       -DREADLINE_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
-                       -DOPENSSL_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
-                       -DOPENSSL_TARGET="linux-aarch64" \
+                       -DOPENSSL_TARGET="linux-aarch64"  \
                        -DOPENSSL_LIB_EXPORT_PREFIX="lib" \
-                       -DPERL_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
-                       -DTAR_MAKE_ENTIRE="-j$(nproc)" 2>&1 \
-            && make -j$(nproc) copy_ccdb; } | tee /tmp/log.txt
+            && make copy_ccdb; } | tee /tmp/log.txt
       - name: Upload log artifact
         if: ${{ always() }}
         uses: actions/upload-artifact@v6

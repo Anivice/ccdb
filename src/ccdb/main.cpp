@@ -295,7 +295,8 @@ int main_(int argc, char ** argv)
                 for (uint64_t i = 0; i < vec.size(); i++)
                 {
                     const int64_t frame = static_cast<int64_t>(vec[i]) - offset;
-                    const char * sym_name = ccdb::GetBacktrace(ccdb::init_crash_report.flatSymbolicTable.data(), ccdb::init_crash_report.flatSymbolicTable.size(), frame);
+                    const char * sym_name = ccdb::GetBacktrace(ccdb::init_crash_report.flatSymbolicTable.data(),
+                        ccdb::init_crash_report.flatSymbolicTable.size(), frame);
                     utils::print("  #", std::setw(6), std::setfill('0'), std::dec, i, " -> ",
                         std::setw(16), std::hex, std::setfill('0'), frame, ": ",
                         sym_name == nullptr ? "???" : demangle(sym_name), "\n");
