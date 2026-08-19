@@ -11,13 +11,6 @@ static constexpr const char * getBuild()
 {
 #if defined(__x86_64__) || defined(_M_X64)
     return "x86_64";
-#elif defined(i386) || defined(__i386__) || defined(__i386) || defined(_M_IX86)
-    return "i586";
-#elif defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__) || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) \
-    || defined(__ARM_ARCH_7S__) || defined(__ARM_ARCH_7A__) || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) \
-    || defined(__ARM_ARCH_7S__) || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7S__) \
-    || defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7S__)
-    return "armv7";
 #elif defined(__aarch64__) || defined(_M_ARM64)
     return "aarch64";
 #else
@@ -41,10 +34,6 @@ static constexpr int strcmp_constexpr(const char* s1, const char* s2)
 }
 
 static constexpr char remote_repo_url[] = "https://api.github.com/repos/Anivice/ccdb/commits/HEAD";
-// static constexpr char header_1_name[] = "Accept";
-// static constexpr char header_1_value[] = "application/vnd.github.sha";
-// static constexpr char header_2_name[] = "X-GitHub-Api-Version";
-// static constexpr char header_2_value[] = "2022-11-28";
 static constexpr const char * ArchName = getBuild();
 static_assert(strcmp_constexpr(ArchName, "UNKNOWN") != 0, "Unknown arch");
 
@@ -84,8 +73,6 @@ namespace
             return {
                 .url = remote_repo_url,
                 .headers = {
-                        // { header_1_name, header_1_value },
-                        // { header_2_name, header_2_value }
                 }
             };
         }
