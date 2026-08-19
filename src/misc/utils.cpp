@@ -1759,7 +1759,7 @@ namespace ccdb
         const uint64_t minSym = symbolic_table[0].symval;
         const uint64_t maxSym = symbolic_table[symSize - 1].symval;
         const double ratio = static_cast<double>(symbol - minSym) / static_cast<double>(maxSym - minSym); // de-landmarked
-        if (ratio > 1) return nullptr; // WTF?
+        if (ratio > 1 || ratio < 0) return nullptr; // WTF?
         const auto guess = static_cast<uint64_t>(ratio * static_cast<double>(symSize));
         while (true)
         {
