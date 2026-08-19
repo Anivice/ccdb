@@ -594,7 +594,7 @@ void ccdb::ccdb::init()
     commandMatches.emplace_back(R"(set vgroup [\d]+(?:\:.*)? [\d]+(?:\:.*)?)", [this](const auto &command_vector) { set_vgroup(command_vector); return true; });
     commandMatches.emplace_back(R"(set chain_parser (on|off))", [this](const auto &command_vector) { set_chain_parser(command_vector); return true; });
     commandMatches.emplace_back(R"(set allowlan (on|off))", [this](const auto &command_vector) { set_allowlan(command_vector); return true; });
-    commandMatches.emplace_back(R"(set loglevel (debug|info|warning|error))", [this](const auto &command_vector) { set_log_level(command_vector); return true; });
+    commandMatches.emplace_back(R"(set loglevel (silent|debug|info|warning|error))", [this](const auto &command_vector) { set_log_level(command_vector); return true; });
     commandMatches.emplace_back(R"(set sort_by [\d]+)", [this](const auto &command_vector) { set_sort_by(command_vector); return true; });
     commandMatches.emplace_back(R"(set sort_reverse (on|off))", [this](const auto &command_vector) { set_sort_reverse(command_vector); return true; });
     commandMatches.emplace_back(R"(set filter_reverse (on|off))", [this](const auto &command_vector) { set_filter_reverse(command_vector); return true; });
