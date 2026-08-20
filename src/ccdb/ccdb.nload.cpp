@@ -715,7 +715,7 @@ void ccdb::ccdb::nload(const std::vector<std::string> & vec)
     std::atomic_bool running = true;
     std::mutex lock;
     std::vector<std::string> top_3_conn;
-    const bool switch_to_log_cater = (vec.size() == 2 && vec.back() == "catlog");
+    const bool switch_to_log_cater = (vec.size() == 2 && vec.back() == "logcat");
 
     std::thread Worker([&] {
         nload(
