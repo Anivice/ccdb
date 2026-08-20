@@ -154,6 +154,8 @@ namespace
     }
 }
 
+extern "C"
+__attribute__((visibility("default")))
 int main_(int argc, char ** argv)
 {
     bool fastQuit = true;

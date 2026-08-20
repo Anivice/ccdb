@@ -74,7 +74,7 @@ jobs:
           cp build/libccdb.so libccdb.debug_info.so
           cp build/libccdb.so libccdb.so
           cp build/ccdb ccdb
-          strip ccdb libccdb.so
+          strip -g -S -d --strip-debug --strip-unneeded ccdb libccdb.so
 
       - name: Compute tag
         if: ${{ github.event_name != 'pull_request' }}

@@ -514,7 +514,7 @@ target_link_libraries(libunwind::libunwind INTERFACE
 include_directories("${LIBUNWIND_INCLUDE_DIR}")
 target_link_libraries(ccdb PRIVATE libunwind::libunwind)
 target_compile_definitions(ccdb PRIVATE ENABLE_CRASH_CATCHER=1 UNW_LOCAL_ONLY=1)
-target_compile_options(ccdb PRIVATE -rdynamic)
+target_compile_options(ccdb PRIVATE -rdynamic -fPIC)
 add_dependencies(ccdb LIBUNWIND)
 
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
@@ -559,8 +559,8 @@ else ()
     endif ()
     add_dependencies(ccdb READLINE NCURSES)
     target_compile_definitions(ccdb PRIVATE NCURSES_STATIC USE_TSL_HOPSCOTCH_MAP)
-    target_compile_options(ccdb PRIVATE -O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2 -fno-rtti)
-    target_link_options(ccdb PRIVATE -O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2)
+    target_compile_options(ccdb PRIVATE -O3 -fno-omit-frame-pointer -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2 -fno-rtti -fvisibility=hidden -Os)
+    target_link_options(ccdb PRIVATE -Wl,--version-script=${CMAKE_SOURCE_DIR}/script/stripper.map -O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2)
 endif ()
 
 if ("${CCDB_COMPILE_WITH_IMG}" STREQUAL "True")
@@ -617,15 +617,16 @@ generate_from_resource_file(textDebugInfo
         debugInfo false)
 
 add_custom_command(
-        OUTPUT main.cpp
-        COMMAND echo "extern int main_(int, char**); int main(int argc, char**argv) { return main_(argc, argv); }" > main.cpp
+        OUTPUT ${CMAKE_BINARY_DIR}/main.c
+        COMMAND echo "extern int main_(int, char**); int main(int argc, char**argv) { return main_(argc, argv); }" > ${CMAKE_BINARY_DIR}/main.c
         VERBATIM
 )
 
-add_executable(ccdb.exe ${CMAKE_BINARY_DIR}/main.cpp)
+add_executable(ccdb.exe ${CMAKE_BINARY_DIR}/main.c)
 target_link_libraries(ccdb.exe PRIVATE ccdb textDebugInfo)
 
 find_program(PATCHELF_EXEC NAMES patchelf REQUIRED)
+find_program(STRIP_EXEC NAMES strip REQUIRED)
 add_custom_target(copy_ccdb ALL
         COMMAND cp ccdb.exe ccdb
         COMMAND ${PATCHELF_EXEC} --set-rpath $ORIGIN ccdb
