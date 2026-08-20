@@ -737,12 +737,16 @@ namespace ccdb
     public:
         struct flatSymbolicTable_t
         {
-            uint64_t symval;
-            char name[256];
+            uint64_t symval{};
+            uint64_t symoff{};
+            char name[256]{};
         };
 
-        std::vector<flatSymbolicTable_t> flatSymbolicTable;
+        std::vector<flatSymbolicTable_t> flatSymbolicTable, flatObjectRuntimeTable;
         uint64_t landmark_addr_in_symbol_map = UINT64_MAX;
+
+        uint64_t flatObjectRuntimeTable_literal_size = 0;
+        flatSymbolicTable_t * flatObjectRuntimeTable_literal = nullptr;
 
         flatSymbolicTable_t * flatSymbolicTable_literal = nullptr;
         uint64_t flatSymbolicTable_Size_literal = 0;
@@ -756,7 +760,7 @@ namespace ccdb
     };
 
     extern init_crash_report_t init_crash_report;
-    const char * GetBacktrace(const init_crash_report_t::flatSymbolicTable_t *, uint64_t /* sym map size */, uint64_t /* sym */) noexcept;
+    const init_crash_report_t::flatSymbolicTable_t * GetBacktrace(const init_crash_report_t::flatSymbolicTable_t *, uint64_t /* sym map size */, uint64_t /* sym */) noexcept;
 #endif
 }
 

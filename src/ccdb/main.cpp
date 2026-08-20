@@ -32,6 +32,7 @@
 #include <netinet/in.h>
 #include <dlfcn.h>
 #include <cxxabi.h>
+#include <pstl/glue_execution_defs.h>
 #include "ccdb.h"
 #include "general_info_pulling.h"
 #include "print.h"
@@ -49,6 +50,58 @@ namespace utils = ccdb::utils;
 
 namespace
 {
+    int mem_percent()
+    {
+        FILE *fp = fopen("/proc/meminfo", "r");
+        if (!fp)
+            return -1;
+
+        char line[256];
+        long total = -1, available = -1;
+
+        while (fgets(line, sizeof(line), fp)) {
+            if (strncmp(line, "MemTotal:", 9) == 0) {
+                sscanf(line + 9, "%ld", &total);
+            } else if (strncmp(line, "MemAvailable:", 13) == 0) {
+                sscanf(line + 13, "%ld", &available);
+            }
+            if (total != -1 && available != -1)
+                break;
+        }
+        fclose(fp);
+
+        if (total == -1 || available == -1)
+            return -1;
+
+        const long used = total - available;
+        int percent = static_cast<int>((used * 100) / total);
+
+        /* Clamp to the valid range (should already be within bounds) */
+        if (percent < 0) percent = 0;
+        if (percent > 100) percent = 100;
+        return percent;
+    }
+
+    long mem_total_kb()
+    {
+        FILE *fp = fopen("/proc/meminfo", "r");
+        if (!fp)
+            return -1;
+
+        char line[256];
+        long total = -1;
+
+        while (fgets(line, sizeof(line), fp)) {
+            if (strncmp(line, "MemTotal:", 9) == 0) {
+                sscanf(line + 9, "%ld", &total);
+                break;
+            }
+        }
+        fclose(fp);
+        return total;  // -1 if not found
+    }
+
+
     utils::PreDefinedArgumentType::PreDefinedArgument MainArgument =
     {
         { .short_name = 'h', .long_name = "help",       .argument_required = false, .description = utils::get_text("Show help") },
@@ -152,6 +205,10 @@ namespace
         };
         return (status == 0) ? res.get() : name;
     }
+
+    bool compr(const std::pair<uint64_t, std::string> &a, const std::pair<uint64_t, std::string> &b) {
+        return a.first < b.first;
+    }
 }
 
 extern "C"
@@ -227,7 +284,7 @@ int main_(int argc, char ** argv)
             }
 
             std::istringstream ss(objdump_raw);
-            std::deque <std::pair<uint64_t, std::string>> symbol_table;
+            std::vector <std::pair<uint64_t, std::string>> symbol_table;
             {
                 objdump_raw.clear();
                 //                  [addr         ][         ][l][          ][df][        ][*ABS*][      ][size          ][        ]
@@ -247,7 +304,7 @@ int main_(int argc, char ** argv)
 
             if (!quiet && !parsed.contains("execute"))
                 utils::print("Loaded ", symbol_table.size(), " symbols from the symbolic file.\n");
-            std::ranges::sort(symbol_table, [](const auto & a, const auto & b) { return a.first < b.first; });
+            // std::ranges::sort(symbol_table, compr);
 
             ccdb::init_crash_report.flatSymbolicTable.reserve(symbol_table.size());
             for (const auto & [val, symbol] : symbol_table)
@@ -271,11 +328,12 @@ int main_(int argc, char ** argv)
                 utils::print<utils::is_error>("No symbol table provided\n");
             }
 
-            std::vector<std::pair<uint64_t, std::vector<uint64_t>>> backtraces;
+            using InfoType =  std::vector<std::pair <uint64_t, std::string >>;
+            std::vector<std::pair<uint64_t, InfoType >> backtraces;
             uint64_t landmark_addr = 0;
             {
-                const std::regex r(R"(landmark: 0x([0-9|A-Z]+))");
-                const std::regex addr(R"(0x([0-9|A-Z]+)(?: \#.*)?)");
+                const std::regex r(R"(landmark: 0x([0-9|A-F]+))");
+                const std::regex addr(R"(0x([0-9|A-F]+)(?: \#.*)?)");
                 const std::regex tr(R"(================ THREAD ([\d]+) ================)");
                 std::string line;
                 while (std::getline(std::cin, line))
@@ -283,12 +341,13 @@ int main_(int argc, char ** argv)
                     line = Readline::remove_leading_and_tailing_spaces(line);
                     if (std::smatch sm; std::regex_search(line, sm, tr)) {
                         const auto & str = sm[1].str();
-                        backtraces.emplace_back(std::strtoul(str.c_str(), nullptr, 16), std::vector<uint64_t>{});
+                        backtraces.emplace_back(std::strtoul(str.c_str(), nullptr, 16), InfoType{});
                     }
 
                     if (std::smatch sm; std::regex_search(line, sm, addr)) {
                         const auto & str = sm[1].str();
-                        backtraces.back().second.push_back(std::strtoul(str.c_str(), nullptr, 16));
+                        backtraces.back().second.emplace_back(
+                            std::strtoul(str.c_str(), nullptr, 16), line);
                     }
 
                     if (std::smatch sm; !backtraces.empty() && std::regex_search(line, sm, r)) {
@@ -298,21 +357,106 @@ int main_(int argc, char ** argv)
                 }
             }
 
+            const auto result = utils::exec_command2("/bin/sh", "addr2line --help").exit_status == 0;
             const int64_t offset = static_cast<int64_t>(landmark_addr) -
                 static_cast<int64_t>(ccdb::init_crash_report.landmark_addr_in_symbol_map);
+            const auto it = std::ranges::find_if(ccdb::init_crash_report.flatObjectRuntimeTable,
+                [](const auto & obj)->bool
+                {
+                    if (std::string(obj.name).find("libccdb.so") != std::string::npos)
+                    {
+                        return true;
+                    }
+
+                    return false;
+                });
+
+            std::map<uint64_t, std::string> backtraces_lines;
+            std::mutex mutex;
+            std::vector<std::thread> threads;
+
             for (const auto & [tid, vec] : backtraces)
             {
                 utils::print("================ THREAD (", tid, ") ================\n");
-                for (uint64_t i = 0; i < vec.size(); i++)
+                for (uint64_t i_ = 0; i_ < vec.size(); i_++)
                 {
-                    const int64_t frame = static_cast<int64_t>(vec[i]) - offset;
-                    const char * sym_name = ccdb::GetBacktrace(ccdb::init_crash_report.flatSymbolicTable.data(),
-                        ccdb::init_crash_report.flatSymbolicTable.size(), frame);
-                    utils::print("  #", std::setw(6), std::setfill('0'), std::dec, i, " -> ",
-                        std::setw(16), std::hex, std::setfill('0'), frame, ": ",
-                        sym_name == nullptr ? "???" : demangle(sym_name), "\n");
+                    threads.emplace_back([&](const uint64_t i)
+                    {
+                        const thread_local std::regex has_external_lib_reg(R"(0x[0-9|A-F]+ \#(.*)\: (0x[0-9|A-F]+))");
+                        const int64_t frame = static_cast<int64_t>(vec[i].first) - offset;
+                        const auto * sym_name = ccdb::GetBacktrace(ccdb::init_crash_report.flatSymbolicTable.data(),
+                            ccdb::init_crash_report.flatSymbolicTable.size(), frame);
+                        if (sym_name)
+                        {
+                            std::string info;
+                            if (result && it != ccdb::init_crash_report.flatObjectRuntimeTable.end())
+                            {
+                                std::stringstream ss; ss << std::hex << frame;
+                                auto addr2line_res = utils::exec_command2("/bin/sh", "", "-c",
+                                    "addr2line --demangle -f -p -a -e \"" + std::string(it->name) + "\" 0x" + ss.str());
+                                if (addr2line_res.exit_status == 0)
+                                {
+                                    while (!addr2line_res.fd_stdout.empty() && addr2line_res.fd_stdout.back() == '\n')
+                                        addr2line_res.fd_stdout.pop_back();
+                                    info = addr2line_res.fd_stdout;
+                                }
+                            }
+
+                            if (info.empty())
+                            {
+                                std::stringstream ss_;
+                                ss_ << std::setw(16) << std::hex << std::setfill('0') << frame << ": " << demangle(sym_name->name);
+                                info = ss_.str();
+                            }
+
+                            const auto line = utils::sprint("  #", std::setw(6), std::setfill('0'), std::dec, i, " -> ", info, "\n");
+                            std::lock_guard<std::mutex> guard(mutex);
+                            backtraces_lines.emplace(i, line);
+                        }
+                        else if (std::smatch sm; result && std::regex_search(vec[i].second, sm, has_external_lib_reg))
+                        {
+                            const auto & libPath = sm[1].str();
+                            const auto & libAddr = sm[2].str();
+                            auto addr2line_res = utils::exec_command2("/bin/sh",
+                                "", "-c", "addr2line --demangle -f -p -a -e \"" + libPath + "\" " + libAddr);
+                            if (addr2line_res.exit_status == 0)
+                            {
+                                while (!addr2line_res.fd_stdout.empty() && addr2line_res.fd_stdout.back() == '\n')
+                                    addr2line_res.fd_stdout.pop_back();
+                                const auto line = utils::sprint("  #", std::setw(6), std::setfill('0'), std::dec, i, " -> ",
+                                    std::setw(16), std::hex, std::setfill('0'), libPath, ": ",
+                                    addr2line_res.fd_stdout, "\n");
+                                std::lock_guard<std::mutex> guard(mutex);
+                                backtraces_lines.emplace(i, line);
+                            }
+                            else
+                            {
+                                std::lock_guard<std::mutex> guard(mutex);
+                                backtraces_lines.emplace(i, vec[i].second);
+                            }
+                        }
+                    }, i_);
+
+                    if ((i_ + 1) % (std::thread::hardware_concurrency() / 5) == 0)
+                    {
+                        std::ranges::for_each(threads, [](std::thread & T)
+                        {
+                            if (T.joinable())
+                                T.join();
+                        });
+                        threads.clear();
+                    }
                 }
+
+                std::ranges::for_each(threads, [](std::thread & T){ if (T.joinable()) T.join(); });
+                const auto lines = backtraces_lines | std::views::values;
+                std::ranges::for_each(lines, [](const auto & s) {
+                    std::cout << s << std::endl;
+                });
+                backtraces_lines.clear();
             }
+
+            std::cout << std::flush << std::flush << std::flush << std::endl;
 
             if (fastQuit) _exit(EXIT_SUCCESS);
             return EXIT_SUCCESS;

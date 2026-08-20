@@ -1,3 +1,6 @@
+#include <pstl/glue_execution_defs.h>
+
+#include "utils.h"
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif //_GNU_SOURCE
@@ -53,7 +56,7 @@ if (!(x)) {         \
 #include <atomic>
 #include <dlfcn.h>
 #include <elf.h>
-#include <cinttypes>
+#include <cstdint>
 #include <link.h>
 #include "libunwind.h"
 
@@ -61,6 +64,34 @@ extern "C" __attribute__((visibility("default"))) void landmark() { }
 
 namespace
 {
+    struct g_info_t
+    {
+        char name[256] { };
+        uint64_t base = 0;
+        uint64_t offset = 0;
+        uint64_t size = 0;
+    };
+
+    std::vector <g_info_t> g_info_table_;
+
+    uint64_t async_strlen(const char * str) {
+        uint64_t len = 0;
+        while (str[len]) len++;
+        return len;
+    }
+
+    int callback(struct dl_phdr_info *info, size_t size, void *data)
+    {
+        g_info_table_.emplace_back(g_info_t{
+            .base = info->dlpi_addr,
+            .offset = info->dlpi_addr - info->dlpi_phdr->p_vaddr,
+            .size = info->dlpi_phdr->p_memsz
+        });
+        std::memcpy(&g_info_table_.back().name, info->dlpi_name, std::min((uint64_t)sizeof(g_info_t::name),
+            async_strlen(info->dlpi_name)));
+        return 0;
+    }
+
     void print(uint64_t num, const int fd, const int base, const char * dictionary, const char * prefix) noexcept
     {
         char nums[256] { };
@@ -70,7 +101,7 @@ namespace
             num /= base;
         }
 
-        if (prefix) (void)write(fd, prefix, strlen(prefix));
+        if (prefix) (void)write(fd, prefix, async_strlen(prefix));
         for (int i = off - 1; i >= 0; i--) {
             (void)write(fd, nums + i, 1);
         }
@@ -147,13 +178,37 @@ namespace
                 break;
 
             print16(static_cast<uint64_t>(ip), out_fd);
-            if (symbol_table) {
-                if (const char * literal = ccdb::GetBacktrace(symbol_table, symbol_table_size, ip - offset);
+            bool found = false;
+            bool has_sym = false;
+            uint64_t presumed_offset = 0;
+            if (ccdb::init_crash_report.flatObjectRuntimeTable_literal)
+            {
+                if (const auto * literal = ccdb::GetBacktrace(ccdb::init_crash_report.flatObjectRuntimeTable_literal,
+                    ccdb::init_crash_report.flatObjectRuntimeTable_literal_size, ip);
                     literal != nullptr)
                 {
                     write_literal(" #", 2);
-                    write_literal(literal, strlen(literal));
+                    write_literal(literal->name, async_strlen(literal->name));
+                    presumed_offset = literal->symoff;
+                    found = true;
                 }
+            }
+
+            if (symbol_table)
+            {
+                if (const auto * literal = ccdb::GetBacktrace(symbol_table, symbol_table_size, ip - offset);
+                    literal != nullptr)
+                {
+                    write_literal(found ? " #" : ": ", 2);
+                    write_literal(literal->name, async_strlen(literal->name));
+                    has_sym = true;
+                }
+            }
+
+            if (found && !has_sym)
+            {
+                write_literal(": ", 2);
+                print16(ip - presumed_offset, out_fd);
             }
 
             write_literal("\n", 1);
@@ -312,8 +367,35 @@ namespace
 
 namespace ccdb
 {
+    namespace
+    {
+        bool compr(const init_crash_report_t::flatSymbolicTable_t &a,
+            const init_crash_report_t::flatSymbolicTable_t &b) {
+            return a.symval < b.symval;
+        }
+
+    }
+
     init_crash_report_t::init_crash_report_t()
     {
+        {
+            dl_iterate_phdr(callback, nullptr);
+            flatObjectRuntimeTable.reserve(g_info_table_.size());
+
+            for (const auto & [name, base, offset, size] : g_info_table_)
+            {
+                if (async_strlen(name) == 0) continue;
+                flatObjectRuntimeTable.emplace_back();
+                std::memcpy(&flatObjectRuntimeTable.back().name, name, async_strlen(name));
+                flatObjectRuntimeTable.back().symval = base;
+                flatObjectRuntimeTable.back().symoff = offset;
+            }
+
+            std::ranges::sort(flatObjectRuntimeTable, compr);
+            flatObjectRuntimeTable_literal = flatObjectRuntimeTable.data();
+            flatObjectRuntimeTable_literal_size = flatObjectRuntimeTable.size();
+        }
+
         {
             struct sigaction sa {};
             sa.sa_sigaction = thread_dump_handler;
@@ -383,7 +465,7 @@ namespace ccdb
 
     init_crash_report_t init_crash_report;
 
-    const char* GetBacktrace(const init_crash_report_t::flatSymbolicTable_t* symbolic_table,
+    const init_crash_report_t::flatSymbolicTable_t* GetBacktrace(const init_crash_report_t::flatSymbolicTable_t* symbolic_table,
         const uint64_t symSize, const uint64_t symbol) noexcept
     {
         if (symbolic_table == nullptr || symSize == 0)
@@ -407,7 +489,7 @@ namespace ccdb
 
         // First element > symbol is lo,
         // therefore lo - 1 is the greatest element <= symbol.
-        return symbolic_table[lo - 1].name;
+        return &symbolic_table[lo - 1];
     }
 }
 
