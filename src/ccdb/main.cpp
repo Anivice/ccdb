@@ -488,6 +488,6 @@ int main_(int argc, char ** argv)
         return EXIT_FAILURE;
     }
 
-    if (fastQuit) _exit(EXIT_FAILURE);
+    if (fastQuit) _exit(EXIT_SUCCESS);
     return EXIT_SUCCESS;
 }

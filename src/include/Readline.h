@@ -266,7 +266,7 @@ namespace Readline
         close(sig_pipe[1]);
 
         if (fast_shutdown) {
-            exit(0); // fast shutdown
+            _exit(0); // fast shutdown
         }
     }
 } // Readline
