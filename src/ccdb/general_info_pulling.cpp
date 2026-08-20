@@ -1668,11 +1668,48 @@ bool general_info_pulling::modify_config_int(const std::string &entry, const uin
 
 void general_info_pulling::get_memory_pprof(const std::string& name, std::vector<char>& profiles)
 {
-    backend_client.get_info_no_instance("debug/pprof/" + name + "?debug=1", [&](const std::string & info)
+    int seconds = 15;
+    std::string suffix, debug = "?debug=";
+    if (name == "profile" || name == "trace")
     {
-        profiles.resize(info.size());
-        std::memcpy(profiles.data(), info.data(), info.size());
-    });
+        if (const auto str = ccdb::utils::getenv("MIHOMO_PPROF_SECONDS"); !str.empty()) {
+            seconds = ccdb::utils::convertToNumber<int>(str);
+        }
+
+        suffix = "&seconds=" + std::to_string(seconds);
+    }
+
+    if (const auto str = ccdb::utils::getenv("MIHOMO_PPROF_DBG"); !str.empty()) {
+        debug += str;
+    } else {
+        debug += '1';
+    }
+
+    httplib::Client http_cli(backend_client.backend_address_);
+    ccdb::utils::set_ssl_automatically(http_cli, backend_client.backend_address_);
+    http_cli.set_decompress(false);
+    http_cli.set_read_timeout(seconds + 10, 0);
+    const httplib::Headers headers = {
+        {"Authorization", "Bearer " + backend_client.token_},
+    };
+
+    httplib::Result res;
+    auto resp = [&](const char *data, const size_t len)
+    {
+        profiles.resize(profiles.size() + len);
+        std::memcpy(profiles.data() + profiles.size() - len, data, len);
+        return true;
+    };
+
+    if (!backend_client.token_.empty()) {
+        res = http_cli.Get("/debug/pprof/" + name + debug + suffix, headers, resp);
+    } else {
+        res = http_cli.Get("/debug/pprof/" + name + debug + suffix, resp);
+    }
+
+    if (!res) {
+        throw std::runtime_error(httplib::to_string(res.error()));
+    }
 }
 
 std::string general_info_pulling::get_config() const

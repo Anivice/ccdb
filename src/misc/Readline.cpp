@@ -980,7 +980,7 @@ namespace Readline
                 if (!presented_history.empty()) last_line = presented_history;
                 /// compose a command vector
                 cmd = remove_leading_and_tailing_spaces(cmd);
-                command_vector = ccdb::utils::split_via_history(cmd,  " \t\n|");
+                command_vector = ccdb::utils::split_via_history(cmd,  " \t\n|>");
             }
 
             if (!g_cmd_handler(command_vector)) {

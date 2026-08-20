@@ -8,7 +8,7 @@
 >
 > The translation is incomplete and existing translations are a mess.
 > Texts lacking Chinese corresponding translations are shown in English.
-> Missing texts will be shown in `~/.config/ccdb/MISSING-TRANSLATIONS.json`
+> Missing texts will be shown in `~/.config/ccdb/MISSING-TRANSLATIONS.json` for Release Candidates.
 
 A lightweight terminal dashboard for Clash/Mihomo, written in C++.
 
@@ -20,6 +20,7 @@ A lightweight terminal dashboard for Clash/Mihomo, written in C++.
    * [Example 1: Switch Proxy in a Proxy Group](#example-1-switch-proxy-in-a-proxy-group)
    * [Example 2: Map the Entire Proxy Chain](#example-2-map-the-entire-proxy-chain)
    * [Example 3: Shell Parsing of `get config`](#Example-3-Shell-Parsing-of-get-config)
+   * [Example 4: Dump backend debug info](#Example-4-Dump-backend-debug-info)
  - [How to Build](#how-to-build)
 
 ## Overview
@@ -132,6 +133,16 @@ Or, you can even pipe a POSIX script into the pipeline:
 
 As you can see, when executing a piped script, you can invoke `ccdb` with
 environment variable `$CCDB`, which is a duplicate of the parent `ccdb` arguments.
+
+### Example 4: Dump backend debug info
+
+Launch `ccdb` with extra features enabled using the command `CCDB_ENABLE_EXPERIMENTAL_FEATURES=true ccdb`.
+
+```bash
+   ccdb> get memory pprof heap > /tmp/heap
+```
+
+Here we dumped backend heap file to `/tmp/heap`.
 
 ## How to Build
 

@@ -88,7 +88,7 @@ namespace
         return true;
     }
 
-    int is_same_network(sockaddr *addr, sockaddr *mask, const char *target_ip)
+    int is_same_network(sockaddr *addr, sockaddr *mask, const std::string & target_ip)
     {
         if (addr->sa_family != AF_INET) {
             throw std::domain_error("IPv6 not implemented");
@@ -102,7 +102,7 @@ namespace
         const uint32_t network = ip & netmask;
 
         in_addr target_bin { };
-        if (inet_pton(AF_INET, target_ip, &target_bin) != 1) {
+        if (inet_pton(AF_INET, target_ip.c_str(), &target_bin) != 1) {
             return 0;
         }
 
@@ -112,7 +112,7 @@ namespace
         return (network == target_network);
     }
 
-    std::string find_target_ip(const char *target_ip)
+    std::string find_target_ip(const std::string & target_ip)
     {
         ifaddrs *ifaddr;
         if (getifaddrs(&ifaddr) == -1) {
@@ -132,8 +132,9 @@ namespace
                 if (addr_to_string(ifa->ifa_addr, addr_str, sizeof(addr_str))
                     && is_same_network(ifa->ifa_addr, ifa->ifa_netmask, target_ip))
                 {
+                    const std::string ifa_name_CXX = ifa->ifa_name;
                     freeifaddrs(ifaddr);
-                    return ifa->ifa_name;
+                    return ifa_name_CXX;
                 }
             }
         }
@@ -425,7 +426,7 @@ int main_(int argc, char ** argv)
                 utils::parse_url(backend, scheme, host, path))
             {
                 host = host.substr(0, host.find_last_of(':'));
-                const auto dev = find_target_ip(host.c_str());
+                const auto dev = find_target_ip(host);
                 ::setenv("CCDB_SYNC_ADDRESS_BIND_TO", dev.c_str(), 1);
                 if (!quiet && !parsed.contains("execute"))
                     utils::print("Setting CCDB_SYNC_ADDRESS_BIND_TO=", dev, " since backend is reachable from here.\n");

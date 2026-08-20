@@ -62,29 +62,34 @@
 // --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;
 
-void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vector)
+void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vector, int mode)
 {
     int pipes[NUM_PIPES][2];
-    std::vector < std::string > ccdb_vector, shell_vector;
-    bool switch_to_shell = false;
-    std::ranges::for_each(command_vector, [&](const std::string & c)
-    {
-        if (!switch_to_shell && c == "|") {
-            switch_to_shell = true;
-            return;
-        }
-
-        if (!switch_to_shell) {
-            ccdb_vector.push_back(c);
-        } else {
-            shell_vector.push_back(c);
-        }
-    });
-
+    std::vector < std::string > ccdb_vector;
     std::stringstream command_ss;
-    std::ranges::for_each(shell_vector, [&](const std::string &c) {
-        command_ss << c << " ";
-    });
+
+    {
+        std::vector < std::string > shell_vector;
+        bool switch_to_shell = false;
+        std::ranges::for_each(command_vector, [&](const std::string & c)
+        {
+            if (!switch_to_shell && c == (mode == 1 ?  "|" : ">")) {
+                switch_to_shell = true;
+                return;
+            }
+
+            if (!switch_to_shell) {
+                ccdb_vector.push_back(c);
+            } else {
+                shell_vector.push_back(c);
+            }
+        });
+
+
+        std::ranges::for_each(shell_vector, [&](const std::string &c) {
+            command_ss << c << " ";
+        });
+    }
 
     // Initialize all required pipes
     for (auto & i : pipes)
@@ -270,7 +275,19 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
         if (T0.joinable()) T0.join();
         watcher_.stop(); if (T1.joinable()) T1.join();
         if (status.fd_stderr.empty()) {
-            exec_command("/bin/sh", status.fd_stdout, "-c", command_ss.str());
+            if (mode == 1) {
+                exec_command("/bin/sh", status.fd_stdout, "-c", command_ss.str());
+            } else {
+                const auto filename = Readline::remove_leading_and_tailing_spaces(command_ss.str());
+                std::ofstream out(filename, std::ios::trunc);
+                if (!out.is_open()) {
+                    print<is_error>("Could not open file ", filename, ": ", std::strerror(errno), "\n");
+                    return;
+                }
+
+                out.write(status.fd_stdout.c_str(), status.fd_stdout.size());
+                out.close();
+            }
         } else {
             print<is_error>(status.fd_stderr, (!status.fd_stderr.empty() && status.fd_stderr.back() == '\n') ? "" : "\n");
         }
@@ -290,7 +307,6 @@ static bool is_executable(const fs::path& p)
     using fs_perms = fs::perms;
     return (perms & (fs_perms::owner_exec | fs_perms::group_exec | fs_perms::others_exec)) != fs_perms::none;
 }
-
 
 void ccdb::ccdb::init()
 {
@@ -638,7 +654,9 @@ void ccdb::ccdb::init()
         std::cout.write(dump.data(), static_cast<std::streamsize>(dump.size()));
         constexpr char endl[] = "¶\n";
         if (!dump.empty() && dump.back() != '\n' && isatty(fileno(stdout))) {
+            std::cout << color::color(1,1,1);
             std::cout.write(reinterpret_cast<const char*>(&endl), sizeof(endl) - 1);
+            std::cout << color::no_color();
         }
         std::cout.flush();
         return true;
@@ -683,7 +701,13 @@ void ccdb::ccdb::init()
 
             if (std::ranges::any_of(command_vector, [](const std::string & c) { return c == "|"; }))
             {
-                fork_and_execute(command_vector);
+                fork_and_execute(command_vector, 1);
+                return true;
+            }
+
+            if (std::ranges::any_of(command_vector, [](const std::string & c) { return c == ">"; }))
+            {
+                fork_and_execute(command_vector, 2);
                 return true;
             }
 
@@ -696,9 +720,11 @@ void ccdb::ccdb::init()
             try {
                 return commandMatchesRegexCompiled.dispatch(command_string, command_vector);
             }
-            catch (std::exception &)
-            {
+            catch (std::invalid_argument &) {
                 print<is_error>("Unknown command `", command_string, "` or invalid syntax\n");
+            }
+            catch (std::exception & e) {
+                print<is_error>(e.what(), "\n");
                 if (execute_and_no_interactive) throw std::runtime_error("");
                 if (backend_instance.force_quit) return false;
             }
