@@ -116,7 +116,7 @@
     >,
     < closeConnections (Close all connections): [NONE] >,
     < clearFilter (Clear get connection/log filtering patterns): [NONE] >,
-    < nload (nload-like connection speed monitoring): catlog (Show last three logs instead of top three speed connections) >,
+    < nload (nload-like connection speed monitoring): logcat (Show last three logs instead of top three speed connections) >,
     < reset (Reset terminal mode): [NONE] >,
     < apply (Apply JSON config to backend): [NONE] >,
     < $ (Execute shell commands): [SHELLCOMMAND], [PWD...] >,
