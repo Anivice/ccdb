@@ -110,15 +110,7 @@ void ccdb::ccdb::nload(
 
     std::atomic_int info_space_size = -1;
     std::atomic_bool info_space_size_require_reset_on_next_frame = false;
-    auto print_win = [&max_in_vec,
-        &min_in_vec,
-        &avg_in_vec,
-        &info_space_size,
-        &col,
-        &color_cache,
-        &color_scheme_rainbow_flow,
-        &last_refresh_time,
-        &info_space_size_require_reset_on_next_frame]
+    auto print_win = [&]
     (
         const std::atomic<uint64_t> * speed,
         const std::atomic<uint64_t> * total,
@@ -208,7 +200,7 @@ void ccdb::ccdb::nload(
 
         if ((info_space_size_require_reset_on_next_frame
             && info_space_size > new_max_size
-            && info_space_size - new_max_size > 2)
+            && std::abs(info_space_size - new_max_size) > 15)
             || info_space_size < new_max_size)
         {
             info_space_size = new_max_size;
