@@ -375,6 +375,20 @@ int main_(int argc, char ** argv)
             std::mutex mutex;
             std::vector<std::thread> threads;
 
+            auto addr2line = [](const std::string & path, const std::string & name)->std::string
+            {
+                auto addr2line_res = utils::exec_command2("/bin/sh", "", "-c",
+                                      "addr2line --demangle -f -p -a -e \"" + path + "\" " + name);
+                if (addr2line_res.exit_status == 0)
+                {
+                    while (!addr2line_res.fd_stdout.empty() && addr2line_res.fd_stdout.back() == '\n')
+                        addr2line_res.fd_stdout.pop_back();
+                    return addr2line_res.fd_stdout;
+                }
+
+                return { };
+            };
+
             for (const auto & [tid, vec] : backtraces)
             {
                 utils::print("================ THREAD (", tid, ") ================\n");
@@ -392,17 +406,10 @@ int main_(int argc, char ** argv)
                             if (result && it != ccdb::init_crash_report.flatObjectRuntimeTable.end())
                             {
                                 std::stringstream ss; ss << std::hex << frame;
-                                auto addr2line_res = utils::exec_command2("/bin/sh", "", "-c",
-                                    "addr2line --demangle -f -p -a -e \"" + std::string(it->name) + "\" 0x" + ss.str());
-                                if (addr2line_res.exit_status == 0)
-                                {
-                                    while (!addr2line_res.fd_stdout.empty() && addr2line_res.fd_stdout.back() == '\n')
-                                        addr2line_res.fd_stdout.pop_back();
-                                    info = addr2line_res.fd_stdout;
-                                }
+                                info = addr2line(it->name, "0x" + ss.str());
                             }
 
-                            if (info.empty())
+                            if (info.empty() || info.find("??") != std::string::npos) // no info or addr2line has found nothing
                             {
                                 std::stringstream ss_;
                                 ss_ << std::setw(16) << std::hex << std::setfill('0') << frame << ": " << demangle(sym_name->name);
@@ -417,27 +424,19 @@ int main_(int argc, char ** argv)
                         {
                             const auto & libPath = sm[1].str();
                             const auto & libAddr = sm[2].str();
-                            auto addr2line_res = utils::exec_command2("/bin/sh",
-                                "", "-c", "addr2line --demangle -f -p -a -e \"" + libPath + "\" " + libAddr);
-                            if (addr2line_res.exit_status == 0)
-                            {
-                                while (!addr2line_res.fd_stdout.empty() && addr2line_res.fd_stdout.back() == '\n')
-                                    addr2line_res.fd_stdout.pop_back();
-                                const auto line = utils::sprint("  #", std::setw(6), std::setfill('0'), std::dec, i, " -> ",
-                                    std::setw(16), std::hex, std::setfill('0'), libPath, ": ",
-                                    addr2line_res.fd_stdout, "\n");
+                            if (const auto info = addr2line(libPath, libAddr); !info.empty()) {
                                 std::lock_guard<std::mutex> guard(mutex);
-                                backtraces_lines.emplace(i, line);
-                            }
-                            else
-                            {
+                                backtraces_lines.emplace(i, info);
+                            } else {
                                 std::lock_guard<std::mutex> guard(mutex);
                                 backtraces_lines.emplace(i, vec[i].second);
                             }
                         }
                     }, i_);
 
-                    if ((i_ + 1) % (std::thread::hardware_concurrency() / 5) == 0)
+                    if ((i_ + 1) % std::min(
+                        static_cast<int>(std::thread::hardware_concurrency()),
+                        static_cast<int>(static_cast<double>(mem_total_kb()) / (1024 * 1024 * 3.5))) == 0) // addr2line consumes at peak 3.5 GB per process
                     {
                         std::ranges::for_each(threads, [](std::thread & T)
                         {

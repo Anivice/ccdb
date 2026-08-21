@@ -333,7 +333,10 @@ namespace
             "        `ccdb --backtrace --feedBacktrace < /path/to/trace/file`\n"
             "You can also use `addr2line` to trace the frame, but this better be done on the same build version\n"
             "of the executable of `libccdb.debug_info.so`. The said executable can be obtained on GitHub:\n"
-            "        `https://github.com/Anivice/ccdb/releases/tag/ccdb.NightlyBuild." GIT_HASH "`\n\n"
+            "        `https://github.com/Anivice/ccdb/releases/tag/ccdb.NightlyBuild." GIT_HASH "`\n"
+            "  OR    `https://github.com/Anivice/ccdb/releases/tag/ccdb.NightlyBuild.aarch64." GIT_HASH "`,\n"
+            "  if you are using aarch64 build."
+            "\n"
             " Trace file location: ";
         if (ccdb::init_crash_report.crash_log_destination_literal)
         {
