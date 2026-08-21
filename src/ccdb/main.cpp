@@ -377,13 +377,16 @@ int main_(int argc, char ** argv)
 
             auto addr2line = [](const std::string & path, const std::string & name)->std::string
             {
-                auto addr2line_res = utils::exec_command2("/bin/sh", "", "-c",
-                                      "addr2line --demangle -f -p -a -e \"" + path + "\" " + name);
-                if (addr2line_res.exit_status == 0)
+                for (int i = 0; i < 5; i++)
                 {
-                    while (!addr2line_res.fd_stdout.empty() && addr2line_res.fd_stdout.back() == '\n')
-                        addr2line_res.fd_stdout.pop_back();
-                    return addr2line_res.fd_stdout;
+                    auto addr2line_res = utils::exec_command2("/bin/sh", "", "-c",
+                                          "addr2line --demangle -f -p -a -e \"" + path + "\" " + name);
+                    if (addr2line_res.exit_status == 0)
+                    {
+                        while (!addr2line_res.fd_stdout.empty() && addr2line_res.fd_stdout.back() == '\n')
+                            addr2line_res.fd_stdout.pop_back();
+                        return addr2line_res.fd_stdout;
+                    }
                 }
 
                 return { };
@@ -394,6 +397,7 @@ int main_(int argc, char ** argv)
                 utils::print("================ THREAD (", tid, ") ================\n");
                 for (uint64_t i_ = 0; i_ < vec.size(); i_++)
                 {
+                    if (vec[i_].second.find("landmark") != std::string::npos) break;
                     threads.emplace_back([&](const uint64_t i)
                     {
                         const thread_local std::regex has_external_lib_reg(R"(0x[0-9|A-F]+ \#(.*)\: (0x[0-9|A-F]+))");
@@ -425,8 +429,9 @@ int main_(int argc, char ** argv)
                             const auto & libPath = sm[1].str();
                             const auto & libAddr = sm[2].str();
                             if (const auto info = addr2line(libPath, libAddr); !info.empty()) {
+                                const auto line = utils::sprint("  #", std::setw(6), std::setfill('0'), std::dec, i, " -> ", info, "\n");
                                 std::lock_guard<std::mutex> guard(mutex);
-                                backtraces_lines.emplace(i, info);
+                                backtraces_lines.emplace(i, line);
                             } else {
                                 std::lock_guard<std::mutex> guard(mutex);
                                 backtraces_lines.emplace(i, vec[i].second);
