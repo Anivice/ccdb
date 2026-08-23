@@ -342,10 +342,17 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
         }
     } else if (command_vector[1] == "core") {
         try {
-            const auto result = backend_instance.generic_post("/upgrade");
-            const auto json = json::parse(result);
-            const auto result_ = std::string(json.contains("message") ? json["message"] : json["status"]);
-            print(result_, "\n");
+            auto result = backend_instance.generic_post("/upgrade");
+            if (std::ranges::all_of(result, [](const auto & c){ return c == '\t' || c == ' ' || c == '\n'; })) {
+                result.clear();
+            }
+
+            if (!result.empty())
+            {
+                const auto json = json::parse(result);
+                const auto result_ = std::string(json.contains("message") ? json["message"] : json["status"]);
+                print(result_, "\n");
+            }
         } catch (std::exception & e) {
             print(e.what(), "\n");
         }

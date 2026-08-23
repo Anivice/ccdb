@@ -308,6 +308,338 @@ static bool is_executable(const fs::path& p)
     return (perms & (fs_perms::owner_exec | fs_perms::group_exec | fs_perms::others_exec)) != fs_perms::none;
 }
 
+bool ::ccdb::ccdb::commandProcessor(const std::vector<std::string> & command_vector_)
+{
+    try {
+        if (backend_instance.force_quit) {
+            return false;
+        }
+
+        std::vector < std::string > command_vector = command_vector_;
+        if (command_vector.empty()) {
+            return true;
+        }
+
+        if (!command_vector.empty() && alias_list.contains(command_vector.front())) {
+            auto replacement = split_via_history(alias_list.at(command_vector.front()));
+            command_vector.erase(command_vector.begin());
+            replacement.insert(replacement.end(), command_vector.begin(), command_vector.end());
+            command_vector = replacement;
+        }
+
+        if (command_vector.front() == "$" && command_vector.size() >= 2)
+        {
+            std::stringstream command_ss;
+            std::for_each(command_vector.begin() + 1, command_vector.end(), [&](const std::string & c) {
+                command_ss << c << " ";
+            });
+
+            if (const auto status = exec_command("/bin/sh", "", "-c", command_ss.str()).exit_status;
+                status != 0)
+                print<is_error>("Child process exited with the code ", status, "\n");
+            return true;
+        }
+
+        if (std::ranges::any_of(command_vector, [](const std::string & c) { return c == "|"; }))
+        {
+            fork_and_execute(command_vector, 1);
+            return true;
+        }
+
+        if (std::ranges::any_of(command_vector, [](const std::string & c) { return c == ">"; }))
+        {
+            fork_and_execute(command_vector, 2);
+            return true;
+        }
+
+        // format command
+        std::stringstream command_ss;
+        for (const auto & command : command_vector) command_ss << command << " ";
+        std::string command_string = command_ss.str();
+        if (!command_string.empty()) command_string.pop_back();
+
+        try {
+            return commandMatchesRegexCompiled.dispatch(command_string, command_vector);
+        }
+        catch (std::invalid_argument &) {
+            print<is_error>("Unknown command `", command_string, "` or invalid syntax\n");
+        }
+        catch (std::exception & e) {
+            print<is_error>(e.what(), "\n");
+            if (execute_and_no_interactive) throw std::runtime_error("");
+            if (backend_instance.force_quit) return false;
+        }
+    } catch (std::exception & e) {
+        std::cerr << e.what() << std::endl;
+    }
+    catch (...) {
+        print<is_error>("Unknown exception\n");
+    }
+
+    return true;
+}
+
+namespace
+{
+    std::vector<std::string> escape(std::vector<std::string> list)
+    {
+        std::ranges::for_each(list, [](std::string & str) {
+            replace_all(str, " ", "_");
+        });
+
+        return list;
+    }
+
+    std::string clean(std::string str)
+    {
+        if (str.find_first_of(':') != std::string::npos) {
+            str = str.substr(0, str.find_first_of(':'));
+        }
+
+        return str;
+    }
+
+    std::vector<std::string> get_list_of_files(const std::string & dir)
+    {
+        try {
+            std::vector<std::string> indexes_in_pwd;
+            for (std::error_code ec; const auto& entry : fs::directory_iterator(dir, ec))
+            {
+                if (ec) {
+                    break;
+                }
+
+                try {
+                    if (fs::is_directory(entry.path())) {
+                        indexes_in_pwd.push_back(entry.path().filename().string() + "/");
+                    } else {
+                        indexes_in_pwd.push_back(entry.path().filename().string());
+                    }
+                } catch (...) {
+                    indexes_in_pwd.push_back(entry.path().filename().string());
+                }
+            }
+
+            return indexes_in_pwd;
+        } catch (...) {
+            return { };
+        }
+    };
+
+    std::vector<std::string> get_path_arb(const std::string & path_)
+    {
+        std::vector<std::string> indexes_in_path = get_list_of_files(path_);
+        const bool compliment = path_.back() != '/';
+        std::ranges::for_each(indexes_in_path, [&](std::string & p) {
+            p = path_ + (compliment ? "/" : "") + p;
+        });
+        return indexes_in_path;
+    }
+
+    std::vector<std::pair<std::string, std::string>> list_all_envs()
+    {
+        std::vector<std::pair<std::string, std::string>> envs;
+        int i = 0;
+        while (environ[i]) {
+            const std::string env = environ[i++];
+            envs.emplace_back(env.substr(0, env.find_first_of('=')),
+                env.substr(env.find_first_of('=') + 1));
+        }
+
+        return envs;
+    }
+
+    void shellCommandCompletion(std::vector<std::string> & listed_all_commands_in_path)
+    {
+        if (listed_all_commands_in_path.empty())
+        {
+            std::vector<std::string> paths;
+            const std::string PATH = ccdb::utils::getenv("PATH");
+            std::stringstream ss(PATH);
+            std::string str;
+            while (std::getline(ss, str, ':'))
+            {
+                paths.push_back(str);
+            }
+
+            std::ranges::for_each(paths, [&](const std::string & path)
+            {
+                if (std::error_code ec; fs::is_directory(path, ec))
+                {
+                    for (const auto& entry : fs::directory_iterator(path, ec))
+                    {
+                        if (ec) {
+                            break;
+                        }
+
+                        if (is_executable(entry.path())) {
+                            const auto exec_str = entry.path().filename().string();
+                            listed_all_commands_in_path.emplace_back(exec_str);
+                        }
+                    }
+                }
+            });
+
+            std::ranges::sort(listed_all_commands_in_path);
+            auto [first, last] = std::ranges::unique(listed_all_commands_in_path);
+            listed_all_commands_in_path.erase(first, last);
+        }
+    }
+
+    std::vector<std::string> pwd(const std::vector<std::string> & args, const int arg_index)
+    {
+        std::string path;
+        if (args.size() > arg_index) {
+            path = args[arg_index];
+        }
+
+        if (!path.empty() && path.front() == '$') // list all env
+        {
+#if !((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
+            const auto env_names = list_all_envs();
+            std::vector<std::string> list_view;
+            std::for_each(env_names.begin(), env_names.end(), [&list_view](const std::pair < std::string, std::string > & s_)
+                { list_view.emplace_back(s_.first); });
+            return list_view;
+#else
+            const auto env_names = list_all_envs() | std::views::keys;
+            return { env_names.begin(), env_names.end() };
+#endif
+        }
+        else if (path.empty() || (!path.empty() && path.front() != '/' && path.front() != '~'))
+        {
+            std::vector<std::string> indexes_in_pwd;
+            const auto pwd = "/" + ccdb::utils::getenv("PWD");
+            return get_list_of_files(pwd);
+        }
+        else if (const auto home = ccdb::utils::getenv("HOME");
+            path.front() == '~')
+        {
+            auto ret_format = [&home](std::vector < std::string > paths) -> std::vector < std::string > {
+                std::ranges::for_each(paths, [&](std::string & p) {
+                    p = "~" + p.substr(home.size());
+                });
+
+                return paths;
+            };
+
+            path = home + path.substr(1);
+            if (std::filesystem::exists(path) && std::filesystem::is_directory(path)) {
+                return ret_format(get_path_arb(path));
+            } else {
+                if (!path.empty() && path.back() == '/') path.pop_back();
+                path = path.substr(0, path.find_last_of('/'));
+                if (path.empty()) path = "/";
+                return ret_format(get_path_arb(path));
+            }
+        }
+        else if (std::filesystem::exists(path) && std::filesystem::is_directory(path)) {
+            return get_path_arb(path);
+        }
+        else if (!std::filesystem::exists(path)) {
+            path = path.substr(0, path.find_last_of('/'));
+            if (path.empty()) path = "/";
+            return get_path_arb(path);
+        } else /* if (std::filesystem::exists(path)) */ {
+            if (!path.empty() && path.back() == '/') path.pop_back();
+            path = path.substr(0, path.find_last_of('/'));
+            if (path.empty()) path = "/";
+            return get_path_arb(path);
+        }
+    }
+
+    std::vector<std::string> ALIAS_ARGUMENT(const std::vector<std::string> & args, const int arg_index,
+        const tsl::hopscotch_map < std::string, std::string > & alias_list)
+    {
+        try {
+            if (args.empty()) return { };
+            const auto & alias_name = args.front();
+            const auto & ptr = alias_list.find(alias_name);
+            if (ptr == alias_list.end()) return { };
+            std::vector < std::string > arg_true;
+            const auto replacement = split_via_history(ptr->second);
+            arg_true.insert(arg_true.end(), replacement.begin(), replacement.end());
+            arg_true.insert(arg_true.end(), args.begin() + 1, args.end());
+            arg_true.resize(arg_index + (replacement.size() - 1));
+            const auto & verbs = Readline::command_template_tree.find_sub_commands(arg_true);
+            for (const auto & verb : verbs)
+            {
+                auto arg_hash_list = args;
+                std::vector < std::string > args_verb = arg_true;
+
+                arg_hash_list.resize(arg_index);
+
+                args_verb.emplace_back(verb);
+                arg_hash_list.emplace_back(verb);
+
+                std::stringstream ss;
+                std::ranges::for_each(arg_hash_list, [&ss](const auto & arg) {
+                    ss << arg << ":";
+                });
+
+                try {
+                    const auto & hash = ss.str();
+                    Readline::g_extra_help_map.emplace(hash, Readline::command_template_tree.get_help(args_verb));
+                } catch (std::exception &) { /* ... slient drop */ }
+            }
+            return { verbs.begin(), verbs.end() };
+        } catch (std::exception &) {
+            return { };
+        }
+    }
+}
+
+std::vector<std::string> ccdb::ccdb::commandAutoCompletion(const std::vector<std::string> & args, const std::string & special_filler, const int arg_index)
+{
+    try
+    {
+        if (special_filler == "[VGROUP]") {
+            return escape(get_vgroups());
+        }
+
+        if (special_filler == "[VPROXY]")
+        {
+            std::string group;
+            if (args.size() >= 3) {
+                group = clean(args[2]);
+            }
+            return escape(get_vendpoints(index_to_proxy_name_list.at(convertToNumber<int>(group))));
+        }
+
+        if (special_filler == "[ENDPOINTS...]")
+        {
+            std::vector<std::string> endpoints;
+            for (const auto & [index, name] : index_to_proxy_name_list) {
+                endpoints.push_back(std::to_string(index) + ": " + name);
+            }
+            return escape({endpoints.begin(), endpoints.end()});
+        }
+
+        if (special_filler == "[SHELLCOMMAND]")
+        {
+            shellCommandCompletion(listed_all_commands_in_path);
+            return listed_all_commands_in_path;
+        }
+
+        if (special_filler == "[PWD...]") {
+            return pwd(args, arg_index);
+        }
+
+        if (special_filler == "[ALIAS]") {
+            const auto aliases= alias_list | std::views::keys;
+            return { aliases.begin(), aliases.end() };
+        }
+
+        if (special_filler == "[ALIAS_ARGUMENT...]") {
+            return ALIAS_ARGUMENT(args, arg_index, alias_list);
+        }
+    } catch (...) {
+        return { };
+    }
+
+    return { };
+}
+
 void ccdb::ccdb::init()
 {
     namespace fs = std::filesystem;
@@ -581,7 +913,10 @@ void ccdb::ccdb::init()
     commandMatches.emplace_back("get rules", [this](const auto &) { get_rules(); return true; });
     commandMatches.emplace_back("get providerRules", [this](const auto &) { get_providerRules(); return true; });
 
-    commandMatches.emplace_back(R"(upgrade (self|geo|providerRules|core))", [this](const auto &command_vector) { upgrade(command_vector); return true; });
+    commandMatches.emplace_back(R"(upgrade (self|geo|providerRules|core))", [this](const auto &command_vector) {
+        upgrade(command_vector); return true;
+    });
+
     commandMatches.emplace_back("restart", [this](const auto &)
     {
         const auto result = backend_instance.generic_post("/restart");
@@ -667,318 +1002,12 @@ void ccdb::ccdb::init()
     });
     commandMatchesRegexCompiled.compile();
 
-    handler = [this](const std::vector<std::string> & command_vector_)->bool
-    {
-        try {
-            if (backend_instance.force_quit) {
-                return false;
-            }
-
-            std::vector < std::string > command_vector = command_vector_;
-            if (command_vector.empty()) {
-                return true;
-            }
-
-            if (!command_vector.empty() && alias_list.contains(command_vector.front())) {
-                auto replacement = split_via_history(alias_list.at(command_vector.front()));
-                command_vector.erase(command_vector.begin());
-                replacement.insert(replacement.end(), command_vector.begin(), command_vector.end());
-                command_vector = replacement;
-            }
-
-            if (command_vector.front() == "$" && command_vector.size() >= 2)
-            {
-                std::stringstream command_ss;
-                std::for_each(command_vector.begin() + 1, command_vector.end(), [&](const std::string & c) {
-                    command_ss << c << " ";
-                });
-
-                if (const auto status = exec_command("/bin/sh", "", "-c", command_ss.str()).exit_status;
-                    status != 0)
-                    print<is_error>("Child process exited with the code ", status, "\n");
-                return true;
-            }
-
-            if (std::ranges::any_of(command_vector, [](const std::string & c) { return c == "|"; }))
-            {
-                fork_and_execute(command_vector, 1);
-                return true;
-            }
-
-            if (std::ranges::any_of(command_vector, [](const std::string & c) { return c == ">"; }))
-            {
-                fork_and_execute(command_vector, 2);
-                return true;
-            }
-
-            // format command
-            std::stringstream command_ss;
-            for (const auto & command : command_vector) command_ss << command << " ";
-            std::string command_string = command_ss.str();
-            if (!command_string.empty()) command_string.pop_back();
-
-            try {
-                return commandMatchesRegexCompiled.dispatch(command_string, command_vector);
-            }
-            catch (std::invalid_argument &) {
-                print<is_error>("Unknown command `", command_string, "` or invalid syntax\n");
-            }
-            catch (std::exception & e) {
-                print<is_error>(e.what(), "\n");
-                if (execute_and_no_interactive) throw std::runtime_error("");
-                if (backend_instance.force_quit) return false;
-            }
-        } catch (std::exception & e) {
-            std::cerr << e.what() << std::endl;
-        }
-        catch (...) {
-            print<is_error>("Unknown exception\n");
-        }
-
-        return true;
+    handler = [this](const std::vector<std::string> & command_vector_)->bool {
+        return commandProcessor(command_vector_);
     };
 
-    auto_completion = [this](const std::vector<std::string> & args, const std::string & special_filler, const int arg_index)->std::vector<std::string>
-    {
-        auto escape = [](std::vector<std::string> list)->std::vector<std::string>
-        {
-            std::ranges::for_each(list, [](std::string & str) {
-                replace_all(str, " ", "_");
-            });
-
-            return list;
-        };
-
-        try {
-            if (special_filler == "[VGROUP]") {
-                return escape(get_vgroups());
-            }
-            else if (special_filler == "[VPROXY]")
-            {
-                std::string group;
-                if (args.size() >= 3)
-                {
-                    auto clean = [](std::string str)->std::string
-                    {
-                        if (str.find_first_of(':') != std::string::npos) {
-                            str = str.substr(0, str.find_first_of(':'));
-                        }
-
-                        return str;
-                    };
-
-                    group = clean(args[2]);
-                }
-                return escape(get_vendpoints(index_to_proxy_name_list.at(convertToNumber<int>(group))));
-            }
-            else if (special_filler == "[ENDPOINTS...]")
-            {
-                std::vector<std::string> endpoints;
-                for (const auto & [index, name] : index_to_proxy_name_list) {
-                    endpoints.push_back(std::to_string(index) + ": " + name);
-                }
-                return escape({endpoints.begin(), endpoints.end()});
-            }
-            else if (special_filler == "[SHELLCOMMAND]")
-            {
-                if (listed_all_commands_in_path.empty())
-                {
-                    std::vector<std::string> paths;
-                    const std::string PATH = utils::getenv("PATH");
-                    std::stringstream ss(PATH);
-                    std::string str;
-                    while (std::getline(ss, str, ':'))
-                    {
-                        paths.push_back(str);
-                    }
-
-                    std::ranges::for_each(paths, [&](const std::string & path)
-                    {
-                        if (std::error_code ec; fs::is_directory(path, ec))
-                        {
-                            for (const auto& entry : fs::directory_iterator(path, ec))
-                            {
-                                if (ec) {
-                                    break;
-                                }
-
-                                if (is_executable(entry.path())) {
-                                    const auto exec_str = entry.path().filename().string();
-                                    listed_all_commands_in_path.emplace_back(exec_str);
-                                }
-                            }
-                        }
-                    });
-
-                    std::ranges::sort(listed_all_commands_in_path);
-                    auto [first, last] = std::ranges::unique(listed_all_commands_in_path);
-                    listed_all_commands_in_path.erase(first, last);
-                }
-
-                return listed_all_commands_in_path;
-            }
-            else if (special_filler == "[PWD...]")
-            {
-                std::string path;
-                if (args.size() > arg_index) {
-                    path = args[arg_index];
-                }
-
-                auto get_list_of_files = [](const std::string & dir) -> std::vector<std::string>
-                {
-                    try {
-                        std::vector<std::string> indexes_in_pwd;
-                        for (std::error_code ec; const auto& entry : fs::directory_iterator(dir, ec))
-                        {
-                            if (ec) {
-                                break;
-                            }
-
-                            try {
-                                if (fs::is_directory(entry.path())) {
-                                    indexes_in_pwd.push_back(entry.path().filename().string() + "/");
-                                } else {
-                                    indexes_in_pwd.push_back(entry.path().filename().string());
-                                }
-                            } catch (...) {
-                                indexes_in_pwd.push_back(entry.path().filename().string());
-                            }
-                        }
-
-                        return indexes_in_pwd;
-                    } catch (...) {
-                        return { };
-                    }
-                };
-
-                auto get_path_arb = [&get_list_of_files](const std::string & path_)->std::vector<std::string>
-                {
-                    std::vector<std::string> indexes_in_path = get_list_of_files(path_);
-                    const bool compliment = path_.back() != '/';
-                    std::ranges::for_each(indexes_in_path, [&](std::string & p) {
-                        p = path_ + (compliment ? "/" : "") + p;
-                    });
-                    return indexes_in_path;
-                };
-
-                auto list_all_envs = []
-                {
-                    std::vector<std::pair<std::string, std::string>> envs;
-                    int i = 0;
-                    while (environ[i]) {
-                        const std::string env = environ[i++];
-                        envs.emplace_back(env.substr(0, env.find_first_of('=')),
-                            env.substr(env.find_first_of('=') + 1));
-                    }
-
-                    return envs;
-                };
-
-                if (!path.empty() && path.front() == '$') // list all env
-                {
-#if !((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
-                    const auto env_names = list_all_envs();
-                    std::vector<std::string> list_view;
-                    std::for_each(env_names.begin(), env_names.end(), [&list_view](const std::pair < std::string, std::string > & s_)
-                        { list_view.emplace_back(s_.first); });
-                    return list_view;
-#else
-                    const auto env_names = list_all_envs() | std::views::keys;
-                    return { env_names.begin(), env_names.end() };
-#endif
-                }
-                else if (path.empty() || (!path.empty() && path.front() != '/' && path.front() != '~'))
-                {
-                    std::vector<std::string> indexes_in_pwd;
-                    const auto pwd = "/" + utils::getenv("PWD");
-                    return get_list_of_files(pwd);
-                }
-                else if (const auto home = utils::getenv("HOME");
-                    path.front() == '~')
-                {
-                    auto ret_format = [&home](std::vector < std::string > paths) -> std::vector < std::string > {
-                        std::ranges::for_each(paths, [&](std::string & p) {
-                            p = "~" + p.substr(home.size());
-                        });
-
-                        return paths;
-                    };
-
-                    path = home + path.substr(1);
-                    if (std::filesystem::exists(path) && std::filesystem::is_directory(path)) {
-                        return ret_format(get_path_arb(path));
-                    } else {
-                        if (!path.empty() && path.back() == '/') path.pop_back();
-                        path = path.substr(0, path.find_last_of('/'));
-                        if (path.empty()) path = "/";
-                        return ret_format(get_path_arb(path));
-                    }
-                }
-                else if (std::filesystem::exists(path) && std::filesystem::is_directory(path)) {
-                    return get_path_arb(path);
-                }
-                else if (!std::filesystem::exists(path)) {
-                    path = path.substr(0, path.find_last_of('/'));
-                    if (path.empty()) path = "/";
-                    return get_path_arb(path);
-                } else /* if (std::filesystem::exists(path)) */ {
-                    if (!path.empty() && path.back() == '/') path.pop_back();
-                    path = path.substr(0, path.find_last_of('/'));
-                    if (path.empty()) path = "/";
-                    return get_path_arb(path);
-                }
-            }
-            else if (special_filler == "[ALIAS]") {
-                const auto aliases= alias_list | std::views::keys;
-                return { aliases.begin(), aliases.end() };
-            }
-            else if (special_filler == "[ALIAS_ARGUMENT...]")
-            {
-                try {
-                    if (args.empty()) return { };
-                    const auto & alias_name = args.front();
-                    const auto & ptr = alias_list.find(alias_name);
-                    if (ptr == alias_list.end()) return { };
-                    std::vector < std::string > arg_true;
-                    const auto replacement = split_via_history(ptr->second);
-                    arg_true.insert(arg_true.end(), replacement.begin(), replacement.end());
-                    arg_true.insert(arg_true.end(), args.begin() + 1, args.end());
-                    arg_true.resize(arg_index + (replacement.size() - 1));
-                    const auto & verbs = Readline::command_template_tree.find_sub_commands(arg_true);
-                    for (const auto & verb : verbs)
-                    {
-                        auto arg_hash_list = args;
-                        std::vector < std::string > args_verb = arg_true;
-
-                        arg_hash_list.resize(arg_index);
-
-                        args_verb.emplace_back(verb);
-                        arg_hash_list.emplace_back(verb);
-
-                        std::stringstream ss;
-                        std::ranges::for_each(arg_hash_list, [&ss](const auto & arg) {
-                            ss << arg << ":";
-                        });
-
-                        try {
-                            const auto & hash = ss.str();
-                            Readline::g_extra_help_map.emplace(hash, Readline::command_template_tree.get_help(args_verb));
-                        } catch (std::exception &) { /* ... slient drop */ }
-                    }
-                    return { verbs.begin(), verbs.end() };
-                } catch (std::exception &) {
-                    return { };
-                }
-            }
-        } catch (std::out_of_range &) {
-            return { };
-        } catch (std::exception &) {
-            return { };
-        } catch (...) {
-            return { };
-        }
-
-        return { };
+    auto_completion = [this](const std::vector<std::string> & args, const std::string & special_filler, const int arg_index)->std::vector<std::string> {
+        return commandAutoCompletion(args, special_filler, arg_index);
     };
 
     const nlohmann::json log = {
