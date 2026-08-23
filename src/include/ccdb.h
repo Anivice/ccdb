@@ -27,18 +27,26 @@
 #include <atomic>
 #include <thread>
 #include <algorithm>
-#include <chrono>
 #include <utility>
 #include "config.h"
 #include "general_info_pulling.h"
 #include "tsl/hopscotch_map.h"
 #include "utils.h"
-#include "print.h"
 #include "re2/re2.h"
 #include "re2/set.h"
 
 namespace ccdb
 {
+    template <
+        typename... ArgsForFetcherChild, typename... ArgsForFetcherParent,
+        typename ChildFunc = std::function<bool(int, ArgsForFetcherChild...)>,
+        typename ParentFunc = std::function<bool(int, ArgsForFetcherParent...)>
+    >
+    [[nodiscard]] bool detach_execute(
+        const ChildFunc & child_func, ArgsForFetcherChild... args_for_fetcher_child,
+        const ParentFunc & parent_func, ArgsForFetcherParent... args_for_fetcher_parent,
+        int timeout_ms);
+
     template <typename T> concept Iterator = std::input_iterator<T>;
     bool is_highlight_match(const std::vector < std::string > & line, const std::string & search_content);
     class auto_print_t;
@@ -118,9 +126,8 @@ namespace ccdb
             bool add(const std::string& pattern, const handler_t & handler_)
             {
                 std::string error;
-                const int id = regex_set_.Add(pattern, &error);
-                if (id < 0) return false;
-                handlers_.push_back(std::move(handler_));
+                if (const int id = regex_set_.Add(pattern, &error); id < 0) return false;
+                handlers_.emplace_back(std::move(handler_));
                 return true;
             }
 
@@ -366,6 +373,9 @@ namespace ccdb
         void chat(const std::vector<std::string> &);
         void sendNotification(const std::vector<std::string> &);
 
+        bool commandProcessor(const std::vector<std::string> & command_vector_);
+        std::vector<std::string> commandAutoCompletion(const std::vector<std::string> &, const std::string &, int arg_index);
+
         /// Input watcher that sets running flag when q is pressed
         /// @param name Thread name
         /// @param running Running flag
@@ -474,69 +484,7 @@ namespace ccdb
     };
 
 #include "ccdb.continuous_table.inl"
-
-    template <
-        typename... ArgsForFetcherChild, typename... ArgsForFetcherParent,
-        typename ChildFunc = std::function<bool(int, ArgsForFetcherChild...)>,
-        typename ParentFunc = std::function<bool(int, ArgsForFetcherParent...)>
-    >
-    [[nodiscard]] bool detach_execute(
-        const ChildFunc & child_func, ArgsForFetcherChild... args_for_fetcher_child,
-        const ParentFunc & parent_func, ArgsForFetcherParent... args_for_fetcher_parent,
-        const int timeout_ms)
-    {
-        int pipefd[2] { };
-
-        // Create a pipe
-        if (pipe(pipefd) == -1) {
-            return false;
-        }
-
-        const pid_t pid = fork();
-        if (pid == -1) {
-            return false;
-        }
-
-        if (pid == 0) {  // Child process
-            close(pipefd[0]);
-            if (!child_func(pipefd[1], args_for_fetcher_child...)) { // child func should fetch info and write to pipe
-                _exit(1);
-            }
-
-            // Close write end and exit
-            close(pipefd[1]);
-            _exit(EXIT_SUCCESS);
-        }
-        // Parent process
-        // Close unused write end
-        close(pipefd[1]);
-
-        // Set up poll to wait for data on the read end
-        pollfd fds { };
-        fds.fd = pipefd[0];
-        fds.events = POLLIN;
-        g_pid = pid;
-
-        if (const int ret = poll(&fds, 1, timeout_ms); ret == -1) {
-        } else if (ret == 0) {
-            (void)kill(pid, SIGKILL);
-        } else {
-            // Data is available (or EOF if child closed pipe)
-            if (fds.revents & POLLIN) {
-                if (!parent_func(pipefd[0], args_for_fetcher_parent...)) {
-                    return false;
-                }
-            }
-        }
-
-        // Clean up: close pipe and reap child
-        close(pipefd[0]);
-        // Wait for child to avoid zombie
-        int status;
-        waitpid(pid, &status, 0);
-        g_pid = -1;
-        return status == 0;
-    }
+#include "detach_execute.inl"
 }
 
 #endif //CCDB_H
