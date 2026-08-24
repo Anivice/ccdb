@@ -427,6 +427,7 @@ add_library(ccdb SHARED
         misc/mihomo.cpp                 include/mihomo.h
         misc/pull_subinfo.cpp           include/pull_subinfo.h
 
+        misc/upgrade.cpp
         include/print.h
 
         ccdb/main.cpp

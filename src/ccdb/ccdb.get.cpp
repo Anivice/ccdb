@@ -34,7 +34,6 @@
 #include "utils.h"
 #include "ccdbrc.h"
 #include "Readline.h"
-#include "update.h"
 
 // --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;
@@ -330,6 +329,50 @@ void ccdb::ccdb::get_providerRules()
     }
 }
 
+namespace
+{
+    void rewrite(const std::string & result, const std::vector<char> & vec)
+    {
+        if (rename(result.c_str(), (result + ".bak").c_str()) == -1) {
+            throw std::runtime_error("Failed to rename: " + std::string(std::strerror(errno)));
+        }
+
+        if (std::ofstream ofs((result + ".new").c_str(), std::ios::trunc); ofs)
+        {
+            ofs.write(vec.data(), static_cast<std::streamsize>(vec.size()));
+            ofs.close();
+            if (chmod((result + ".new").c_str(), 0755) == -1)
+            {
+                unlink((result + ".new").c_str());
+                throw std::runtime_error("Failed to chmod: " + std::string(std::strerror(errno)));
+            }
+        }
+        else
+        {
+            throw std::runtime_error("Failed to write: " + std::string(std::strerror(errno)));
+        }
+
+        if (rename((result + ".new").c_str(), result.c_str()) == -1)
+        {
+            rename((result + ".bak").c_str(), result.c_str());
+            throw std::runtime_error("Failed to rename: " + std::string(std::strerror(errno)));
+        }
+
+        unlink((result + ".bak").c_str());
+    }
+
+    void recover(const std::string & result)
+    {
+        if (std::filesystem::exists(result + ".bak")) {
+            rename((result + ".bak").c_str(), result.c_str());
+        }
+
+        if (std::filesystem::exists(result + ".new")) {
+            unlink((result + ".new").c_str());
+        }
+    }
+}
+
 void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
 {
     // upgrade [...]
@@ -370,6 +413,56 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
         } catch (std::exception & e) {
             print<is_error>("Failed to upgrade: ", e.what(), "\n");
         }
+    }
+    else if (command_vector[1] == "self")
+    {
+        char buff[512] { };
+        if (readlink("/proc/self/exe", buff, 512) == -1) {
+            throw std::runtime_error("Failed to read /proc/self/exe: " + std::string(std::strerror(errno)));
+        }
+
+        const auto destination_location = std::string(buff);
+        const auto it = std::ranges::find_if(init_crash_report.flatObjectRuntimeTable,
+        [](const auto & obj)->bool {
+            return (std::string(obj.name).find("libccdb.so") != std::string::npos);
+        });
+
+#ifndef __DEBUG__
+        if (!detach_execute
+        (
+            [&](const int fd)->bool
+            {
+#endif
+                try
+                {
+                    const auto ccdb_container = get_content("ccdb", 120);
+                    const auto libccdb_so = get_content("libccdb.so", 120);
+                    rewrite(destination_location, ccdb_container);
+                    rewrite(it->name, libccdb_so);
+                    print("Upgraded self. Please relaunch CCDB to complete the update.\n");
+#ifndef __DEBUG__
+                    return true;
+#endif
+                } catch (std::exception & e) {
+                    print<is_error>(e.what(), "\n");
+#ifndef __DEBUG__
+                    return false;
+#else
+                    return;
+#endif
+                }
+#ifndef __DEBUG__
+            },
+        [](const int)
+        {
+        }, 60 * 20 * 1000))
+        {
+#endif
+            recover(destination_location);
+            recover(it->name);
+#ifndef __DEBUG__
+        }
+#endif
     } else {
         print<is_error>("Unknown command `", command_vector[1], "`\n");
         if (execute_and_no_interactive) throw std::runtime_error("");

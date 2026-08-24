@@ -30,9 +30,7 @@
 #include <sys/socket.h>
 #include <ifaddrs.h>
 #include <netinet/in.h>
-#include <dlfcn.h>
 #include <cxxabi.h>
-#include <pstl/glue_execution_defs.h>
 #include "ccdb.h"
 #include "general_info_pulling.h"
 #include "print.h"
