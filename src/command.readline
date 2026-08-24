@@ -128,7 +128,7 @@
     < clearLogs (Clear logs in the cache): [NONE] >,
     < exportColorScheme (%cmd.readline.d/exportColorScheme.json%): [NONE] >,
     < restartContinuousUpdates (Restart background continuous update workers): [NONE] >,
-    < upgrade (Upgrade backend): core (Upgrade core), geo (Upgrade geoip), providerRules (Upgrade provider rules) >,
+    < upgrade (Upgrade backend): core (Upgrade core), geo (Upgrade geoip), providerRules (Upgrade provider rules), self (CCDB) >,
     < restart (Restart backend): [NONE] >,
     < flush (Flush fake-ip cache): [NONE] >,
     < reload (Reload configuration): [NONE] >, # reload configuration, can be provided by `reload [PATH]`
