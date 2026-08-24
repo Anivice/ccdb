@@ -430,7 +430,7 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
 #ifndef __DEBUG__
         if (!detach_execute
         (
-            [&](const int fd)->bool
+            [&](const int)->bool
             {
 #endif
                 try
@@ -453,8 +453,9 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
                 }
 #ifndef __DEBUG__
             },
-        [](const int)
+        [](const int)->bool
         {
+            return true;
         }, 60 * 20 * 1000))
         {
 #endif
