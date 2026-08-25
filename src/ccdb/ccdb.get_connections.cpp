@@ -292,7 +292,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     "sortReverse", [&](ArgsCopyScope, CommandVectorType)->std::string { sort_reverse = !sort_reverse; return {}; }
                 }
             },
-        [&](session_compliment_data_t * data_)->ScopeType
+        [&](const session_compliment_data_t * data_)->ScopeType
         {
             // final sort value
             int sort_by_final { };
@@ -429,14 +429,6 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                         ss << msg;
                     };
 
-                    append_msg(sprint("Total uploads: ") + value_to_size(backend_instance.get_total_uploaded_bytes()));
-                    append_msg("   ");
-                    append_msg(sprint("Upload speed: ") + value_to_speed(backend_instance.get_current_upload_speed()));
-                    append_msg("   ");
-                    append_msg(sprint("Total downloads: ") + value_to_size(backend_instance.get_total_downloaded_bytes()));
-                    append_msg("   ");
-                    append_msg(sprint("Download speed: ") + value_to_speed(backend_instance.get_current_download_speed()));
-                    append_msg("   ");
                     append_msg(sprint("Backend memory usage: ") + value_to_size(backend_instance.current_memory_in_use_by_mihomo.load(std::memory_order_relaxed)));
                     append_msg("   ");
                     append_msg(sprint("Frontend memory usage: ") + value_to_size(cur_mem_size()));
@@ -483,22 +475,39 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 } catch (...) { }
             }
         },
-        [&]()->std::vector<std::string>
+        [&]()->StringScopeType
         {
             title_this_session.clear();
             int index_title = 0;
             std::ranges::for_each(get_conn_titles, [&](const std::string & title)
             {
+                switch (index_title) {
+                    case 2: // DL
+                        title_this_session.emplace_back(title + " [" + value_to_size(backend_instance.get_total_downloaded_bytes()) + "]");
+                        break;
+                    case 3: // UP
+                        title_this_session.emplace_back(title + " [" + value_to_size(backend_instance.get_total_uploaded_bytes()) + "]");
+                        break;
+                    case 4: // DL Speed
+                        title_this_session.emplace_back(title + " [" + value_to_speed(backend_instance.get_current_download_speed()) + "]");
+                        break;
+                    case 5: // UP Speed
+                        title_this_session.emplace_back(title + " [" + value_to_speed(backend_instance.get_current_upload_speed()) + "]");
+                        break;
+                    default:
+                        title_this_session.emplace_back(title);
+                        break;
+                }
+
                 if (index_title == sort_by_local) {
-                    title_this_session.emplace_back(title + (sort_reverse ? " + " : " - "));
+                    title_this_session.back() += (sort_reverse ? " + " : " - ");
                 }
-                else {
-                    title_this_session.emplace_back(title);
-                }
+
+                title_this_session.back() += " <F" + std::to_string(index_title + 1) + ">";
                 index_title++;
             });
 
-            return title_this_session;
+            return {title_this_session.begin(), title_this_session.end()};
         },
         [](const auto & current_frame, std::vector < std::vector < std::string > > & table_vals)
         {

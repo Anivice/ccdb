@@ -134,7 +134,7 @@ void ccdb::ccdb::chat(const std::vector<std::string> & vec)
         [](const ScopeType &, uint64_t)->OverrideColorType { return {}; },
         [](const auto *) {},
         [](const auto *) {},
-        [&]->std::vector<std::string> { return {chat_titles.begin(), chat_titles.end()}; },
+        [&]->StringScopeType { return {chat_titles.begin(), chat_titles.end()}; },
         [](const ScopeType & chats, std::vector<std::vector<std::string>> & ret)
         {
             ret.reserve(chats.second - chats.first);

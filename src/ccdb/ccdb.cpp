@@ -998,9 +998,11 @@ void ccdb::ccdb::init()
     });
 
     std::ranges::for_each(commandMatches, [this](const auto & pair) {
-        commandMatchesRegexCompiled.add(pair.first, pair.second);
+        if (!commandMatchesRegexCompiled.add(pair.first, pair.second))
+            throw std::logic_error(pair.first);
     });
-    commandMatchesRegexCompiled.compile();
+    if (!commandMatchesRegexCompiled.compile())
+        throw std::logic_error("Internal BUG");
 
     handler = [this](const std::vector<std::string> & command_vector_)->bool {
         return commandProcessor(command_vector_);

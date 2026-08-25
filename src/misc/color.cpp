@@ -281,10 +281,10 @@ namespace sim
                     const auto renormalized = (x - Begin) / Span * range + begin;
                     std::stringstream rn_ss; rn_ss << std::fixed << std::setprecision(precision) << renormalized;
                     const auto str = rn_ss.str();
-                    ccdb::utils::cmd_status status;
+                    utils::cmd_status status;
                     while (true)
                     {
-                        status = ::ccdb::utils::exec_command2(customized_color_command_calc,
+                        status = utils::exec_command2(customized_color_command_calc,
                                "", R"({ "offset": )" + str + R"(, "precision": )" + std::to_string(precision) + " }");
                         if (status.exit_status == 0) break;
                     }
@@ -293,9 +293,9 @@ namespace sim
                     {
                         const auto json = json::parse(status.fd_stdout);
                         const NumPack_t ret {
-                            static_cast<Num>(json["R"]),
-                            static_cast<Num>(json["G"]),
-                            static_cast<Num>(json["B"])
+                            .R = static_cast<Num>(json["R"]),
+                            .G = static_cast<Num>(json["G"]),
+                            .B = static_cast<Num>(json["B"])
                         };
                         local_color_cache.emplace_cache(x, ret);
                         return ret;

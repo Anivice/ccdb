@@ -11,7 +11,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
         const std::function<OverrideColorType(const ScopeType&, uint64_t)>& GenerateOverrideColorInContent,
         const std::function<void(const ContainerType*)>& PressKey_P,
         const std::function<void(const ContainerType*)>& PressKey_K,
-        const std::function<std::vector<String>()>& GetTitleForCurrentSession,
+        const std::function<StringScopeType()>& GetTitleForCurrentSession,
         const std::function<void(const ScopeType&, std::vector<std::vector<String>>&)>& GetTableValueForCurrentSession,
         const std::function<void(session_compliment_data_t*)>& FrameVisitEach)
 {
@@ -92,6 +92,9 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
 
     const auto unstable_terminal = color::color(0,0,0,5,0,0) + "UNSTABLE TERMINAL" + color::no_color();
     const auto too_small = color::color(0,0,0,5,0,0) + "TOO SMALL" + color::no_color();
+    std::vector<std::vector<String>> values;
+    std::vector<String> titles;
+
     while (running)
     {
         const auto line_size = get_line_size();
@@ -136,9 +139,13 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
         atm_focus_ = -1;
         search_focus_move_ = IDLE_STATE;
         search_matches.clear();
-        const auto keys = GetTitleForCurrentSession();
-        std::vector<std::vector<String>> values;
+        const auto [title_beg, title_end] = GetTitleForCurrentSession();
+        values.clear(); titles.clear();
+
         GetTableValueForCurrentSession(content, values);
+        for (auto it = title_beg; it != title_end; ++it)
+            titles.emplace_back(*it);
+
         const auto contentSize = values.size();
         search_matches.reserve(contentSize);
         {
@@ -534,7 +541,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
         }
 
         const auto frame_string = print_table(
-            keys, values,
+            titles, values,
             false,
             true,
             do_col_hide,

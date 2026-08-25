@@ -123,7 +123,7 @@ namespace ccdb
         {
         public:
             RegexDispatcher(): regex_set_(RE2::Options{}, RE2::ANCHOR_BOTH) {}
-            bool add(const std::string& pattern, const handler_t & handler_)
+            bool add(const std::string& pattern, handler_t handler_)
             {
                 std::string error;
                 if (const int id = regex_set_.Add(pattern, &error); id < 0) return false;
@@ -131,7 +131,9 @@ namespace ccdb
                 return true;
             }
 
-            bool compile() { return regex_set_.Compile(); }
+            bool compile() {
+                return regex_set_.Compile();
+            }
 
             template<typename... Args>
             returnType dispatch(const std::string & input, const Args& ...args)
@@ -151,7 +153,7 @@ namespace ccdb
         general_info_pulling backend_instance; // backend instance
 
         // get connections table: titles
-        const std::vector<std::string> get_conn_titles = {
+        const std::array<std::string, 12> get_conn_titles = {
             utils::get_text("Host"),         // 0
             utils::get_text("Process"),      // 1
             utils::get_text("DL"),           // 2
@@ -455,10 +457,12 @@ namespace ccdb
             bool skip_frame;
         };
 
-        // template <typename ContainerType> using ViewerType = std::vector < ContainerType >;
         using String = std::string;
         using HashType = String;
         using OverrideColorType = tsl::hopscotch_map<uint64_t, std::string>;
+        using StringIteratorType = std::vector<String>::const_iterator;
+        using StringScopeType = std::pair<StringIteratorType, StringIteratorType>;
+
         template < typename ContainerType, typename ConstantIteratorType, typename ScopeType > // = std::pair<ConstantIteratorType, ConstantIteratorType> >
         requires (std::is_same_v<ScopeType, std::pair<ConstantIteratorType, ConstantIteratorType>> && Iterator<ConstantIteratorType>)
         void continuous_table(bool banner, const std::vector < bool > & do_col_hide,
@@ -470,7 +474,7 @@ namespace ccdb
             const std::function<OverrideColorType(const ScopeType &, uint64_t)> & GenerateOverrideColorInContent,
             const std::function<void(const ContainerType *)> & PressKey_P,
             const std::function<void(const ContainerType *)> & PressKey_K,
-            const std::function<std::vector<String>()> & GetTitleForCurrentSession,
+            const std::function<StringScopeType()> & GetTitleForCurrentSession,
             const std::function<void(const ScopeType &, std::vector<std::vector<String>> &)> & GetTableValueForCurrentSession,
             const std::function<void(session_compliment_data_t *)> & FrameVisitEach);
 

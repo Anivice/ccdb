@@ -145,7 +145,7 @@ void ccdb::ccdb::get_log()
         },
         [&pause_log_update](const auto *) { pause_log_update = !pause_log_update; },
         [](const auto *) {},
-        [&]->std::vector<std::string> { return {log_titles.begin(), log_titles.end()}; },
+        [&]->StringScopeType { return {log_titles.begin(), log_titles.end()}; },
         [](const ScopeType & logs, std::vector<std::vector<std::string>> & ret)
         {
             ret.reserve(logs.second - logs.first);
