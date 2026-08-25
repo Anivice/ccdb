@@ -266,7 +266,7 @@ void ccdb::ccdb::reload(const std::vector<std::string> & cmd) const
     httplib::Client poster(backend_instance.backend_client_ref.backend_address);
     set_ssl_automatically(poster, backend_instance.backend_client_ref.backend_address);
     poster.set_decompress(false);
-    poster.set_read_timeout(10, 0);
+    poster.set_read_timeout(timeout_on_backend_ops_in_seconds, 0);
     httplib::Headers headers;
     if (!backend_instance.backend_client_ref.token.empty()) headers.emplace("Authorization", "Bearer " + backend_instance.backend_client_ref.token);
     const nlohmann::json body = {

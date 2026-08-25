@@ -27,7 +27,7 @@ bool mihomo::change_proxy(const std::string & group_name, const std::string & pr
     httplib::Client http_cli(backend_address_);
     ccdb::utils::set_ssl_automatically(http_cli, backend_address_);
     http_cli.set_decompress(false);
-    http_cli.set_read_timeout(3, 0);
+    http_cli.set_read_timeout(timeout_on_backend_ops_in_seconds, 0);
     const httplib::Headers headers = {
         {"Authorization", "Bearer " + token_},
     };
@@ -58,7 +58,7 @@ void mihomo::get_info_no_instance(const std::string & endpoint_name, const std::
     httplib::Client http_cli(backend_address_);
     ccdb::utils::set_ssl_automatically(http_cli, backend_address_);
     http_cli.set_decompress(false);
-    http_cli.set_read_timeout(3, 0);
+    http_cli.set_read_timeout(timeout_on_backend_ops_in_seconds, 0);
     const httplib::Headers headers = {
         {"Authorization", "Bearer " + token_},
     };
@@ -89,7 +89,7 @@ bool mihomo::change_config(const std::string& json) const
     httplib::Client http_cli(backend_address_);
     ccdb::utils::set_ssl_automatically(http_cli, backend_address_);
     http_cli.set_decompress(false);
-    http_cli.set_read_timeout(3, 0);
+    http_cli.set_read_timeout(timeout_on_backend_ops_in_seconds, 0);
     const httplib::Headers headers = {
         {"Authorization", "Bearer " + token_},
     };
@@ -122,7 +122,7 @@ bool mihomo::close_connection(const std::string &id) const
     httplib::Client http_cli(backend_address_);
     ccdb::utils::set_ssl_automatically(http_cli, backend_address_);
     http_cli.set_decompress(false);
-    http_cli.set_read_timeout(3, 0);
+    http_cli.set_read_timeout(timeout_on_backend_ops_in_seconds, 0);
     const httplib::Headers headers = {
         {"Authorization", "Bearer " + token_},
     };
@@ -156,7 +156,7 @@ void mihomo::generic_post(const std::string & path, const std::function < void(i
     httplib::Client http_cli(backend_address_);
     ccdb::utils::set_ssl_automatically(http_cli, backend_address_);
     http_cli.set_decompress(false);
-    http_cli.set_read_timeout(10, 0);
+    http_cli.set_read_timeout(timeout_on_backend_ops_in_seconds, 0);
     const httplib::Headers headers = {
         {"Authorization", "Bearer " + token_},
     };
@@ -180,7 +180,7 @@ void mihomo::generic_put(const std::string& path, const std::function<void(int, 
     httplib::Client http_cli(backend_address_);
     ccdb::utils::set_ssl_automatically(http_cli, backend_address_);
     http_cli.set_decompress(false);
-    http_cli.set_read_timeout(10, 0);
+    http_cli.set_read_timeout(timeout_on_backend_ops_in_seconds, 0);
     const httplib::Headers headers = {
         {"Authorization", "Bearer " + token_},
     };
