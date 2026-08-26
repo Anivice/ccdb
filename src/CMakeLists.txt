@@ -179,7 +179,7 @@ set(PSL_SRC_DEST ${CMAKE_BINARY_DIR}/NonCMake/libpsl)
 message(STATUS "LIBPSL: ${LIBPSL_MAKE_ENTIRE}")
 ExternalProject_Add(LIBPSL
         PREFIX              ${CMAKE_BINARY_DIR}/libpsl
-        SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/libpsl-0.22.0
+        SOURCE_DIR          ${CMAKE_SOURCE_DIR}/NonCMake/libpsl-0.23.3
         INSTALL_DIR         ${CMAKE_BINARY_DIR}/libpsl/install
         CONFIGURE_COMMAND   /bin/sh -c "rm -rf ${PSL_SRC_DEST}/ && mkdir -p ${PSL_SRC_DEST}/ && cp -r <SOURCE_DIR>/* ${PSL_SRC_DEST}/ && cd ${PSL_SRC_DEST} && autoreconf -f && env LIBS=-lstdc++ PKG_CONFIG_PATH=\"${ICU_PKGCONFIG_DIR}:$ENV{PKG_CONFIG_PATH}\" ${PSL_SRC_DEST}/configure --prefix=<INSTALL_DIR> --enable-runtime=libicu --disable-shared --enable-static ${LIBPSL_CONFIGURE_ADDITIONAL_FLAGS}"
         BUILD_COMMAND       /bin/sh -c "cd ${PSL_SRC_DEST} && ${LIBPSL_MAKE_ENTIRE} CC=\"${MAKE_CC_EXEC}\" CFLAGS=-fPIC CXXFLAGS=-fPIC CXX=\"${MAKE_CXX_EXEC}\""

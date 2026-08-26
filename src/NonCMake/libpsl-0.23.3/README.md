@@ -1,0 +1,188 @@
+[![Coverity Scan](https://img.shields.io/coverity/scan/10227.svg)](https://scan.coverity.com/projects/rockdaboot-libpsl)
+[![Coverage Status](https://coveralls.io/repos/github/rockdaboot/libpsl/badge.svg?branch=master)](https://coveralls.io/github/rockdaboot/libpsl?branch=master)
+[![CodeQL](https://github.com/rockdaboot/libpsl/actions/workflows/codeql.yml/badge.svg)](https://github.com/rockdaboot/libpsl/actions/workflows/codeql.yml)
+
+# libpsl - C library to handle the Public Suffix List
+
+A *Public Suffix List* is a collection of Top Level Domains (TLDs) suffixes.
+TLDs include *Global Top Level Domains* (gTLDs) like `.com` and `.net`;
+*Country Top Level Domains* (ccTLDs) like `.de` and `.cn`;
+and *[Brand Top Level Domains](https://icannwiki.org/Brand_TLD)* like `.apple` and `.google`.
+Brand TLDs allows users to register their own top level domain that exist at the same level as ICANN's gTLDs.
+Brand TLDs are sometimes referred to as Vanity Domains.
+
+Browsers, web clients and other user agents can use a public suffix list to:
+
+- avoid privacy-leaking "supercookies"
+- avoid privacy-leaking "super domain" certificates ([see post from Jeffry Walton](https://lists.gnu.org/archive/html/bug-wget/2014-03/msg00093.html))
+- domain highlighting parts of the domain in a user interface
+- sorting domain lists by site
+
+Libpsl...
+
+- has built-in PSL data for fast access (DAWG/DAFSA reduces size from ~300kB to ~50kB)
+- allows to load PSL data from files
+- checks if a given domain is a "public suffix"
+- provides immediate cookie domain verification
+- finds the longest public part of a given domain
+- finds the shortest private part of a given domain
+- works with international domains (UTF-8 and IDNA2008 Punycode)
+- is thread-safe
+- handles IDNA2008 UTS#46 (if libidn2, libicu or libicucore is available)
+
+Find more information about the Public Suffix List [here](https://publicsuffix.org/).
+
+Download the Public Suffix List [here](https://github.com/publicsuffix/list/blob/master/public_suffix_list.dat).
+
+The original DAFSA code is from the [Chromium Project](https://code.google.com/p/chromium/).
+
+
+## API Documentation
+
+You find the current API documentation [here](https://rockdaboot.github.io/libpsl/docs/).
+
+
+## Code Coverage
+
+You can view the code coverage report [here](https://rockdaboot.github.io/libpsl/lcov/).
+
+
+## Quick API example
+
+	#include <stdio.h>
+	#include <libpsl.h>
+
+	int main(int argc, char **argv)
+	{
+		const char *domain = "www.example.com";
+		const char *cookie_domain = ".com";
+		const psl_ctx_t *psl = psl_builtin();
+		int is_public, is_acceptable;
+
+		is_public = psl_is_public_suffix(psl, domain);
+		printf("%s %s a public suffix.\n", domain, is_public ? "is" : "is not");
+
+		is_acceptable = psl_is_cookie_domain_acceptable(psl, domain, cookie_domain);
+		printf("cookie domain '%s' %s acceptable for domain '%s'.\n",
+			cookie_domain, is_acceptable ? "is" : "is not", domain);
+
+		return 0;
+	}
+
+## Command Line Tool
+
+Libpsl comes with a tool 'psl' that gives you access to most of the
+library API via command line.
+
+	$ psl --help
+
+prints the usage.
+
+## Convert PSL into DAFSA
+
+The [DAFSA](https://en.wikipedia.org/wiki/Deterministic_acyclic_finite_state_automaton) format is a compressed
+representation of strings. Here we use it to reduce the whole PSL to about 32k in size.
+
+Generate `psl.dafsa` from `list/public_suffix_list.dat`
+
+	$ src/psl-make-dafsa --output-format=binary list/public_suffix_list.dat psl.dafsa
+
+Test the result (example)
+
+	$ tools/psl --load-psl-file psl.dafsa aeroclub.aero
+
+## License
+
+Libpsl is made available under the terms of the MIT license.<br>
+See the LICENSE file that accompanies this distribution for the full text of the license.
+
+src/psl-make-dafsa and src/lookup_string_in_fixed_set.c are licensed under the term written in
+src/LICENSE.chromium.
+
+## Building from tarball
+
+Choose a release from https://github.com/rockdaboot/libpsl/tags an download the tarball
+named `libpsl-{version}.tar.*`. Unpack with `tar xf <filename>`, cd into the libsl* directory.
+
+Build with
+```
+./configure
+make
+make check
+```
+
+Install with
+```
+sudo make install
+```
+
+## Building from git
+
+Download project with
+
+		git clone --recursive https://github.com/rockdaboot/libpsl
+		cd libpsl
+
+### Building with GNU autotools
+
+Prerequisites:
+  - python2.7+ (for converting the PSL list)
+  - basic C development tools (compiler, linker, make)
+  - autoconf, autoconf-archive, autopoint, automake, autotools
+  - libtool, gettext, pkg-config
+  - development files for either libidn2, libicu, libicucore or libidn (the latter only offers IDNA2003)
+  - for building docs: gtk-doc-tools (gtkdocize)
+
+		./autogen.sh
+		./configure
+		make
+		make check
+
+### Building with `meson`
+
+		meson builddir
+		ninja -C builddir
+		ninja -C builddir test
+
+There is also an unofficial MSVC nmake build configuration in `msvc/`.   Please
+see README.MSVC.md on building libpsl with Visual Studio via NMake or Meson.
+
+
+## Mailing List
+
+[Mailing List Archive](https://groups.google.com/forum/#!forum/libpsl-bugs)
+
+[Mailing List](https://groups.google.com/forum/#!forum/libpsl-bugs)
+
+To join the mailing list send an email to
+
+libpsl-bugs+subscribe@googlegroups.com
+
+and follow the instructions provided by the answer mail.
+
+Or click [join](https://groups.google.com/forum/#!forum/libpsl-bugs/join).
+
+
+## FAQ
+
+1. Why do releases not contain a configure script?
+
+You possibly accidentally downloaded the "Source code" from Github, which is not what you want.
+The official release tarball *does* contain a configure script, typical name is `libpsl-x.y.z.tar.gz` or `libpsl-x.y.z.tar.lz`
+
+There is a detailed explanation [here](https://github.com/rockdaboot/libpsl/issues/251).
+
+2. Why is there no CMake support for building libpsl?
+
+There is an open [PR](https://github.com/rockdaboot/libpsl/pull/254) which needs polishing.
+Contributions are appreciated.
+
+3. Can you update the PSL data by making a new release?
+
+No. The idea is to keep libpsl and the PSL list independent from each other.
+
+Either your OS updates PSL packages regularly (for example, Debian has the package `publicsuffix`)
+or you can do this yourself. `Libpsl` offers an API to read the PSL data in it's original form or
+to read a converted DAFSA blob.
+If you read often and update the PSL data less often, create a DAFSA blob with `psl-make-dafsa`.
+It just needs to be mapped into memory (no parsing) and allows random access. It's also much smaller than the original PSL data.
