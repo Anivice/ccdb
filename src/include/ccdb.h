@@ -250,7 +250,7 @@ namespace ccdb
         /// @param seperator If seperator should be included in the table
         /// @param table_hide vector list for columns to hide when print
         /// @param leading_offset if the screen cannot fit the whole table, table will be shifted these characters to the right
-        /// @param max_tailing_size_ptr Set by print_table, tells user I can only shift these many characters max
+        /// @param max_leading_offset_ptr Set by print_table, tells user I can only shift these many characters max
         /// @param using_pager Should I use pager? If so, all the above shifting parameters will be ignored
         /// @param additional_info_before_table Additional info to print before the table content
         /// @param skip_lines Skip this many lines and shift table downward when screen is too small to fit all the content
@@ -274,7 +274,7 @@ namespace ccdb
             bool seperator = true,
             const std::vector < bool > & table_hide = { },
             uint64_t leading_offset = 0,
-            std::atomic_int * max_tailing_size_ptr = nullptr,
+            std::atomic_int * max_leading_offset_ptr = nullptr,
             bool using_pager = false,
             std::string additional_info_before_table = "",
             int skip_lines = 0,

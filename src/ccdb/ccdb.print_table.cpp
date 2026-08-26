@@ -283,7 +283,7 @@ std::string ccdb::ccdb::print_table(
     const bool seperator,
     const std::vector<bool> &table_hide,
     uint64_t leading_offset,
-    std::atomic_int *max_tailing_size_ptr,
+    std::atomic_int *max_leading_offset_ptr,
     const bool using_pager,
     std::string additional_info_before_table,
     int skip_lines,
@@ -435,9 +435,9 @@ std::string ccdb::ccdb::print_table(
         const int separation_line_width = get_string_screen_length(separation_line);
         const auto defined_str_len =
             std::max(separation_line_width, get_string_screen_length(additional_info_before_table));
-        auto max_tailing_size = defined_str_len > col ? (defined_str_len - col) : 0;
-        if (max_tailing_size_ptr) *max_tailing_size_ptr = static_cast<int>(max_tailing_size);
-        leading_offset = std::min(static_cast<decltype(max_tailing_size)>(leading_offset), max_tailing_size);
+        auto max_leading_offset = defined_str_len > col ? (defined_str_len - col) : 0;
+        if (max_leading_offset_ptr) *max_leading_offset_ptr = static_cast<int>(max_leading_offset);
+        leading_offset = std::min(static_cast<decltype(max_leading_offset)>(leading_offset), max_leading_offset);
         int printed_lines = 0;
 
         // define Tab size
@@ -456,7 +456,7 @@ std::string ccdb::ccdb::print_table(
             replace_all(line_, "\r", "");
             replace_all(line_, "\t", std::string(tab_space_size, ' ')); // Tab
             auto line = utf8_to_u32(line_);
-            if (max_tailing_size_ptr && !using_pager && !enforce_no_pager)
+            if (max_leading_offset_ptr && !using_pager && !enforce_no_pager)
             {
                 // cut
                 if (leading_offset > 0 && UnicodeDisplayWidth::get_width_utf32(line) >= leading_offset)
@@ -592,9 +592,12 @@ std::string ccdb::ccdb::print_table(
         auto print_progress = [&]
         {
             std::stringstream ssa;
-            ssa << skip_lines << "/" << current_line_index << "/" << table_values.size() << "/"
+            const auto sz = table_values.size();
+            ssa << skip_lines << "/" << current_line_index << "/" << sz << "/"
                 << std::fixed << std::setprecision(2)
-                << (static_cast<double>(current_line_index) / static_cast<double>(table_values.size())) * 100 << "%";
+                << (sz == 0 ? 1 : static_cast<double>(current_line_index) / static_cast<double>(sz)) * 100 << "%"
+                << "/" << leading_offset << "/" << max_leading_offset << "/"
+                << (max_leading_offset == 0 ? 1 : static_cast<double>(leading_offset) / static_cast<double>(max_leading_offset)) * 100 << "%";
             const std::string ssa_str = ssa.str();
 
             if (color::is_no_color() && YES_HIGHLIGHTER_LINE_COLOR_CODE) {
@@ -603,8 +606,7 @@ std::string ccdb::ccdb::print_table(
                 color::g_color_status_override = -1;
             }
 
-            frame << color::bg_color(5,5,5) << color::color(0,0,5)
-                << ssa_str;
+            frame << color::bg_color(5,5,5) << color::color(0,0,5) << ssa_str;
 
             if (color::is_no_color() && YES_HIGHLIGHTER_LINE_COLOR_CODE) {
                 color::g_color_status_override = 0;
@@ -613,7 +615,16 @@ std::string ccdb::ccdb::print_table(
             }
 
             const auto lZ = col - static_cast<int>(ssa_str.length());
-            frame << color::no_color() << std::string(lZ > 0 ? lZ : 0, ' ');
+            frame << color::no_color();
+
+            if (show_search && !*show_search) {
+                frame << generate_linear_handle(max_leading_offset + col,
+                    static_cast<int>(leading_offset),
+                    static_cast<int>(leading_offset) + col,
+                    lZ);
+            } else {
+                frame << std::string(lZ > 0 ? lZ : 0, ' ');
+            }
         };
 
         /// content
@@ -663,9 +674,6 @@ std::string ccdb::ccdb::print_table(
                     } else {
                         color_line += color::color(5,5,5);
                     }
-                    // else if (blue > gate && red > gate) {
-                    //     color_line += color::color(0,5,5);
-                    // }
                 }
             } else {
                 color_line = color::bg_color(0,0,0) + override_it->second;
@@ -737,33 +745,19 @@ std::string ccdb::ccdb::print_table(
         }
 
         /// tailings
-        if (skip_lines == 0) {
-            print_line(separation_line, white_strip, false);
-            if (printed_lines < lines) {
-                const std::string blank_line(static_cast<std::size_t>(col), ' ');
-                for (int i = 0; i < lines - printed_lines; i++) {
-                    frame << blank_line;
-                }
-            }
-        } else {
-            const auto col_sz = col;
-            const auto line_sz = lines;
-            if (/* (col_sz > 2) && */ (printed_lines <= (line_sz - 2) && separation_line_width > 2))
-            {
-                frame       << white_strip
-                            << "+" << std::string(std::min(static_cast<long long>(col_sz - 2ul),
-                                static_cast<long long>(separation_line_width - 2)), '-')
-                            << "+" << std::endl;
-            }
-
-            // if (line_sz > 2)
-            // {
-            for (int j = printed_lines; j < (line_sz - 2); j++)
-                frame << std::endl;
-            // }
-
-            print_progress();
+        const auto col_sz = col;
+        const auto line_sz = lines;
+        if (/* (col_sz > 2) && */ (printed_lines <= (line_sz - 2) && separation_line_width > 2))
+        {
+            frame << white_strip
+                  << "+" << std::string(std::min(static_cast<long long>(col_sz - 2ul),
+                        static_cast<long long>(separation_line_width - 2)), '-')
+                  << "+" << std::endl;
         }
+
+        for (int j = printed_lines; j < (line_sz - 2); j++)
+            frame << std::endl;
+        print_progress();
     }();
     return final_frame;
 }

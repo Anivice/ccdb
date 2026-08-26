@@ -42,7 +42,13 @@ if (!(x)) {         \
 }
 
 
-using translator_t = tsl::hopscotch_map < std::string /* en text */, tsl::hopscotch_map < std::string /* lang */, std::string /* correct translation */ > >;
+#ifndef __DEBUG__
+template <typename T1, typename T2> using map_type = tsl::hopscotch_map < T1, T2 >;
+#else
+template <typename T1, typename T2> using map_type = std::unordered_map < T1, T2 >;
+#endif
+
+using translator_t = map_type < std::string /* en text */, map_type < std::string /* lang */, std::string /* correct translation */ > >;
 static std::unique_ptr < translator_t > text_translator;
 static std::mutex text_translator_mtx;
 
@@ -72,7 +78,7 @@ std::string ccdb::utils::get_text(const std::string &text)
             for (const auto & [type, lang_msg] : msg.items()) {
                 const std::string type_str = type;
                 const std::string lang_msg_str = lang_msg;
-                if (!text_translator->contains(text_en)) text_translator->emplace(text_en, tsl::hopscotch_map < std::string , std::string >{});
+                if (!text_translator->contains(text_en)) text_translator->emplace(text_en, map_type < std::string , std::string >{});
                 text_translator->at(text_en).emplace(type_str, lang_msg_str);
             }
         }
@@ -89,14 +95,19 @@ std::string ccdb::utils::get_text(const std::string &text)
 
     std::string text_en = text;
     std::ranges::transform(text_en, text_en.begin(), ::toupper);
-    if (text_translator->contains(text_en) && text_translator->at(text_en).contains(lang)) {
-        const auto & result = text_translator->at(text_en).at(lang);
-        converted.emplace_cache(text, result);
-        return result;
+    if (const auto it = text_translator->find(text_en); it != text_translator->end())
+    {
+        if (const auto it2 = it->second.find(lang); it2 != it->second.end())
+        {
+            const auto & result = it2->second;
+            converted.emplace_cache(text, result);
+            return result;
+        }
     }
+
 #ifdef RELEASE_CANDIDATE_PRE_RELEASE_BUILD
     static std::atomic_bool fs_check_completed = false;
-    if (!fs_check_completed)
+    if (!fs_check_completed.load(std::memory_order_relaxed))
     {
         if (!std::filesystem::exists(getenv("HOME") + "/.config/ccdb/")) {
             try { std::filesystem::create_directories(getenv("HOME") + "/.config/ccdb/");
@@ -107,7 +118,7 @@ std::string ccdb::utils::get_text(const std::string &text)
             (void)open((getenv("HOME") + "/.config/ccdb/MISSING-TRANSLATIONS.json").c_str(), O_CREAT | O_RDWR | O_TRUNC, 0600);
         }
 
-        fs_check_completed = true;
+        fs_check_completed.store(true, std::memory_order_relaxed);
     }
 
     if (const int fd = open((getenv("HOME") + "/.config/ccdb/MISSING-TRANSLATIONS.json").c_str(),
