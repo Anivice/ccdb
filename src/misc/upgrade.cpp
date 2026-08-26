@@ -1,3 +1,4 @@
+#ifndef APPIMAGE_BUILD
 #include "httplib.h"
 #include "utils.h"
 #include "print.h"
@@ -249,3 +250,4 @@ namespace ccdb
         return { res->body.begin(), res->body.end() };
     }
 }
+#endif // APPIMAGE_BUILD

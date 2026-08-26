@@ -763,7 +763,9 @@ namespace ccdb
     const init_crash_report_t::flatSymbolicTable_t * GetBacktrace(const init_crash_report_t::flatSymbolicTable_t *, uint64_t /* sym map size */, uint64_t /* sym */) noexcept;
 #endif
 
+#ifndef APPIMAGE_BUILD
     std::vector<char> get_content(const std::string & dest_name, int timeout);
+#endif
 }
 
 /// Automatic unpack from xxd with xxd naming convention

@@ -414,6 +414,7 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
             print<is_error>("Failed to upgrade: ", e.what(), "\n");
         }
     }
+#ifndef APPIMAGE_BUILD
     else if (command_vector[1] == "self")
     {
         char buff[512] { };
@@ -432,7 +433,7 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
         (
             [&](const int)->bool
             {
-#endif
+#endif //__DEBUG__
                 try
                 {
                     const auto ccdb_container = get_content("ccdb", 120);
@@ -442,14 +443,14 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
                     print("Upgraded self. Please relaunch CCDB to complete the update.\n");
 #ifndef __DEBUG__
                     return true;
-#endif
+#endif //__DEBUG__
                 } catch (std::exception & e) {
                     print<is_error>(e.what(), "\n");
 #ifndef __DEBUG__
                     return false;
-#else
+#else //__DEBUG__
                     return;
-#endif
+#endif //__DEBUG__
                 }
 #ifndef __DEBUG__
             },
@@ -458,13 +459,15 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
             return true;
         }, 60 * 20 * 1000))
         {
-#endif
+#endif //__DEBUG__
             recover(destination_location);
             recover(it->name);
 #ifndef __DEBUG__
         }
-#endif
-    } else {
+#endif //__DEBUG__
+    }
+#endif //APPIMAGE_BUILD
+    else {
         print<is_error>("Unknown command `", command_vector[1], "`\n");
         if (execute_and_no_interactive) throw std::runtime_error("");
     }

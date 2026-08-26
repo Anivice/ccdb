@@ -347,14 +347,47 @@ target_link_libraries(ccdb.exe PRIVATE ccdb textDebugInfo)
 
 find_program(PATCHELF_EXEC NAMES patchelf REQUIRED)
 find_program(STRIP_EXEC NAMES strip REQUIRED)
+find_program(FILE_EXEC NAMES file REQUIRED)
 add_custom_target(copy_ccdb ALL
         COMMAND cp ccdb.exe ccdb
         COMMAND ${PATCHELF_EXEC} --set-rpath $ORIGIN ccdb
         COMMAND ${PATCHELF_EXEC} --add-rpath $ORIGIN/lib ccdb
         COMMAND ${PATCHELF_EXEC} --add-rpath /usr/lib ccdb
         COMMAND ${PATCHELF_EXEC} --add-rpath /lib ccdb
+        COMMAND /bin/sh -c "set -euo pipefail; file ccdb | sed -E 's/.*interpreter\\s(.*)\,\\sBuildID.*/\\1/g' > interpreter.txt"
+        COMMAND /bin/sh -c "cp $(cat interpreter.txt) ${CMAKE_BINARY_DIR}/"
+        COMMAND /bin/sh -c "strip -g -S -d --strip-debug --strip-unneeded ${CMAKE_BINARY_DIR}/$(basename $(cat interpreter.txt))"
+        COMMAND /bin/sh -c "set -euo pipefail; ldd ccdb | grep -Ev 'libccdb.so|linux-vdso.so' | grep '=>' | sed -E \"$(cat ${CMAKE_SOURCE_DIR}/script/rule.txt)\" > libs.txt"
+        COMMAND /bin/sh -c "set -euo pipefail; rm -rf libs && mkdir -p libs && for file in $(cat libs.txt); do cp $file libs/; done"
         DEPENDS ccdb.exe ccdb
-        BYPRODUCTS ccdb
+        BYPRODUCTS ccdb interpreter.txt libs.txt
         VERBATIM
 )
 add_dependencies(copy_ccdb ccdb.exe ccdb)
+
+if ("${CCDB_APPIMAGE_BUILD}" STREQUAL "True")
+    message(STATUS "Enabled CCDB_APPIMAGE_BUILD")
+    target_compile_definitions(ccdb PRIVATE APPIMAGE_BUILD=1)
+    set(ARCHNAME "")
+    if (CMAKE_SYSTEM_PROCESSOR MATCHES "(x86_64|AMD64|amd64)")
+        set(ARCHNAME "x86_64")
+    elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "([a|A][arch|ARCH]64")
+        set(ARCHNAME "aarch64")
+    endif ()
+    add_custom_target(static_ccdb ALL
+            COMMAND rm -rf CCDB.AppDir/
+            COMMAND /bin/sh -c "if ! [ -e appimagetool.finish ]; then curl -L https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${ARCHNAME}.AppImage -o appimagetool && chmod +x appimagetool && touch appimagetool.finish; fi"
+            COMMAND mkdir -p CCDB.AppDir/
+            COMMAND cp ${CMAKE_SOURCE_DIR}/script/ccdb.desktop CCDB.AppDir/
+            COMMAND cp ${CMAKE_SOURCE_DIR}/resources/ccdb.svg CCDB.AppDir/
+            COMMAND mv libs CCDB.AppDir/
+            COMMAND cp ccdb CCDB.AppDir/
+            COMMAND cp libccdb.so CCDB.AppDir/libs/ && strip -g -S -d --strip-debug --strip-unneeded CCDB.AppDir/libs/libccdb.so
+            COMMAND /bin/sh -c "cp $(basename $(cat interpreter.txt)) CCDB.AppDir/"
+            COMMAND /bin/sh -c "cat ${CMAKE_SOURCE_DIR}/script/AppRun | sed s/INTERPRETER/$(basename $(cat interpreter.txt))/g > CCDB.AppDir/AppRun"
+            COMMAND chmod +x CCDB.AppDir/AppRun
+            COMMAND ./appimagetool CCDB.AppDir
+            DEPENDS copy_ccdb
+            VERBATIM
+    )
+endif ()

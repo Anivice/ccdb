@@ -221,6 +221,15 @@ namespace Readline
                     static const bool experimental_features = ccdb::utils::getenv("CCDB_ENABLE_EXPERIMENTAL_FEATURES") == "true";
                     return experimental_features;
                 }
+
+                if (condition == "Not AppImage Static Build")
+                {
+#ifdef APPIMAGE_BUILD
+                    return false;
+#else //APPIMAGE_BUILD
+                    return true;
+#endif //APPIMAGE_BUILD
+                }
             }
         }
         return false;

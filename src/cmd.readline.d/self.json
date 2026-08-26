@@ -1,0 +1,4 @@
+{
+  "EnableIf": "Build Flags: Not AppImage Static Build",
+  "Description": "CCDB"
+}
