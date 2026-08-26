@@ -371,9 +371,10 @@ if ("${CCDB_APPIMAGE_BUILD}" STREQUAL "True")
     set(ARCHNAME "")
     if (CMAKE_SYSTEM_PROCESSOR MATCHES "(x86_64|AMD64|amd64)")
         set(ARCHNAME "x86_64")
-    elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "([a|A][arch|ARCH]64")
+    elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
         set(ARCHNAME "aarch64")
     endif ()
+    message(STATUS "Arch determined to be ${ARCHNAME} from ${CMAKE_SYSTEM_PROCESSOR}")
     add_custom_target(static_ccdb ALL
             COMMAND rm -rf CCDB.AppDir/
             COMMAND /bin/sh -c "if ! [ -e appimagetool.finish ]; then curl -L https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${ARCHNAME}.AppImage -o appimagetool && chmod +x appimagetool && touch appimagetool.finish; fi"
