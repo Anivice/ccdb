@@ -28,7 +28,7 @@ A lightweight terminal dashboard for Clash/Mihomo, written in C++.
 CCDB targets low-resource environments (for example, embedded devices) and users who want a low-overhead dashboard.
 
 CCDB depends on the following open-source libraries:
- - [CPP-HTTPLIB v0.52.0](https://github.com/yhirose/cpp-httplib) (Embedded)
+ - [CPP-HTTPLIB v0.53.1](https://github.com/yhirose/cpp-httplib) (Embedded)
  - [GNU Readline 8.3](https://ftp.gnu.org/gnu/readline/) (Embedded)
  - [GNU Ncurses 6.6](https://ftp.gnu.org/gnu/ncurses/) (Embedded)
  - [TSL Hopscotch-Hashing Map v2.4.0](https://github.com/Tessil/hopscotch-map) (Embedded)
@@ -39,10 +39,10 @@ CCDB depends on the following open-source libraries:
  - [GNU Tar 1.35](https://www.gnu.org/software/tar) (Embedded)
  - [XXD, from VIM](https://github.com/vim/vim/) (Not embedded, required by the build system)
  - [libpsl, 0.22.0](https://github.com/rockdaboot/libpsl/) (Embedded)
- - zlib 1.3.2 (Embedded)
- - libpng 1.6.58 (Embedded)
+ - [zlib 1.3.2](https://www.zlib.net/) (Embedded)
+ - [libpng 1.6.58](https://www.libpng.org/pub/png/libpng.html) (Embedded)
  - [stb_image - v2.30 - public domain image loader](http://nothings.org/stb)
- - CImg 3.7.5 (Embedded)
+ - [CImg 3.7.5](https://www.cimg.eu/) (Embedded)
  - libtiv - Copyright © 2017-2023, Stefan Haustein, Aaron Liu (Embedded)
  - [Abseil - C++ Common Libraries 20260526.0](https://github.com/abseil/abseil-cpp/) (Embedded, required by RE2)
  - [RE2, a regular expression library 2025-11-05](https://github.com/google/re2) (Embedded)
