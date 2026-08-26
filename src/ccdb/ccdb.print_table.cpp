@@ -93,6 +93,25 @@ static std::string highlight(const std::string & str,
         false /* no cache */ );
 }
 
+static std::string color_sim(const int particle, const int overall)
+{
+    using namespace ccdb::color;
+    const double ratio_ref = static_cast<double>(particle) / static_cast<double>(overall);
+    const auto [red, green, blue] =
+        sim::simulation_rainbow(sim::Span * ratio_ref + sim::Begin);
+    auto color_line = bg_color24(static_cast<int>(std::round(red)),
+        static_cast<int>(std::round(green)), static_cast<int>(std::round(blue)));
+    if (constexpr double gate = static_cast<double>(255) / 3 * 2;
+        green > gate || (blue > gate && red > gate))
+    {
+        color_line += color(0,0,0);
+    } else {
+        color_line += color(5,5,5);
+    }
+
+    return color_line;
+}
+
 namespace ccdb {
     class auto_print_t
     {
@@ -657,23 +676,14 @@ std::string ccdb::ccdb::print_table(
                     if (current_line_index & 0x01) color_line = white_strip;
                     else color_line = color::color(5,5,5,0,0,5);
                 }
-                else
-                {
-                    const double ratio_ref = static_cast<double>(current_line_index - skip_lines) /
-                        static_cast<double>(std::min(static_cast<uint64_t>(lines - 7
-                           /* - (table_values.size() > (lines - 7) ? 1 : 0) */), static_cast<uint64_t>(table_values.size()) )
-                           );
-                    const auto [red, green, blue] =
-                        sim::simulation_rainbow(sim::Span * ratio_ref + sim::Begin);
-                    color_line = color::bg_color24(static_cast<int>(std::round(red)),
-                        static_cast<int>(std::round(green)), static_cast<int>(std::round(blue)));
-                    if (constexpr double gate = static_cast<double>(255) / 3 * 2;
-                        green > gate || (blue > gate && red > gate))
-                    {
-                        color_line += color::color(0,0,0);
-                    } else {
-                        color_line += color::color(5,5,5);
-                    }
+                // else if (!using_pager)
+                // {
+                //     color_line = color_sim(current_line_index - skip_lines,
+                //         std::min(static_cast<int>(lines - (additional_info_before_table.empty() ? 6 : 7)),
+                //             static_cast<int>(table_values.size())));
+                // }
+                else { // using pager
+                    color_line = color_sim(current_line_index, static_cast<int>(table_values.size()));
                 }
             } else {
                 color_line = color::bg_color(0,0,0) + override_it->second;
