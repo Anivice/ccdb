@@ -354,7 +354,7 @@ add_custom_target(copy_ccdb ALL
         COMMAND ${PATCHELF_EXEC} --add-rpath $ORIGIN/lib ccdb
         COMMAND ${PATCHELF_EXEC} --add-rpath /usr/lib ccdb
         COMMAND ${PATCHELF_EXEC} --add-rpath /lib ccdb
-        COMMAND /bin/sh -c "set -euo pipefail; file ccdb | sed -E 's/.*interpreter\\s(.*)\,\\sBuildID.*/\\1/g' > interpreter.txt"
+	COMMAND /bin/sh -c "set -euo pipefail; file ccdb | sed -E 's/.*interpreter[[:space:]]([^,]+),.*/\\1/g' > interpreter.txt"
         COMMAND /bin/sh -c "cp $(cat interpreter.txt) ${CMAKE_BINARY_DIR}/"
         COMMAND /bin/sh -c "strip -g -S -d --strip-debug --strip-unneeded ${CMAKE_BINARY_DIR}/$(basename $(cat interpreter.txt))"
         COMMAND /bin/sh -c "set -euo pipefail; ldd ccdb | grep -Ev 'libccdb.so|linux-vdso.so' | grep '=>' | sed -E \"$(cat ${CMAKE_SOURCE_DIR}/script/rule.txt)\" > libs.txt"
