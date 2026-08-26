@@ -121,6 +121,7 @@ namespace
         { .short_name = -1,  .long_name = "backtrace", .argument_required = false, .description = utils::get_text("Load symbol table for CCDB") },
         { .short_name = -1,  .long_name = "feedBacktrace", .argument_required = false, .description = utils::get_text("Print a symbol trace from CCDB crash report, requires `--backtrace`") },
 #endif //ENABLE_CRASH_CATCHER
+        { .short_name = -1,  .long_name = "maxmind-geoip-helper", .argument_required = true, .description = utils::get_text("Load MaxMind GeoIP database for `get connection`") },
     };
 
     [[nodiscard]]
@@ -635,6 +636,10 @@ int main_(int argc, char ** argv)
                 " or you have the wrong password.", "\n");
             if (fastQuit) _exit(EXIT_FAILURE);
             return EXIT_FAILURE;
+        }
+
+        if (parsed.contains("maxmind-geoip-helper") && !parsed.contains("execute")) {
+            ccdb::g_geoipdata = std::make_unique<ccdb::maxmindDB>(parsed.at("maxmind-geoip-helper"));
         }
 
         if (parsed.contains("execute")) {

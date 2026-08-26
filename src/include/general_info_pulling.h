@@ -44,7 +44,7 @@
 #include <unordered_set>
 #include <vector>
 #include <netinet/in.h>
-
+#include "libmaxmind.h"
 #include "utils.h"
 #include "mihomo.h"
 #include "json.hpp"
@@ -53,6 +53,10 @@
 using json = nlohmann::json;
 
 class broken_connection_this_force_quit : public std::exception { };
+
+namespace ccdb {
+    extern std::unique_ptr<maxmindDB> g_geoipdata;
+}
 
 template < class T >
 class ccdb_atomic_t {

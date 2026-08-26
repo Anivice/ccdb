@@ -46,6 +46,7 @@ CCDB depends on the following open-source libraries:
  - libtiv - Copyright © 2017-2023, Stefan Haustein, Aaron Liu (Embedded)
  - [Abseil - C++ Common Libraries 20260526.0](https://github.com/abseil/abseil-cpp/) (Embedded, required by RE2)
  - [RE2, a regular expression library 2025-11-05](https://github.com/google/re2) (Embedded)
+ - [C library for the MaxMind DB file format Releases 1.13.3](https://github.com/maxmind/libmaxminddb) (Embedded)
 
 ## Usage
 

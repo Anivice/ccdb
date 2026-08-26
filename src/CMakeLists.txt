@@ -173,15 +173,16 @@ add_library(ccdb SHARED
         ccdb/ccdb.pprof.cpp
 
         versions.cpp                    include/versions.h
+        ccdb/libmaxmind.cpp             include/libmaxmind.h
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
 target_compile_definitions(ccdb PRIVATE CCDB_VERSION="${CCDB_VERSION}" CPPHTTPLIB_OPENSSL_SUPPORT)
 target_link_libraries(ccdb PRIVATE
         AddiHelp langJSON commandReadline LICENSE Zterminfotar tar.exe ccdbrc
         openssl::openssl libpsl::libpsl icu4c::icu4c
-        re2::re2
+        re2::re2 maxmind::libmaxmind
 )
-add_dependencies(ccdb OPENSSL compress LIBPSL)
+add_dependencies(ccdb READLINE OPENSSL compress LIBPSL MAXMIND LIBUNWIND)
 target_compile_options(ccdb PRIVATE -fno-omit-frame-pointer -g3 -gdwarf-4 -fstack-protector-all)
 
 find_program(GIT_EXEC NAMES git REQUIRED)
@@ -257,15 +258,6 @@ if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     endif()
     target_compile_options(ccdb PRIVATE -fconcepts-diagnostics-depth=3 -O0 -g3)
     target_compile_definitions(ccdb PRIVATE __DEBUG__=1)
-
-#    add_executable(crash tests/crash.cpp)
-#    target_link_libraries(crash PRIVATE libunwind::libunwind)
-#    target_compile_options(crash PRIVATE -O0 -g3)
-
-#    add_executable(numeric tests/numeric.cpp)
-#    target_include_directories(numeric PRIVATE include)
-#    target_link_libraries(data_race PRIVATE openssl::openssl)
-
 else ()
     set(LD_STATIC "")
     if ("${CMAKE_BUILD_STATIC}" STREQUAL "True")

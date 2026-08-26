@@ -52,6 +52,8 @@
 static constexpr const auto * MULTICAST_GROUP = "239.255.0.1";
 static constexpr std::uint16_t PORT = 49361;
 
+std::unique_ptr<ccdb::maxmindDB> ccdb::g_geoipdata { };
+
 namespace
 {
     struct multicast_interface_t
@@ -1152,12 +1154,22 @@ void general_info_pulling::update_from_connections(const std::string& info)
             const auto host = sniffHost.empty() ? std::string(connection["metadata"]["host"]) : sniffHost;
             auto dest = std::string(connection["metadata"]["destinationIP"]);
             if (const auto remoteIP = std::string(connection["metadata"]["remoteDestination"]);
-                dest.empty() && remoteIP!= "127.0.0.1") { dest = remoteIP; }
+                dest.empty() && remoteIP != "127.0.0.1") { dest = remoteIP; }
             const auto dest_port = std::string(connection["metadata"]["destinationPort"]);
             connection_t conn = { };
             conn.host = std::string(host.empty() ? dest : host) + ":" + dest_port;
             conn.src = std::string(connection["metadata"]["sourceIP"]) + ":" + std::string(connection["metadata"]["sourcePort"]);
-            conn.destination = dest;
+
+            if (ccdb::g_geoipdata != nullptr) {
+                if (const auto geoloc = ccdb::g_geoipdata->find(dest, "country", "iso_code"); geoloc) {
+                    conn.destination = "[" + *geoloc + "] " + dest;
+                }
+            }
+
+            if (conn.destination.empty()) {
+                conn.destination = dest;
+            }
+
             conn.processName = connection["metadata"]["process"];
             conn.uploadSpeed = 0;
             conn.downloadSpeed = 0;

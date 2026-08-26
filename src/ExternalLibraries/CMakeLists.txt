@@ -274,3 +274,37 @@ ExternalProject_Add(TAR
         CONFIGURE_HANDLED_BY_BUILD ON
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/bin/tar
 )
+
+# libmaxmind GeoIP Database
+
+set(MAXMIND_MAKE_ENTIRE "${MAKE_EXECUTABLE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" ${MAXMIND_MAKE_ADDITIONAL_FLAGS} CFLAGS=-fPIC CXXFLAGS=-fPIC")
+message(STATUS "MAXMIND: ${MAXMIND_MAKE_ENTIRE}")
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb/p)
+ExternalProject_Add(MAXMIND
+        PREFIX              ${CMAKE_BINARY_DIR}/libmaxminddb
+        SOURCE_DIR          ${CMAKE_SOURCE_DIR}/ExternalLibraries/libmaxminddb-1.13.3
+        INSTALL_DIR         ${CMAKE_BINARY_DIR}/libmaxminddb/install
+        CONFIGURE_COMMAND   /bin/sh -c "rm -rf ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb && mkdir -p ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb && cp -r <SOURCE_DIR>/* ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb/ && cd ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb/ && autoreconf -f && ./configure --prefix=<INSTALL_DIR> ${MAXMIND_CONFIGURE_ADDITIONAL_FLAGS} --enable-static --disable-shared --disable-tests"
+        BUILD_COMMAND       /bin/sh -c "cd ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb/ && ${MAXMIND_MAKE_ENTIRE}"
+        INSTALL_COMMAND     /bin/sh -c "cd ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb/ && ${MAKE_EXECUTABLE} install ${MAXMIND_MAKE_INSTALL_ADDITIONAL_FLAGS}"
+        INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libmaxminddb.a
+        TEST_COMMAND        ""
+        INACTIVITY_TIMEOUT  15
+        CONFIGURE_HANDLED_BY_BUILD ON
+)
+
+ExternalProject_Get_Property(MAXMIND INSTALL_DIR)
+set(MAXMIND_INCLUDE_DIR "${INSTALL_DIR}/include")
+set(MAXMIND_LIB_DIR     "${INSTALL_DIR}/lib")
+file(MAKE_DIRECTORY "${MAXMIND_INCLUDE_DIR}" "${MAXMIND_LIB_DIR}")
+
+# Export to CMake
+add_library(maxmind::libmaxminddb STATIC IMPORTED GLOBAL)
+set_target_properties(maxmind::libmaxminddb PROPERTIES
+        IMPORTED_LOCATION               "${MAXMIND_LIB_DIR}/libmaxminddb.a"
+        INTERFACE_INCLUDE_DIRECTORIES   "${MAXMIND_INCLUDE_DIR}"
+)
+
+add_library(maxmind::libmaxmind INTERFACE IMPORTED GLOBAL)
+target_link_libraries(maxmind::libmaxmind INTERFACE maxmind::libmaxminddb)
+include_directories("${MAXMIND_INCLUDE_DIR}")

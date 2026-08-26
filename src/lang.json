@@ -1298,5 +1298,10 @@
     "en"    : ", built on ",
     "en_US" : ", built on ",
     "zh_CN" : ", 构建日期: "
+  },
+  {
+    "en"    : "Load MaxMind GeoIP database for `get connection`",
+    "en_US" : "Load MaxMind GeoIP database for `get connection`",
+    "zh_CN" : "为`get connection`命令加载 MaxMind GeoIP 数据库"
   }
 ]
