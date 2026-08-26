@@ -1263,5 +1263,40 @@
     "en"    : "Launch a chat window to talk to other clients within the network",
     "en_US" : "Launch a chat window to talk to other clients within the network",
     "zh_CN" : "开启聊天模式"
+  },
+  {
+    "en"    : "Backend is ",
+    "en_US" : "Backend is ",
+    "zn_CN" : "后端是"
+  },
+  {
+    "en"    : ", Frontend memory usage: ",
+    "en_US" : ", Frontend memory usage: ",
+    "zn_CN" : ", 前端内存使用: "
+  },
+  {
+    "en"    : "Load symbol table for CCDB",
+    "en_US" : "Load symbol table for CCDB",
+    "zn_CN" : "加载 CCDB 符号表"
+  },
+  {
+    "en"    : "Print a symbol trace from CCDB crash report, requires `--backtrace`",
+    "en_US" : "Print a symbol trace from CCDB crash report, requires `--backtrace`",
+    "zn_CN" : "从 CCDB 崩溃报告中符号回溯，需要使用 `--backtrace` 选项"
+  },
+  {
+    "en"    : "Print a symbol trace from CCDB crash report, requires `--backtrace`",
+    "en_US" : "Print a symbol trace from CCDB crash report, requires `--backtrace`",
+    "zn_CN" : "从 CCDB 崩溃报告中符号回溯，需要使用 `--backtrace` 选项"
+  },
+  {
+    "en"    : " (commit ",
+    "en_US" : " (commit ",
+    "zn_CN" : " (提交哈希 "
+  },
+  {
+    "en"    : ", built on ",
+    "en_US" : ", built on ",
+    "zn_CN" : ", 构建日期: "
   }
 ]
