@@ -7,6 +7,7 @@
 #include "httplib.h"
 #include "absl/base/macros.h"
 #include "maxminddb.h"
+#include "caches/cache.hpp"
 
 #define CCDB_VERSION_TO_TEXT(x) #x
 #define CCDB_VERSION_TO_STRING(x) CCDB_VERSION_TO_TEXT(x)
@@ -20,7 +21,8 @@
     "    JSON: " CCDB_VERSION_TO_STRING(NLOHMANN_JSON_VERSION_MAJOR) "." CCDB_VERSION_TO_STRING(NLOHMANN_JSON_VERSION_MINOR) "." CCDB_VERSION_TO_STRING(NLOHMANN_JSON_VERSION_PATCH) "\n" \
     " HTTPLIB: " CPPHTTPLIB_VERSION "\n" \
     "    ABSL: " CCDB_VERSION_TO_STRING(ABSL_LTS_RELEASE_VERSION) "." CCDB_VERSION_TO_STRING(ABSL_LTS_RELEASE_PATCH_LEVEL) "\n" \
-    "     RE2: 2025-11-05" "\n"
+    "     RE2: 2025-11-05" "\n" \
+    "vpetrigo/caches: C++ Cache implementation v0.1.1\n"
 
 #ifdef __USE_IMG__
 

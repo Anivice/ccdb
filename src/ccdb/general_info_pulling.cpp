@@ -1171,17 +1171,19 @@ void general_info_pulling::update_from_connections(const std::string& info)
             {
                 std::vector<std::string> resolved;
                 if (const thread_local std::regex r0(R"(^(?:(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?|[a-zA-Z][a-zA-Z0-9-]*)$)");
-                    !skip_current_lookup && !host.empty() && std::regex_match(host, r0)
+                    !host.empty() && std::regex_match(host, r0)
                     && !g_resolve.get().empty() && !g_how.get().empty())
                 {
                     if (auto it = dns_lookup_cache_.get_cache(host); it) {
                         resolved = *it;
-                    } else {
+                    } else if (!skip_current_lookup) {
                         resolved = ccdb::resolve(g_resolve.get(), host, g_how.get(), 1);
                         if (!resolved.empty()) {
                             dns_lookup_cache_.emplace_cache(host, resolved);
                         }
                         skip_current_lookup = true; // cache hit miss, give up rest of the look ups
+                        // this way we maintain a reasonable amount of update speed
+                        // results should be st
                     }
 
                     if (!keep_pull_continuous_updates) break;

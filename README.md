@@ -42,11 +42,12 @@ CCDB depends on the following open-source libraries:
  - [zlib 1.3.2](https://www.zlib.net/) (Embedded)
  - [libpng 1.6.58](https://www.libpng.org/pub/png/libpng.html) (Embedded)
  - [stb_image - v2.30 - public domain image loader](http://nothings.org/stb)
- - [CImg 3.7.5](https://www.cimg.eu/) (Embedded)
- - libtiv - Copyright © 2017-2023, Stefan Haustein, Aaron Liu (Embedded)
+ - [CImg 4.0.3](https://www.cimg.eu/) (Embedded)
+ - [libtiv - Original Copyright © 2017-2023, Stefan Haustein, Aaron Liu. Heavily Modified by Anivice](https://github.com/stefanhaustein/TerminalImageViewer) (Embedded)
  - [Abseil - C++ Common Libraries 20260526.0](https://github.com/abseil/abseil-cpp/) (Embedded, required by RE2)
  - [RE2, a regular expression library 2025-11-05](https://github.com/google/re2) (Embedded)
  - [C library for the MaxMind DB file format Releases 1.13.3](https://github.com/maxmind/libmaxminddb) (Embedded)
+ - [C++ Cache implementation v0.1.1](https://github.com/vpetrigo/caches) (Embedded)
 
 ## Usage
 
