@@ -5,11 +5,11 @@ ExternalProject_Add(PERL
         PREFIX              ${CMAKE_BINARY_DIR}/perl
         SOURCE_DIR          ${CMAKE_BINARY_DIR}/ExternalLibraries/perl-5.42.0
         INSTALL_DIR         ${CMAKE_BINARY_DIR}/perl/install
-        CONFIGURE_COMMAND   sh -c "
-                                rm -rf <SOURCE_DIR> &&
-                                cp -r ${CMAKE_SOURCE_DIR}/ExternalLibraries/perl-5.42.0 <SOURCE_DIR> &&
-                                cd <SOURCE_DIR> &&
-                                export ${PerlEnv} &&
+        CONFIGURE_COMMAND   sh -c
+                                "rm -rf <SOURCE_DIR> && \
+                                cp -r ${CMAKE_SOURCE_DIR}/ExternalLibraries/perl-5.42.0 <SOURCE_DIR> && \
+                                cd <SOURCE_DIR> && \
+                                export ${PerlEnv} && \
                                 <SOURCE_DIR>/configure.gnu --prefix=<INSTALL_DIR> ${PERL_CONFIGURE_ADDITIONAL_FLAGS}"
         BUILD_COMMAND       sh -c "cd <SOURCE_DIR> && ${PerlEnv} ${MAKE_EXECUTABLE} ${PERL_MAKE_ADDITIONAL_FLAGS} ${PerlTail}"
         INSTALL_COMMAND     sh -c "cd <SOURCE_DIR> && ${MAKE_EXECUTABLE} install ${PERL_MAKE_INSTALL_ADDITIONAL_FLAGS}"
@@ -35,8 +35,8 @@ ExternalProject_Add(OPENSSL
         PREFIX              ${CMAKE_BINARY_DIR}/openssl
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/ExternalLibraries/openssl-4.0.2
         INSTALL_DIR         ${CMAKE_BINARY_DIR}/openssl/install
-        CONFIGURE_COMMAND   /bin/sh -c "
-                                export PERL5LIB=\"${CMAKE_BINARY_DIR}/perl/install/lib/5.42.0/\" PATH=\"${CMAKE_BINARY_DIR}/perl/install/bin:$PATH\" &&
+        CONFIGURE_COMMAND   /bin/sh -c
+                                "export PERL5LIB=\"${CMAKE_BINARY_DIR}/perl/install/lib/5.42.0/\" PATH=\"${CMAKE_BINARY_DIR}/perl/install/bin:$PATH\" && \
                                 <SOURCE_DIR>/Configure ${OPENSSL_TARGET} no-shared no-docs no-tests --prefix=<INSTALL_DIR> --openssldir=\"<INSTALL_DIR>/ssl\" ${OPENSSL_CONFIGURE_ADDITIONAL_FLAGS}"
         BUILD_COMMAND       /bin/sh -c "${OPENSSL_MAKE_ENTIRE}"
         INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${OPENSSL_MAKE_INSTALL_ADDITIONAL_FLAGS}
@@ -76,11 +76,11 @@ ExternalProject_Add(ICU
         PREFIX              ${CMAKE_BINARY_DIR}/icu4c
         SOURCE_DIR          ${CMAKE_BINARY_DIR}/ExternalLibraries/icu4c
         INSTALL_DIR         ${CMAKE_BINARY_DIR}/icu4c/install
-        CONFIGURE_COMMAND   /bin/sh -c "
-                                rm -rf <SOURCE_DIR> &&
-                                cp -r ${CMAKE_SOURCE_DIR}/ExternalLibraries/icu4c-78.3/ <SOURCE_DIR> &&
-                                cd <SOURCE_DIR> &&
-                                export CXXFLAGS='-fPIC -std=c++17' CFLAGS='-fPIC -std=c11' &&
+        CONFIGURE_COMMAND   /bin/sh -c
+                                "rm -rf <SOURCE_DIR> && \
+                                cp -r ${CMAKE_SOURCE_DIR}/ExternalLibraries/icu4c-78.3/ <SOURCE_DIR> && \
+                                cd <SOURCE_DIR> && \
+                                export CXXFLAGS='-fPIC -std=c++17' CFLAGS='-fPIC -std=c11' && \
                                 source/runConfigureICU Linux/gcc --prefix=<INSTALL_DIR> --disable-shared --enable-static"
         BUILD_COMMAND       /bin/sh -c "cd <SOURCE_DIR> && ${ICU_MAKE_ENTIRE}"
         INSTALL_COMMAND     /bin/sh -c "cd <SOURCE_DIR> && ${MAKE_EXECUTABLE} install ${ICU_MAKE_INSTALL_ADDITIONAL_FLAGS}"
@@ -148,13 +148,13 @@ ExternalProject_Add(LIBPSL
         PREFIX              ${CMAKE_BINARY_DIR}/libpsl
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/ExternalLibraries/libpsl-0.23.3
         INSTALL_DIR         ${CMAKE_BINARY_DIR}/libpsl/install
-        CONFIGURE_COMMAND   /bin/sh -c "
-                                    rm -rf ${PSL_SRC_DEST}/ &&
-                                    mkdir -p ${PSL_SRC_DEST}/ &&
-                                    cp -r <SOURCE_DIR>/* ${PSL_SRC_DEST}/ &&
-                                    cd ${PSL_SRC_DEST} &&
-                                    autoreconf -f &&
-                                    export LIBS=-lstdc++ PKG_CONFIG_PATH=\"${ICU_PKGCONFIG_DIR}:$ENV{PKG_CONFIG_PATH}\" &&
+        CONFIGURE_COMMAND   /bin/sh -c
+                                    "rm -rf ${PSL_SRC_DEST}/ && \
+                                    mkdir -p ${PSL_SRC_DEST}/ && \
+                                    cp -r <SOURCE_DIR>/* ${PSL_SRC_DEST}/ && \
+                                    cd ${PSL_SRC_DEST} && \
+                                    autoreconf -f && \
+                                    export LIBS=-lstdc++ PKG_CONFIG_PATH=\"${ICU_PKGCONFIG_DIR}:$ENV{PKG_CONFIG_PATH}\" && \
                                     ${PSL_SRC_DEST}/configure --prefix=<INSTALL_DIR> --enable-runtime=libicu --disable-shared --enable-static ${LIBPSL_CONFIGURE_ADDITIONAL_FLAGS}"
         BUILD_COMMAND       /bin/sh -c "cd ${PSL_SRC_DEST} && ${LIBPSL_MAKE_ENTIRE} CC=\"${MAKE_CC_EXEC}\" CFLAGS=-fPIC CXXFLAGS=-fPIC CXX=\"${MAKE_CXX_EXEC}\""
         INSTALL_COMMAND     /bin/sh -c "cd ${PSL_SRC_DEST} && ${MAKE_EXECUTABLE} install ${LIBPSL_MAKE_INSTALL_ADDITIONAL_FLAGS}"
@@ -225,7 +225,7 @@ ExternalProject_Add(READLINE
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/ExternalLibraries/readline-8.3
         INSTALL_DIR         ${CMAKE_BINARY_DIR}/readline/install
         CONFIGURE_COMMAND   /bin/sh -c
-        "CPPFLAGS='-DNCURSES_STATIC -I${NCURSES_INCLUDE_DIR} -I${NCURSES_INCLUDE_DIR}/ncursesw -fPIE' \
+                                "CPPFLAGS='-DNCURSES_STATIC -I${NCURSES_INCLUDE_DIR} -I${NCURSES_INCLUDE_DIR}/ncursesw -fPIE' \
                                 LDFLAGS='-L${NCURSES_LIB_DIR}' \
                                 <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --with-curses ${READLINE_CONFIGURE_ADDITIONAL_FLAGS}"
         BUILD_COMMAND       /bin/sh -c "${READLINE_MAKE_ENTIRE}"
@@ -284,10 +284,10 @@ ExternalProject_Add(TAR
         PREFIX              ${CMAKE_BINARY_DIR}/tar
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/ExternalLibraries/tar-1.35
         INSTALL_DIR         ${CMAKE_BINARY_DIR}/tar/install
-        CONFIGURE_COMMAND   /bin/sh -c "
-                                cp -r <SOURCE_DIR>/* \"${tar_dest}\" &&
-                                cd \"${tar_dest}\" && autoreconf -f &&
-                                export MAKEINFO=true CC=\"${CMAKE_C_COMPILER}\" LD=\"${CMAKE_LINKER}\" CFLAGS=\"${TAR_C_FLAGS}\" LDFLAGS=\"${TAR_LD_FLAGS}\" &&
+        CONFIGURE_COMMAND   /bin/sh -c
+                                "cp -r <SOURCE_DIR>/* \"${tar_dest}\" && \
+                                cd \"${tar_dest}\" && autoreconf -f && \
+                                export MAKEINFO=true CC=\"${CMAKE_C_COMPILER}\" LD=\"${CMAKE_LINKER}\" CFLAGS=\"${TAR_C_FLAGS}\" LDFLAGS=\"${TAR_LD_FLAGS}\" && \
                                 \"${tar_dest}\"/configure --prefix=<INSTALL_DIR> --without-gzip --without-bzip2 --without-xz --without-zstd --without-lzip --without-lzma --without-lzop --without-compress --disable-nls ${TAR_CONFIGURE_ADDITIONAL_FLAGS}"
         BUILD_COMMAND       /bin/sh -c "cd \"${tar_dest}\" && ${TAR_MAKE_ENTIRE} CFLAGS=\"${TAR_C_FLAGS}\" LDFLAGS=\"${TAR_LD_FLAGS}\""
         INSTALL_COMMAND     /bin/sh -c "cd \"${tar_dest}\" && ${MAKE_EXECUTABLE} install ${TAR_MAKE_INSTALL_ADDITIONAL_FLAGS} && STRIP=${CMAKE_STRIP} ${CMAKE_SOURCE_DIR}/script/strip.sh \"<INSTALL_DIR>/bin/tar\""
@@ -306,12 +306,12 @@ ExternalProject_Add(MAXMIND
         PREFIX              ${CMAKE_BINARY_DIR}/libmaxminddb
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/ExternalLibraries/libmaxminddb-1.13.3
         INSTALL_DIR         ${CMAKE_BINARY_DIR}/libmaxminddb/install
-        CONFIGURE_COMMAND   /bin/sh -c "
-                                rm -rf ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb &&
-                                mkdir -p ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb &&
-                                cp -r <SOURCE_DIR>/* ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb/ &&
-                                cd ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb/ &&
-                                autoreconf -fiv &&
+        CONFIGURE_COMMAND   /bin/sh -c
+                                "rm -rf ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb && \
+                                mkdir -p ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb && \
+                                cp -r <SOURCE_DIR>/* ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb/ && \
+                                cd ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb/ && \
+                                autoreconf -fiv && \
                                 ./configure --prefix=<INSTALL_DIR> ${MAXMIND_CONFIGURE_ADDITIONAL_FLAGS} --enable-static --disable-shared --disable-tests"
         BUILD_COMMAND       /bin/sh -c "cd ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb/ && ${MAXMIND_MAKE_ENTIRE}"
         INSTALL_COMMAND     /bin/sh -c "cd ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb/ && ${MAKE_EXECUTABLE} install ${MAXMIND_MAKE_INSTALL_ADDITIONAL_FLAGS}"
