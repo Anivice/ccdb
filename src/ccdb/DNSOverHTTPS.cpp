@@ -9,6 +9,9 @@ namespace
 {
     std::vector<std::string> get(const std::string& url, const std::string& path, const int timeout_sec)
     {
+        const thread_local std::regex ipv4_pattern(R"(^((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])$)");
+        const thread_local std::regex ipv6_pattern(R"(^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:))$)");
+
         httplib::Client client(url);
         const httplib::Headers headers = { {"accept", "application/dns-json"} };
         ccdb::utils::set_ssl_automatically(client, url);
@@ -29,7 +32,10 @@ namespace
         std::vector<std::string> ret;
         try {
             for (const auto& entry : nlohmann::json::parse(result->body)["Answer"]) {
-                ret.emplace_back(entry["data"].get<std::string>());
+                const auto & ip = entry["data"].get<std::string>();
+                if (std::regex_match(ip, ipv4_pattern) || std::regex_match(ip, ipv6_pattern)) {
+                    ret.emplace_back(ip);
+                }
             }
         } catch (...) { }
         return ret;
