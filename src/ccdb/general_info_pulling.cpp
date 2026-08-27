@@ -1201,9 +1201,9 @@ void general_info_pulling::update_from_connections(const std::string& info)
 
                 if (const auto it = std::ranges::find(resolved, dest); it != resolved.end() || resolved.empty())
                 {
-                    auto_add(dest);
+                    auto_add(dest, !resolved.empty());
                 } else {
-                    if (!std::ranges::any_of(resolved, [&](const auto & ip){ auto_add(ip, true); return found; }))
+                    if (!std::ranges::any_of(resolved, [&](const auto & ip){ auto_add(ip); return found; }))
                         conn.destination = "MISS " + dest ; // bruh
                 }
             }
