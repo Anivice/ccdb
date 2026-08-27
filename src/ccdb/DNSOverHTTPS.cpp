@@ -50,8 +50,11 @@ std::vector<std::string> ccdb::resolve(
     const int timeout_sec)
 {
     std::vector<std::string> result;
-    const auto A = get(url, "/" + dns_query + "?name=" + host + "&type=A", timeout_sec);
-    const auto AAAA = get(url, "/" + dns_query + "?name=" + host + "&type=AAAA", timeout_sec);
+    std::vector<std::string> A, AAAA;
+    std::vector<std::thread> Ts;
+    Ts.emplace_back([&]{ A = get(url, "/" + dns_query + "?name=" + host + "&type=A", timeout_sec); });
+    Ts.emplace_back([&]{ AAAA = get(url, "/" + dns_query + "?name=" + host + "&type=AAAA", timeout_sec); });
+    std::ranges::for_each(Ts, [&](auto& t) { if (t.joinable()) t.join(); });
     result.insert(result.end(), A.begin(), A.end());
     result.insert(result.end(), AAAA.begin(), AAAA.end());
     return result;
