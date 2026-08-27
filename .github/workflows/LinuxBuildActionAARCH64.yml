@@ -30,7 +30,7 @@ jobs:
             build-essential \
             software-properties-common \
             apt-transport-https \
-            cmake make git gettext patchelf libtool ninja
+            cmake make git gettext patchelf libtool ninja-build
 
       - name: Configure and Build
         run: |
