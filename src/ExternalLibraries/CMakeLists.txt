@@ -284,7 +284,13 @@ ExternalProject_Add(MAXMIND
         PREFIX              ${CMAKE_BINARY_DIR}/libmaxminddb
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/ExternalLibraries/libmaxminddb-1.13.3
         INSTALL_DIR         ${CMAKE_BINARY_DIR}/libmaxminddb/install
-        CONFIGURE_COMMAND   /bin/sh -c "rm -rf ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb && mkdir -p ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb && cp -r <SOURCE_DIR>/* ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb/ && cd ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb/ && libtoolize --force --copy --install && autoconf --force && automake --add-missing --force-missing && ./configure --prefix=<INSTALL_DIR> ${MAXMIND_CONFIGURE_ADDITIONAL_FLAGS} --enable-static --disable-shared --disable-tests"
+        CONFIGURE_COMMAND   /bin/sh -c "
+                                rm -rf ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb &&
+                                mkdir -p ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb &&
+                                cp -r <SOURCE_DIR>/* ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb/ &&
+                                cd ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb/ &&
+                                autoreconf -fiv &&
+                                ./configure --prefix=<INSTALL_DIR> ${MAXMIND_CONFIGURE_ADDITIONAL_FLAGS} --enable-static --disable-shared --disable-tests"
         BUILD_COMMAND       /bin/sh -c "cd ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb/ && ${MAXMIND_MAKE_ENTIRE}"
         INSTALL_COMMAND     /bin/sh -c "cd ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb/ && ${MAKE_EXECUTABLE} install ${MAXMIND_MAKE_INSTALL_ADDITIONAL_FLAGS}"
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libmaxminddb.a
