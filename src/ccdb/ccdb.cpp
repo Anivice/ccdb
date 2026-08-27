@@ -1019,9 +1019,12 @@ void ccdb::ccdb::init()
     backend_instance.sendNotification(log);
 }
 
-ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::string latency_url_, const bool fast_shutdown)
+ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::string latency_url_, const bool fast_shutdown,
+    const std::string& dns, const std::string& qry)
     : backend_instance(backend, token), latency_url(std::move(latency_url_))
 {
+    backend_instance.g_resolve = dns;
+    backend_instance.g_how = qry;
     try
     {
         const auto terminal_name = get_terminal_emulator_name();

@@ -48,6 +48,7 @@
 #include "Readline.h"
 #include "utils.h"
 #include "httplib.h"
+#include "DNSOverHTTPS.h"
 
 static constexpr const auto * MULTICAST_GROUP = "239.255.0.1";
 static constexpr std::uint16_t PORT = 49361;
@@ -1139,11 +1140,16 @@ void general_info_pulling::update_from_traffic(const std::string& info)
 void general_info_pulling::update_from_connections(const std::string& info)
 {
     try {
+        bool map_empty = false;
+        {
+            std::lock_guard map_lock(connection_map_mutex);
+            map_empty = connection_map.empty();
+        }
+
         json data;
         data = json::parse(info);
         total_downloaded_bytes = static_cast<uint64_t>(data["downloadTotal"]);
         total_uploaded_bytes = static_cast<uint64_t>(data["uploadTotal"]);
-        std::lock_guard map_lock(connection_map_mutex);
         tsl::hopscotch_map < std::string, connection_t > new_connection_map;
         for (const auto& connection : data["connections"])
         {
@@ -1160,9 +1166,32 @@ void general_info_pulling::update_from_connections(const std::string& info)
             conn.host = std::string(host.empty() ? dest : host) + ":" + dest_port;
             conn.src = std::string(connection["metadata"]["sourceIP"]) + ":" + std::string(connection["metadata"]["sourcePort"]);
 
-            if (ccdb::g_geoipdata != nullptr) {
-                if (const auto geoloc = ccdb::g_geoipdata->find(dest, "country", "iso_code"); geoloc) {
-                    conn.destination = "[" + *geoloc + "] " + dest;
+            if (ccdb::g_geoipdata != nullptr && !map_empty)
+            {
+                std::vector<std::string> resolved;
+                if (const thread_local std::regex r0(R"(^(?:(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?|[a-zA-Z][a-zA-Z0-9-]*)$)");
+                    !host.empty() && std::regex_match(host, r0) && !g_resolve.get().empty() && !g_how.get().empty())
+                {
+                    resolved = ccdb::resolve(g_resolve.get(), host, g_how.get());
+                }
+
+                bool found = false;
+                auto auto_add = [&](const std::string& mm)
+                {
+                    if (found) return;
+                    if (const auto geoloc = ccdb::g_geoipdata->find(mm, "country", "iso_code"); geoloc) {
+                        conn.destination = "[" + *geoloc + "] " + (dest == mm ? dest : dest + "/" + mm);
+                        found = true;
+                    }
+                };
+
+                if (const auto it = std::ranges::find(resolved, dest);
+                    it != resolved.end() || resolved.empty())
+                {
+                    auto_add(dest);
+                } else {
+                    if (!std::ranges::any_of(resolved, [&](const auto & ip){ auto_add(ip); return found; }))
+                        conn.destination = "BRUH " + dest ; // bruh
                 }
             }
 
@@ -1217,6 +1246,7 @@ void general_info_pulling::update_from_connections(const std::string& info)
             new_connection_map[id] = conn;
         }
 
+        std::lock_guard map_lock(connection_map_mutex);
         connection_map = new_connection_map; // update and discard previous
     } catch (std::exception &) {
         // force_quit = true;

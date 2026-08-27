@@ -38,12 +38,10 @@
 #include <ios>
 #include <string>
 #include <vector>
-
 #include "tiv_lib.h"
 
 // This #define tells CImg that we use the library without any display options
 // -- just for loading images.
-#define cimg_display 0
 #include "CImg.h"
 
 #ifdef _POSIX_VERSION

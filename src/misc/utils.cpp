@@ -130,7 +130,7 @@ bool ccdb::utils::parse_proxy(const std::string& url, std::string& host, int & p
 
 void ccdb::utils::set_ssl_automatically(httplib::Client & client, const std::string & url)
 {
-    std::string scheme, proxy_host;
+    std::string scheme;
     if (std::string host, path;
         !parse_url(url, scheme, host, path))
     {

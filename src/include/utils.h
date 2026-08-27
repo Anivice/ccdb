@@ -188,7 +188,7 @@ namespace ccdb::utils
 
     struct cmd_status
     {
-        std::string /* __attribute_deprecated_msg__("This filed is deprecated and is never filled") */ fd_stdout; // normal output
+        std::string fd_stdout; // normal output
         std::string fd_stderr; // error information
         int exit_status{}; // exit status
     };
@@ -668,6 +668,8 @@ namespace ccdb::utils
 
         return value;
     }
+
+    cmd_status tar(const std::vector<std::string> & args, const std::string & to_write);
 }
 
 namespace ccdb

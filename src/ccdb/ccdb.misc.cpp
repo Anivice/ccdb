@@ -147,7 +147,7 @@ void ccdb::ccdb::help()
     }
 
     std::stringstream oss;
-    oss << g_version_string << str << g_help_additional << std::endl;
+    oss << static_cast<std::string>(version_string) << str << g_help_additional << std::endl;
     pager(oss.str());
     std::cout << oss.str() << std::flush;
 }

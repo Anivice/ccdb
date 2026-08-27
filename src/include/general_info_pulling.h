@@ -87,6 +87,8 @@ public:
     ccdb_atomic_t < std::string > puller_logLevel;
     ccdb_atomic_t < std::string > mihomo_output_log_location;
     std::atomic_int max_log_size = 4096;
+    ccdb_atomic_t < std::string > g_resolve;
+    ccdb_atomic_t < std::string > g_how;
 
     struct connection_t
     {

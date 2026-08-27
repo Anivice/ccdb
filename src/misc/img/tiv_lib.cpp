@@ -31,7 +31,6 @@
  */
 
 #include "tiv_lib.h"
-
 #include <algorithm>
 #include <array>
 #include <bitset>

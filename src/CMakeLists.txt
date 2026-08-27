@@ -174,6 +174,8 @@ add_library(ccdb SHARED
 
         versions.cpp                    include/versions.h
         ccdb/libmaxmind.cpp             include/libmaxmind.h
+        ccdb/DNSOverHTTPS.cpp
+        ccdb/DNSOverHTTPS.h
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
 target_compile_definitions(ccdb PRIVATE CCDB_VERSION="${CCDB_VERSION}" CPPHTTPLIB_OPENSSL_SUPPORT)
@@ -303,13 +305,23 @@ if ("${CCDB_COMPILE_WITH_IMG}" STREQUAL "True")
     target_compile_options(tiv PRIVATE -std=c++23 -Wall -fexceptions)
     target_include_directories(tiv PRIVATE
             misc/img/libpng-1.6.58
+            "${CMAKE_BINARY_DIR}/misc/img/libpng-1.6.58/"
             "${CMAKE_BINARY_DIR}"
             include
+            "misc/img/zlib-1.3.2"
+            "${CMAKE_BINARY_DIR}/misc/img/zlib-1.3.2")
+    target_include_directories(ccdb PRIVATE
+            misc/img/libpng-1.6.58
+            "${CMAKE_BINARY_DIR}/misc/img/libpng-1.6.58/"
+            "${CMAKE_BINARY_DIR}"
+            include misc/img
+            "misc/img/zlib-1.3.2"
             "${CMAKE_BINARY_DIR}/misc/img/zlib-1.3.2")
     target_link_libraries(tiv PRIVATE png_static img_8f87efc1c0d8fc8c)
     add_dependencies(tiv png_static)
     target_link_libraries(ccdb PRIVATE tiv)
-    target_compile_definitions(ccdb PRIVATE __USE_IMG__)
+    target_compile_definitions(ccdb PRIVATE __USE_IMG__=1 cimg_display=0)
+    target_compile_definitions(tiv PRIVATE cimg_use_png=1 cimg_display=0)
 endif ()
 
 if ("${USE_CYGWIN}" STREQUAL "True")

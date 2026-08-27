@@ -1,6 +1,12 @@
 #ifndef CCDB_VERSIONS_H
 #define CCDB_VERSIONS_H
 
-extern const char * g_version_string;
+#include <string>
+extern class version_string_
+{
+    std::string version;
+public:
+    explicit operator std::string();
+} version_string;
 
 #endif //CCDB_VERSIONS_H

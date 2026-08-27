@@ -114,7 +114,7 @@ namespace
         { .short_name = -1,  .long_name = "subinfo_timeout",.argument_required = true,  .description = utils::get_text("Timeout of subinfo puller (in seconds, only for --subinfo, default is 15s)") },
         { .short_name = -1,  .long_name = "subinfo_user-agent",.argument_required = true,  .description = utils::get_text("User agent of subinfo puller (only for --subinfo, default is `clash-verge/2.1.0`)") },
         { .short_name = -1,  .long_name = "report-issue",.argument_required = false,.description = utils::get_text("File a BUG report") },
-        { .short_name = -1,  .long_name = "no-fast-quit",  .argument_required = false, .description = utils::get_text("No fast quit when Readline finishes") },
+        // { .short_name = -1,  .long_name = "no-fast-quit",  .argument_required = false, .description = utils::get_text("No fast quit when Readline finishes") },
         { .short_name = -1,  .long_name = "use-color-scheme", .argument_required = true, .description = utils::get_text("Specify a color scheme: legacy, distinct, continuous. Default is `distinct`") },
         { .short_name = 'Q', .long_name = "quiet", .argument_required = false, .description = utils::get_text("No banner or version info on start") },
 #ifdef ENABLE_CRASH_CATCHER
@@ -122,6 +122,7 @@ namespace
         { .short_name = -1,  .long_name = "feedBacktrace", .argument_required = false, .description = utils::get_text("Print a symbol trace from CCDB crash report, requires `--backtrace`") },
 #endif //ENABLE_CRASH_CATCHER
         { .short_name = -1,  .long_name = "maxmind-geoip-helper", .argument_required = true, .description = utils::get_text("Load MaxMind GeoIP database for `get connection`") },
+        { .short_name = -1,  .long_name = "dns-over-https-query", .argument_required = true, .description = utils::get_text("Loading MaxMind GeoIP database will enable DoH audit for `destination`, this option specify how DNS is resolved.") },
     };
 
     [[nodiscard]]
@@ -488,7 +489,7 @@ extern "C"
 __attribute__((visibility("default")))
 int main_(int argc, char ** argv)
 {
-    bool fastQuit = true;
+    constexpr bool fastQuit = false;
     try
     {
         std::string token;
@@ -501,7 +502,7 @@ int main_(int argc, char ** argv)
         utils::ArgumentParser ArgumentParser(argc, argv, PreDefinedArguments);
         const auto parsed = ArgumentParser.parse();
 
-        fastQuit = !parsed.contains("no-fast-quit");
+        // fastQuit = !parsed.contains("no-fast-quit");
 
         if (parsed.contains("help")) {
             utils::print(argv[0], " [OPTIONS [Arguments...]...]\n");
@@ -513,10 +514,10 @@ int main_(int argc, char ** argv)
         if (parsed.contains("version") || parsed.contains("version-license"))
         {
             if (!parsed.contains("version-license")) {
-                utils::print(g_version_string);
+                utils::print(static_cast<std::string>(version_string));
             }
             else {
-                const std::string content = g_version_string + ccdb_utils_unpack_string(LICENSE);
+                const std::string content = static_cast<std::string>(version_string) + ccdb_utils_unpack_string(LICENSE);
                 const auto result = utils::exec_command("/bin/sh", content, "-c",
                     (utils::getenv("PAGER").empty() ? "sh -c less 2>/dev/null"
                         : "sh -c \"" + utils::getenv("PAGER") + "\" 2>/dev/null"));
@@ -603,7 +604,7 @@ int main_(int argc, char ** argv)
         }
 
         ////////////////////////////////////////////////////////////////////////////////////////
-        if (!quiet) utils::print(g_version_string);
+        if (!quiet) utils::print(static_cast<std::string>(version_string));
         if (!quiet) utils::print("Connecting to", " ", backend, "\n");
         ////////////////////////////////////////////////////////////////////////////////////////
         std::stringstream ss;
@@ -645,7 +646,16 @@ int main_(int argc, char ** argv)
         if (parsed.contains("execute")) {
             ccdb::ccdb ccdb(backend, token, latency_url, utils::split_via_history(parsed.at("execute")));
         } else {
-            ccdb::ccdb ccdb(backend, token, latency_url, fastQuit);
+            if (parsed.contains("dns-over-https-query")) {
+                std::regex r0(R"((https://.+)/(.+))");
+                const auto dns = parsed.at("dns-over-https-query");
+                if (std::smatch sm; std::regex_match(dns, sm, r0)) {
+                    ccdb::ccdb ccdb(backend, token, latency_url, fastQuit, sm[1].str(), sm[2].str());
+                } else {
+                    utils::print<utils::is_error>("Invalid DNS Over HTTPS\n");
+                }
+            }
+            ccdb::ccdb ccdb(backend, token, latency_url, fastQuit, "", "");
         }
     }
     catch (std::exception &e)
