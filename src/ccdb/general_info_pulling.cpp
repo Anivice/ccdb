@@ -1194,7 +1194,7 @@ void general_info_pulling::update_from_connections(const std::string& info)
                 {
                     if (found) return;
                     if (const auto geoloc = ccdb::g_geoipdata->find(mm, "country", "iso_code"); geoloc) {
-                        conn.destination = "[" + *geoloc + "] " + (dest == mm ? dest : dest + "/" + mm);
+                        conn.destination = "[" + *geoloc + "] " + (dest == mm ? dest + " [SYNC]" : dest + "/" + mm);
                         found = true;
                     }
                 };
@@ -1204,7 +1204,7 @@ void general_info_pulling::update_from_connections(const std::string& info)
                     auto_add(dest);
                 } else {
                     if (!std::ranges::any_of(resolved, [&](const auto & ip){ auto_add(ip); return found; }))
-                        conn.destination = "BRUH " + dest ; // bruh
+                        conn.destination = "MISS " + dest ; // bruh
                 }
             }
 
