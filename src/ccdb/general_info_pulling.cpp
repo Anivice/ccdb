@@ -1190,11 +1190,11 @@ void general_info_pulling::update_from_connections(const std::string& info)
                 }
 
                 bool found = false;
-                auto auto_add = [&](const std::string& mm)
+                auto auto_add = [&](const std::string& mm, const bool sync_mark = false)
                 {
                     if (found) return;
                     if (const auto geoloc = ccdb::g_geoipdata->find(mm, "country", "iso_code"); geoloc) {
-                        conn.destination = "[" + *geoloc + "] " + (dest == mm ? dest + " [SYNC]" : dest + "/" + mm);
+                        conn.destination = "[" + *geoloc + "] " + (dest == mm ? dest + (sync_mark ? " [SYNC]" : "") : dest + "/" + mm);
                         found = true;
                     }
                 };
@@ -1203,7 +1203,7 @@ void general_info_pulling::update_from_connections(const std::string& info)
                 {
                     auto_add(dest);
                 } else {
-                    if (!std::ranges::any_of(resolved, [&](const auto & ip){ auto_add(ip); return found; }))
+                    if (!std::ranges::any_of(resolved, [&](const auto & ip){ auto_add(ip, true); return found; }))
                         conn.destination = "MISS " + dest ; // bruh
                 }
             }
