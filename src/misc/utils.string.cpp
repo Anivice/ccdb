@@ -125,26 +125,23 @@ static std::string regex_replace_callback(
 }
 
 std::string ccdb::utils::regex_replace_all(std::string &original, const std::string &pattern,
-    const std::function<std::string(const std::smatch& match)> &replacement, const bool use_cache)
+    const std::function<std::string(const std::smatch& match)> &replacement)
 {
-    static cache_w_freq_table_t < std::string, std::string > cache;
-    std::string hash;
-    if (use_cache) {
-        hash = original + pattern;
-        if (const auto it = cache.get_cache(hash); it) {
-            return *it;
-        }
+    static cache_w_freq_table_t < std::string, std::regex > regex_cache;
+    const std::regex * r = nullptr;
+
+    if (const auto it = regex_cache.get_cache(pattern); it) {
+        r = &*it;
+    } else {
+        regex_cache.emplace_cache(pattern, std::regex(pattern));
+        const auto ref = regex_cache.get_cache(pattern);
+        r = &*ref;
     }
 
-    const std::regex r(pattern);
-    original = regex_replace_callback(original, r,
-        [&replacement](const std::smatch& match) -> std::string {
-            return replacement(match);
-        });
-
-    if (use_cache) {
-        cache.emplace_cache(hash, original);
-    }
+    original = regex_replace_callback(original, *r,
+    [&replacement](const std::smatch& match) -> std::string {
+        return replacement(match);
+    });
 
     return original;
 }

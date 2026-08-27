@@ -7,7 +7,7 @@
 
 namespace
 {
-    std::vector<std::string> get(const std::string& url, const std::string& path)
+    std::vector<std::string> get(const std::string& url, const std::string& path, const int timeout_sec)
     {
         httplib::Client client(url);
         const httplib::Headers headers = { {"accept", "application/dns-json"} };
@@ -18,8 +18,8 @@ namespace
             client.set_proxy(p_host, p_port);
         }
 
-        client.set_read_timeout(10, 0);
-        client.set_write_timeout(10, 0);
+        client.set_read_timeout(timeout_sec, 0);
+        client.set_write_timeout(timeout_sec, 0);
 
         const auto result = client.Get(path, headers);
         if (!result) {
@@ -37,24 +37,16 @@ namespace
 }
 
 // URL is https://[...]/dns-query
-std::vector<std::string> ccdb::resolve(const std::string& url, const std::string& host, const std::string& dns_query)
+std::vector<std::string> ccdb::resolve(
+    const std::string& url,
+    const std::string& host,
+    const std::string& dns_query,
+    const int timeout_sec)
 {
-    static utils::cache_w_freq_table_t<std::string, std::vector<std::string>> cache;
-    if (const auto it = cache.get_cache(host); it) {
-        return *it;
-    }
-
     std::vector<std::string> result;
-    const auto A = get(url, "/" + dns_query + "?name=" + host + "&type=A");
-    const auto AAAA = get(url, "/" + dns_query + "?name=" + host + "&type=AAAA");
+    const auto A = get(url, "/" + dns_query + "?name=" + host + "&type=A", timeout_sec);
+    const auto AAAA = get(url, "/" + dns_query + "?name=" + host + "&type=AAAA", timeout_sec);
     result.insert(result.end(), A.begin(), A.end());
     result.insert(result.end(), AAAA.begin(), AAAA.end());
-    // std::erase_if(result, [](const auto& entry) { return entry.empty(); });
-
-    if (!result.empty()) {
-        cache.emplace_cache(host, result);
-        return result;
-    }
-
-    return { };
+    return result;
 }

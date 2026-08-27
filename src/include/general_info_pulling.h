@@ -290,6 +290,7 @@ private:
     tsl::hopscotch_map < std::string, proxy_info_t > proxy_list;
 
     void pull_continuous_updates(); // blocked
+    ccdb::utils::cache_w_freq_table_t<std::string, std::vector<std::string>> dns_lookup_cache_;
 
 public:
     void notify_all(const notifications_t & msg);

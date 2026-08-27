@@ -89,8 +89,7 @@ static std::string highlight(const std::string & str,
             }
     
             return mat_str;
-        },
-        false /* no cache */ );
+        });
 }
 
 static std::string color_sim(const int particle, const int overall)
@@ -158,7 +157,7 @@ namespace ccdb {
                 }
 
                 const auto highlight = position < content.length() ? static_cast<signed long long int>(content[position]) : 0;
-                auto after = highlight > 0 ? content.substr(position + 1) : std::u32string();
+                const auto after = highlight > 0 ? content.substr(position + 1) : std::u32string();
 
                 // print the box:
                 if (UnicodeDisplayWidth::get_width_utf32(content) > (col_size - 1))
@@ -195,7 +194,7 @@ namespace ccdb {
                 return before;
             }
 
-            if (matches_ != 0)
+            if (!highlight_str_.empty())
             {
                 std::string str = "/" + highlight_str_ + ": " + std::to_string(matches_);
                 while (str.empty() && UnicodeDisplayWidth::get_width_utf8(str) > get_col_size()) {

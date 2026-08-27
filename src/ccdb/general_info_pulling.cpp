@@ -1151,6 +1151,7 @@ void general_info_pulling::update_from_connections(const std::string& info)
         total_downloaded_bytes = static_cast<uint64_t>(data["downloadTotal"]);
         total_uploaded_bytes = static_cast<uint64_t>(data["uploadTotal"]);
         tsl::hopscotch_map < std::string, connection_t > new_connection_map;
+        bool skip_current_lookup = false;
         for (const auto& connection : data["connections"])
         {
             const std::string id = connection["id"];
@@ -1170,9 +1171,20 @@ void general_info_pulling::update_from_connections(const std::string& info)
             {
                 std::vector<std::string> resolved;
                 if (const thread_local std::regex r0(R"(^(?:(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?|[a-zA-Z][a-zA-Z0-9-]*)$)");
-                    !host.empty() && std::regex_match(host, r0) && !g_resolve.get().empty() && !g_how.get().empty())
+                    !skip_current_lookup && !host.empty() && std::regex_match(host, r0)
+                    && !g_resolve.get().empty() && !g_how.get().empty())
                 {
-                    resolved = ccdb::resolve(g_resolve.get(), host, g_how.get());
+                    if (auto it = dns_lookup_cache_.get_cache(host); it) {
+                        resolved = *it;
+                    } else {
+                        resolved = ccdb::resolve(g_resolve.get(), host, g_how.get(), 1);
+                        if (!resolved.empty()) {
+                            dns_lookup_cache_.emplace_cache(host, resolved);
+                        }
+                        skip_current_lookup = true; // cache hit miss, give up rest of the look ups
+                    }
+
+                    if (!keep_pull_continuous_updates) break;
                 }
 
                 bool found = false;
@@ -1185,8 +1197,7 @@ void general_info_pulling::update_from_connections(const std::string& info)
                     }
                 };
 
-                if (const auto it = std::ranges::find(resolved, dest);
-                    it != resolved.end() || resolved.empty())
+                if (const auto it = std::ranges::find(resolved, dest); it != resolved.end() || resolved.empty())
                 {
                     auto_add(dest);
                 } else {

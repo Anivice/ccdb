@@ -39,6 +39,7 @@
 #include "utf8.h"
 #include "colors.h"
 #include "httplib.h"
+#include "caches/cache.hpp"
 
 #ifndef __attribute_deprecated__
 
@@ -94,13 +95,11 @@ namespace ccdb::utils
     /// @param original Original string
     /// @param pattern Match pattern
     /// @param replacement Replacement when matched std::string (replacement string) (const std::string & matched_string, int group_index)
-    /// @param use_cache Whether regex_replace_all cache results
     /// @return Replaced string. Original string will be modified as well
     std::string regex_replace_all(
         std::string & original,
         const std::string & pattern,
-        const std::function<std::string(const std::smatch&)>& replacement,
-        bool use_cache = false);
+        const std::function<std::string(const std::smatch&)>& replacement);
 
     /// Get Row and Column size from terminal
     /// @return Pair in [Col (x), Row (y)], or 80x25 if all possible attempt failed
@@ -395,155 +394,47 @@ namespace ccdb::utils
 
 #endif
 
-    template < typename Key, typename Value >
+    template < typename Key, typename Value, unsigned long int max_size = 4096 >
     class cache_w_freq_table_t
     {
     private:
-        std::mutex mtx_;
-        using mapType =
-    #ifdef __DEBUG__
-            std::unordered_map
-    #else
-            tsl::hopscotch_map
-    #endif
-            < Key, Value >;
-        using timePointType =
-    #ifdef __DEBUG__
-            std::unordered_map
-    #else
-            tsl::hopscotch_map
-    #endif
-            < Key, std::vector < std::chrono::time_point<std::chrono::high_resolution_clock> > >;
-        mapType caches_;
-        timePointType cache_hits_;
-        static constexpr uint64_t cache_size_ =
-    #ifdef __DEBUG__
-            64
-    #else
-            4096
-    #endif
-            ;
-        static constexpr int live_time_seconds_ =
-    #ifdef __DEBUG__
-            30
-    #else
-            60
-    #endif
-            ;
+        caches::fixed_sized_cache <Key, Value> caches_;
 #ifdef __DEBUG__
         uint64_t access_ = 0, hit_ = 0;
 #endif
-
-        const bool do_i_use_cache = ccdb::utils::getenv("DISABLE_CACHE_BEHAVIOR") != "true";
+        const bool do_i_use_cache = getenv("DISABLE_CACHE_BEHAVIOR") != "true";
     public:
+        cache_w_freq_table_t() : caches_(max_size) { }
+
 #ifdef __DEBUG__
         ~cache_w_freq_table_t() {
             std::cerr <<
                 "Cache type of < " << demangle<Key>() << ", " << demangle<Value>() << " >: "
-                "Cache size " << caches_.size() << ", "
+                "Cache size " << caches_.Size() << ", "
                 "access " << access_ << " time(s), hit " << hit_ << " time(s), rate " <<
                 std::setprecision(4) << static_cast<double>(hit_) / static_cast<double>(access_) * 100.00 <<
                 "%.\n";
         }
 #endif
 
-        std::optional < Value > get_cache(const Key & key, const bool lock = true)
+        std::optional < Value > get_cache(const Key & key)
         {
             if (!do_i_use_cache) return std::nullopt;
-            std::unique_ptr<std::lock_guard<std::mutex>> lock_guard;
-            if (lock) lock_guard = std::make_unique<std::lock_guard<std::mutex>>(mtx_);
 #ifdef __DEBUG__
             ++access_;
 #endif
-            if (const auto it = caches_.find(key); it != caches_.end())
-            {
-                auto & cache_times = cache_hits_[it->first];
-                const auto now = std::chrono::high_resolution_clock::now();
-                if (!cache_times.empty() &&
-                    std::chrono::duration_cast<std::chrono::seconds>(now - cache_times.front()).count() > live_time_seconds_)
-                {
-                    std::ranges::reverse(cache_times);
-                    while (!cache_times.empty() &&
-                        std::chrono::duration_cast<std::chrono::seconds>(now - cache_times.back()).count() > live_time_seconds_)
-                    {
-                        cache_times.pop_back();
-                    }
-                    std::ranges::reverse(cache_times);
-                }
-                cache_times.emplace_back(now);
+            const auto [val, found] = caches_.TryGet(key);
+            if (!found) return std::nullopt;
 #ifdef __DEBUG__
-                ++hit_;
+            ++hit_;
 #endif
-                const Value & val = it->second;
-                return val;
-            }
-
-            return std::nullopt;
+            return *val;
         }
 
-        void emplace_cache(const Key & key, const Value & value, const bool lock = true)
+        void emplace_cache(const Key & key, const Value & value)
         {
             if (!do_i_use_cache) return;
-            std::unique_ptr<std::lock_guard<std::mutex>> lock_guard;
-            if (lock) lock_guard = std::make_unique<std::lock_guard<std::mutex>>(mtx_);
-            if (
-    #ifdef __DEBUG__
-                cache_hits_.size() > cache_size_ * 1.5
-    #else
-                caches_.size() > cache_size_
-    #endif
-                )
-            {
-                std::vector < std::pair < Key,
-                    std::vector < std::chrono::time_point<std::chrono::high_resolution_clock> >
-                > > cache_hits_linearized;
-
-                std::ranges::for_each(cache_hits_, [&cache_hits_linearized](const auto & p) {
-                    cache_hits_linearized.emplace_back(p);
-                });
-
-                auto clean = [](auto & cache_times)
-                {
-                    const auto now = std::chrono::high_resolution_clock::now();
-                    if (!cache_times.empty() &&
-                        std::chrono::duration_cast<std::chrono::seconds>(now - cache_times.front()).count() > live_time_seconds_)
-                    {
-                        std::ranges::reverse(cache_times);
-                        while (!cache_times.empty() &&
-                            std::chrono::duration_cast<std::chrono::seconds>(now - cache_times.back()).count() > live_time_seconds_)
-                        {
-                            cache_times.pop_back();
-                        }
-                        std::ranges::reverse(cache_times);
-                    }
-                };
-
-                std::ranges::sort(cache_hits_linearized, [](const auto & a, const auto & b)->bool
-                    { return a.second.size() < b.second.size(); });
-                std::ranges::for_each(cache_hits_linearized, [&](auto & p)
-                    { clean(p.second); });
-
-                cache_hits_linearized = { cache_hits_linearized.begin(),
-                    cache_hits_linearized.end() - std::min(cache_size_, static_cast<uint64_t>(cache_hits_linearized.size())) };
-                std::ranges::for_each(cache_hits_linearized | std::views::keys, [&](const auto & key_) {
-                    caches_.erase(key_);
-                });
-
-                // not even hit
-                std::vector < Key > to_del;
-                to_del.reserve(caches_.size());
-                std::ranges::for_each(caches_ | std::views::keys, [&](const Key & k_) {
-                    if (!cache_hits_.contains(k_)) {
-                        to_del.push_back(k_);
-                    }
-                });
-                std::ranges::for_each(to_del, [this](const Key & k_) {
-                    caches_.erase(k_);
-                });
-                cache_hits_.clear();
-            }
-
-            caches_.emplace(key, value);
+            caches_.Put(key, value);
         }
     };
 

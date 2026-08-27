@@ -6,7 +6,10 @@
 
 namespace ccdb
 {
-    std::vector<std::string> resolve(const std::string& url, const std::string& host, const std::string& dns_query = "dns-query");
+    std::vector<std::string> resolve(const std::string& url,
+        const std::string& host,
+        const std::string& dns_query,
+        int timeout_sec = 5);
 }
 
 #endif //CCDB_DNSOVERHTTPS_H

@@ -198,7 +198,7 @@ if(NOT DEFINED GIT_HASH)
 endif()
 
 target_compile_definitions(ccdb PRIVATE GIT_HASH="${GIT_HASH}")
-target_link_libraries(ccdb PRIVATE libunwind::libunwind)
+target_link_libraries(ccdb PRIVATE libunwind::libunwind caches)
 target_compile_definitions(ccdb PRIVATE ENABLE_CRASH_CATCHER=1 UNW_LOCAL_ONLY=1)
 target_compile_options(ccdb PRIVATE -rdynamic -fPIC)
 add_dependencies(ccdb LIBUNWIND)

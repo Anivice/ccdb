@@ -380,3 +380,7 @@ target_link_libraries(libunwind::libunwind INTERFACE
 )
 
 include_directories("${LIBUNWIND_INCLUDE_DIR}")
+
+set(CACHES_BUILD_TEST OFF)
+add_subdirectory(caches-0.1.1)
+include_directories(caches-0.1.1/include)

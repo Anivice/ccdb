@@ -1,0 +1,21 @@
+# VS Code
+.vscode/
+
+# IDEA
+.idea/
+
+# CMake build folder
+**/*build*/
+
+# Doxygen configurable files
+### Doxygen output
+docs/doxygen/html/
+docs/doxygen/xml/
+### Doxybook2 output
+docs/doxy/out/
+### MkDocs output
+docs/mkdocs/docs/doxygen/
+docs/mkdocs/site/
+
+# Python
+**/__pycache__/
