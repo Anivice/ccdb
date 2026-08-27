@@ -1151,7 +1151,7 @@ void general_info_pulling::update_from_connections(const std::string& info)
         total_downloaded_bytes = static_cast<uint64_t>(data["downloadTotal"]);
         total_uploaded_bytes = static_cast<uint64_t>(data["uploadTotal"]);
         tsl::hopscotch_map < std::string, connection_t > new_connection_map;
-        bool skip_current_lookup = false;
+        int skip_current_lookup = 0;
         for (const auto& connection : data["connections"])
         {
             const std::string id = connection["id"];
@@ -1176,12 +1176,12 @@ void general_info_pulling::update_from_connections(const std::string& info)
                 {
                     if (auto it = dns_lookup_cache_.get_cache(host); it) {
                         resolved = *it;
-                    } else if (!skip_current_lookup) {
+                    } else if (skip_current_lookup < 3) {
                         resolved = ccdb::resolve(g_resolve.get(), host, g_how.get(), 1);
                         if (!resolved.empty()) {
                             dns_lookup_cache_.emplace_cache(host, resolved);
                         }
-                        skip_current_lookup = true; // cache hit miss, give up rest of the look ups
+                        ++skip_current_lookup; // cache hit miss, give up rest of the look ups
                         // this way we maintain a reasonable amount of update speed
                         // the results should be stored inside cache
                     }
@@ -1196,6 +1196,8 @@ void general_info_pulling::update_from_connections(const std::string& info)
                     if (const auto geoloc = ccdb::g_geoipdata->find(mm, "country", "iso_code"); geoloc) {
                         conn.destination = "[" + *geoloc + "] " + (dest == mm ? dest + (sync_mark ? " [SYNC]" : "") : dest + "/" + mm);
                         found = true;
+                    } else if (sync_mark && dest == mm) {
+                        conn.destination = dest + " [SYNC]";
                     }
                 };
 
