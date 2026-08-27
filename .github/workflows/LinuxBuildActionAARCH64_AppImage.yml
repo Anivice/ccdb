@@ -1,4 +1,4 @@
-name: Linux Automatic Nightly Build for ARM64
+name: Linux Automatic Nightly AppImage Build for ARM64
 
 on:
   workflow_dispatch:

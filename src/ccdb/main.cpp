@@ -646,7 +646,8 @@ int main_(int argc, char ** argv)
         if (parsed.contains("execute")) {
             ccdb::ccdb ccdb(backend, token, latency_url, utils::split_via_history(parsed.at("execute")));
         } else {
-            if (parsed.contains("dns-over-https-query")) {
+            if (parsed.contains("dns-over-https-query"))
+            {
                 std::regex r0(R"((https://.+)/(.+))");
                 const auto dns = parsed.at("dns-over-https-query");
                 if (std::smatch sm; std::regex_match(dns, sm, r0)) {
@@ -655,7 +656,10 @@ int main_(int argc, char ** argv)
                     utils::print<utils::is_error>("Invalid DNS Over HTTPS\n");
                 }
             }
-            ccdb::ccdb ccdb(backend, token, latency_url, fastQuit, "", "");
+            else
+            {
+                ccdb::ccdb ccdb(backend, token, latency_url, fastQuit, "", "");
+            }
         }
     }
     catch (std::exception &e)

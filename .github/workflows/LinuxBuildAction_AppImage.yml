@@ -1,4 +1,4 @@
-name: Linux Automatic Nightly Build
+name: Linux Automatic Nightly AppImage Build
 
 on:
   workflow_dispatch:
