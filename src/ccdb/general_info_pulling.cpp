@@ -1183,7 +1183,7 @@ void general_info_pulling::update_from_connections(const std::string& info)
                         }
                         skip_current_lookup = true; // cache hit miss, give up rest of the look ups
                         // this way we maintain a reasonable amount of update speed
-                        // results should be st
+                        // results should be stored inside cach
                     }
 
                     if (!keep_pull_continuous_updates) break;
