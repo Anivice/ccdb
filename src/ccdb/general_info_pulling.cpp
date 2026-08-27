@@ -1137,6 +1137,8 @@ void general_info_pulling::update_from_traffic(const std::string& info)
     }
 }
 
+static const auto TIMEOUT_RESOLVED = ccdb::utils::getenv("CCDB_RESOLVED_TIMEOUT");
+
 void general_info_pulling::update_from_connections(const std::string& info)
 {
     try {
@@ -1177,7 +1179,8 @@ void general_info_pulling::update_from_connections(const std::string& info)
                     if (auto it = dns_lookup_cache_.get_cache(host); it) {
                         resolved = *it;
                     } else if (skip_current_lookup < 3) {
-                        resolved = ccdb::resolve(g_resolve.get(), host, g_how.get(), 1);
+                        resolved = ccdb::resolve(g_resolve.get(), host, g_how.get(),
+                            TIMEOUT_RESOLVED.empty() ? 1 : ccdb::utils::convertToNumber<int>(TIMEOUT_RESOLVED));
                         if (!resolved.empty()) {
                             dns_lookup_cache_.emplace_cache(host, resolved);
                         }
