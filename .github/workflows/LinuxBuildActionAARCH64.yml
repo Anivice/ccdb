@@ -30,15 +30,15 @@ jobs:
             build-essential \
             software-properties-common \
             apt-transport-https \
-            cmake make git gettext patchelf
+            cmake make git gettext patchelf libtool ninja
 
       - name: Configure and Build
         run: |
           set -euo pipefail
           mkdir build;
           cd build
-          { cmake ../src -D CCDB_COMPILE_WITH_IMG="True" -D OPENSSL_TARGET="linux-aarch64" -D OPENSSL_LIBP="lib" \
-            && make copy_ccdb; } | tee /tmp/log.txt
+          { cmake ../src -D CCDB_COMPILE_WITH_IMG="True" -D OPENSSL_TARGET="linux-aarch64" -D OPENSSL_LIBP="lib" -G Ninja \
+            && ninja -j 1 copy_ccdb; } | tee /tmp/log.txt
       - name: Upload log artifact
         if: ${{ always() }}
         uses: actions/upload-artifact@v6

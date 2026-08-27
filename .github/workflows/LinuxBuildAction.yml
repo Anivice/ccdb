@@ -30,7 +30,7 @@ jobs:
             build-essential \
             software-properties-common \
             apt-transport-https \
-            cmake make git gettext patchelf
+            cmake make git gettext patchelf libtool ninja
 
       - name: Configure and Build
         run: |
@@ -46,7 +46,8 @@ jobs:
                        -D OPENSSL_LIBP="lib64"                              \
                        -D PERL_MAKE_ADDITIONAL_FLAGS="-j$(nproc)"           \
                        -D TAR_MAKE_ENTIRE="-j$(nproc)" 2>&1                 \
-            && make -j$(nproc) copy_ccdb; } | tee /tmp/log.txt
+                       -G Ninja                                             \
+            && ninja copy_ccdb; } | tee /tmp/log.txt
       - name: Upload log artifact
         if: ${{ always() }}
         uses: actions/upload-artifact@v6
