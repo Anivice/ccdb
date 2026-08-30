@@ -41,6 +41,11 @@
 #include "httplib.h"
 #include "caches/cache.hpp"
 
+#ifdef __DEBUG__
+# include <meta>
+# include <source_location>
+#endif //__DEBUG__
+
 #ifndef __attribute_deprecated__
 
 #if __has_attribute (__deprecated__)
@@ -91,6 +96,7 @@ namespace ccdb::utils
         const std::string & target,
         const std::string & replacement) noexcept;
 
+    using regex_scope_type = std::pair<std::vector<std::string>::const_iterator, std::vector<std::string>::const_iterator>;
     /// Replace string inside a string
     /// @param original Original string
     /// @param pattern Match pattern
@@ -99,7 +105,7 @@ namespace ccdb::utils
     std::string regex_replace_all(
         std::string & original,
         const std::string & pattern,
-        const std::function<std::string(const std::smatch&)>& replacement);
+        const std::function<std::string(const regex_scope_type &)>& replacement);
 
     /// Get Row and Column size from terminal
     /// @return Pair in [Col (x), Row (y)], or 80x25 if all possible attempt failed
@@ -380,21 +386,14 @@ namespace ccdb::utils
 
     std::string strip_color(std::string str_);
 
+    template <
+        typename Key,
+        typename Value,
+        unsigned long int max_size = 4096
 #ifdef __DEBUG__
-    template <typename T>
-    std::string demangle()
-    {
-        int status = 0;
-        const std::unique_ptr<char, decltype(&std::free)> result(
-            abi::__cxa_demangle(typeid(T).name(), nullptr, nullptr, &status),
-            &std::free
-        );
-        return (status == 0) ? result.get() : typeid(T).name();
-    }
-
+        , const auto scope = std::meta::access_context::current().scope()
 #endif
-
-    template < typename Key, typename Value, unsigned long int max_size = 4096 >
+    >
     class cache_w_freq_table_t
     {
     private:
@@ -407,13 +406,16 @@ namespace ccdb::utils
         cache_w_freq_table_t() : caches_(max_size) { }
 
 #ifdef __DEBUG__
-        ~cache_w_freq_table_t() {
-            std::cerr <<
-                "Cache type of < " << demangle<Key>() << ", " << demangle<Value>() << " >: "
-                "Cache size " << caches_.Size() << ", "
-                "access " << access_ << " time(s), hit " << hit_ << " time(s), rate " <<
-                std::setprecision(4) << static_cast<double>(hit_) / static_cast<double>(access_) * 100.00 <<
-                "%.\n";
+        ~cache_w_freq_table_t()
+        {
+            constexpr auto source_location_current = std::meta::source_location_of(scope);
+            constexpr auto key_name = std::meta::display_string_of(^^Key);
+            constexpr auto val_name = std::meta::display_string_of(^^Value);
+            std::cerr << "Cache initialized at "
+                << source_location_current.file_name() << ":" << source_location_current.line() << ":" << source_location_current.column()
+                << " of the type < " << key_name << ", " << val_name << " >: "
+                " size " << caches_.Size() << ", access " << access_ << " time(s), hit " << hit_ << " time(s), rate "
+                << std::setprecision(4) << (access_ == 0 ? 0 : static_cast<double>(hit_) / static_cast<double>(access_) * 100.00) << "%.\n";
         }
 #endif
 

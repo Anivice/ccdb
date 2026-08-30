@@ -86,11 +86,12 @@ namespace ccdb
         std::string str = ss.str();
         const std::string bak = str;
         const auto result = bak != regex_replace_all(str, search_content,
-        [&](const std::smatch & mat)->std::string
+        [&](const regex_scope_type & mat)->std::string
             {
-                const auto & mat_str = mat[0].str();
-                if ((mat_str.size() == 1 && std::isprint(mat_str.front())) || mat_str.size() > 1)
-                { return "<match>" + mat[0].str() + "</match>"; }
+                const auto & mat_str = *mat.first;
+                if ((mat_str.size() == 1 && std::isprint(mat_str.front())) || mat_str.size() > 1) {
+                    return "<match>" + mat_str + "</match>";
+                }
             return mat_str;
         });
         cache.emplace_cache(h, result);

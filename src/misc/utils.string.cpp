@@ -103,46 +103,87 @@ std::string ccdb::utils::replace_all(
     return original;
 }
 
-static std::string regex_replace_callback(
-    const std::string& input,
-    const std::regex& pattern,
-    const std::function<std::string(const std::smatch&)> & replacer)
-{
-    std::string result;
-    std::sregex_iterator it(input.begin(), input.end(), pattern);
-    std::size_t last_pos = 0;
+namespace {
+    struct regex_replace_callback_cache_t
+    {
+        std::vector<std::string> matched_string;
+        bool is_regex_replace;
+    };
 
-    for (const std::sregex_iterator end; it != end; ++it) {
-        // Append text before match
-        result.append(input, last_pos, it->position() - last_pos);
-        // Call user function to generate replacement
-        result.append(replacer(*it));
-        last_pos = it->position() + it->length();
+    using regex_replace_callback_cache_array_t = std::vector<regex_replace_callback_cache_t>;
+    using ScopeType = std::vector<std::string>;
+    using ReplacerFuncType = std::function<std::string(const std::pair<ScopeType::const_iterator, ScopeType::const_iterator> &)>;
+
+    std::string regex_replace_callback(
+        const std::string& input,
+        const std::string& pattern,
+        const ReplacerFuncType & replacer,
+        regex_replace_callback_cache_array_t & cache_array)
+    {
+        std::string result;
+        if (cache_array.empty())
+        {
+            const std::regex reg(pattern);
+            std::sregex_iterator it(input.begin(), input.end(), reg);
+            std::size_t last_pos = 0;
+
+            for (const std::sregex_iterator end; it != end; ++it)
+            {
+                // Append text before match
+                result.append(input, last_pos, it->position() - last_pos);
+                cache_array.emplace_back(regex_replace_callback_cache_t{
+                    .matched_string = { input.substr(last_pos, it->position() - last_pos) },
+                    .is_regex_replace = false
+                });
+
+                // Call user function to generate replacement
+                cache_array.emplace_back(regex_replace_callback_cache_t{
+                    .matched_string = { it->begin(), it->end() },
+                    .is_regex_replace = true
+                });
+                result.append(replacer({cache_array.back().matched_string.begin(), cache_array.back().matched_string.end()}));
+                last_pos = it->position() + it->length();
+            }
+
+            result.append(input, last_pos, std::string::npos);
+            cache_array.emplace_back(regex_replace_callback_cache_t{
+                .matched_string = { input.substr(last_pos, std::string::npos) },
+                .is_regex_replace = false
+            });
+
+            std::erase_if(cache_array, [](const regex_replace_callback_cache_t & list)->bool {
+                return list.matched_string.empty() || std::ranges::all_of(list.matched_string,
+                    [](const auto & matched_string) { return matched_string.empty(); });
+            });
+        }
+        else
+        {
+            for (const auto & [str, rcpr] : cache_array) {
+                if (rcpr)
+                    result.append(replacer({ str.begin(), str.end() }));
+                else
+                    result.append(str.front());
+            }
+        }
+
+        return result;
     }
-
-    result.append(input, last_pos, std::string::npos);
-    return result;
 }
 
-std::string ccdb::utils::regex_replace_all(std::string &original, const std::string &pattern,
-    const std::function<std::string(const std::smatch& match)> &replacement)
+std::string ccdb::utils::regex_replace_all(
+    std::string & original, const std::string &pattern,
+    const std::function <std::string(const regex_scope_type &) > & replacement)
 {
-    static cache_w_freq_table_t < std::string, std::regex > regex_cache;
-    const std::regex * r = nullptr;
-
-    if (const auto it = regex_cache.get_cache(pattern); it) {
-        r = &*it;
-    } else {
-        regex_cache.emplace_cache(pattern, std::regex(pattern));
-        const auto ref = regex_cache.get_cache(pattern);
-        r = &*ref;
+    static cache_w_freq_table_t < std::string, regex_replace_callback_cache_array_t, 1024 * 1024 * 1 > result_cache;
+    const auto hash = original + pattern;
+    if (auto it = result_cache.get_cache(hash); it && !it->empty()) {
+        original = regex_replace_callback(original, pattern, replacement, *it);
+        return original;
     }
 
-    original = regex_replace_callback(original, *r,
-    [&replacement](const std::smatch& match) -> std::string {
-        return replacement(match);
-    });
-
+    regex_replace_callback_cache_array_t cache_array;
+    original = regex_replace_callback(original, pattern, replacement, cache_array);
+    result_cache.emplace_cache(hash, cache_array);
     return original;
 }
 
@@ -230,7 +271,7 @@ std::string ccdb::utils::second_to_human_readable(unsigned long long value)
 
 std::u32string ccdb::utils::utf8_to_u32(const std::string &s)
 {
-    static cache_w_freq_table_t <std::string, std::u32string > cache;
+    static cache_w_freq_table_t <std::string, std::u32string, 1024 * 1024 * 1> cache;
     if (const auto it = cache.get_cache(s); it) {
         return *it;
     }
@@ -252,7 +293,7 @@ int ccdb::utils::UnicodeDisplayWidth::get_width_utf8(const std::string &utf8_str
 
 int ccdb::utils::UnicodeDisplayWidth::get_width_utf32(const std::u32string &utf32_str)
 {
-    static cache_w_freq_table_t < std::u32string, int > cache;
+    static cache_w_freq_table_t < std::u32string, int, 1024 * 1024 * 1 > cache;
     if (const auto it = cache.get_cache(utf32_str); it) {
         return *it;
     }

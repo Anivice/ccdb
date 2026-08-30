@@ -573,7 +573,7 @@ namespace sim
             const auto pointer = static_cast<int64_t>(std::round(static_cast<Num>(size) * ratio));
             const auto & [middle, middle_pack] = pointer < size ? color::local_color_cache[pointer] : color::local_color_cache.back();
             const auto & [left, left_pack] = pointer > 0 ? color::local_color_cache[pointer - 1] : color::local_color_cache.front();
-            const auto & [right, right_pack] = pointer < size ? color::local_color_cache[pointer + 1] : color::local_color_cache.back();
+            const auto & [right, right_pack] = (pointer + 1) < size ? color::local_color_cache[pointer + 1] : color::local_color_cache.back();
             decltype(color::local_color_cache) candidates;
             candidates.reserve(3);
             candidates.emplace_back(std::abs(x - middle), middle_pack);

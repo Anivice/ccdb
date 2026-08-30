@@ -106,22 +106,25 @@ std::string ccdb::utils::get_text(const std::string &text)
     }
 
 #ifdef RELEASE_CANDIDATE_PRE_RELEASE_BUILD
+    constexpr char MISSING_TRANSLATIONS[] = "/.cache/ccdb/MISSING-TRANSLATIONS.json";
+    const auto MISSING_TRANSLATIONS_destination = getenv("HOME") + MISSING_TRANSLATIONS;
+    const auto MISSING_TRANSLATIONS_destination_dir = getenv("HOME") + "/.cache/ccdb/";
     static std::atomic_bool fs_check_completed = false;
     if (!fs_check_completed.load(std::memory_order_relaxed))
     {
-        if (!std::filesystem::exists(getenv("HOME") + "/.config/ccdb/")) {
-            try { std::filesystem::create_directories(getenv("HOME") + "/.config/ccdb/");
+        if (!std::filesystem::exists(MISSING_TRANSLATIONS_destination_dir)) {
+            try { std::filesystem::create_directories(MISSING_TRANSLATIONS_destination_dir);
             } catch (const std::exception&) { }
         }
 
-        if (!std::filesystem::exists(getenv("HOME") + "/.config/ccdb/MISSING-TRANSLATIONS.json")) {
-            (void)open((getenv("HOME") + "/.config/ccdb/MISSING-TRANSLATIONS.json").c_str(), O_CREAT | O_RDWR | O_TRUNC, 0600);
+        if (!std::filesystem::exists(MISSING_TRANSLATIONS_destination)) {
+            (void)open(MISSING_TRANSLATIONS_destination.c_str(), O_CREAT | O_RDWR | O_TRUNC, 0600);
         }
 
         fs_check_completed.store(true, std::memory_order_relaxed);
     }
 
-    if (const int fd = open((getenv("HOME") + "/.config/ccdb/MISSING-TRANSLATIONS.json").c_str(),
+    if (const int fd = open(MISSING_TRANSLATIONS_destination.c_str(),
         O_RDWR);
         fd > 0)
         [&]->void

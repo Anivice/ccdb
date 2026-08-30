@@ -5,7 +5,8 @@
 #include "utils.h"
 #include "json.hpp"
 using namespace ccdb;
-static const auto TIMEOUT_RESOLVED = utils::convertToNumber<int>(utils::getenv("CCDB_RESOLVED_TIMEOUT"));
+static const auto TIMEOUT_RESOLVED = utils::convertToNumber<int>(utils::getenv("CCDB_RESOLVED_TIMEOUT").empty() ? "0"
+    : utils::getenv("CCDB_RESOLVED_TIMEOUT"));
 std::string maxmindDB::online_geoip_search(const std::string &ip)
 {
     if (const auto it = online_search_cache.get_cache(ip); it) {

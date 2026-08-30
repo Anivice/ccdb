@@ -72,10 +72,10 @@ namespace ccdb {
         std::string process_value(std::string value)
         {
             return utils::regex_replace_all(value, R"((\%([\w]+)\%))",
-                [](const std::smatch& match)->std::string
+                [](const utils::regex_scope_type & match)->std::string
                 {
-                    if (match.size() == 3) {
-                        const std::string result = match[2];
+                    if (match.second - match.first == 3) {
+                        const std::string result = *(match.first + 2);
                         return utils::getenv(result);
                     }
 

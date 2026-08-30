@@ -1303,5 +1303,25 @@
     "en"    : "Load MaxMind GeoIP database for `get connection`",
     "en_US" : "Load MaxMind GeoIP database for `get connection`",
     "zh_CN" : "为`get connection`命令加载 MaxMind GeoIP 数据库"
+  },
+  {
+    "en"    : "Loading MaxMind GeoIP database will enable DoH audit for `destination`, this option specify how DNS is resolved.",
+    "en_US" : "Loading MaxMind GeoIP database will enable DoH audit for `destination`, this option specify how DNS is resolved.",
+    "zh_CN" : "加载 MaxMind GeoIP 数据库会开启 DoH 审计工具, 该选项指定 DoH DNS 的解析方式."
+  },
+  {
+    "en"    : "(Tab suggestion: ",
+    "en_US" : "(Tab suggestion: ",
+    "zh_CN" : "(Tab 命令补全: "
+  },
+  {
+    "en"    : "Filter reversed, current mode: ",
+    "en_US" : "Filter reversed, current mode: ",
+    "zh_CN" : "筛选器已修改, 目前筛选器方向: "
+  },
+  {
+    "en"    : "normal",
+    "en_US" : "normal",
+    "zh_CN" : "正向"
   }
 ]

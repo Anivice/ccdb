@@ -79,9 +79,9 @@ static std::string highlight(const std::string & str,
     if (pattern.empty()) return str;
     std::string ret = strip_color(str);
     return original_color + regex_replace_all(ret, pattern,
-        [&](const std::smatch & mat)->std::string
+        [&](const regex_scope_type & mat)->std::string
         {
-            const auto & mat_str = mat[0].str();
+            const auto & mat_str = *mat.first;
             if ((mat_str.size() == 1 && std::isprint(mat_str.front())) || mat_str.size() > 1)
             {
                 matches += 1;

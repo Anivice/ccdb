@@ -10,7 +10,11 @@ endif ()
 
 message(STATUS "CCDB Version is ${CCDB_VERSION}")
 
-set(CMAKE_CXX_STANDARD 23)
+if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+    set(CMAKE_CXX_STANDARD 26)
+else ()
+    set(CMAKE_CXX_STANDARD 23)
+endif()
 
 # readline only supports Makefile
 find_program(MAKE_EXECUTABLE NAMES make gmake REQUIRED)
@@ -213,7 +217,7 @@ if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     else()
         target_link_libraries(ccdb PRIVATE atomic readline::readline ncurses::ncurses)
     endif()
-    target_compile_options(ccdb PRIVATE -fconcepts-diagnostics-depth=3 -O0 -g3)
+    target_compile_options(ccdb PRIVATE -fconcepts-diagnostics-depth=3 -O0 -g3 -std=gnu++26 -freflection)
     target_compile_definitions(ccdb PRIVATE __DEBUG__=1)
 else ()
     set(LD_STATIC "")

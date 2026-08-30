@@ -8,7 +8,7 @@
 >
 > The translation is incomplete and existing translations are a mess.
 > Texts lacking Chinese corresponding translations are shown in English.
-> Missing texts will be shown in `~/.config/ccdb/MISSING-TRANSLATIONS.json` for Release Candidates.
+> Missing texts will be shown in `~/.cache/ccdb/MISSING-TRANSLATIONS.json` for ***Release Candidates***.
 
 A lightweight terminal dashboard for Clash/Mihomo, written in C++.
 
