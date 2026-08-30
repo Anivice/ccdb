@@ -481,7 +481,7 @@ namespace ccdb
         const bool ENABLE_CLEAR_ON_SHRINK = utils::getenv("ENABLE_CLEAR_ON_SHRINK") == "true";
 
     public:
-        ccdb(const std::string & backend, const std::string & token, std::string latency_url_, bool fast_shutdown, const std::string&, const std::string&);
+        ccdb(const std::string & backend, const std::string & token, std::string latency_url_, const std::string&, const std::string&);
         ccdb(const std::string & backend, const std::string & token, std::string latency_url_, const std::vector<std::string> & cmd);
 
         friend class auto_print_t;

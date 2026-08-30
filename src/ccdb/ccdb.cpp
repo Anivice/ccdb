@@ -1019,7 +1019,7 @@ void ccdb::ccdb::init()
     backend_instance.sendNotification(log);
 }
 
-ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::string latency_url_, const bool fast_shutdown,
+ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::string latency_url_,
     const std::string& dns, const std::string& qry)
     : backend_instance(backend, token), latency_url(std::move(latency_url_))
 {
@@ -1083,7 +1083,7 @@ ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::stri
             }
         }
 
-        Readline::read_command(handler, auto_completion, "ccdb> ", fast_shutdown);
+        Readline::read_command(handler, auto_completion, "ccdb> ");
         backend_instance.stop_continuous_updates();
 
         if (backend_instance.force_quit) {

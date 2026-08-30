@@ -48,38 +48,6 @@ namespace utils = ccdb::utils;
 
 namespace
 {
-    int mem_percent()
-    {
-        FILE *fp = fopen("/proc/meminfo", "r");
-        if (!fp)
-            return -1;
-
-        char line[256];
-        long total = -1, available = -1;
-
-        while (fgets(line, sizeof(line), fp)) {
-            if (strncmp(line, "MemTotal:", 9) == 0) {
-                sscanf(line + 9, "%ld", &total);
-            } else if (strncmp(line, "MemAvailable:", 13) == 0) {
-                sscanf(line + 13, "%ld", &available);
-            }
-            if (total != -1 && available != -1)
-                break;
-        }
-        fclose(fp);
-
-        if (total == -1 || available == -1)
-            return -1;
-
-        const long used = total - available;
-        int percent = static_cast<int>((used * 100) / total);
-
-        /* Clamp to the valid range (should already be within bounds) */
-        if (percent < 0) percent = 0;
-        if (percent > 100) percent = 100;
-        return percent;
-    }
-
     long mem_total_kb()
     {
         FILE *fp = fopen("/proc/meminfo", "r");
@@ -91,14 +59,13 @@ namespace
 
         while (fgets(line, sizeof(line), fp)) {
             if (strncmp(line, "MemTotal:", 9) == 0) {
-                sscanf(line + 9, "%ld", &total);
+                total = utils::convertToNumber<decltype(total)>(line + 9);
                 break;
             }
         }
         fclose(fp);
         return total;  // -1 if not found
     }
-
 
     utils::PreDefinedArgumentType::PreDefinedArgument MainArgument =
     {
@@ -114,7 +81,6 @@ namespace
         { .short_name = -1,  .long_name = "subinfo_timeout",.argument_required = true,  .description = utils::get_text("Timeout of subinfo puller (in seconds, only for --subinfo, default is 15s)") },
         { .short_name = -1,  .long_name = "subinfo_user-agent",.argument_required = true,  .description = utils::get_text("User agent of subinfo puller (only for --subinfo, default is `clash-verge/2.1.0`)") },
         { .short_name = -1,  .long_name = "report-issue",.argument_required = false,.description = utils::get_text("File a BUG report") },
-        // { .short_name = -1,  .long_name = "no-fast-quit",  .argument_required = false, .description = utils::get_text("No fast quit when Readline finishes") },
         { .short_name = -1,  .long_name = "use-color-scheme", .argument_required = true, .description = utils::get_text("Specify a color scheme: legacy, distinct, continuous. Default is `distinct`") },
         { .short_name = 'Q', .long_name = "quiet", .argument_required = false, .description = utils::get_text("No banner or version info on start") },
 #ifdef ENABLE_CRASH_CATCHER
@@ -489,7 +455,6 @@ extern "C"
 __attribute__((visibility("default")))
 int main_(int argc, char ** argv)
 {
-    constexpr bool fastQuit = false;
     try
     {
         std::string token;
@@ -497,17 +462,14 @@ int main_(int argc, char ** argv)
         std::string latency_url = "https://www.google.com/generate_204/";
         std::string sub_url;
         std::string header = "clash-verge/2.1.0";
-        int timeout = 15;
+
         const utils::PreDefinedArgumentType PreDefinedArguments(MainArgument);
         utils::ArgumentParser ArgumentParser(argc, argv, PreDefinedArguments);
         const auto parsed = ArgumentParser.parse();
 
-        // fastQuit = !parsed.contains("no-fast-quit");
-
         if (parsed.contains("help")) {
             utils::print(argv[0], " [OPTIONS [Arguments...]...]\n");
             std::cout << PreDefinedArguments.print_help();
-            if (fastQuit) _exit(EXIT_SUCCESS);
             return EXIT_SUCCESS;
         }
 
@@ -526,7 +488,6 @@ int main_(int argc, char ** argv)
                 }
             }
 
-            if (fastQuit) _exit(EXIT_SUCCESS);
             return EXIT_SUCCESS;
         }
 
@@ -536,8 +497,6 @@ int main_(int argc, char ** argv)
 #endif
             utils::print("Report issue here: ", "https://github.com/Anivice/ccdb/issues/new", "\n");
             utils::exec_command("/bin/sh", "xdg-open https://github.com/Anivice/ccdb/issues/new");
-
-            if (fastQuit) _exit(EXIT_SUCCESS);
             return EXIT_SUCCESS;
         }
 
@@ -553,7 +512,6 @@ int main_(int argc, char ** argv)
         if (feedBacktrace)
         {
             runFeedBacktrace();
-            if (fastQuit) _exit(EXIT_SUCCESS);
             return EXIT_SUCCESS;
         }
 #endif
@@ -585,13 +543,13 @@ int main_(int argc, char ** argv)
 
         if (parsed.contains("subinfo"))
         {
+            int timeout = 15;
             if (parsed.contains("subinfo_timeout")) {
                 timeout = utils::convertToNumber<int>(parsed.at("subinfo_timeout"));
             }
 
             add_arg("subinfo_user-agent", header);
             const auto ret = get_subinfo(sub_url, timeout, header);
-            if (fastQuit) _exit(ret);
             return ret;
         }
 
@@ -599,7 +557,6 @@ int main_(int argc, char ** argv)
         {
             utils::print(argv[0], " [OPTIONS [Arguments...]...]\n");
             std::cout << PreDefinedArguments.print_help();
-            if (fastQuit) _exit(EXIT_FAILURE);
             return EXIT_FAILURE;
         }
 
@@ -635,7 +592,6 @@ int main_(int argc, char ** argv)
         } else {
             utils::print<utils::is_error>("Failed to communicate with the backend, either this is not a Mihomo control port,"
                 " or you have the wrong password.", "\n");
-            if (fastQuit) _exit(EXIT_FAILURE);
             return EXIT_FAILURE;
         }
 
@@ -651,24 +607,22 @@ int main_(int argc, char ** argv)
                 std::regex r0(R"((https://.+)/(.+))");
                 const auto dns = parsed.at("dns-over-https-query");
                 if (std::smatch sm; std::regex_match(dns, sm, r0)) {
-                    ccdb::ccdb ccdb(backend, token, latency_url, fastQuit, sm[1].str(), sm[2].str());
+                    ccdb::ccdb ccdb(backend, token, latency_url, sm[1].str(), sm[2].str());
                 } else {
                     utils::print<utils::is_error>("Invalid DNS Over HTTPS\n");
                 }
             }
             else
             {
-                ccdb::ccdb ccdb(backend, token, latency_url, fastQuit, "", "");
+                ccdb::ccdb ccdb(backend, token, latency_url, "", "");
             }
         }
     }
     catch (std::exception &e)
     {
         std::cerr << e.what() << std::endl;
-        if (fastQuit) _exit(EXIT_FAILURE);
         return EXIT_FAILURE;
     }
 
-    if (fastQuit) _exit(EXIT_SUCCESS);
     return EXIT_SUCCESS;
 }

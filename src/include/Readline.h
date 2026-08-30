@@ -185,7 +185,7 @@ namespace Readline
     extern const char * history_file;
 
     template < CommandHandler handler, SpecialArgumentCandidatePointer spc_gen>
-    void read_command(handler handler_, spc_gen spc_gen_, const std::string & prompt, const bool fast_shutdown = false)
+    void read_command(handler handler_, spc_gen spc_gen_, const std::string & prompt)
     {
         // ccdb::utils::set_thread_name("readline");
         if (pipe(sig_pipe) == -1) {
@@ -264,10 +264,6 @@ namespace Readline
 
         close(sig_pipe[0]);
         close(sig_pipe[1]);
-
-        if (fast_shutdown) {
-            _exit(0); // fast shutdown
-        }
     }
 } // Readline
 
