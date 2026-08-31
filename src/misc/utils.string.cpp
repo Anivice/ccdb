@@ -1,3 +1,4 @@
+#include "absl/strings/str_format.h"
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif //_GNU_SOURCE
@@ -113,6 +114,7 @@ namespace {
     using regex_replace_callback_cache_array_t = std::vector<regex_replace_callback_cache_t>;
     using ScopeType = std::vector<std::string>;
     using ReplacerFuncType = std::function<std::string(const std::pair<ScopeType::const_iterator, ScopeType::const_iterator> &)>;
+    bool DISABLE_CACHE_BEHAVIOR = ccdb::utils::getenv("DISABLE_CACHE_BEHAVIOR") == "true";
 
     std::string regex_replace_callback(
         const std::string& input,
@@ -123,14 +125,17 @@ namespace {
         std::string result;
         if (cache_array.empty())
         {
-            static ccdb::utils::cache_w_freq_table_t<std::string, std::shared_ptr<std::regex>> reg_cache;
+            thread_local static tsl::hopscotch_map<std::string, std::regex> reg_cache;
             const std::regex * reg = nullptr;
-            if (const auto it = reg_cache.get_cache(pattern); it) {
-                reg = &**it;
+            std::unique_ptr<std::regex> regex_ptr;
+            if (const auto it = reg_cache.find(pattern); it != reg_cache.end()) {
+                reg = &it->second;
             } else {
-                auto reg_ptr = std::make_shared<std::regex>(pattern);
-                reg = reg_ptr.get();
-                reg_cache.emplace_cache(pattern, std::move(reg_ptr));
+                regex_ptr = std::make_unique<std::regex>(pattern);
+                reg = regex_ptr.get();
+                if (!DISABLE_CACHE_BEHAVIOR) {
+                    reg_cache.emplace(pattern, *reg);
+                }
             }
 
             std::sregex_iterator it(input.begin(), input.end(), *reg);
@@ -183,16 +188,17 @@ std::string ccdb::utils::regex_replace_all(
     std::string & original, const std::string &pattern,
     const std::function <std::string(const regex_scope_type &) > & replacement)
 {
-    static cache_w_freq_table_t < std::string, regex_replace_callback_cache_array_t, 8192 > result_cache;
+    thread_local static std::unordered_map < std::string, regex_replace_callback_cache_array_t > result_cache;
     const auto hash = original + pattern;
-    if (auto it = result_cache.get_cache(hash); it && !it->empty()) {
-        original = regex_replace_callback(original, pattern, replacement, *it);
+    if (const auto it = result_cache.find(hash); it != result_cache.end() && !it->second.empty()) {
+        original = regex_replace_callback(original, pattern, replacement, it->second);
         return original;
     }
 
+    if (result_cache.size() > 8192) result_cache.clear();
     regex_replace_callback_cache_array_t cache_array;
     original = regex_replace_callback(original, pattern, replacement, cache_array);
-    result_cache.emplace_cache(hash, cache_array);
+    result_cache.emplace(hash, cache_array);
     return original;
 }
 
@@ -280,14 +286,15 @@ std::string ccdb::utils::second_to_human_readable(unsigned long long value)
 
 std::u32string ccdb::utils::utf8_to_u32(const std::string &s)
 {
-    static cache_w_freq_table_t <std::string, std::u32string, 4096 * 2> cache;
-    if (const auto it = cache.get_cache(s); it) {
-        return *it;
+    static thread_local tsl::hopscotch_map <std::string, std::u32string> cache;
+    if (const auto it = cache.find(s); it != cache.end()) {
+        return it->second;
     }
 
+    if (cache.size() > 8192) cache.clear();
     std::u32string result;
     utf8::utf8to32(s.begin(), s.end(), std::back_inserter(result));
-    cache.emplace_cache(s, result);
+    cache.emplace(s, result);
     return result;
 }
 
@@ -297,52 +304,40 @@ int ccdb::utils::UnicodeDisplayWidth::get_width_utf8(const std::string &utf8_str
 
 int ccdb::utils::UnicodeDisplayWidth::get_width_utf32(const std::u32string &utf32_str)
 {
-    static cache_w_freq_table_t < std::u32string, int, 4096 * 2 > cache;
-    if (const auto it = cache.get_cache(utf32_str); it) {
-        return *it;
-    }
-
     int width = 0;
-
-    for (size_t i = 0; i < utf32_str.length(); i++)
-    {
-        const char32_t c = utf32_str[i];
-
-        if (c == 0x200D || (c >= 0xFE00 && c < 0xFE0F)) {
-            continue;
-        }
-
-        if (c == 0xFE0F)
-        {
-            // when this is printed onto screen, it means an additional color code that expand the emoji
-            // this doesn't apply to all the terminals, so fucking headaches
-            // you can just disable this by setting the environment variable NO_0xFE0F_EXPAND_EMOJI to true
-            // if your terminal doesn't really process this flag
-            if (getenv("NO_0xFE0F_EXPAND_EMOJI") == "true") {
-                continue;
-            }
-            width += 1;
-            continue;
-        }
-
-        if (c >= 0x1F3FB && c <= 0x1F3FF) {
-            continue; // These don't add width
-        }
-
-        if (c >= 0x1F1E6 && c <= 0x1F1FF) {
-            width += 2; // Flags are typically 2 cells
-            continue;
-        }
-
+    for (const char32_t c : utf32_str) {
         width += get_char_width(c);
     }
 
-    cache.emplace_cache(utf32_str, width);
     return width;
 }
 
 int ccdb::utils::UnicodeDisplayWidth::get_char_width(const char32_t c)
 {
+    if (c == 0x200D || (c >= 0xFE00 && c < 0xFE0F)) {
+        return 0;
+    }
+
+    if (c == 0xFE0F)
+    {
+        // when this is printed onto screen, it means an additional color code that expand the emoji
+        // this doesn't apply to all the terminals, so fucking headaches
+        // you can just disable this by setting the environment variable NO_0xFE0F_EXPAND_EMOJI to true
+        // if your terminal doesn't really process this flag
+        if (getenv("NO_0xFE0F_EXPAND_EMOJI") == "true") {
+            return 0;
+        }
+        return 1;
+    }
+
+    if (c >= 0x1F3FB && c <= 0x1F3FF) {
+        return 0; // These don't add width
+    }
+
+    if (c >= 0x1F1E6 && c <= 0x1F1FF) {
+        return 2; // Flags are typically 2 cells
+    }
+
     const auto wc = static_cast<wchar_t>(c);
 
     if (const int w = wcwidth(wc); w >= 0) {

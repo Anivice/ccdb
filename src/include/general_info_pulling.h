@@ -292,7 +292,9 @@ private:
     tsl::hopscotch_map < std::string, proxy_info_t > proxy_list;
 
     void pull_continuous_updates(); // blocked
-    ccdb::utils::cache_w_freq_table_t<std::string, std::vector<std::string>> dns_lookup_cache_ { };
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
+    tsl::hopscotch_map < std::string, std::vector<std::string> > dns_lookup_cache_;
+#endif//__YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
 
 public:
     general_info_pulling(const std::string & url, const std::string& token);

@@ -31,7 +31,7 @@ using namespace ccdb::utils;
 
 void ccdb::ccdb::get_log()
 {
-    cache_w_freq_table_t < std::string, int, 8192 > color_line_override_cache;
+    tsl::hopscotch_map < std::string, int > color_line_override_cache;
     std::vector < bool > do_col_hide; do_col_hide.resize(log_titles.size(), false);
     decltype(logPullerNoFilter) lines_local_incrimination;
     decltype(logPullerNoFilter) log_local_incrimination;
@@ -136,8 +136,8 @@ void ccdb::ccdb::get_log()
                 if (!it->empty())
                 {
                     const auto & hash = (*it)[3];
-                    if (const auto cache_ = color_line_override_cache.get_cache(hash); cache_) {
-                        switch (*cache_) {
+                    if (const auto cache_ = color_line_override_cache.find(hash); cache_ != color_line_override_cache.end()) {
+                        switch (cache_->second) {
                             case 0: continue; // skip
                             case 1: line_color_overrides[offset + cur_off] = color::color(5,0,0); continue;
                             case 2: line_color_overrides[offset + cur_off] = color::color(0,5,0); continue;
@@ -146,17 +146,21 @@ void ccdb::ccdb::get_log()
                         }
                     }
 
+                    if (color_line_override_cache.size() > 8192) {
+                        color_line_override_cache.clear();
+                    }
+
                     if (const auto & level = (*it)[1]; level == "ERROR") {
                         line_color_overrides[offset + cur_off] = color::color(5,0,0);
-                        color_line_override_cache.emplace_cache(hash, 1);
+                        color_line_override_cache.emplace(hash, 1);
                     } else if (level == "DEBUG") {
                         line_color_overrides[offset + cur_off] = color::color(0,5,0);
-                        color_line_override_cache.emplace_cache(hash, 2);
+                        color_line_override_cache.emplace(hash, 2);
                     } else if (level == "WARNING") {
                         line_color_overrides[offset + cur_off] = color::color(5,5,0);
-                        color_line_override_cache.emplace_cache(hash, 3);
+                        color_line_override_cache.emplace(hash, 3);
                     } else {
-                        color_line_override_cache.emplace_cache(hash, 0);
+                        color_line_override_cache.emplace(hash, 0);
                     }
                 }
             }

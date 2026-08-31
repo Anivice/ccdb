@@ -1178,13 +1178,14 @@ void general_info_pulling::update_from_connections(const std::string& info)
                     !host.empty() && std::regex_match(host, r0)
                     && !g_resolve.get().empty() && !g_how.get().empty())
                 {
-                    if (auto it = dns_lookup_cache_.get_cache(host); it) {
-                        resolved = *it;
+                    if (auto it = dns_lookup_cache_.find(host); it != dns_lookup_cache_.end()) {
+                        resolved = it->second;
                     } else if (skip_current_lookup < 3) {
                         resolved = ccdb::resolve(g_resolve.get(), host, g_how.get(),
                             TIMEOUT_RESOLVED.empty() ? 1 : ccdb::utils::convertToNumber<int>(TIMEOUT_RESOLVED));
                         if (!resolved.empty()) {
-                            dns_lookup_cache_.emplace_cache(host, resolved);
+                            if (dns_lookup_cache_.size() > 8192) dns_lookup_cache_.clear();
+                            dns_lookup_cache_.emplace(host, resolved);
                         }
                         ++skip_current_lookup; // cache hit miss, give up rest of the look ups
                         // this way we maintain a reasonable amount of update speed
@@ -1213,7 +1214,7 @@ void general_info_pulling::update_from_connections(const std::string& info)
                         conn.destination = "MISS " + dest + "/" + resolved.front(); // if resolved.empty() it'd be condition above
                 }
             }
-#endif
+#endif // __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
             if (conn.destination.empty()) {
                 conn.destination = dest;
             }

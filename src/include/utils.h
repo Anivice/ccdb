@@ -41,7 +41,8 @@
 #include "httplib.h"
 #include "caches/cache.hpp"
 #include "caches/lru_cache_policy.hpp"
-#include "tsl/hopscotch_hash.h"
+#include "caches/fifo_cache_policy.hpp"
+#include "caches/lfu_cache_policy.hpp"
 #include "tsl/hopscotch_map.h"
 
 #ifdef __DEBUG__
@@ -187,9 +188,9 @@ namespace ccdb::utils
         /// @param utf32_str UTF8 string
         /// @return Space width on screen
         static int get_width_utf32(const std::u32string& utf32_str);
+        static int get_char_width(char32_t c);
 
     private:
-        static int get_char_width(char32_t c);
         static int fallback_char_width(char32_t c);
         static bool is_fullwidth(char32_t c);
     };
@@ -400,7 +401,7 @@ namespace ccdb::utils
     class cache_w_freq_table_t
     {
     private:
-        caches::fixed_sized_cache < Key, Value, caches::LRUCachePolicy,
+        caches::fixed_sized_cache < Key, Value, caches::FIFOCachePolicy,
             tsl::hopscotch_map<Key, caches::WrappedValue<Value>> > caches_;
 #ifdef __DEBUG__
         uint64_t access_ = 0, hit_ = 0, emplace_ = 0;

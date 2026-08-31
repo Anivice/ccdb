@@ -180,7 +180,7 @@ namespace ccdb {
 
                 for (const auto ch : after)
                 {
-                    const int ch_width = UnicodeDisplayWidth::get_width_utf32({ ch });
+                    const int ch_width = UnicodeDisplayWidth::get_char_width(ch);
                     if ((ch_width + bf_len) > col_size) {
                         break;
                     }
