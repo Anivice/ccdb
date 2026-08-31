@@ -1323,5 +1323,20 @@
     "en"    : "normal",
     "en_US" : "normal",
     "zh_CN" : "正向"
+  },
+  {
+    "en"    : "Loaded ",
+    "en_US" : "Loaded ",
+    "zh_CN" : "已从符号向量表中加载"
+  },
+  {
+    "en"    : " symbols from the symbolic file.\n",
+    "en_US" : " symbols from the symbolic file.\n",
+    "zh_CN" : "个符号"
+  },
+  {
+    "en"    : "================ THREAD (",
+    "en_US" : "================ THREAD (",
+    "zh_CN" : "================ 线程 ("
   }
 ]

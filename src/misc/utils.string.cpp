@@ -312,6 +312,8 @@ int ccdb::utils::UnicodeDisplayWidth::get_width_utf32(const std::u32string &utf3
     return width;
 }
 
+static bool NO_0xFE0F_EXPAND_EMOJI = ccdb::utils::getenv("NO_0xFE0F_EXPAND_EMOJI") == "true";
+
 int ccdb::utils::UnicodeDisplayWidth::get_char_width(const char32_t c)
 {
     if (c == 0x200D || (c >= 0xFE00 && c < 0xFE0F)) {
@@ -324,7 +326,7 @@ int ccdb::utils::UnicodeDisplayWidth::get_char_width(const char32_t c)
         // this doesn't apply to all the terminals, so fucking headaches
         // you can just disable this by setting the environment variable NO_0xFE0F_EXPAND_EMOJI to true
         // if your terminal doesn't really process this flag
-        if (getenv("NO_0xFE0F_EXPAND_EMOJI") == "true") {
+        if (NO_0xFE0F_EXPAND_EMOJI) {
             return 0;
         }
         return 1;
@@ -404,10 +406,9 @@ bool ccdb::utils::UnicodeDisplayWidth::is_fullwidth(const char32_t c)
 std::string ccdb::utils::strip_color(std::string str_)
 {
     constexpr auto color_pattern = R"(\x1B\[(?:\d*(?:;\d*)*)?m)";
-    regex_replace_all(str_, color_pattern, [](const auto &)->std::string {
+    return regex_replace_all(str_, color_pattern, [](const auto &)->std::string {
         return "";
     });
-    return str_;
 }
 
 void ccdb::utils::set_progress_bar(const progress_bar_state_t state, const int percentages)
