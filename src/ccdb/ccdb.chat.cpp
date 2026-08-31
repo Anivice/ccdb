@@ -19,6 +19,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
 #include <algorithm>
 #include <chrono>
 #include <utility>
@@ -30,7 +31,7 @@ using namespace ccdb::utils;
 
 void ccdb::ccdb::chat(const std::vector<std::string> & vec)
 {
-    if (!experimental_features) throw std::logic_error("CCDB_ENABLE_EXPERIMENTAL_FEATURES not enabled");
+    // if (!experimental_features) throw std::logic_error("CCDB_ENABLE_EXPERIMENTAL_FEATURES not enabled");
     std::vector < bool > do_col_hide; do_col_hide.resize(chat_titles.size(), false);
     std::deque < std::vector< std::string > > chatMessages, chatMessagesLocalCopy;
     std::mutex chatMutex;
@@ -167,7 +168,7 @@ void ccdb::ccdb::chat(const std::vector<std::string> & vec)
 
 void ccdb::ccdb::sendNotification(const std::vector<std::string>& command_vector)
 {
-    if (!experimental_features) throw std::logic_error("CCDB_ENABLE_EXPERIMENTAL_FEATURES not enabled");
+    // if (!experimental_features) throw std::logic_error("CCDB_ENABLE_EXPERIMENTAL_FEATURES not enabled");
     std::stringstream ss;
     for (uint64_t i = 1; i < command_vector.size(); ++i) {
         ss << command_vector[i] << " ";
@@ -180,3 +181,4 @@ void ccdb::ccdb::sendNotification(const std::vector<std::string>& command_vector
     };
     backend_instance.sendNotification(log);
 }
+#endif

@@ -5,4 +5,3 @@
 #include <cmath>
 #include <string>
 #include "ccdb.h"
-

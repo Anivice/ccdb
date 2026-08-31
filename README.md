@@ -28,16 +28,16 @@ A lightweight terminal dashboard for Clash/Mihomo, written in C++.
 CCDB targets low-resource environments (for example, embedded devices) and users who want a low-overhead dashboard.
 
 CCDB depends on the following open-source libraries:
- - [CPP-HTTPLIB v0.53.1](https://github.com/yhirose/cpp-httplib) (Embedded)
+ - [CPP-HTTPLIB v0.54.1](https://github.com/yhirose/cpp-httplib) (Embedded)
  - [GNU Readline 8.3](https://ftp.gnu.org/gnu/readline/) (Embedded)
  - [GNU Ncurses 6.6](https://ftp.gnu.org/gnu/ncurses/) (Embedded)
  - [TSL Hopscotch-Hashing Map v2.4.0](https://github.com/Tessil/hopscotch-map) (Embedded)
  - [UTF8-CPP 4.2.0](https://github.com/nemtrif/utfcpp) (Embedded)
- - [JSON for Modern C++ 3.12.0](https://github.com/nlohmann/json) (Embedded)
+ - [JSON for Modern C++ 3.12.0 <commit/35705d79d878db5ca1a282ec0f8243a80010d24e>](https://github.com/nlohmann/json) (Embedded)
  - [Perl 5.42.0](https://www.perl.org/) (Not embedded, required by OpenSSL)
- - [OpenSSL 3.6.2](https://github.com/openssl/openssl) (Embedded)
+ - [OpenSSL 4.0.2](https://github.com/openssl/openssl) (Embedded)
  - [GNU Tar 1.35](https://www.gnu.org/software/tar) (Embedded)
- - [XXD, from VIM](https://github.com/vim/vim/) (Not embedded, required by the build system)
+ - [XXD, from VIM <commit/24bf0b60e901b11a37d877cd5947849c18e1a602>](https://github.com/vim/vim/) (Not embedded, required by the build system)
  - [libpsl, 0.23.3](https://github.com/rockdaboot/libpsl/) (Embedded)
  - [zlib 1.3.2](https://www.zlib.net/) (Embedded)
  - [libpng 1.6.58](https://www.libpng.org/pub/png/libpng.html) (Embedded)
@@ -137,8 +137,6 @@ As you can see, when executing a piped script, you can invoke `ccdb` with
 environment variable `$CCDB`, which is a duplicate of the parent `ccdb` arguments.
 
 ### Example 4: Dump backend debug info
-
-Launch `ccdb` with extra features enabled using the command `CCDB_ENABLE_EXPERIMENTAL_FEATURES=true ccdb`.
 
 ```bash
    ccdb> get memory pprof heap > /tmp/heap

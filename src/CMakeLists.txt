@@ -363,3 +363,8 @@ if ("${CCDB_APPIMAGE_BUILD}" STREQUAL "True")
             VERBATIM
     )
 endif ()
+
+if ("${CCDB_FUCKAROUND_BUILD}" STREQUAL "True")
+    target_compile_definitions(ccdb PRIVATE __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__=1)
+    message(WARNING "You have enabled fuck around features, better not find out")
+endif ()

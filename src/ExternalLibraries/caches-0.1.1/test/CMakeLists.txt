@@ -19,7 +19,7 @@ if (USE_CUSTOM_HASHMAP)
     FetchContent_Declare(
             parallel-hashmap
             GIT_REPOSITORY https://github.com/greg7mdp/parallel-hashmap.git
-            GIT_TAG v1.3.11 # adjust tag/branch/commit as needed
+            GIT_TAG 48f4c5fb0519e41233f000340039a1a9dd00a1f0 # adjust tag/branch/commit as needed
     )
     FetchContent_MakeAvailable(parallel-hashmap)
 endif ()

@@ -45,7 +45,7 @@
         >,
         < memory (Backend memory usage):
             < info (Backend memory info): [NONE] >,
-            < pprof (%cmd.readline.d/get.memory.pprof.json%):
+            < pprof (Get backend pprof):
                 heap (Current living objects),
                 allocs (Allocation profile since start),
                 goroutine (Current goroutine stacks),
@@ -119,8 +119,8 @@
     < nload (nload-like connection speed monitoring): logcat (Show last three logs instead of top three speed connections) >,
     < reset (Reset terminal mode): [NONE] >,
     < apply (Apply JSON config to backend): [NONE] >,
-    < $ (Execute shell commands): [SHELLCOMMAND], [PWD...] >,
-    < | (Execute shell commands): [SHELLCOMMAND], [PWD...] >,
+    # < $ (Execute shell commands): [SHELLCOMMAND], [PWD...] >,
+    # < | (Execute shell commands): [SHELLCOMMAND], [PWD...] >,
     < ? (Print help): [NONE] >,
     < mapProxyChain (Map out current proxy chain): [NONE] >,
     < ccdbrc (Print an example version of the ~/.ccdbrc): [NONE] >,

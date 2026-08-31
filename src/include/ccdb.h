@@ -149,7 +149,7 @@ namespace ccdb
             std::vector<handler_t> handlers_;
         };
 
-        const bool experimental_features = utils::getenv("CCDB_ENABLE_EXPERIMENTAL_FEATURES") == "true";
+        // const bool experimental_features = utils::getenv("CCDB_ENABLE_EXPERIMENTAL_FEATURES") == "true";
         general_info_pulling backend_instance; // backend instance
 
         // get connections table: titles
@@ -372,8 +372,11 @@ namespace ccdb
         void map_proxy_chain();
         void ccdbrc();
         void reload(const std::vector<std::string> &) const;
+
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
         void chat(const std::vector<std::string> &);
         void sendNotification(const std::vector<std::string> &);
+#endif
 
         bool commandProcessor(const std::vector<std::string> & command_vector_);
         std::vector<std::string> commandAutoCompletion(const std::vector<std::string> &, const std::string &, int arg_index);

@@ -53,7 +53,9 @@
 static constexpr const auto * MULTICAST_GROUP = "239.255.0.1";
 static constexpr std::uint16_t PORT = 49361;
 
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
 std::unique_ptr<ccdb::maxmindDB> ccdb::g_geoipdata { };
+#endif
 
 namespace
 {
@@ -1168,7 +1170,7 @@ void general_info_pulling::update_from_connections(const std::string& info)
             connection_t conn = { };
             conn.host = std::string(host.empty() ? dest : host) + ":" + dest_port;
             conn.src = std::string(connection["metadata"]["sourceIP"]) + ":" + std::string(connection["metadata"]["sourcePort"]);
-
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
             if (ccdb::g_geoipdata != nullptr && !map_empty)
             {
                 std::vector<std::string> resolved;
@@ -1211,7 +1213,7 @@ void general_info_pulling::update_from_connections(const std::string& info)
                         conn.destination = "MISS " + dest + "/" + resolved.front(); // if resolved.empty() it'd be condition above
                 }
             }
-
+#endif
             if (conn.destination.empty()) {
                 conn.destination = dest;
             }
@@ -1938,4 +1940,3 @@ void general_info_pulling::sendNotification(const nlohmann::json& json)
     std::memcpy(data.data(), dump.data(), dump.size());
     sendNotification(data);
 }
-

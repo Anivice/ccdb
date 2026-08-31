@@ -158,7 +158,7 @@ void ccdb::ccdb::nload(
             if (!color::USE_OLD_COLOR_SCHEME)
             {
                 const auto [red, green, blue] = sim::simulation_rainbow(sim::Span * ratio_ + sim::Begin);
-                color_line = color::color24(static_cast<int>(std::round(red)),
+                color_line = color::bg_color24(static_cast<int>(std::round(red)),
                     static_cast<int>(std::round(green)), static_cast<int>(std::round(blue)));
             }
 
@@ -252,7 +252,7 @@ void ccdb::ccdb::nload(
                         }
                         const auto [red, green, blue] =
                             sim::simulation_rainbow(sim::Span * span_ratio_ref + sim::Begin);
-                        const auto color_line = color::color24(static_cast<int>(std::round(red)),
+                        const auto color_line = color::bg_color24(static_cast<int>(std::round(red)),
                             static_cast<int>(std::round(green)), static_cast<int>(std::round(blue)));
                         color_cached_line->emplace_back(color_line);
                         frame << color_line;
@@ -563,14 +563,6 @@ void ccdb::ccdb::nload(
                     else {
                         new_line += std::string(col - line_len, ' ');
                     }
-
-                    // replace_all(new_line, sprint(" UP: "), color::color(5,3,0) + sprint(" UP: "));
-                    // replace_all(new_line, sprint(" DL: "), color::color(0,3,5) + sprint(" DL: "));
-                    // replace_all(new_line, sprint(" ID: "), color::color(1,1,1) + sprint(" ID: "));
-                    // replace_all(new_line, "WARNING", color::color(3,3,0) + "WARNING");
-                    // replace_all(new_line, "ERROR", color::color(3,0,0) + "ERROR");
-                    // replace_all(new_line, "INFO", color::color(0,3,0) + "INFO");
-                    // replace_all(new_line, "DEBUG", color::color24(32,32,32) + "DEBUG");
 
                     screen_str_frame << color::no_color() << (color::is_no_color() ? "" : "\033[01;m")
                                      << new_line << color::no_color() << std::endl;

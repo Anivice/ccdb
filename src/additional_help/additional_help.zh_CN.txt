@@ -24,7 +24,6 @@
                                                                           i=1
         SCHEME_CACHE_THREAD_COUNT: 着色器缓存线程数量。如果存在数据竞态关系，设置该环境变量为1。
    SCHEME_CACHE_DECIMAL_PRECISION: 着色器数据精确度。默认为16。
-   CCDB_ENABLE_EXPERIMENTAL_FEATURES: 开启CCDB的实验性功能。
 
 键盘快捷键:
   `get connections`: 拉取活跃连接有多个键盘快捷键:

@@ -1,6 +1,8 @@
 #ifndef CCDB_LIBMAXMIND_H
 #define CCDB_LIBMAXMIND_H
 
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
+
 #include <optional>
 #include <string>
 #include <cstring>
@@ -99,5 +101,7 @@ namespace ccdb
 
     };
 }
+
+#endif //__YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
 
 #endif //CCDB_LIBMAXMIND_H

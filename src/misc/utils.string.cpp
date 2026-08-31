@@ -123,8 +123,17 @@ namespace {
         std::string result;
         if (cache_array.empty())
         {
-            const std::regex reg(pattern);
-            std::sregex_iterator it(input.begin(), input.end(), reg);
+            static ccdb::utils::cache_w_freq_table_t<std::string, std::shared_ptr<std::regex>> reg_cache;
+            const std::regex * reg = nullptr;
+            if (const auto it = reg_cache.get_cache(pattern); it) {
+                reg = &**it;
+            } else {
+                auto reg_ptr = std::make_shared<std::regex>(pattern);
+                reg = reg_ptr.get();
+                reg_cache.emplace_cache(pattern, std::move(reg_ptr));
+            }
+
+            std::sregex_iterator it(input.begin(), input.end(), *reg);
             std::size_t last_pos = 0;
 
             for (const std::sregex_iterator end; it != end; ++it)
@@ -174,7 +183,7 @@ std::string ccdb::utils::regex_replace_all(
     std::string & original, const std::string &pattern,
     const std::function <std::string(const regex_scope_type &) > & replacement)
 {
-    static cache_w_freq_table_t < std::string, regex_replace_callback_cache_array_t, 1024 * 1024 * 1 > result_cache;
+    static cache_w_freq_table_t < std::string, regex_replace_callback_cache_array_t > result_cache;
     const auto hash = original + pattern;
     if (auto it = result_cache.get_cache(hash); it && !it->empty()) {
         original = regex_replace_callback(original, pattern, replacement, *it);
@@ -271,7 +280,7 @@ std::string ccdb::utils::second_to_human_readable(unsigned long long value)
 
 std::u32string ccdb::utils::utf8_to_u32(const std::string &s)
 {
-    static cache_w_freq_table_t <std::string, std::u32string, 1024 * 1024 * 1> cache;
+    static cache_w_freq_table_t <std::string, std::u32string> cache;
     if (const auto it = cache.get_cache(s); it) {
         return *it;
     }
@@ -293,7 +302,7 @@ int ccdb::utils::UnicodeDisplayWidth::get_width_utf8(const std::string &utf8_str
 
 int ccdb::utils::UnicodeDisplayWidth::get_width_utf32(const std::u32string &utf32_str)
 {
-    static cache_w_freq_table_t < std::u32string, int, 1024 * 1024 * 1 > cache;
+    static cache_w_freq_table_t < std::u32string, int > cache;
     if (const auto it = cache.get_cache(utf32_str); it) {
         return *it;
     }

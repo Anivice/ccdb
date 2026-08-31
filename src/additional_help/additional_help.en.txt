@@ -26,7 +26,6 @@ Environment:
                                                                                                  i=1
         SCHEME_CACHE_THREAD_COUNT: Cache generation thread. Should concurrancy be an issue, set this to 1.
    SCHEME_CACHE_DECIMAL_PRECISION: Decimal precision for each step. Default is 16.
-   CCDB_ENABLE_EXPERIMENTAL_FEATURES: Enable experimental features in CCDB.
 
 Keyboard Shortcuts:
   `get connections`: Get connections has multiple keyboard shortcuts:

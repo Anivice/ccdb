@@ -87,8 +87,10 @@ namespace
         { .short_name = -1,  .long_name = "backtrace", .argument_required = false, .description = utils::get_text("Load symbol table for CCDB") },
         { .short_name = -1,  .long_name = "feedBacktrace", .argument_required = false, .description = utils::get_text("Print a symbol trace from CCDB crash report, requires `--backtrace`") },
 #endif //ENABLE_CRASH_CATCHER
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
         { .short_name = -1,  .long_name = "maxmind-geoip-helper", .argument_required = true, .description = utils::get_text("Load MaxMind GeoIP database for `get connection`") },
         { .short_name = -1,  .long_name = "dns-over-https-query", .argument_required = true, .description = utils::get_text("Loading MaxMind GeoIP database will enable DoH audit for `destination`, this option specify how DNS is resolved.") },
+#endif
     };
 
     [[nodiscard]]
@@ -595,13 +597,16 @@ int main_(int argc, char ** argv)
             return EXIT_FAILURE;
         }
 
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
         if (parsed.contains("maxmind-geoip-helper") && !parsed.contains("execute")) {
             ccdb::g_geoipdata = std::make_unique<ccdb::maxmindDB>(parsed.at("maxmind-geoip-helper"));
         }
+#endif
 
         if (parsed.contains("execute")) {
             ccdb::ccdb ccdb(backend, token, latency_url, utils::split_via_history(parsed.at("execute")));
         } else {
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
             if (parsed.contains("dns-over-https-query"))
             {
                 std::regex r0(R"((https://.+)/(.+))");
@@ -614,8 +619,11 @@ int main_(int argc, char ** argv)
             }
             else
             {
+#endif
                 ccdb::ccdb ccdb(backend, token, latency_url, "", "");
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
             }
+#endif
         }
     }
     catch (std::exception &e)

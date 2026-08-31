@@ -164,6 +164,9 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     bool reverse_sort_local = sort_reverse;
     using ScopeType = std::pair<std::vector<connection_frame_t>::const_iterator, std::vector<connection_frame_t>::const_iterator>;
     using ArgsCopyScope = const ScopeType &;
+    bool sorted_already = false;
+    auto before = std::chrono::system_clock::now() - std::chrono::seconds(2);
+
     continuous_table <connection_frame_t, std::vector<connection_frame_t>::const_iterator, ScopeType>
     (
         true,
@@ -316,8 +319,11 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             sort_by = sort_by_final;
 
             // set existing ones as all closed
-            if (!pause_update)
+            if (const auto now = std::chrono::system_clock::now();
+                std::chrono::duration_cast<std::chrono::seconds>(now - before).count() > 1 && !pause_update)
             {
+                before = now;
+                sorted_already = false; // sort all after an update
                 const auto cur_time = std::chrono::high_resolution_clock::now();
                 for (auto it = connection_frame.begin(); it != connection_frame.end(); ++it)
                 {
@@ -361,7 +367,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 }
             }
 
-            if (!pause_update || (pause_update && (sort_by_local != sort_by || reverse_sort_local != sort_reverse)))
+            if (!sorted_already && (!pause_update || (pause_update && (sort_by_local != sort_by || reverse_sort_local != sort_reverse))))
             {
                 std::ranges::sort(connections_filtered,
                     [&](const connection_frame_t & a_, const connection_frame_t & b_)
@@ -401,10 +407,11 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                             return std::tie(a_traffic, aH) > std::tie(b_traffic, bH);
                         }
                     });
+                sorted_already = true; // skip sort if no updates
+                pad_host(connections_filtered);
+                pad_src(connections_filtered);
             }
 
-            pad_host(connections_filtered);
-            pad_src(connections_filtered);
             if (!pause_update || (pause_update && (sort_by_local != sort_by || reverse_sort_local != sort_reverse)))
             {
                 if (sort_reverse)

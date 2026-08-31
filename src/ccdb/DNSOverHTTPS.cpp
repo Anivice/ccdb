@@ -1,3 +1,5 @@
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
+
 #include "DNSOverHTTPS.h"
 #include "utils.h"
 #include "httplib.h"
@@ -59,3 +61,5 @@ std::vector<std::string> ccdb::resolve(
     result.insert(result.end(), AAAA.begin(), AAAA.end());
     return result;
 }
+
+#endif

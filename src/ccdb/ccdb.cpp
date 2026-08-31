@@ -888,7 +888,9 @@ void ccdb::ccdb::init()
     commandMatches.emplace_back("help", [this](const auto &) { help(); return true; });
     commandMatches.emplace_back(R"(\?)", [this](const auto &) { help(); return true; });
     commandMatches.emplace_back("mapProxyChain", [this](const auto &) { map_proxy_chain(); return true; });
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
     commandMatches.emplace_back("exportColorScheme", [](const auto &) { color::export_color_scheme(); return true; });
+#endif
 
     commandMatches.emplace_back(R"(get connections(?: hide [\d|,-]+)?)", [this](const auto &command_vector) { get_connections(command_vector); return true; });
     commandMatches.emplace_back("get latency", [this](const auto &) { get_latency(); return true; });
@@ -934,12 +936,14 @@ void ccdb::ccdb::init()
         return true;
     });
 
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
     commandMatches.emplace_back(R"(sendNotification\s.(.*))", [this](const auto &command_vector)
         { sendNotification(command_vector); return true; });
     commandMatches.emplace_back(R"(chat [\w]+)", [this](const auto &command_vector) {
         chat(command_vector);
         return true;
     });
+#endif
 
     commandMatches.emplace_back(R"(set mode (global|rule|direct))", [this](const auto &command_vector) { set_mode(command_vector); return true; });
     commandMatches.emplace_back(R"(set vgroup [\d]+(?:\:.*)? [\d]+(?:\:.*)?)", [this](const auto &command_vector) { set_vgroup(command_vector); return true; });
@@ -983,7 +987,7 @@ void ccdb::ccdb::init()
     commandMatches.emplace_back("get memory pprof (allocs|block|cmdline|goroutine|heap|mutex|profile|symbol|threadcreate|trace)",
     [this](const auto & vec)
     {
-        if (!experimental_features) throw std::logic_error("CCDB_ENABLE_EXPERIMENTAL_FEATURES not enabled");
+        // if (!experimental_features) throw std::logic_error("CCDB_ENABLE_EXPERIMENTAL_FEATURES not enabled");
         std::vector < char > dump;
         backend_instance.get_memory_pprof(vec.back(), dump);
         std::cout.write(dump.data(), static_cast<std::streamsize>(dump.size()));

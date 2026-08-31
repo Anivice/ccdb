@@ -54,9 +54,11 @@ using json = nlohmann::json;
 
 class broken_connection_this_force_quit : public std::exception { };
 
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
 namespace ccdb {
     extern std::unique_ptr<maxmindDB> g_geoipdata;
 }
+#endif
 
 template < class T >
 class ccdb_atomic_t {
@@ -290,15 +292,14 @@ private:
     tsl::hopscotch_map < std::string, proxy_info_t > proxy_list;
 
     void pull_continuous_updates(); // blocked
-    ccdb::utils::cache_w_freq_table_t<std::string, std::vector<std::string>> dns_lookup_cache_;
+    ccdb::utils::cache_w_freq_table_t<std::string, std::vector<std::string>> dns_lookup_cache_ { };
 
 public:
-    void notify_all(const notifications_t & msg);
-
     general_info_pulling(const std::string & url, const std::string& token);
-    ~general_info_pulling();;
+    ~general_info_pulling();
     const mihomo & backend_client_ref = backend_client;
 
+    void notify_all(const notifications_t & msg);
     void sendNotification(const std::vector<uint8_t> &);
     void sendNotification(const nlohmann::json & json);
     void receiveNotification(std::vector<uint8_t> &);

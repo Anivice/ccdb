@@ -218,8 +218,11 @@ namespace Readline
             {
                 if (condition == "Experimental Features")
                 {
-                    static const bool experimental_features = ccdb::utils::getenv("CCDB_ENABLE_EXPERIMENTAL_FEATURES") == "true";
-                    return experimental_features;
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
+                    return true;
+#else
+                    return false;
+#endif
                 }
 
                 if (condition == "Not AppImage Static Build")

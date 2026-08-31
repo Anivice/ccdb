@@ -58,14 +58,18 @@ void ccdb::ccdb::get_log()
     bool pause_log_update = false;
     using ConstItrType = decltype(logPullerNoFilter)::const_iterator;
     using ScopeType = std::pair<ConstItrType /* begin */, ConstItrType /* end */>;
+    auto before = std::chrono::system_clock::now() - std::chrono::seconds(2);
+
     continuous_table < log_frame_t, ConstItrType, ScopeType >
     (
         false,
         do_col_hide, {2, 2, 0}, {},
-        [&](session_compliment_data_t * data)->ScopeType
+        [&](const session_compliment_data_t * data)->ScopeType
         {
-            if (!pause_log_update)
+            if (const auto now = std::chrono::system_clock::now();
+                !pause_log_update && std::chrono::duration_cast<std::chrono::seconds>(now - before).count() > 1)
             {
+                before = now;
                 if (lines_local_incrimination.empty() && !logPullerNoFilter.empty())
                 {
                     std::ranges::for_each(logPullerNoFilter,
@@ -152,13 +156,12 @@ void ccdb::ccdb::get_log()
             std::for_each(logs.first, logs.second, [&ret](const log_frame_t & log) {
                 ret.emplace_back(std::vector {log[0], log[1], log[2]});
             });
-            return ret;
         },
         [](session_compliment_data_t *){});
 }
 
 void ccdb::ccdb::get_logLevel() const
 {
-    const auto json = json::parse(backend_instance.get_config());
+    const auto json = json::parse(this->backend_instance.get_config());
     std::cout << static_cast<std::string>(json["log-level"]) << std::endl;
 }

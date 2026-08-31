@@ -440,17 +440,17 @@ namespace ccdb
                 } else {
                     crash_log_destination_literal_size = crash_log_destination.size();
 #ifdef __USE_IMG__
-                    if (utils::getenv("CCDB_ENABLE_EXPERIMENTAL_FEATURES") == "true")
-                    {
-                        init_thread = std::thread([this]
-                        {
-                            std::ostringstream ss;
-                            show_img(ss, get_img(), 250, 250);
-                            additional_prefix = ss.str();
-                            additional_prefix_literal = additional_prefix.c_str();
-                            additional_prefix_size = additional_prefix.size();
-                        });
-                    }
+                    // if (utils::getenv("CCDB_ENABLE_EXPERIMENTAL_FEATURES") == "true")
+                    // {
+                    //     init_thread = std::thread([this]
+                    //     {
+                    //         std::ostringstream ss;
+                    //         show_img(ss, get_img(), 250, 250);
+                    //         additional_prefix = ss.str();
+                    //         additional_prefix_literal = additional_prefix.c_str();
+                    //         additional_prefix_size = additional_prefix.size();
+                    //     });
+                    // }
 #endif
                 }
             }

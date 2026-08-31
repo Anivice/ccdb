@@ -40,6 +40,9 @@
 #include "colors.h"
 #include "httplib.h"
 #include "caches/cache.hpp"
+#include "caches/lru_cache_policy.hpp"
+#include "tsl/hopscotch_hash.h"
+#include "tsl/hopscotch_map.h"
 
 #ifdef __DEBUG__
 # include <meta>
@@ -397,7 +400,8 @@ namespace ccdb::utils
     class cache_w_freq_table_t
     {
     private:
-        caches::fixed_sized_cache <Key, Value> caches_;
+        caches::fixed_sized_cache < Key, Value, caches::LRUCachePolicy,
+            tsl::hopscotch_map<Key, caches::WrappedValue<Value>> > caches_;
 #ifdef __DEBUG__
         uint64_t access_ = 0, hit_ = 0;
 #endif
@@ -414,7 +418,9 @@ namespace ccdb::utils
             std::cerr << "Cache initialized at "
                 << source_location_current.file_name() << ":" << source_location_current.line() << ":" << source_location_current.column()
                 << " of the type < " << key_name << ", " << val_name << " >: "
-                " size " << caches_.Size() << ", access " << access_ << " time(s), hit " << hit_ << " time(s), rate "
+                " size " << caches_.Size() << ", max size " << max_size <<
+                ", utilization rate " << std::setprecision(4) << static_cast<double>(caches_.Size()) / static_cast<double>(max_size) * 100.00 << "%"
+                << ", access " << access_ << " time(s), hit " << hit_ << " time(s), hit rate "
                 << std::setprecision(4) << (access_ == 0 ? 0 : static_cast<double>(hit_) / static_cast<double>(access_) * 100.00) << "%.\n";
         }
 #endif
