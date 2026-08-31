@@ -240,8 +240,8 @@ else ()
     endif ()
     add_dependencies(ccdb READLINE NCURSES)
     target_compile_definitions(ccdb PRIVATE NCURSES_STATIC USE_TSL_HOPSCOTCH_MAP)
-    target_compile_options(ccdb PRIVATE -O3 -fno-omit-frame-pointer -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2 -fno-rtti -fvisibility=hidden)
-    target_link_options(ccdb PRIVATE -Wl,--version-script=${CMAKE_SOURCE_DIR}/script/stripper.map -O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2)
+    target_compile_options(ccdb PRIVATE -O3 -flto -fuse-linker-plugin -fdevirtualize-at-ltrans -fno-omit-frame-pointer -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2 -fno-rtti -fvisibility=hidden)
+    target_link_options(ccdb PRIVATE -Wl,--version-script=${CMAKE_SOURCE_DIR}/script/stripper.map -flto -fuse-linker-plugin -fdevirtualize-at-ltrans -O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2)
 endif ()
 
 if ("${CCDB_COMPILE_WITH_IMG}" STREQUAL "True")
@@ -315,6 +315,10 @@ add_custom_command(
 
 add_executable(ccdb.exe ${CMAKE_BINARY_DIR}/main.c)
 target_link_libraries(ccdb.exe PRIVATE ccdb textDebugInfo)
+
+target_compile_options(ccdb.exe PRIVATE -O3 -flto -fuse-linker-plugin -fdevirtualize-at-ltrans -fno-omit-frame-pointer -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2 -fno-rtti -fvisibility=hidden -fwhole-program)
+target_link_options(ccdb.exe PRIVATE -flto -fuse-linker-plugin -fdevirtualize-at-ltrans -O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2 -fwhole-program)
+
 
 find_program(PATCHELF_EXEC NAMES patchelf REQUIRED)
 find_program(STRIP_EXEC NAMES strip REQUIRED)

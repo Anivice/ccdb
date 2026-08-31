@@ -158,7 +158,7 @@ void ccdb::ccdb::nload(
             if (!color::USE_OLD_COLOR_SCHEME)
             {
                 const auto [red, green, blue] = sim::simulation_rainbow(sim::Span * ratio_ + sim::Begin);
-                color_line = color::bg_color24(static_cast<int>(std::round(red)),
+                color_line = color::color24(static_cast<int>(std::round(red)),
                     static_cast<int>(std::round(green)), static_cast<int>(std::round(blue)));
             }
 
@@ -252,7 +252,7 @@ void ccdb::ccdb::nload(
                         }
                         const auto [red, green, blue] =
                             sim::simulation_rainbow(sim::Span * span_ratio_ref + sim::Begin);
-                        const auto color_line = color::bg_color24(static_cast<int>(std::round(red)),
+                        const auto color_line = color::color24(static_cast<int>(std::round(red)),
                             static_cast<int>(std::round(green)), static_cast<int>(std::round(blue)));
                         color_cached_line->emplace_back(color_line);
                         frame << color_line;
