@@ -240,7 +240,7 @@ else ()
     endif ()
     add_dependencies(ccdb READLINE NCURSES)
     target_compile_definitions(ccdb PRIVATE NCURSES_STATIC USE_TSL_HOPSCOTCH_MAP)
-    target_compile_options(ccdb PRIVATE -O3 -fno-omit-frame-pointer -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2 -fno-rtti -fvisibility=hidden -Os)
+    target_compile_options(ccdb PRIVATE -O3 -fno-omit-frame-pointer -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2 -fno-rtti -fvisibility=hidden -Os)
     target_link_options(ccdb PRIVATE -Wl,--version-script=${CMAKE_SOURCE_DIR}/script/stripper.map -O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2)
 endif ()
 

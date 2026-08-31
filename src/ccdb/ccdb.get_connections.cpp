@@ -106,6 +106,9 @@ namespace
 
 void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 {
+#ifdef __DEBUG__
+    uint64_t total = 0, skip = 0;
+#endif
     std::vector<bool> do_col_hide;
     do_col_hide.resize(get_conn_titles.size(), false);
     auto hide_col = [](const std::string & hides, std::vector<bool> & do_col_hide)
@@ -166,7 +169,6 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     using ArgsCopyScope = const ScopeType &;
     bool sorted_already = false;
     auto before = std::chrono::system_clock::now() - std::chrono::seconds(2);
-
     continuous_table <connection_frame_t, std::vector<connection_frame_t>::const_iterator, ScopeType>
     (
         true,
@@ -216,7 +218,6 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                                     {
                                         reverse_filter_list = !reverse_filter_list;
                                         return sprint("Filter reversed, current mode: ", reverse_filter_list ? "reverse" : "normal");
-
                                     },
                 },
                 {
@@ -315,12 +316,15 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 *data_->sort_by_from_watcher = -1;
             }
 
+            if (sort_by_local != sort_by_final) sorted_already = false;
             sort_by_local = sort_by_final;
             sort_by = sort_by_final;
-
+#ifdef __DEBUG__
+            ++total;
+#endif
             // set existing ones as all closed
             if (const auto now = std::chrono::system_clock::now();
-                std::chrono::duration_cast<std::chrono::seconds>(now - before).count() > 1 && !pause_update)
+                std::chrono::duration_cast<std::chrono::milliseconds>(now - before).count() > 500 && !pause_update)
             {
                 before = now;
                 sorted_already = false; // sort all after an update
@@ -347,14 +351,19 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     });
 
                 // remove closed connections lasting more than 3s
-                std::vector<std::string> to_delete;
-                std::ranges::for_each(connection_frame | std::views::values, [&](auto & c_)
+                auto it = connection_frame.begin();
+                while (it != connection_frame.end())
                 {
-                    if (c_.connection_is_closed && std::chrono::duration_cast<std::chrono::seconds>(cur_time - c_.time_of_the_closure).count() > 3) {
-                        to_delete.emplace_back(c_.connection_data.metadata.connectionID);
+                    auto& c_ = it->second;
+                    const bool should_delete = c_.connection_is_closed &&
+                        std::chrono::duration_cast<std::chrono::seconds>(cur_time - c_.time_of_the_closure).count() > 3;
+
+                    if (should_delete) {
+                        it = connection_frame.erase(it);
+                    } else {
+                        ++it;
                     }
-                });
-                std::ranges::for_each(to_delete, [&](const auto & id){connection_frame.erase(id);});
+                }
 
                 // get connection frame as a vector list, and filter
                 connections_filtered.clear();
@@ -365,6 +374,11 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                         connections_filtered.push_back(connection);
                     }
                 }
+            }
+            else {
+#ifdef __DEBUG__
+                ++skip;
+#endif
             }
 
             if (!sorted_already && (!pause_update || (pause_update && (sort_by_local != sort_by || reverse_sort_local != sort_reverse))))
@@ -542,4 +556,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             reverse_sort_local = sort_reverse;
         }
     );
+
+#ifdef __DEBUG__
+    std::cout << " total " << total << ", skipped " << skip << std::endl;
+#endif
 }

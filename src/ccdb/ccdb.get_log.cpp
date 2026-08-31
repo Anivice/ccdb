@@ -31,6 +31,7 @@ using namespace ccdb::utils;
 
 void ccdb::ccdb::get_log()
 {
+    cache_w_freq_table_t < std::string, int, 8192 > color_line_override_cache;
     std::vector < bool > do_col_hide; do_col_hide.resize(log_titles.size(), false);
     decltype(logPullerNoFilter) lines_local_incrimination;
     decltype(logPullerNoFilter) log_local_incrimination;
@@ -126,24 +127,39 @@ void ccdb::ccdb::get_log()
         },
         [](message_type_t, const log_frame_t &)->std::string { return {}; },
         [](const log_frame_t & log)->std::string { return log.at(3); },
-        [](const ScopeType & logs, uint64_t offset)->OverrideColorType
+        [&color_line_override_cache](const ScopeType & logs, const uint64_t offset)->OverrideColorType
         {
             OverrideColorType line_color_overrides;
-            std::for_each(logs.first, logs.second, [&](const auto & it)
+            for (auto it = logs.first; it != logs.second; ++it)
             {
-                if (!it.empty())
+                const uint64_t cur_off = it - logs.first;
+                if (!it->empty())
                 {
-                    if (const auto & level = it[1]; level == "ERROR") {
-                        line_color_overrides[offset] = color::color(5,0,0);
+                    const auto & hash = (*it)[3];
+                    if (const auto cache_ = color_line_override_cache.get_cache(hash); cache_) {
+                        switch (*cache_) {
+                            case 0: continue; // skip
+                            case 1: line_color_overrides[offset + cur_off] = color::color(5,0,0); continue;
+                            case 2: line_color_overrides[offset + cur_off] = color::color(0,5,0); continue;
+                            case 3: line_color_overrides[offset + cur_off] = color::color(5,5,0); continue;
+                            default: break;
+                        }
+                    }
+
+                    if (const auto & level = (*it)[1]; level == "ERROR") {
+                        line_color_overrides[offset + cur_off] = color::color(5,0,0);
+                        color_line_override_cache.emplace_cache(hash, 1);
                     } else if (level == "DEBUG") {
-                        line_color_overrides[offset] = color::color(0,5,0);
+                        line_color_overrides[offset + cur_off] = color::color(0,5,0);
+                        color_line_override_cache.emplace_cache(hash, 2);
                     } else if (level == "WARNING") {
-                        line_color_overrides[offset] = color::color(5,5,0);
+                        line_color_overrides[offset + cur_off] = color::color(5,5,0);
+                        color_line_override_cache.emplace_cache(hash, 3);
+                    } else {
+                        color_line_override_cache.emplace_cache(hash, 0);
                     }
                 }
-
-                offset++;
-            });
+            }
 
             return line_color_overrides;
         },

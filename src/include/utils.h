@@ -403,7 +403,7 @@ namespace ccdb::utils
         caches::fixed_sized_cache < Key, Value, caches::LRUCachePolicy,
             tsl::hopscotch_map<Key, caches::WrappedValue<Value>> > caches_;
 #ifdef __DEBUG__
-        uint64_t access_ = 0, hit_ = 0;
+        uint64_t access_ = 0, hit_ = 0, emplace_ = 0;
 #endif
         const bool do_i_use_cache = getenv("DISABLE_CACHE_BEHAVIOR") != "true";
     public:
@@ -421,7 +421,8 @@ namespace ccdb::utils
                 " size " << caches_.Size() << ", max size " << max_size <<
                 ", utilization rate " << std::setprecision(4) << static_cast<double>(caches_.Size()) / static_cast<double>(max_size) * 100.00 << "%"
                 << ", access " << access_ << " time(s), hit " << hit_ << " time(s), hit rate "
-                << std::setprecision(4) << (access_ == 0 ? 0 : static_cast<double>(hit_) / static_cast<double>(access_) * 100.00) << "%.\n";
+                << std::setprecision(4) << (access_ == 0 ? 0 : static_cast<double>(hit_) / static_cast<double>(access_) * 100.00) << "%, "
+                << " elements added " << emplace_ << " times." << std::endl;
         }
 #endif
 
@@ -442,6 +443,9 @@ namespace ccdb::utils
         void emplace_cache(const Key & key, const Value & value)
         {
             if (!do_i_use_cache) return;
+#ifdef __DEBUG__
+            ++emplace_;
+#endif
             caches_.Put(key, value);
         }
     };

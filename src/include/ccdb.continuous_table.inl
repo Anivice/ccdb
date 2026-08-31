@@ -411,6 +411,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
         }
 
         /// commands and search
+        bool command_executed = false;
         if (!search_content_buffer.get().empty())
         {
             /// is a command
@@ -519,6 +520,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                     {
                         if (const auto cmd = CommandMap.find(vec.front()); cmd != CommandMap.end()) {
                             if (const auto msg = cmd->second(content, vec); !msg.empty()) show_info(msg, "INFO");
+                            command_executed = true;
                         } else {
                             show_info(sprint("Unknown command"), "ERROR");
                         }
@@ -531,9 +533,8 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
             }
         }
 
-        skip_due_to_shrink = ((vector_size_last_time >= 0
-                && static_cast<uint64_t>(vector_size_last_time) > contentSize)
-            || skip_lines_before < current_skip_lines);
+        skip_due_to_shrink = (vector_size_last_time >= 0 && static_cast<uint64_t>(vector_size_last_time) > contentSize)
+            || skip_lines_before < current_skip_lines || command_executed;
         vector_size_last_time = static_cast<int64_t>(contentSize);
         skip_lines_before = current_skip_lines;
         if (leading_spaces >= max_leading_spaces && max_leading_spaces > 0) {
