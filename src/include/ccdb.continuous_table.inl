@@ -12,7 +12,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
         const std::function<void(const ContainerType*)>& PressKey_P,
         const std::function<void(const ContainerType*)>& PressKey_K,
         const std::function<StringScopeType()>& GetTitleForCurrentSession,
-        const std::function<void(const ScopeType&, std::vector<std::vector<String>>&)>& GetTableValueForCurrentSession,
+        const std::function<PrintTableValScopeType(const ScopeType&)>& GetTableValueForCurrentSession,
         const std::function<void(session_compliment_data_t*)>& FrameVisitEach)
 {
     using namespace ::ccdb::utils;
@@ -92,12 +92,10 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
 
     const auto unstable_terminal = color::color(0,0,0,5,0,0) + "UNSTABLE TERMINAL" + color::no_color();
     const auto too_small = color::color(0,0,0,5,0,0) + "TOO SMALL" + color::no_color();
-    std::vector<std::vector<String>> values;
-    std::vector<String> titles;
 
     while (running)
     {
-        const auto line_size = get_line_size();
+        const auto [line_size, col_size] = get_screen_row_col();
         if (const auto window_size_change_ = window_size_change.load();
             line_size <= 7 || window_size_change_)
         {
@@ -139,21 +137,17 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
         atm_focus_ = -1;
         search_focus_move_ = IDLE_STATE;
         search_matches.clear();
-        const auto [title_beg, title_end] = GetTitleForCurrentSession();
-        values.clear(); titles.clear();
+        const auto [title_begin, title_end] = GetTitleForCurrentSession();
+        const auto [values_begin, values_end] = GetTableValueForCurrentSession(content);
 
-        GetTableValueForCurrentSession(content, values);
-        for (auto it = title_beg; it != title_end; ++it)
-            titles.emplace_back(*it);
-
-        const auto contentSize = values.size();
+        const auto contentSize = values_end - values_begin;
         search_matches.reserve(contentSize);
         {
             std::size_t index = 0;
             for (auto it = content.first; it != content.second; ++it, ++index)
             {
-                const bool matched = index < values.size()
-                                         ? is_highlight_match(values[index], search_content)
+                const bool matched = index < contentSize
+                                         ? is_highlight_match(*(values_begin + index), search_content)
                                          : false;
                 search_matches.emplace_back(HashContent(*it), matched);
             }
@@ -541,29 +535,29 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
             lock_to_max = true;
         }
 
-        const auto frame_string = print_table(
-            titles, values,
-            false,
-            true,
-            do_col_hide,
-            lock_to_max ? INT32_MAX : leading_spaces,
-            &max_leading_spaces_,
-            false,
-            title_line,
-            current_skip_lines,
-            &max_skip_lines_,
-            false,
-            color_code_overrides,
-            focus_line,
-            nullptr,
-            &show_search,
-            &search_content_buffer,
-            &cursor_position,
-            search_content,
-            alignment,
-            false
-        );
-        // const bool skip_due_to_lock = lock_to_max && (leading_spaces < max_leading_spaces_);
+        const auto frame_string = print_table(print_table_context_t{
+            .table_keys = {title_begin, title_end},
+            .table_values = {values_begin, values_end},
+            .table_hide = {do_col_hide.begin(), do_col_hide.end()},
+            .leading_offset = static_cast<int>(lock_to_max ? std::numeric_limits<decltype(leading_spaces)>::max() : leading_spaces),
+            .max_leading_offset_ptr = &max_leading_spaces_,
+            .using_pager = false,
+            .additional_info_before_table = title_line,
+            .skip_lines = current_skip_lines,
+            .max_skip_lines_ptr = &max_skip_lines_,
+            .enforce_no_pager = false,
+            .color_code_overrides = color_code_overrides,
+            .highlight_screen_line = focus_line,
+            .out = nullptr,
+            .show_search = &show_search,
+            .search_line_boxContent = &search_content_buffer,
+            .cursor_position_in_search_box = &cursor_position,
+            .highlight_str = search_content,
+            .column_alignment = {alignment.begin(), alignment.end()},
+            .line_size = line_size,
+            .col_size = col_size
+        });
+
         if (const bool i_dont_print = (/*skip_due_to_lock || */skip_due_to_shrink); !i_dont_print)
         {
             frame_data.set({

@@ -169,6 +169,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     using ArgsCopyScope = const ScopeType &;
     bool sorted_already = false;
     auto before = std::chrono::system_clock::now() - std::chrono::seconds(2);
+    std::vector < std::vector < std::string > > table_vals;
+
     continuous_table <connection_frame_t, std::vector<connection_frame_t>::const_iterator, ScopeType>
     (
         true,
@@ -530,8 +532,10 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
             return {title_this_session.begin(), title_this_session.end()};
         },
-        [](const auto & current_frame, std::vector < std::vector < std::string > > & table_vals)
+        [&table_vals](const auto & current_frame)->PrintTableValScopeType
         {
+            table_vals.clear();
+            table_vals.reserve(current_frame.second - current_frame.first);
             std::for_each(current_frame.first, current_frame.second, [&](const auto & connection)
             {
                 table_vals.push_back({
@@ -549,6 +553,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     connection.connection_data.chainName,
                 });
             });
+
+            return {table_vals.begin(), table_vals.end()};
         },
         [&](session_compliment_data_t *)
         {

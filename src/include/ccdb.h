@@ -37,6 +37,48 @@
 
 namespace ccdb
 {
+    using String = std::string;
+    using HashType = String;
+    using OverrideColorType = tsl::hopscotch_map<uint64_t, std::string>;
+    using StringIteratorType = std::vector<String>::const_iterator;
+    using StringScopeType = std::pair<StringIteratorType, StringIteratorType>;
+    using PrintTableLineType = std::vector<std::vector<std::string>>::const_iterator;
+    using PrintTableValScopeType = std::pair < PrintTableLineType, PrintTableLineType >;
+    using PrintTableHideIteratorType = std::vector < bool >::const_iterator;
+    using PrintTableHideScopeType = std::pair < PrintTableHideIteratorType, PrintTableHideIteratorType >;
+    using ColumnAlignmentIteratorType = std::vector < int >::const_iterator;
+    using ColumnAlignmentScopeType = std::pair < ColumnAlignmentIteratorType, ColumnAlignmentIteratorType >;
+
+    struct print_table_context_t
+    {
+        StringScopeType table_keys; // Table titles
+        PrintTableValScopeType table_values; // Each line for table entries
+        PrintTableHideScopeType table_hide; // vector list for columns to hide when print
+        int leading_offset = 0; // if the screen cannot fit the whole table, table will be shifted these characters to the right
+        std::atomic_int * max_leading_offset_ptr = nullptr; // Set by print_table, tells user I can only shift these many characters max
+        bool using_pager = false; // Should I use pager? If so, all the above shifting parameters will be ignored
+        std::string additional_info_before_table; // Additional info to print before the table content
+        int skip_lines = 0; // Skip this many lines and shift table downward when screen is too small to fit all the content
+        std::atomic_int * max_skip_lines_ptr = nullptr;
+
+        // disable line shrinking, used when NOPAGER=y or pager is not available
+        // If using_pager is set to false, and max_tailing_size_ptr is valid, this will create an illusion that the table should shift
+        // according to the screen size. This flag is here to enforce that `using_pager = false` status and tells print_table to print the whole content
+        // without any sifting instead of partially trimmed content
+        bool enforce_no_pager = false;
+
+        const tsl::hopscotch_map<uint64_t, std::string> & color_code_overrides; // override color code for a specific line
+        int highlight_screen_line = -1; // Lines to be selected or highlighted
+        std::ostream * out = nullptr; // If std::ostream is provided and content is redirected to a pager, this will be used as output instead of the pager
+        std::atomic_bool * show_search = nullptr; // Show search blue box?
+        ccdb_atomic_t < std::u32string > * search_line_boxContent = nullptr; // Content shown inside search line
+        std::atomic_int * cursor_position_in_search_box = nullptr; // Cursor position in search box, offset to the content
+        std::string highlight_str; // Highlight this string
+        ColumnAlignmentScopeType column_alignment; // alignments for columns
+        int line_size = 0;
+        int col_size = 0;
+    };
+
     template <
         typename... ArgsForFetcherChild, typename... ArgsForFetcherParent,
         typename ChildFunc = std::function<bool(int, ArgsForFetcherChild...)>,
@@ -244,52 +286,7 @@ namespace ccdb
         void pager(const std::string & str, bool override_less_check = false, bool use_pager = true);
 
         /// print table
-        /// @param table_keys Table titles
-        /// @param table_values Each line for table entries
-        /// @param muff_non_ascii Mask non ASCII characters. Already deprecated since non-ASCII support is included. Always set it to false
-        /// @param seperator If seperator should be included in the table
-        /// @param table_hide vector list for columns to hide when print
-        /// @param leading_offset if the screen cannot fit the whole table, table will be shifted these characters to the right
-        /// @param max_leading_offset_ptr Set by print_table, tells user I can only shift these many characters max
-        /// @param using_pager Should I use pager? If so, all the above shifting parameters will be ignored
-        /// @param additional_info_before_table Additional info to print before the table content
-        /// @param skip_lines Skip this many lines and shift table downward when screen is too small to fit all the content
-        /// @param max_skip_lines_ptr Set by print_table, tells user I can only shift downward this many lines max
-        /// @param enforce_no_pager If using_pager is set to false, and max_tailing_size_ptr is valid, this will create an illusion that the table should shift
-        /// according to the screen size. This flag is here to enforce that `using_pager = false` status and tells print_table to print the whole content
-        /// without any sifting instead of partially trimmed content
-        /// @param color_code_overrides Override color code for a specific line
-        /// @param highlight_screen_line Lines to be selected or highlighted
-        /// @param out If std::ostream is provided and content is redirected to a pager, this will be used as output instead of the pager
-        /// @param show_search Show search blue box?
-        /// @param search_line_boxContent Content shown inside search line
-        /// @param cursor_position_in_search_box Cursor position in search box, offset to the content
-        /// @param highlight_str Highlight this string
-        /// @param column_alignment
-        /// @returns NONE
-        std::string print_table(
-            std::vector<std::string> const & table_keys,
-            std::vector < std::vector<std::string> > const & table_values,
-            bool muff_non_ascii = false,
-            bool seperator = true,
-            const std::vector < bool > & table_hide = { },
-            uint64_t leading_offset = 0,
-            std::atomic_int * max_leading_offset_ptr = nullptr,
-            bool using_pager = false,
-            std::string additional_info_before_table = "",
-            int skip_lines = 0,
-            std::atomic_int * max_skip_lines_ptr = nullptr,
-            bool enforce_no_pager = false, // disable line shrinking, used when NOPAGER=y or pager is not available
-            tsl::hopscotch_map < uint64_t, std::string > color_code_overrides = { }, // override color code for a specific line
-            int highlight_screen_line = -1,
-            std::ostream * out = nullptr,
-            std::atomic_bool * show_search = nullptr,
-            ccdb_atomic_t < std::u32string > * search_line_boxContent = nullptr,
-            std::atomic_int * cursor_position_in_search_box = nullptr,
-            const std::string & highlight_str = "",
-            const std::vector < int > & column_alignment = { },
-            bool dry_run = false
-        );
+        std::string print_table(const print_table_context_t &);
 
         void simple_print_table(
             std::vector < std::string > const & table_titles,
@@ -460,12 +457,6 @@ namespace ccdb
             bool skip_frame;
         };
 
-        using String = std::string;
-        using HashType = String;
-        using OverrideColorType = tsl::hopscotch_map<uint64_t, std::string>;
-        using StringIteratorType = std::vector<String>::const_iterator;
-        using StringScopeType = std::pair<StringIteratorType, StringIteratorType>;
-
         template < typename ContainerType, typename ConstantIteratorType, typename ScopeType > // = std::pair<ConstantIteratorType, ConstantIteratorType> >
         requires (std::is_same_v<ScopeType, std::pair<ConstantIteratorType, ConstantIteratorType>> && Iterator<ConstantIteratorType>)
         void continuous_table(bool banner, const std::vector < bool > & do_col_hide,
@@ -478,7 +469,7 @@ namespace ccdb
             const std::function<void(const ContainerType *)> & PressKey_P,
             const std::function<void(const ContainerType *)> & PressKey_K,
             const std::function<StringScopeType()> & GetTitleForCurrentSession,
-            const std::function<void(const ScopeType &, std::vector<std::vector<String>> &)> & GetTableValueForCurrentSession,
+            const std::function<PrintTableValScopeType(const ScopeType &)> & GetTableValueForCurrentSession,
             const std::function<void(session_compliment_data_t *)> & FrameVisitEach);
 
         const bool ENABLE_CLEAR_ON_SHRINK = utils::getenv("ENABLE_CLEAR_ON_SHRINK") == "true";

@@ -22,7 +22,6 @@
 #include <chrono>
 #include <algorithm>
 #include <cmath>
-#include <cstdint>
 #include <string>
 #include "print.h"
 #include "ncursesw/ncurses.h"
@@ -154,10 +153,9 @@ namespace ccdb {
             utf8_to_u32(utils::getenv("CURSOR")).front();
         const int & matches_;
         const std::string & highlight_str_;
-        const bool dry_run_;
         const std::string color_scheme_ = color::USE_OLD_COLOR_SCHEME ?
             color::color(5,5,5,0,0,5) : color::color24(255,255,255,120,0,255);
-        const int col_size_ = get_col_size();
+        const int col_size_;
 
         [[nodiscard]] std::u32string print_search_box() const
         {
@@ -239,7 +237,7 @@ namespace ccdb {
             const std::string & color_line_hl,
             const int & matches,
             const std::string & highlight_str,
-            const bool dry_run,
+            const int col_size,
             std::string & final_frame
         )
         :
@@ -257,13 +255,12 @@ namespace ccdb {
             color_line_hl_(color_line_hl.empty() ? "" : "\033[01;05;07m"),
             matches_(matches),
             highlight_str_(highlight_str),
-            dry_run_(dry_run)
+            col_size_(col_size)
         {
         }
 
         ~auto_print_t()
         {
-            if (dry_run_) return;
             if (const auto output = less_output_redirect_.str(); !output.empty())
             {
                 if (out_) {
@@ -310,31 +307,18 @@ namespace ccdb {
     };
 }
 
-std::string ccdb::ccdb::print_table(
-    std::vector<std::string> const &table_keys,
-    std::vector<std::vector<std::string>> const &table_values,
-    const bool muff_non_ascii,
-    const bool seperator,
-    const std::vector<bool> &table_hide,
-    uint64_t leading_offset,
-    std::atomic_int *max_leading_offset_ptr,
-    const bool using_pager,
-    std::string additional_info_before_table,
-    int skip_lines,
-    std::atomic_int *max_skip_lines_ptr,
-    const bool enforce_no_pager,
-    tsl::hopscotch_map < uint64_t, std::string > color_code_overrides,
-    const int highlight_screen_line,
-    std::ostream * out,
-    std::atomic_bool * show_search,
-    ccdb_atomic_t < std::u32string > * search_line_boxContent,
-    std::atomic_int * cursor_position_in_search_box,
-    const std::string & highlight_str,
-    const std::vector < int > & column_alignment,
-    const bool dry_run
-)
+std::string ccdb::ccdb::print_table(const print_table_context_t & context)
 {
+    const auto & [ table_keys, table_values, table_hide, leading_offset_, max_leading_offset_ptr, using_pager,
+        additional_info_before_table_, skip_lines_, max_skip_lines_ptr, enforce_no_pager, color_code_overrides,
+        highlight_screen_line, out, show_search, search_line_boxContent, cursor_position_in_search_box, highlight_str,
+        column_alignment, line_size, col_size ] = context;
+    uint64_t leading_offset = leading_offset_;
+    std::string additional_info_before_table = additional_info_before_table_;
+    int skip_lines = skip_lines_;
+
     std::string final_frame;
+
     [&]
     {
         const auto white_strip = color::color(5,5,5,0,0,0);
@@ -351,7 +335,7 @@ std::string ccdb::ccdb::print_table(
             frame,
             less_output_redirect,
             this,
-            static_cast<int>(table_values.size()),
+            static_cast<int>(table_values.second - table_values.first),
             skip_lines,
             current_line_index,
             out,
@@ -361,42 +345,43 @@ std::string ccdb::ccdb::print_table(
             color_line_hl,
             matches,
             highlight_str,
-            dry_run,
+            col_size,
             final_frame
         );
 
-        const auto col = get_col_size() - 1;
-        const auto lines = get_line_size() - 1;
-        if (get_col_size() < 1 || get_line_size() < 1) return;
+        const auto col = col_size - 1;
+        const auto lines = line_size - 1;
+        if (col_size < 1 || line_size < 1) return;
 
         if (lines < 9 || col < 3) {
             frame << color::color(0,0,0,5,0,0) << sprint("TOO SMALL") << color::no_color() << std::endl;
             return;
         }
 
-        const bool table_hide_enabled =
-            !table_hide.empty() && table_hide.size() == table_keys.size();
+        const auto table_keys_size = table_keys.second - table_keys.first;
+        const auto table_vals_size = table_values.second - table_values.first;
+        const auto table_hide_size = table_hide.second - table_hide.first;
+        const bool table_hide_enabled = table_hide_size != 0 && table_hide_size == table_keys_size;
 
         std::vector<int> key_screen_widths;
-        key_screen_widths.reserve(table_keys.size());
+        key_screen_widths.reserve(table_keys_size);
 
         tsl::hopscotch_map < std::string /* table keys */, uint32_t /* longest value in this column */ > size_map;
-        for (const auto & key : table_keys) {
-            const int key_width = UnicodeDisplayWidth::get_width(key);
+        for (auto key = table_keys.first; key != table_keys.second; ++key) {
+            const int key_width = UnicodeDisplayWidth::get_width(*key);
             key_screen_widths.push_back(key_width);
-            size_map[key] = key_width;
+            size_map[*key] = key_width;
         }
 
-        for (const auto & vals : table_values)
+        for (auto vals = table_values.first; vals < table_values.second; ++vals)
         {
-            if (vals.size() != table_keys.size()) return;
-            std::size_t index = 0;
-            for (const auto & val : vals)
+            if (vals->size() != table_keys_size) return;
+            int index = 0;
+            for (const auto & val : *vals)
             {
-                const auto & current_key = table_keys[index++];
+                const auto & current_key = *(table_keys.first + index++);
                 const auto val_width = static_cast<uint32_t>(UnicodeDisplayWidth::get_width(val));
-                auto & current_width = size_map[current_key];
-                if (current_width < val_width) {
+                if (auto & current_width = size_map[current_key]; current_width < val_width) {
                     current_width = val_width;
                 }
             }
@@ -405,18 +390,18 @@ std::string ccdb::ccdb::print_table(
         // Preserve the original key-based width semantics (including duplicate
         // table key names), but avoid hashing the key for every rendered cell.
         std::vector<uint32_t> column_widths;
-        column_widths.reserve(table_keys.size());
-        for (const auto & key : table_keys) {
-            column_widths.push_back(size_map[key]);
+        column_widths.reserve(table_keys_size);
+        for (auto key = table_keys.first; key < table_keys.second; ++key) {
+            column_widths.push_back(size_map[*key]);
         }
 
         std::string title_line;
         std::string header_line;
         {
-            std::size_t index = 0;
-            for (const auto & key : table_keys)
+            int index = 0;
+            for (auto key = table_keys.first; key < table_keys.second; ++key)
             {
-                if (table_hide_enabled && table_hide[index])
+                if (table_hide_enabled && *(table_hide.first + index))
                 {
                     ++index;
                     continue;
@@ -429,7 +414,7 @@ std::string ccdb::ccdb::print_table(
                     const int after = std::max(paddings - before, 1);
                     title_line.push_back('|');
                     title_line.append(static_cast<std::size_t>(before), ' ');
-                    title_line += key;
+                    title_line += *key;
                     title_line.append(static_cast<std::size_t>(after), ' ');
                 }
 
@@ -628,14 +613,14 @@ std::string ccdb::ccdb::print_table(
         print_line(title_line, white_strip);
         print_line(separation_line, white_strip);
 
-        const int max_skip_lines = std::max(static_cast<int>(table_values.size()) - (lines - 2 - printed_lines), 0);
+        const int max_skip_lines = std::max(static_cast<int>(table_vals_size) - (lines - 2 - printed_lines), 0);
         if (max_skip_lines_ptr) *max_skip_lines_ptr = max_skip_lines;
         if (skip_lines > max_skip_lines) skip_lines = max_skip_lines;
 
         auto print_progress = [&]
         {
             std::stringstream ssa;
-            const auto sz = table_values.size();
+            const auto sz = table_vals_size;
             ssa << skip_lines << "/" << current_line_index << "/" << sz << "/"
                 << std::fixed << std::setprecision(2)
                 << (sz == 0 ? 1 : static_cast<double>(current_line_index) / static_cast<double>(sz)) * 100 << "%"
@@ -671,7 +656,7 @@ std::string ccdb::ccdb::print_table(
         };
 
         /// content
-        for (const auto & vals : table_values)
+        for (auto vals = table_values.first; vals != table_values.second; ++vals)
         {
             if (!using_pager)
             {
@@ -691,8 +676,8 @@ std::string ccdb::ccdb::print_table(
             }
 
             std::string color_line;
-            const auto override_it = color_code_overrides.find(current_line_index);
-            if (override_it == color_code_overrides.end())
+            if (const auto override_it = color_code_overrides.find(current_line_index);
+                override_it == color_code_overrides.end())
             {
                 // blue and black
                 if (color::USE_OLD_COLOR_SCHEME)
@@ -701,26 +686,26 @@ std::string ccdb::ccdb::print_table(
                     else color_line = color::color(5,5,5,0,0,5);
                 }
                 else { // using pager
-                    color_line = color_sim(current_line_index, static_cast<int>(table_values.size()));
+                    color_line = color_sim(current_line_index, static_cast<int>(table_vals_size));
                 }
             } else {
                 color_line = color::bg_color(0,0,0) + override_it->second;
             }
 
-            std::size_t index = 0;
+            int index = 0;
             std::string val_line;
             val_line.reserve(title_line.size());
 
-            for (const auto & val : vals)
+            for (const auto & val : *vals)
             {
-                if (table_hide_enabled && table_hide[index])
+                if (table_hide_enabled && *(table_hide.first + index))
                 {
                     ++index;
                     continue;
                 }
 
                 const int current_alignment =
-                    column_alignment.empty() ? 0 /* left */ : column_alignment[index];
+                    column_alignment.second == column_alignment.first ? 0 /* left */ : *(column_alignment.first + index);
                 const int val_width = UnicodeDisplayWidth::get_width(val);
                 const int column_width = static_cast<int>(column_widths[index]);
                 ++index;
@@ -746,28 +731,13 @@ std::string ccdb::ccdb::print_table(
                     break;
                 }
 
-                val_line.push_back(seperator ? '|' : ' ');
+                val_line.push_back('|');
                 val_line.append(static_cast<std::size_t>(before), ' ');
-
-                if (muff_non_ascii)
-                {
-                    std::string output = val;
-                    for (auto & c : output) {
-                        if (!std::isprint(c)) c = '#';
-                    }
-                    val_line += output;
-                }
-                else
-                {
-                    val_line += val;
-                }
-
+                val_line += val;
                 val_line.append(static_cast<std::size_t>(after), ' ');
             }
 
-            if (seperator) {
-                val_line.push_back('|');
-            }
+            val_line.push_back('|');
             print_line(std::move(val_line), color_line);
             current_line_index++;
         }
@@ -802,10 +772,31 @@ void ccdb::ccdb::simple_print_table_to_ostream(std::vector<std::string> const &t
 {
     const auto less_bak = less;
     less.clear();
-    print_table(table_titles, table_values,
-        false, true, {}, 0, nullptr, true,
-        "", 0, nullptr, true, {}, -1,
-        &out_stream);
+    std::vector < bool > hide;
+    std::vector < int > alignment;
+    const auto [line,col] = get_screen_row_col();
+    print_table({
+        .table_keys = {table_titles.begin(), table_titles.end()},
+        .table_values = {table_values.begin(), table_values.end()},
+        .table_hide = {hide.begin(), hide.end()},
+        .leading_offset = 0,
+        .max_leading_offset_ptr = nullptr,
+        .using_pager = true,
+        .additional_info_before_table = "",
+        .skip_lines = 0,
+        .max_skip_lines_ptr = nullptr,
+        .enforce_no_pager = true,
+        .color_code_overrides = {},
+        .highlight_screen_line = -1,
+        .out = &out_stream,
+        .show_search = nullptr,
+        .search_line_boxContent = nullptr,
+        .cursor_position_in_search_box = nullptr,
+        .highlight_str = "",
+        .column_alignment = {alignment.begin(), alignment.end()},
+        .line_size = line,
+        .col_size = col
+    });
     less = less_bak;
 }
 
@@ -822,9 +813,29 @@ void ccdb::ccdb::simple_print_table_w_pager(
     std::vector<std::string> const &table_titles,
     std::vector<std::vector<std::string>> const &table_values)
 {
-    print_table(table_titles, table_values, false,
-        true, { }, 0, nullptr,
-        !less.empty(),
-        "", 0, nullptr,
-        less.empty());
+    std::vector < bool > hide;
+    std::vector < int > alignment;
+    const auto [line,col] = get_screen_row_col();
+    print_table({
+        .table_keys = {table_titles.begin(), table_titles.end()},
+        .table_values = {table_values.begin(), table_values.end()},
+        .table_hide = {hide.begin(), hide.end()},
+        .leading_offset = 0,
+        .max_leading_offset_ptr = nullptr,
+        .using_pager = !less.empty(),
+        .additional_info_before_table = "",
+        .skip_lines = 0,
+        .max_skip_lines_ptr = nullptr,
+        .enforce_no_pager = less.empty(),
+        .color_code_overrides = { },
+        .highlight_screen_line = -1,
+        .out = nullptr,
+        .show_search = nullptr,
+        .search_line_boxContent = nullptr,
+        .cursor_position_in_search_box = nullptr,
+        .highlight_str = "",
+        .column_alignment = {alignment.begin(), alignment.end()},
+        .line_size = line,
+        .col_size = col
+    });
 }
