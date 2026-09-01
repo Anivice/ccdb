@@ -488,7 +488,7 @@ namespace Readline
                 oss << generate_padding(depth) << node.name_;
                 const auto str = oss.str();
                 command_help_text.emplace_back(str, node.help_text_);
-                const auto len = ccdb::utils::UnicodeDisplayWidth::get_width_utf8(str);
+                const auto len = ccdb::utils::UnicodeDisplayWidth::get_width(str);
                 if (max_command_length < len) {
                     max_command_length = len;
                 }
@@ -501,7 +501,7 @@ namespace Readline
             oss << command;
             if (!help.empty())
             {
-                oss << std::string(max_command_length - ccdb::utils::UnicodeDisplayWidth::get_width_utf8(command), ' ');
+                oss << std::string(max_command_length - ccdb::utils::UnicodeDisplayWidth::get_width(command), ' ');
                 oss << ": " << ccdb::utils::get_text(help);
             }
             oss << std::endl;
@@ -576,7 +576,7 @@ namespace Readline
     void colored_display_hook(char **matches, const int num_matches, int max_length)
     {
         static const std::u32string delimiter = U"    ";
-        static const uint64_t delimiter_size = ccdb::utils::UnicodeDisplayWidth::get_width_utf32(delimiter);
+        static const uint64_t delimiter_size = ccdb::utils::UnicodeDisplayWidth::get_width(delimiter);
         thread_local const std::regex r(R"(^[\d]+\:\_\*\_.*$)");
         std::vector < std::pair < std::string /* string */, uint64_t /* screen length */ > > candidate_list;
         for (int i = 1; i <= num_matches; i++)
@@ -594,9 +594,9 @@ namespace Readline
                 ss << match;
                 ss << no_color;
 
-                candidate_list.emplace_back(ss.str(), ccdb::utils::UnicodeDisplayWidth::get_width_utf8(match));
+                candidate_list.emplace_back(ss.str(), ccdb::utils::UnicodeDisplayWidth::get_width(match));
             } else {
-                candidate_list.emplace_back(match, ccdb::utils::UnicodeDisplayWidth::get_width_utf8(match));
+                candidate_list.emplace_back(match, ccdb::utils::UnicodeDisplayWidth::get_width(match));
             }
         }
 
@@ -653,7 +653,7 @@ namespace Readline
                     pair.first += help;
                 }
 
-                pair.second += ccdb::utils::UnicodeDisplayWidth::get_width_utf8(help);
+                pair.second += ccdb::utils::UnicodeDisplayWidth::get_width(help);
             }
         });
 

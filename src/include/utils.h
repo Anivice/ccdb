@@ -178,7 +178,7 @@ namespace ccdb::utils
 
     /// Character display width
     class UnicodeDisplayWidth {
-    public:
+    private:
         /// Get display width of string (UTF8)
         /// @param utf8_str UTF8 string
         /// @return Space width on screen
@@ -188,7 +188,29 @@ namespace ccdb::utils
         /// @param utf32_str UTF8 string
         /// @return Space width on screen
         static int get_width_utf32(const std::u32string& utf32_str);
+
+        /// Get display width of string (UTF8)
+        /// @param c character
+        /// @return Space width on screen
         static int get_char_width(char32_t c);
+
+    public:
+        /// Get display width of string (UTF8)
+        /// @param str UTF8 string
+        /// @return Space width on screen
+        template < typename charType > requires (std::is_same_v<charType, char> || std::is_same_v<charType, char32_t>)
+        static int get_width(const std::basic_string<charType> & str)
+        {
+            if constexpr (std::is_same_v<charType, char>) {
+                return get_width_utf8(str);
+            } else {
+                return get_width_utf32(str);
+            }
+        }
+
+        static int get_width(const char32_t c) {
+            return get_char_width(c);
+        }
 
     private:
         static int fallback_char_width(char32_t c);

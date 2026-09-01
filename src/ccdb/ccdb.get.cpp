@@ -936,7 +936,7 @@ void ccdb::ccdb::map_proxy_chain()
 
     const auto str = simple_print_table_to_std_string(title, table);
     const auto nonColored = strip_color(str);
-    if (const auto line_len = UnicodeDisplayWidth::get_width_utf8(nonColored.substr(0, nonColored.find_first_of('\n')));
+    if (const auto line_len = UnicodeDisplayWidth::get_width(nonColored.substr(0, nonColored.find_first_of('\n')));
         line_len > get_col_size())
     {
         pager(str);

@@ -27,6 +27,7 @@
 #include <string>
 #include "ccdb.h"
 #include "print.h"
+#include "absl/strings/str_format.h"
 #include "ncursesw/ncurses.h"
 
 // --------------------------------------------- CCDB --------------------------------------------- //
@@ -171,7 +172,7 @@ void ccdb::ccdb::nload(
         metric_inf_widths.reserve(metric_inf_list.size());
         for (const auto & item : metric_inf_list)
         {
-            const int len = UnicodeDisplayWidth::get_width_utf8(strip_color(item));
+            const int len = UnicodeDisplayWidth::get_width(strip_color(item));
             metric_inf_widths.push_back(len);
             max_in_inf_list = std::max(max_in_inf_list, len);
         }
@@ -191,8 +192,13 @@ void ccdb::ccdb::nload(
         info_list.push_back(metric_inf_list[offset+4] + sprint("    Ttl (O): ") + value_to_size(*total));
 
         int new_max_size = 0;
-        for (const auto & item : info_list)
-            new_max_size = std::max(new_max_size, UnicodeDisplayWidth::get_width_utf8(strip_color(item)));
+        std::vector<int> info_list_lengths; info_list_lengths.reserve(info_list.size());
+        for (const auto & item : info_list) {
+            const auto len = UnicodeDisplayWidth::get_width(strip_color(item));
+            info_list_lengths.push_back(len);
+            new_max_size = std::max(new_max_size, len);
+        }
+
         if (col < info_space_size) {
             frame << color::color(0,0,0,5,0,0) << sprint("TOO SMALL") << std::endl;
             return;
@@ -287,7 +293,7 @@ void ccdb::ccdb::nload(
             {
                 frame << info_col_color_codes;
                 const auto index = info_list.size() - current_height_on_screen;
-                const auto padding_space = info_space_size - UnicodeDisplayWidth::get_width_utf8(strip_color(info_list[index]));
+                const auto padding_space = info_space_size - info_list_lengths[index];
                 info_space_size_require_reset_on_next_frame = info_space_size_require_reset_on_next_frame || padding_space == 0;
                 frame << info_list[index] << std::string(padding_space, ' ');
             }
@@ -506,12 +512,23 @@ void ccdb::ccdb::nload(
                     auto utf32 = utf8_to_u32(new_line);
                     uint64_t now_skipped_size = 0;
                     std::size_t erase_count = 0;
+                    int total_utf32_len = 0;
+
+                    std::vector<int> utf32_lengths; utf32_lengths.reserve(utf32.length());
+                    for (const auto c : utf32)
+                    {
+                        const auto len = UnicodeDisplayWidth::get_width(c);
+                        utf32_lengths.push_back(len);
+                        total_utf32_len += len;
+                    }
+
                     while (now_skipped_size < skipped_len && erase_count < utf32.size()) {
-                        now_skipped_size += static_cast<uint64_t>(UnicodeDisplayWidth::get_width_utf32({utf32[erase_count]}));
+                        now_skipped_size += utf32_lengths[erase_count];
+                        total_utf32_len -= utf32_lengths[erase_count];
                         ++erase_count;
                     }
                     if (erase_count != 0) utf32.erase(0, erase_count);
-                    const auto line_len = UnicodeDisplayWidth::get_width_utf32(utf32);
+                    const int line_len = total_utf32_len;
 
                     auto do_utf32_trim = [&]
                     {
@@ -527,16 +544,16 @@ void ccdb::ccdb::nload(
                                 last_skipped_len_time = now_in_loop;
                             }
 
-                            for (const auto & c : utf32)
+                            for (uint64_t i = 0; i < utf32.size(); ++i)
                             {
-                                const auto c_len = UnicodeDisplayWidth::get_width_utf32({c});
+                                const auto c_len = utf32_lengths[erase_count + i];
                                 len += c_len;
                                 if (len >= col) {
                                     len -= c_len;
                                     break;
                                 }
 
-                                utf32_cut += c;
+                                utf32_cut += utf32[i];
                             }
                         }
                         else {
@@ -574,7 +591,7 @@ void ccdb::ccdb::nload(
                 "Backend memory usage: ", value_to_size(backend_instance.current_memory_in_use_by_mihomo.load(std::memory_order_relaxed)), ", "
                 "Frontend memory usage: ", value_to_size(cur_mem_size()),
                 subinfo.empty() ? "" : ", " + subinfo);
-            const int msg_width = UnicodeDisplayWidth::get_width_utf8(msg);
+            const int msg_width = UnicodeDisplayWidth::get_width(msg);
             if (col >= msg_width)
             {
                 screen_str_frame << color::color(5,5,5);
@@ -602,21 +619,30 @@ void ccdb::ccdb::nload(
                 std::u32string msg_ = utf8_to_u32(msg + "   ");
                 auto ori = msg_;
                 msg_ = msg_.substr(std::min(static_cast<decltype(msg_.length())>(last_skp_line_scrolling), msg_.length()));
-                if (col < UnicodeDisplayWidth::get_width_utf32(msg_)) {
+
+                int msg_len = 0;
+                std::vector<int> msg_sizes; msg_sizes.reserve(msg_.size());
+                for (const auto c : msg_) {
+                    const auto len = UnicodeDisplayWidth::get_width(c);
+                    msg_len += len;
+                    msg_sizes.push_back(len);
+                }
+
+                if (col < UnicodeDisplayWidth::get_width(msg_)) {
                     last_skp_line_scrolling += 1;
-                    while (col < UnicodeDisplayWidth::get_width_utf32(msg_)) {
+                    while (col < UnicodeDisplayWidth::get_width(msg_)) {
                         msg_.pop_back();
                     }
                 }
                 else if (last_skp_line_scrolling != 0 && !msg_.empty())
                 {
                     last_skp_line_scrolling += 1;
-                    while (col > UnicodeDisplayWidth::get_width_utf32(msg_)) {
+                    while (col > UnicodeDisplayWidth::get_width(msg_)) {
                         msg_ += ori.front();
                         ori.erase(ori.begin()); // pop front
                     }
 
-                    if (col < UnicodeDisplayWidth::get_width_utf32(msg_)) {
+                    if (col < UnicodeDisplayWidth::get_width(msg_)) {
                         msg_.pop_back();
                     }
                 }
@@ -641,13 +667,13 @@ void ccdb::ccdb::nload(
                     }
 
                     msg_ = ori;
-                    while (col < UnicodeDisplayWidth::get_width_utf32(msg_)) {
+                    while (col < UnicodeDisplayWidth::get_width(msg_)) {
                         msg_.pop_back();
                     }
                 }
 
                 screen_str_frame << color::color(5,5,5, 0,0,5)
-                        << utf8::utf32to8(msg_) << std::string(std::max(col - UnicodeDisplayWidth::get_width_utf32(msg_), 0), ' ')
+                        << utf8::utf32to8(msg_) << std::string(std::max(col - UnicodeDisplayWidth::get_width(msg_), 0), ' ')
                         << color::no_color() << std::flush;
             }
         }
@@ -766,7 +792,7 @@ void ccdb::ccdb::nload(const std::vector<std::string> & vec)
                 c.host = c.processName.empty() ? c.host : (c.host + " (" + c.processName + ")");
                 c.host = c.networkType.empty() ? c.host : (c.host + " <" + c.networkType + ">");
                 c.host = c.host + " " + (c.chainName.find("DIRECT") != std::string::npos ? "- " : "x ");
-                const int host_width = UnicodeDisplayWidth::get_width_utf8(c.host);
+                const int host_width = UnicodeDisplayWidth::get_width(c.host);
                 max_host_len = std::max(max_host_len, host_width);
 
                 {
@@ -778,7 +804,7 @@ void ccdb::ccdb::nload(const std::vector<std::string> & vec)
 
                 {
                     const auto str = value_to_speed(c.downloadSpeed);
-                    const int download_width = UnicodeDisplayWidth::get_width_utf8(str);
+                    const int download_width = UnicodeDisplayWidth::get_width(str);
                     max_download_len = std::max(max_download_len, download_width);
                     c.destination = str; // temp save
                 }
@@ -788,8 +814,8 @@ void ccdb::ccdb::nload(const std::vector<std::string> & vec)
             conn_str.reserve(conn.size());
             std::ranges::for_each(conn, [&](const general_info_pulling::connection_t & c)
             {
-                const std::string padding(max_host_len - UnicodeDisplayWidth::get_width_utf8(c.host), ' ');
-                const std::string padding2(max_download_len -UnicodeDisplayWidth::get_width_utf8(c.destination), ' ');
+                const std::string padding(max_host_len - UnicodeDisplayWidth::get_width(c.host), ' ');
+                const std::string padding2(max_download_len -UnicodeDisplayWidth::get_width(c.destination), ' ');
                 std::stringstream ss;
                 CRC64 crc64;
                 crc64.update(reinterpret_cast<const uint8_t *>(c.metadata.connectionID.data()),
