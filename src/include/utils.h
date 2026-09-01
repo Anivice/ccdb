@@ -217,6 +217,8 @@ namespace ccdb::utils
         static bool is_fullwidth(char32_t c);
     };
 
+    extern bool NO_0xFE0F_EXPAND_EMOJI;
+
     struct cmd_status
     {
         std::string fd_stdout; // normal output

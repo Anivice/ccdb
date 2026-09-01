@@ -1032,19 +1032,21 @@ ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::stri
     try
     {
         const auto terminal_name = get_terminal_emulator_name();
-        if (terminal_name == "gnome-terminal"
-        || terminal_name == "android-termux"
-        || terminal_name == "ptyxis"
-        || terminal_name == "xterm"
-        || terminal_name == "VTE-based terminal"
-        || terminal_name == "wezterm"
-        || terminal_name == "cool-retro-term")
+        if (utils::getenv("NO_0xFE0F_EXPAND_EMOJI").empty())
         {
-            print<is_error>("Set NO_0xFE0F_EXPAND_EMOJI to true since ", terminal_name, " doesn't support Unicode expansion.\n");
-            setenv("NO_0xFE0F_EXPAND_EMOJI", "true", 0);
-        }
-        else if (terminal_name == "konsole" || terminal_name == "kitty") {
-            setenv("NO_0xFE0F_EXPAND_EMOJI", "false", 0);
+            if (terminal_name == "gnome-terminal"
+                || terminal_name == "android-termux"
+                || terminal_name == "ptyxis"
+                || terminal_name == "xterm"
+                || terminal_name == "VTE-based terminal"
+                || terminal_name == "wezterm"
+                || terminal_name == "cool-retro-term")
+            {
+                print<is_error>("Set NO_0xFE0F_EXPAND_EMOJI to true since ", terminal_name, " doesn't support Unicode expansion.\n");
+                NO_0xFE0F_EXPAND_EMOJI = true;
+            } else if (terminal_name == "konsole" || terminal_name == "kitty") {
+                NO_0xFE0F_EXPAND_EMOJI = false;
+            }
         }
 
         if (terminal_name == "android-termux") {
@@ -1059,8 +1061,10 @@ ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::stri
                 const auto fg = convertToNumber<uint64_t>(matches[1].str());
                 const auto bg = convertToNumber<uint64_t>(matches[2].str());
 
-                if (fg < bg) { // terminal is in light mode
-                    if (utils::getenv("COLOR").empty()) {
+                if (fg < bg) // terminal is in light mode
+                {
+                    if (utils::getenv("COLOR").empty())
+                    {
                         print("Revert to monocolor scheme because the console appears to be in light mode.\n");
                         setenv("COLOR", "n", 1);
                         setenv("REVERSE_HIGHLIGHTER", "true", 1);

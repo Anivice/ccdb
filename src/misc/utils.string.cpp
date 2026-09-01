@@ -312,7 +312,7 @@ int ccdb::utils::UnicodeDisplayWidth::get_width_utf32(const std::u32string &utf3
     return width;
 }
 
-static bool NO_0xFE0F_EXPAND_EMOJI = ccdb::utils::getenv("NO_0xFE0F_EXPAND_EMOJI") == "true";
+bool ccdb::utils::NO_0xFE0F_EXPAND_EMOJI = ccdb::utils::getenv("NO_0xFE0F_EXPAND_EMOJI") == "true";
 
 int ccdb::utils::UnicodeDisplayWidth::get_char_width(const char32_t c)
 {
