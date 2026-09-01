@@ -628,25 +628,33 @@ void ccdb::ccdb::nload(
                     msg_sizes.push_back(len);
                 }
 
-                if (col < UnicodeDisplayWidth::get_width(msg_)) {
+                if (col < msg_len)
+                {
                     last_skp_line_scrolling += 1;
-                    while (col < UnicodeDisplayWidth::get_width(msg_)) {
+                    while (col < msg_len) {
+                        msg_len -= msg_sizes.back();
+                        msg_sizes.pop_back();
                         msg_.pop_back();
                     }
                 }
                 else if (last_skp_line_scrolling != 0 && !msg_.empty())
                 {
                     last_skp_line_scrolling += 1;
-                    while (col > UnicodeDisplayWidth::get_width(msg_)) {
-                        msg_ += ori.front();
-                        ori.erase(ori.begin()); // pop front
+                    int i = 0;
+                    while (col > msg_len)
+                    {
+                        const auto ori_len = UnicodeDisplayWidth::get_width(ori[i]);
+                        msg_ += ori[i];
+                        msg_len += ori_len;
+                        ++i;
                     }
 
-                    if (col < UnicodeDisplayWidth::get_width(msg_)) {
+                    if (col < msg_len) {
                         msg_.pop_back();
                     }
                 }
-                else {
+                else
+                {
                     if (scroll_hit_ == Unset) {
                         scroll_hit_ = UpdateTimepoint;
                     }
