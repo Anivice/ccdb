@@ -675,13 +675,27 @@ void ccdb::ccdb::nload(
                     }
 
                     msg_ = ori;
-                    while (col < UnicodeDisplayWidth::get_width(msg_)) {
+
+                    msg_len = 0;
+                    msg_sizes.clear();
+                    msg_sizes.reserve(msg_.size());
+                    for (const auto c : msg_)
+                    {
+                        const auto len = UnicodeDisplayWidth::get_width(c);
+                        msg_len += len;
+                        msg_sizes.push_back(len);
+                    }
+
+                    while (col < msg_len)
+                    {
+                        msg_len -= msg_sizes.back();
+                        msg_sizes.pop_back();
                         msg_.pop_back();
                     }
                 }
 
                 screen_str_frame << color::color(5,5,5, 0,0,5)
-                        << utf8::utf32to8(msg_) << std::string(std::max(col - UnicodeDisplayWidth::get_width(msg_), 0), ' ')
+                        << utf8::utf32to8(msg_) << std::string(std::max(col - msg_len, 0), ' ')
                         << color::no_color() << std::flush;
             }
         }
