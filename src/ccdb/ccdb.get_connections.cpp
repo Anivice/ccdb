@@ -373,7 +373,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 {
                     // determine if we need to filter out the result
                     if (is_connection_valid(connection.connection_data)) {
-                        connections_filtered.push_back(connection);
+                        connections_filtered.emplace_back(connection);
                     }
                 }
             }
@@ -538,7 +538,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             table_vals.reserve(current_frame.second - current_frame.first);
             std::for_each(current_frame.first, current_frame.second, [&](const auto & connection)
             {
-                table_vals.push_back({
+                table_vals.emplace_back(std::vector{
                     connection.connection_data.host,
                     connection.connection_data.processName,
                     value_to_size(connection.connection_data.totalDownloadedBytes),

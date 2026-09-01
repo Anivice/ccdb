@@ -60,7 +60,7 @@ void ccdb::ccdb::get_log()
     using ConstItrType = decltype(logPullerNoFilter)::const_iterator;
     using ScopeType = std::pair<ConstItrType /* begin */, ConstItrType /* end */>;
     auto before = std::chrono::system_clock::now() - std::chrono::seconds(2);
-    std::vector<std::vector<std::string>> value_frame;
+    std::vector < std::vector < std::string > > table_vals;
 
     continuous_table < log_frame_t, ConstItrType, ScopeType >
     (
@@ -171,15 +171,15 @@ void ccdb::ccdb::get_log()
         [&pause_log_update](const auto *) { pause_log_update = !pause_log_update; },
         [](const auto *) {},
         [&]->StringScopeType { return {log_titles.begin(), log_titles.end()}; },
-        [&value_frame](const ScopeType & logs)->PrintTableValScopeType
+        [&table_vals](const ScopeType & logs)->PrintTableValScopeType
         {
-            value_frame.clear();
-            value_frame.reserve(logs.second - logs.first);
+            table_vals.clear();
+            table_vals.reserve(logs.second - logs.first);
             std::for_each(logs.first, logs.second, [&](const log_frame_t & log) {
-                value_frame.emplace_back(std::vector {log[0], log[1], log[2]});
+                table_vals.emplace_back(std::vector{log[0], log[1], log[2]});
             });
 
-            return {value_frame.begin(), value_frame.end()};
+            return {table_vals.begin(), table_vals.end()};
         },
         [](session_compliment_data_t *){});
 }

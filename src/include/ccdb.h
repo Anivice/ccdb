@@ -57,7 +57,7 @@ namespace ccdb
         int leading_offset = 0; // if the screen cannot fit the whole table, table will be shifted these characters to the right
         std::atomic_int * max_leading_offset_ptr = nullptr; // Set by print_table, tells user I can only shift these many characters max
         bool using_pager = false; // Should I use pager? If so, all the above shifting parameters will be ignored
-        std::string additional_info_before_table; // Additional info to print before the table content
+        const std::string & additional_info_before_table; // Additional info to print before the table content
         int skip_lines = 0; // Skip this many lines and shift table downward when screen is too small to fit all the content
         std::atomic_int * max_skip_lines_ptr = nullptr;
 
@@ -73,7 +73,7 @@ namespace ccdb
         std::atomic_bool * show_search = nullptr; // Show search blue box?
         ccdb_atomic_t < std::u32string > * search_line_boxContent = nullptr; // Content shown inside search line
         std::atomic_int * cursor_position_in_search_box = nullptr; // Cursor position in search box, offset to the content
-        std::string highlight_str; // Highlight this string
+        const std::string & highlight_str; // Highlight this string
         ColumnAlignmentScopeType column_alignment; // alignments for columns
         int line_size = 0;
         int col_size = 0;

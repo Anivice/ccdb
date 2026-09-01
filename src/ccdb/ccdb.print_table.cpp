@@ -120,7 +120,7 @@ static int while_remove_begin(std::basic_string<charTrait> & str, const int pref
     for (const auto c : str)
     {
         const auto len = UnicodeDisplayWidth::get_width(c);
-        width_list.push_back(len);
+        width_list.emplace_back(len);
         total_len += len;
     }
 
@@ -280,7 +280,7 @@ namespace ccdb {
                 std::string buff;
                 std::istringstream ss(str);
                 while (std::getline(ss, buff)) {
-                    vec.push_back(buff);
+                    vec.emplace_back(buff);
                 }
 
                 std::stringstream ss2;
@@ -369,7 +369,7 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
         tsl::hopscotch_map < std::string /* table keys */, uint32_t /* longest value in this column */ > size_map;
         for (auto key = table_keys.first; key != table_keys.second; ++key) {
             const int key_width = UnicodeDisplayWidth::get_width(*key);
-            key_screen_widths.push_back(key_width);
+            key_screen_widths.emplace_back(key_width);
             size_map[*key] = key_width;
         }
 
@@ -392,7 +392,7 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
         std::vector<uint32_t> column_widths;
         column_widths.reserve(table_keys_size);
         for (auto key = table_keys.first; key < table_keys.second; ++key) {
-            column_widths.push_back(size_map[*key]);
+            column_widths.emplace_back(size_map[*key]);
         }
 
         std::string title_line;
@@ -473,7 +473,7 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
                     std::vector<int> line_widths; line_widths.reserve(line_.size());
                     for (const auto c : line) {
                         const auto len = UnicodeDisplayWidth::get_width(c);
-                        line_widths.push_back(len);
+                        line_widths.emplace_back(len);
                         total_size_ += len;
                     }
 
@@ -526,7 +526,7 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
                     std::vector<int> line_widths; line_widths.reserve(line_.size());
                     for (const auto c : line) {
                         const auto len = UnicodeDisplayWidth::get_width(c);
-                        line_widths.push_back(len);
+                        line_widths.emplace_back(len);
                         total_size_ += len;
                     }
 
