@@ -55,6 +55,16 @@ void ccdb::ccdb::get_log()
         return skip;
     };
 
+    const auto error_color = color::color(5,0,0);
+    const auto warning_color = color::color(5,5,0);
+    const auto debug_tun_color = color::color24(173,241,252);
+    const auto debug_health_check_color = color::color24(64,64,64);
+    const auto debug_rule_color = color::color24(206,162,212);
+    const auto debug_process_color = color::color24(124,130,217);
+    const auto debug_tcp_color = color::color24(5,170,204);
+    const auto debug_dns_color = color::color24(232,170,99);
+    const auto debug_color = color::color(0,5,0);
+
     using log_frame_t = std::vector < std::string >;
     bool pause_log_update = false;
     using ConstItrType = decltype(logPullerNoFilter)::const_iterator;
@@ -128,8 +138,10 @@ void ccdb::ccdb::get_log()
         },
         [](message_type_t, const log_frame_t &)->std::string { return {}; },
         [](const log_frame_t & log)->std::string { return log.at(3); },
-        [&color_line_override_cache](const ScopeType & logs, const uint64_t offset)->OverrideColorType
+        [&](const ScopeType & logs, const uint64_t offset)->OverrideColorType
         {
+            enum color_cache_type_t : int { ERROR_ = 1, WARNING_, DEBUG_TUN_,
+                DEBUG_HEALTH_, DEBUG_RULE_, DEBUG_PROCESS_, DEBUG_TCP_, DEBUG_DNS_, DEBUG_OTHERS_, INFO_ };
             OverrideColorType line_color_overrides;
             for (auto it = logs.first; it != logs.second; ++it)
             {
@@ -137,12 +149,20 @@ void ccdb::ccdb::get_log()
                 if (!it->empty())
                 {
                     const auto & hash = (*it)[3];
-                    if (const auto cache_ = color_line_override_cache.find(hash); cache_ != color_line_override_cache.end()) {
-                        switch (cache_->second) {
-                            case 0: continue; // skip
-                            case 1: line_color_overrides[offset + cur_off] = color::color(5,0,0); continue;
-                            case 2: line_color_overrides[offset + cur_off] = color::color(0,5,0); continue;
-                            case 3: line_color_overrides[offset + cur_off] = color::color(5,5,0); continue;
+                    if (const auto cache_ = color_line_override_cache.find(hash); cache_ != color_line_override_cache.end())
+                    {
+                        switch (cache_->second)
+                        {
+                            case INFO_: continue; // skip
+                            case ERROR_:         line_color_overrides[offset + cur_off] = error_color;              continue;
+                            case DEBUG_OTHERS_:  line_color_overrides[offset + cur_off] = debug_color;              continue;
+                            case WARNING_:       line_color_overrides[offset + cur_off] = warning_color;            continue;
+                            case DEBUG_TUN_:     line_color_overrides[offset + cur_off] = debug_tun_color;          continue;
+                            case DEBUG_HEALTH_:  line_color_overrides[offset + cur_off] = debug_health_check_color; continue;
+                            case DEBUG_RULE_:    line_color_overrides[offset + cur_off] = debug_rule_color;         continue;
+                            case DEBUG_PROCESS_: line_color_overrides[offset + cur_off] = debug_process_color;      continue;
+                            case DEBUG_TCP_:     line_color_overrides[offset + cur_off] = debug_tcp_color;          continue;
+                            case DEBUG_DNS_:     line_color_overrides[offset + cur_off] = debug_dns_color;          continue;
                             default: break;
                         }
                     }
@@ -152,16 +172,38 @@ void ccdb::ccdb::get_log()
                     }
 
                     if (const auto & level = (*it)[1]; level == "ERROR") {
-                        line_color_overrides[offset + cur_off] = color::color(5,0,0);
-                        color_line_override_cache.emplace(hash, 1);
-                    } else if (level == "DEBUG") {
-                        line_color_overrides[offset + cur_off] = color::color(0,5,0);
-                        color_line_override_cache.emplace(hash, 2);
+                        line_color_overrides[offset + cur_off] = error_color;
+                        color_line_override_cache.emplace(hash, ERROR_);
                     } else if (level == "WARNING") {
-                        line_color_overrides[offset + cur_off] = color::color(5,5,0);
-                        color_line_override_cache.emplace(hash, 3);
+                        line_color_overrides[offset + cur_off] = warning_color;
+                        color_line_override_cache.emplace(hash, WARNING_);
+                    } else if (level == "DEBUG") {
+                        std::string content = (*it)[2];
+                        std::ranges::transform(content, content.begin(), ::toupper);
+                        if ( content.contains("[TUN]")) {
+                            line_color_overrides[offset + cur_off] = debug_tun_color;
+                            color_line_override_cache.emplace(hash, DEBUG_TUN_);
+                        } else if (content.contains("HEALTH CHECK")) {
+                            line_color_overrides[offset + cur_off] = debug_health_check_color;
+                            color_line_override_cache.emplace(hash, DEBUG_HEALTH_);
+                        }  else if (content.contains("[RULE]")) {
+                            line_color_overrides[offset + cur_off] = debug_rule_color;
+                            color_line_override_cache.emplace(hash, DEBUG_RULE_);
+                        }  else if (content.contains("[PROCESS]")) {
+                            line_color_overrides[offset + cur_off] = debug_process_color;
+                            color_line_override_cache.emplace(hash, DEBUG_PROCESS_);
+                        } else if (content.contains("[TCP]")) {
+                            line_color_overrides[offset + cur_off] = debug_tcp_color;
+                            color_line_override_cache.emplace(hash, DEBUG_TCP_);
+                        } else if (content.contains("[DNS]")) {
+                            line_color_overrides[offset + cur_off] = debug_dns_color;
+                            color_line_override_cache.emplace(hash, DEBUG_DNS_);
+                        } else {
+                            line_color_overrides[offset + cur_off] = debug_color;
+                            color_line_override_cache.emplace(hash, DEBUG_OTHERS_);
+                        }
                     } else {
-                        color_line_override_cache.emplace(hash, 0);
+                        color_line_override_cache.emplace(hash, INFO_);
                     }
                 }
             }

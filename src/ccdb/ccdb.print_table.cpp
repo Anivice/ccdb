@@ -91,20 +91,60 @@ static std::string highlight(const std::string & str,
         });
 }
 
+static bool REVERT_TO_BACKGROUND = ccdb::utils::getenv("CCDB_REVERT_TO_BACKGROUND") == "true";
 static std::string color_sim(const int particle, const int overall)
 {
     using namespace ccdb::color;
     const double ratio_ref = static_cast<double>(particle) / static_cast<double>(overall);
     const auto [red, green, blue] =
         sim::simulation_rainbow(sim::Span * ratio_ref + sim::Begin);
-    auto color_line = bg_color24(static_cast<int>(std::round(red)),
-        static_cast<int>(std::round(green)), static_cast<int>(std::round(blue)));
-    if (constexpr double gate = static_cast<double>(255) / 3 * 2;
-        green > gate || (blue > gate && red > gate))
+    auto color_line = REVERT_TO_BACKGROUND ?
+        bg_color24(static_cast<int>(std::round(red)), static_cast<int>(std::round(green)), static_cast<int>(std::round(blue))) :
+        color24(static_cast<int>(std::round(red)), static_cast<int>(std::round(green)), static_cast<int>(std::round(blue)));
+
+    constexpr double gate = static_cast<double>(255) / 3 * 2;
+    if (REVERT_TO_BACKGROUND)
     {
-        color_line += color(0,0,0);
-    } else {
-        color_line += color(5,5,5);
+        if (green > gate || (blue > gate && red > gate)) {
+            color_line += color(0,0,0);
+        } else {
+            color_line += color(5,5,5);
+        }
+    }
+    else
+    {
+        static int SPECIFIED_BACKGROUND_R = -1;
+        static int SPECIFIED_BACKGROUND_G = -1;
+        static int SPECIFIED_BACKGROUND_B = -1;
+        if (SPECIFIED_BACKGROUND_R == -1)
+        {
+            if (const auto SPECIFIED_BACKGROUND_RGB = ccdb::utils::getenv("SPECIFIED_BACKGROUND_RGB");
+                !SPECIFIED_BACKGROUND_RGB.empty())
+            {
+                try {
+                    const auto begin = SPECIFIED_BACKGROUND_RGB.find_first_of(';');
+                    const auto end = SPECIFIED_BACKGROUND_RGB.find_last_of(';');
+                    const auto SPECIFIED_BACKGROUND_R_ = SPECIFIED_BACKGROUND_RGB.substr(0, begin);
+                    const auto SPECIFIED_BACKGROUND_G_ = SPECIFIED_BACKGROUND_RGB.substr(begin + 1, end - (begin + 1));
+                    const auto SPECIFIED_BACKGROUND_B_ = SPECIFIED_BACKGROUND_RGB.substr(end + 1);
+                    SPECIFIED_BACKGROUND_R = convertToNumber<decltype(SPECIFIED_BACKGROUND_R)>(SPECIFIED_BACKGROUND_R_);
+                    SPECIFIED_BACKGROUND_G = convertToNumber<decltype(SPECIFIED_BACKGROUND_G)>(SPECIFIED_BACKGROUND_G_);
+                    SPECIFIED_BACKGROUND_B = convertToNumber<decltype(SPECIFIED_BACKGROUND_B)>(SPECIFIED_BACKGROUND_B_);
+                } catch (...) {
+                    SPECIFIED_BACKGROUND_R = 32;
+                    SPECIFIED_BACKGROUND_G = 32;
+                    SPECIFIED_BACKGROUND_B = 32;
+                }
+            }
+            else
+            {
+                SPECIFIED_BACKGROUND_R = 32;
+                SPECIFIED_BACKGROUND_G = 32;
+                SPECIFIED_BACKGROUND_B = 32;
+            }
+        }
+
+        color_line += bg_color24(SPECIFIED_BACKGROUND_R,SPECIFIED_BACKGROUND_G,SPECIFIED_BACKGROUND_B);
     }
 
     return color_line;
@@ -774,7 +814,6 @@ void ccdb::ccdb::simple_print_table_to_ostream(std::vector<std::string> const &t
     less.clear();
     std::vector < bool > hide;
     std::vector < int > alignment;
-    const auto [line,col] = get_screen_row_col();
     print_table({
         .table_keys = {table_titles.begin(), table_titles.end()},
         .table_values = {table_values.begin(), table_values.end()},
@@ -794,8 +833,8 @@ void ccdb::ccdb::simple_print_table_to_ostream(std::vector<std::string> const &t
         .cursor_position_in_search_box = nullptr,
         .highlight_str = "",
         .column_alignment = {alignment.begin(), alignment.end()},
-        .line_size = line,
-        .col_size = col
+        .line_size = 20,
+        .col_size = 20
     });
     less = less_bak;
 }
@@ -815,7 +854,6 @@ void ccdb::ccdb::simple_print_table_w_pager(
 {
     std::vector < bool > hide;
     std::vector < int > alignment;
-    const auto [line,col] = get_screen_row_col();
     print_table({
         .table_keys = {table_titles.begin(), table_titles.end()},
         .table_values = {table_values.begin(), table_values.end()},
@@ -835,7 +873,7 @@ void ccdb::ccdb::simple_print_table_w_pager(
         .cursor_position_in_search_box = nullptr,
         .highlight_str = "",
         .column_alignment = {alignment.begin(), alignment.end()},
-        .line_size = line,
-        .col_size = col
+        .line_size = 20,
+        .col_size = 20
     });
 }
