@@ -48,25 +48,6 @@ namespace utils = ccdb::utils;
 
 namespace
 {
-    long mem_total_kb()
-    {
-        FILE *fp = fopen("/proc/meminfo", "r");
-        if (!fp)
-            return -1;
-
-        char line[256];
-        long total = -1;
-
-        while (fgets(line, sizeof(line), fp)) {
-            if (strncmp(line, "MemTotal:", 9) == 0) {
-                total = utils::convertToNumber<decltype(total)>(line + 9);
-                break;
-            }
-        }
-        fclose(fp);
-        return total;  // -1 if not found
-    }
-
     utils::PreDefinedArgumentType::PreDefinedArgument MainArgument =
     {
         { .short_name = 'h', .long_name = "help",       .argument_required = false, .description = utils::get_text("Show help") },
@@ -220,6 +201,26 @@ namespace
         ccdb::init_crash_report.flatSymbolicTable_Size_literal = ccdb::init_crash_report.flatSymbolicTable.size();
     }
 
+    std::string addr2line(const std::string & path, const std::string & name)
+    {
+        for (int i = 0; i < 5; i++)
+        {
+            std::string exec = "addr2line --demangle -f -p -a -e \"";
+            exec += path;
+            exec +=  "\" ";
+            exec += name;
+            if (auto addr2line_res = utils::exec_command2("/bin/sh", "", "-c", exec);
+                addr2line_res.exit_status == 0)
+            {
+                while (!addr2line_res.fd_stdout.empty() && addr2line_res.fd_stdout.back() == '\n')
+                    addr2line_res.fd_stdout.pop_back();
+                return addr2line_res.fd_stdout;
+            }
+        }
+
+        return { };
+    }
+
     void runFeedBacktrace()
     {
         if (ccdb::init_crash_report.flatSymbolicTable.empty() ||
@@ -271,39 +272,23 @@ namespace
                 return false;
             });
 
-        std::map<uint64_t, std::string> backtraces_lines;
-        std::mutex mutex;
-        std::vector<std::thread> threads;
-
-        auto addr2line = [](const std::string & path, const std::string & name)->std::string
-        {
-            for (int i = 0; i < 5; i++)
-            {
-                auto addr2line_res = utils::exec_command2("/bin/sh", "", "-c",
-                                      "addr2line --demangle -f -p -a -e \"" + path + "\" " + name);
-                if (addr2line_res.exit_status == 0)
-                {
-                    while (!addr2line_res.fd_stdout.empty() && addr2line_res.fd_stdout.back() == '\n')
-                        addr2line_res.fd_stdout.pop_back();
-                    return addr2line_res.fd_stdout;
-                }
-            }
-
-            return { };
-        };
-
+        std::map <uint64_t, std::string> backtraces_lines;
         for (const auto & [tid, vec] : backtraces)
         {
-            utils::print("================ THREAD (", tid, ") ================\n");
-            for (uint64_t i_ = 0; i_ < vec.size(); i_++)
+            utils::print("\n================ THREAD (", tid, ") ================\n");
+            for (uint64_t i = 0; i < vec.size(); i++)
             {
-                if (vec[i_].second.find("landmark") != std::string::npos) break;
-                threads.emplace_back([&](const uint64_t i)
+                if (vec[i].second.find("landmark") != std::string::npos) break;
                 {
                     const thread_local std::regex has_external_lib_reg(R"(0x[0-9|A-F]+ \#(.*)\: (0x[0-9|A-F]+))");
                     const int64_t frame = static_cast<int64_t>(vec[i].first) - offset;
-                    const auto * sym_name = ccdb::GetBacktrace(ccdb::init_crash_report.flatSymbolicTable.data(),
-                        ccdb::init_crash_report.flatSymbolicTable.size(), frame);
+                    const ccdb::init_crash_report_t::flatSymbolicTable_t * sym_name = nullptr;
+                    if (frame >= 0)
+                    {
+                        sym_name = ccdb::GetBacktrace(ccdb::init_crash_report.flatSymbolicTable.data(),
+                           ccdb::init_crash_report.flatSymbolicTable.size(), frame);
+                    }
+
                     if (sym_name)
                     {
                         std::string info;
@@ -321,7 +306,6 @@ namespace
                         }
 
                         const auto line = utils::sprint("  #", std::setw(6), std::setfill('0'), std::dec, i, " -> ", info, "\n");
-                        std::lock_guard<std::mutex> guard(mutex);
                         backtraces_lines.emplace(i, line);
                     }
                     else if (std::smatch sm; result && std::regex_search(vec[i].second, sm, has_external_lib_reg))
@@ -330,29 +314,14 @@ namespace
                         const auto & libAddr = sm[2].str();
                         if (const auto info = addr2line(libPath, libAddr); !info.empty()) {
                             const auto line = utils::sprint("  #", std::setw(6), std::setfill('0'), std::dec, i, " -> ", info, "\n");
-                            std::lock_guard<std::mutex> guard(mutex);
                             backtraces_lines.emplace(i, line);
                         } else {
-                            std::lock_guard<std::mutex> guard(mutex);
                             backtraces_lines.emplace(i, vec[i].second);
                         }
                     }
-                }, i_);
-
-                if ((i_ + 1) % std::min(
-                    static_cast<int>(std::thread::hardware_concurrency()),
-                    static_cast<int>(static_cast<double>(mem_total_kb()) / (1024 * 1024 * 3.5))) == 0) // addr2line consumes at peak 3.5 GB per process
-                {
-                    std::ranges::for_each(threads, [](std::thread & T)
-                    {
-                        if (T.joinable())
-                            T.join();
-                    });
-                    threads.clear();
                 }
             }
 
-            std::ranges::for_each(threads, [](std::thread & T){ if (T.joinable()) T.join(); });
             const auto lines = backtraces_lines | std::views::values;
             std::ranges::for_each(lines, [](const auto & s) {
                 std::cout << s << std::endl;
