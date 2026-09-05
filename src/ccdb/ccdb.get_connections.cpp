@@ -170,7 +170,6 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     bool sorted_already = false;
     auto before = std::chrono::system_clock::now() - std::chrono::seconds(2);
     std::vector < std::vector < std::string > > table_vals;
-    bool sort_reverse_local = sort_reverse;
 
     continuous_table <connection_frame_t, std::vector<connection_frame_t>::const_iterator, ScopeType>
     (
@@ -319,9 +318,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 *data_->sort_by_from_watcher = -1;
             }
 
-            if (sort_by_local != sort_by_final || sort_reverse != sort_reverse_local) sorted_already = false;
+            if (sort_by_local != sort_by_final || sort_reverse != reverse_sort_local) sorted_already = false;
             sort_by_local = sort_by_final;
-            sort_reverse_local = sort_reverse;
             sort_by = sort_by_final;
 #ifdef __DEBUG__
             ++total;
@@ -379,7 +377,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     }
                 }
             }
-            else {
+            else
+            {
 #ifdef __DEBUG__
                 ++skip;
 #endif
@@ -428,10 +427,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 sorted_already = true; // skip sort if no updates
                 pad_host(connections_filtered);
                 pad_src(connections_filtered);
-            }
 
-            if (!pause_update || (pause_update && (sort_by_local != sort_by || reverse_sort_local != sort_reverse)))
-            {
                 if (sort_reverse)
                 {
                     std::ranges::reverse(connections_filtered);
