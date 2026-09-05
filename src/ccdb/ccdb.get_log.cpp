@@ -71,6 +71,7 @@ void ccdb::ccdb::get_log()
     using ScopeType = std::pair<ConstItrType /* begin */, ConstItrType /* end */>;
     auto before = std::chrono::system_clock::now() - std::chrono::seconds(2);
     std::vector < std::vector < std::string > > table_vals;
+    std::vector<std::string> log_titles_ {log_titles.begin(), log_titles.end()};
 
     continuous_table < log_frame_t, ConstItrType, ScopeType >
     (
@@ -212,7 +213,9 @@ void ccdb::ccdb::get_log()
         },
         [&pause_log_update](const auto *) { pause_log_update = !pause_log_update; },
         [](const auto *) {},
-        [&]->StringScopeType { return {log_titles.begin(), log_titles.end()}; },
+        [&]->StringScopeType {
+            return {log_titles_.begin(), log_titles_.end()};
+        },
         [&table_vals](const ScopeType & logs)->PrintTableValScopeType
         {
             table_vals.clear();

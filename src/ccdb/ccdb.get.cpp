@@ -214,8 +214,8 @@ void ccdb::ccdb::get_latency()
 
     update_providers();
     const auto str = simple_print_table_to_std_string(titles_lat, table_vals);
-    if (const auto NonColorStr = strip_color(str); get_col_size() < NonColorStr.find_first_of('\n'))
-        pager(str);
+    // if (const auto NonColorStr = strip_color(str); get_col_size() < NonColorStr.find_first_of('\n'))
+        // pager(str);
     std::cout << "\n" << str << std::endl;
 }
 
@@ -935,12 +935,12 @@ void ccdb::ccdb::map_proxy_chain()
     });
 
     const auto str = simple_print_table_to_std_string(title, table);
-    const auto nonColored = strip_color(str);
-    if (const auto line_len = UnicodeDisplayWidth::get_width(nonColored.substr(0, nonColored.find_first_of('\n')));
-        line_len > get_col_size())
-    {
-        pager(str);
-    }
+    // const auto nonColored = strip_color(str);
+    // if (const auto line_len = UnicodeDisplayWidth::get_width(nonColored.substr(0, nonColored.find_first_of('\n')));
+        // line_len > get_col_size())
+    // {
+        // pager(str);
+    // }
 
     std::cout << str << std::endl;
 }
@@ -948,6 +948,6 @@ void ccdb::ccdb::map_proxy_chain()
 void ccdb::ccdb::ccdbrc()
 {
     static const std::string ccdbrc = ccdb_utils_unpack_string(::ccdbrc);
-    pager(ccdbrc);
+    // pager(ccdbrc);
     std::cout << ccdbrc << std::endl;
 }

@@ -210,11 +210,11 @@ namespace ccdb
             utils::get_text("Chains"),       // 11
         };
 
-        const std::vector<std::string> log_titles = {
+        const std::array<std::string, 3> log_titles = {
             utils::get_text("Time"), utils::get_text("Level"), utils::get_text("Log")
         };
 
-        const std::vector<std::string> chat_titles = {
+        const std::array<std::string, 3> chat_titles = {
             utils::get_text("Time"), utils::get_text("User"), utils::get_text("Message")
         };
 
@@ -457,7 +457,7 @@ namespace ccdb
             bool skip_frame;
         };
 
-        template < typename ContainerType, typename ConstantIteratorType, typename ScopeType > // = std::pair<ConstantIteratorType, ConstantIteratorType> >
+        template < typename ContainerType, typename ConstantIteratorType, typename ScopeType >
         requires (std::is_same_v<ScopeType, std::pair<ConstantIteratorType, ConstantIteratorType>> && Iterator<ConstantIteratorType>)
         void continuous_table(bool banner, const std::vector < bool > & do_col_hide,
             const std::vector<int> & alignment,

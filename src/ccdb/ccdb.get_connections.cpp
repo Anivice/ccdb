@@ -171,7 +171,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     auto before = std::chrono::system_clock::now() - std::chrono::seconds(2);
     std::vector < std::vector < std::string > > table_vals;
 
-    continuous_table <connection_frame_t, std::vector<connection_frame_t>::const_iterator, ScopeType>
+    continuous_table <connection_frame_t, std::vector<connection_frame_t>::const_iterator, ScopeType >
     (
         true,
         do_col_hide,
