@@ -77,6 +77,7 @@ generate_from_resource_file(langJSON "${CMAKE_BINARY_DIR}/lang.json" lang.json.c
 generate_from_resource_file(LICENSE "${CMAKE_SOURCE_DIR}/../LICENSE" LICENSE.cpp LICENSE.h LICENSE false)
 generate_from_resource_file(img_8f87efc1c0d8fc8c "${CMAKE_SOURCE_DIR}/../img/8f87efc1c0d8fc8c.png" img_8f87efc1c0d8fc8c.cpp img_8f87efc1c0d8fc8c.h img_8f87efc1c0d8fc8c false)
 generate_from_resource_file(ccdbrc "${CMAKE_SOURCE_DIR}/../ccdbrc.example" ccdbrc.cpp ccdbrc.h ccdbrc false)
+generate_from_resource_file(default_color_scheme_txt  "${CMAKE_SOURCE_DIR}/default_color_scheme.txt" default_color_scheme.cpp default_color_scheme.h default_color_scheme false)
 
 add_custom_command(
         OUTPUT "${CMAKE_BINARY_DIR}/lang.json"
@@ -183,7 +184,7 @@ add_library(ccdb SHARED
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
 target_compile_definitions(ccdb PRIVATE CCDB_VERSION="${CCDB_VERSION}" CPPHTTPLIB_OPENSSL_SUPPORT)
 target_link_libraries(ccdb PRIVATE
-        AddiHelp langJSON commandReadline LICENSE Zterminfotar tar.exe ccdbrc
+        AddiHelp langJSON commandReadline LICENSE Zterminfotar tar.exe ccdbrc default_color_scheme_txt
         openssl::openssl libpsl::libpsl icu4c::icu4c
         re2::re2 maxmind::libmaxmind
 )

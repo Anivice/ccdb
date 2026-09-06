@@ -40,6 +40,7 @@
 #include "LICENSE.h"
 #include "Readline.h"
 #include "versions.h"
+#include "default_color_scheme.h"
 
 extern unsigned char debugInfo[] ;
 extern unsigned int debugInfo_len ;
@@ -426,6 +427,14 @@ extern "C"
 __attribute__((visibility("default")))
 int main_(int argc, char ** argv)
 {
+    if (const auto dest = utils::getenv("HOME") + "/.ccdbrc"; !std::filesystem::exists(dest)) {
+        if (std::ofstream ofile(dest, std::ios::trunc); ofile.good()) {
+            const auto result = utils::decompress({default_color_scheme, default_color_scheme + default_color_scheme_len});
+            ofile.write(reinterpret_cast<const char*>(result.data()), static_cast<std::streamsize>(result.size()));
+            ofile.close();
+        }
+    }
+
     try
     {
         std::string token;

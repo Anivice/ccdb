@@ -286,7 +286,7 @@ std::string ccdb::utils::second_to_human_readable(unsigned long long value)
 
 std::u32string ccdb::utils::utf8_to_u32(const std::string &s)
 {
-    static thread_local tsl::hopscotch_map <std::string, std::u32string> cache;
+    thread_local tsl::hopscotch_map <std::string, std::u32string> cache;
     if (const auto it = cache.find(s); it != cache.end()) {
         return it->second;
     }

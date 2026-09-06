@@ -201,11 +201,20 @@ namespace ccdb::utils
         template < typename charType > requires (std::is_same_v<charType, char> || std::is_same_v<charType, char32_t>)
         static int get_width(const std::basic_string<charType> & str)
         {
-            if constexpr (std::is_same_v<charType, char>) {
-                return get_width_utf8(str);
-            } else {
-                return get_width_utf32(str);
+            thread_local tsl::hopscotch_map < std::basic_string<charType>, int > cache_;
+            if (const auto it = cache_.find(str); it != cache_.end()) {
+                return it->second;
             }
+
+            int result;
+            if constexpr (std::is_same_v<charType, char>) {
+                result = get_width_utf8(str);
+            } else {
+                result = get_width_utf32(str);
+            }
+            if (cache_.size() > 16 * 1024) cache_.clear();
+            cache_.emplace(str, result);
+            return result;
         }
 
         static int get_width(const char32_t c) {
