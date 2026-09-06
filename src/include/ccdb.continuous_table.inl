@@ -334,7 +334,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
         {
             auto content_on_cur_page = make_screen_vector_frame(content.first, content.second, contentSize,
                                                                 current_skip_lines, line_size, start_line, window_frame_size);
-            if (mouse_y > start_line && (mouse_y - start_line) <= window_frame_size)
+            if ((mouse_x > 1) && (mouse_y > start_line && (mouse_y - start_line) <= window_frame_size))
             {
                 // refocus
                 auto target = content_on_cur_page.first;
@@ -537,6 +537,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
             lock_to_max = true;
         }
 
+        int message_box_width = 0;
         const auto frame_string = print_table(print_table_context_t{
             .table_keys = {title_begin, title_end},
             .table_values = {values_begin, values_end},
@@ -557,7 +558,8 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
             .highlight_str = search_content,
             .column_alignment = {alignment.begin(), alignment.end()},
             .line_size = line_size,
-            .col_size = col_size
+            .col_size = col_size,
+            .message_box_width_ = &message_box_width
         });
 
         if (const bool i_dont_print = (/*skip_due_to_lock || */skip_due_to_shrink); !i_dont_print)
@@ -620,13 +622,21 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                     window_size_change = false;
                 }
 
-                if (mouse_y_ == line_size - 1) {
-                    leading_spaces_ = (int)std::round((double)mouse_x_ / (double)col_size * col_size);
-                    if (leading_spaces_ > max_leading_spaces_) leading_spaces_ = max_leading_spaces_.load();
+                if (mouse_y_ == line_size - 1 && mouse_x_ > 1) {
+                    const int ll_max_leading_spaces_ = max_leading_spaces_;
+                    leading_spaces_ = static_cast<int>(std::round(static_cast<double>(mouse_x_ - message_box_width) /
+                        static_cast<double>(col_size - message_box_width) * ll_max_leading_spaces_));
+                    if (leading_spaces_ > ll_max_leading_spaces_) leading_spaces_ = ll_max_leading_spaces_;
+                    if (leading_spaces_ < 0) leading_spaces_ = 0;
+                    mouse_y_ = -1;
                 }
 
-                if (mouse_x_ == 0) {
-                    current_skip_lines_ = (int)std::round((double)mouse_y_ / (double)line_size * line_size);
+                if (mouse_x_ == 1) {
+                    const int ll_max_skip_lines = max_skip_lines_;
+                    current_skip_lines_ = static_cast<int>(std::round(static_cast<double>(mouse_y_ - 1) / static_cast<double>(line_size - 1) * ll_max_skip_lines));
+                    if (current_skip_lines_ > ll_max_skip_lines) current_skip_lines_ = ll_max_skip_lines;
+                    if (current_skip_lines_ < 0) current_skip_lines_ = 0;
+                    mouse_x_ = -1;
                 }
 
                 if (leading_spaces_ != local_leading_spaces && leading_spaces_ < max_leading_spaces_) {

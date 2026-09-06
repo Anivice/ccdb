@@ -77,6 +77,8 @@ namespace ccdb
         ColumnAlignmentScopeType column_alignment; // alignments for columns
         int line_size = 0;
         int col_size = 0;
+
+        int * message_box_width_ = nullptr;
     };
 
     template <

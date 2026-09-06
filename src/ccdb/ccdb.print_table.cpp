@@ -241,7 +241,7 @@ namespace ccdb {
                         utf8_to_u32(color::no_color());
                 }
 
-                const auto highlight = position < content.length() ? static_cast<signed long long int>(content[position]) : 0;
+                const auto highlight = position < content.size() ? static_cast<signed long long int>(content[position]) : 0;
                 const auto content_width_scan = scan_display_widths(content);
                 int before_width = 0;
                 for (std::size_t i = 0; i < before.size(); ++i) {
@@ -386,7 +386,7 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
     const auto & [ table_keys, table_values, table_hide, leading_offset_, max_leading_offset_ptr, using_pager,
         additional_info_before_table_, skip_lines_, max_skip_lines_ptr, enforce_no_pager, color_code_overrides,
         highlight_screen_line, out, show_search, search_line_boxContent, cursor_position_in_search_box, highlight_str,
-        column_alignment, line_size, col_size ] = context;
+        column_alignment, line_size, col_size, message_box_width_ ] = context;
     uint64_t leading_offset = leading_offset_;
     std::string additional_info_before_table = additional_info_before_table_;
     int skip_lines = skip_lines_;
@@ -706,6 +706,7 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
                 << "/" << leading_offset << "/" << max_leading_offset << "/"
                 << (max_leading_offset == 0 ? 1 : static_cast<double>(leading_offset) / static_cast<double>(max_leading_offset)) * 100 << "%";
             const std::string ssa_str = ssa.str();
+            if (message_box_width_) *message_box_width_ = static_cast<int>(ssa_str.size());
 
             if (color::is_no_color() && YES_HIGHLIGHTER_LINE_COLOR_CODE) {
                 color::g_color_status_override = 0;
@@ -721,7 +722,7 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
                 color::g_color_status_override = -1;
             }
 
-            const auto lZ = col - static_cast<int>(ssa_str.length());
+            const auto lZ = col - static_cast<int>(ssa_str.size());
             frame << color::no_color();
 
             if (show_search && !*show_search) {
