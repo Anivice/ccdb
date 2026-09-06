@@ -122,6 +122,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
         bool skip_due_to_shrink = false;
         int focus_line = -1;
         const auto mouse_y = mouse_y_.load();
+        const auto mouse_x = mouse_x_.load();
         const auto kill_connection = kill_connection_.load();
         auto focus_to_highlight = focus_to_highlight_.load();
         const auto conn_show_detail = conn_show_detail_.load();
@@ -131,6 +132,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
         const auto max_leading_spaces = max_leading_spaces_.load();
 
         mouse_y_ = -1;
+        mouse_x_ = -1;
         kill_connection_ = false;
         focus_to_highlight_ = false;
         conn_show_detail_ = false;
@@ -570,6 +572,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
         int local_leading_spaces = leading_spaces;
         int local_skip_lines = current_skip_lines;
         const int local_mouse_y = mouse_y;
+        const int local_mouse_x = mouse_x;
         const bool local_focus_status = focus_to_highlight;
         const bool local_kill_status = kill_connection;
         const bool local_show_detail = conn_show_detail;
@@ -589,6 +592,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                 || local_leading_spaces != leading_spaces_
                 || local_skip_lines != current_skip_lines_
                 || local_mouse_y != mouse_y_
+                || local_mouse_x != mouse_x_
                 || window_size_change
                 || local_focus_status != focus_to_highlight_
                 || local_kill_status != kill_connection_
@@ -614,6 +618,15 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                         .clear = true,
                     });
                     window_size_change = false;
+                }
+
+                if (mouse_y_ == line_size - 1) {
+                    leading_spaces_ = (int)std::round((double)mouse_x_ / (double)col_size * col_size);
+                    if (leading_spaces_ > max_leading_spaces_) leading_spaces_ = max_leading_spaces_.load();
+                }
+
+                if (mouse_x_ == 0) {
+                    current_skip_lines_ = (int)std::round((double)mouse_y_ / (double)line_size * line_size);
                 }
 
                 if (leading_spaces_ != local_leading_spaces && leading_spaces_ < max_leading_spaces_) {

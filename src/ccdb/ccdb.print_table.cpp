@@ -150,26 +150,51 @@ static std::string color_sim(const int particle, const int overall)
     return color_line;
 }
 
+namespace {
+    struct display_width_scan_t
+    {
+        std::vector<int> widths;
+        int total = 0;
+    };
+}
+
 template < typename charTrait >
-static int while_remove_begin(std::basic_string<charTrait> & str, const int preferred_len)
+static display_width_scan_t scan_display_widths(const std::basic_string<charTrait> & str)
 {
-    if (str.empty()) return 0;
-    std::vector<int> width_list;
-    width_list.reserve(str.size());
-    int total_len = 0, offset = 0;
+    display_width_scan_t ret;
+    ret.widths.reserve(str.size());
     for (const auto c : str)
     {
         const auto len = UnicodeDisplayWidth::get_width(c);
-        width_list.emplace_back(len);
-        total_len += len;
+        ret.widths.emplace_back(len);
+        ret.total += len;
     }
+    return ret;
+}
 
+template < typename charTrait >
+static int while_remove_begin(
+    std::basic_string<charTrait> & str,
+    const int preferred_len,
+    const std::vector<int> & width_list,
+    int total_len)
+{
+    if (str.empty()) return 0;
+    int offset = 0;
     while (total_len > preferred_len) {
         total_len -= width_list[offset++];
     }
 
     str = str.substr(offset);
     return total_len;
+}
+
+template < typename charTrait >
+static int while_remove_begin(std::basic_string<charTrait> & str, const int preferred_len)
+{
+    if (str.empty()) return 0;
+    const auto width_scan = scan_display_widths(str);
+    return while_remove_begin(str, preferred_len, width_scan.widths, width_scan.total);
 }
 
 namespace ccdb {
@@ -217,33 +242,42 @@ namespace ccdb {
                 }
 
                 const auto highlight = position < content.length() ? static_cast<signed long long int>(content[position]) : 0;
-                const auto after = highlight > 0 ? content.substr(position + 1) : std::u32string();
+                const auto content_width_scan = scan_display_widths(content);
+                int before_width = 0;
+                for (std::size_t i = 0; i < before.size(); ++i) {
+                    before_width += content_width_scan.widths[i];
+                }
 
                 // print the box:
-                if (UnicodeDisplayWidth::get_width(content) > (col_size_ - 1)) {
-                    while_remove_begin(before, col_size_ - 1);
+                if (content_width_scan.total > (col_size_ - 1)) {
+                    before_width = while_remove_begin(
+                        before, col_size_ - 1, content_width_scan.widths, before_width);
                 }
 
                 if (YES_HIGHLIGHTER_LINE_COLOR_CODE) {
                     color::g_color_status_override = 0;
                 }
 
-                int bf_len = UnicodeDisplayWidth::get_width(before) + 1;
+                int bf_len = before_width + 1;
                 before =
                     utf8_to_u32(color_scheme_) + before +
                     utf8_to_u32(color_line_hl_) +
                     std::u32string(1, highlight > 0 ? static_cast<wchar_t>(highlight) : cursor_) +
                     utf8_to_u32(color::no_color()) + utf8_to_u32(color_scheme_);
 
-                for (const auto ch : after)
+                if (highlight > 0)
                 {
-                    const int ch_width = UnicodeDisplayWidth::get_width(ch);
-                    if ((ch_width + bf_len) > col_size_) {
-                        break;
-                    }
+                    for (std::size_t i = static_cast<std::size_t>(position) + 1; i < content.size(); ++i)
+                    {
+                        const auto ch = content[i];
+                        const int ch_width = content_width_scan.widths[i];
+                        if ((ch_width + bf_len) > col_size_) {
+                            break;
+                        }
 
-                    before += ch;
-                    bf_len += ch_width;
+                        before += ch;
+                        bf_len += ch_width;
+                    }
                 }
 
                 before += std::u32string(std::max(col_size_ - bf_len, 0), ' ') + utf8_to_u32(color::no_color());
@@ -413,6 +447,9 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
             size_map[*key] = key_width;
         }
 
+        std::vector<uint32_t> value_screen_widths;
+        value_screen_widths.reserve(
+            static_cast<std::size_t>(table_vals_size) * static_cast<std::size_t>(table_keys_size));
         for (auto vals = table_values.first; vals < table_values.second; ++vals)
         {
             if (vals->size() != table_keys_size) return;
@@ -421,6 +458,7 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
             {
                 const auto & current_key = *(table_keys.first + index++);
                 const auto val_width = static_cast<uint32_t>(UnicodeDisplayWidth::get_width(val));
+                value_screen_widths.emplace_back(val_width);
                 if (auto & current_width = size_map[current_key]; current_width < val_width) {
                     current_width = val_width;
                 }
@@ -437,6 +475,7 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
 
         std::string title_line;
         std::string header_line;
+        int title_line_width = 0;
         {
             int index = 0;
             for (auto key = table_keys.first; key < table_keys.second; ++key)
@@ -456,12 +495,13 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
                     title_line.append(static_cast<std::size_t>(before), ' ');
                     title_line += *key;
                     title_line.append(static_cast<std::size_t>(after), ' ');
+                    title_line_width += 1 + before + key_screen_widths[index] + after;
                 }
 
                 {
                     const std::string index_str = std::to_string(index);
                     const int paddings =
-                        static_cast<int>(column_widths[index]) - UnicodeDisplayWidth::get_width(index_str) + 2;
+                        static_cast<int>(column_widths[index]) - static_cast<int>(index_str.size()) + 2;
                     const int before = std::max(paddings / 2, 1);
                     const int after = std::max(paddings - before, 1);
                     header_line.push_back('|');
@@ -474,8 +514,8 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
         }
         title_line.push_back('|');
         header_line.push_back('|');
+        ++title_line_width;
 
-        const int title_line_width = UnicodeDisplayWidth::get_width(title_line);
         std::string separation_line;
         if (title_line_width > 2) {
             separation_line = "+" + std::string(static_cast<std::size_t>(title_line_width - 2), '-') + "+";
@@ -507,97 +547,96 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
             auto line = utf8_to_u32(line_);
             if (max_leading_offset_ptr && !using_pager && !enforce_no_pager)
             {
+                auto line_width_scan = scan_display_widths(line);
+                auto & line_widths = line_width_scan.widths;
+                int total_size_ = line_width_scan.total;
+
                 // cut
+                if (leading_offset > 0 && total_size_ >= leading_offset)
                 {
-                    int total_size_ = 0;
-                    std::vector<int> line_widths; line_widths.reserve(line_.size());
-                    for (const auto c : line) {
-                        const auto len = UnicodeDisplayWidth::get_width(c);
-                        line_widths.emplace_back(len);
-                        total_size_ += len;
+                    const auto p_leading_offset = leading_offset + 1;
+                    int leads = 0;
+                    int len = 0;
+                    std::size_t erase_count = 0;
+
+                    while (erase_count < line.size())
+                    {
+                        len = line_widths[erase_count];
+                        leads += len;
+
+                        if (leads > p_leading_offset) {
+                            leads -= len;
+                            break;
+                        }
+
+                        ++erase_count;
                     }
 
-                    if (leading_offset > 0 && total_size_ >= leading_offset)
+                    // Preserve the original partial-wide-character handling, but
+                    // perform only one front erase instead of shifting the string
+                    // once per consumed code point.
+                    std::u32string leading_padding;
+                    if (leads < p_leading_offset) { // not enough leads
+                        ++erase_count;
+                        leading_padding = utf8_to_u32(
+                            std::string(leads + len - p_leading_offset, ' '));
+                    } else if (leads > p_leading_offset) { // more than enough
+                        leading_padding = utf8_to_u32(
+                            std::string(leads - p_leading_offset, ' '));
+                    }
+
+                    const auto tail_begin = std::min(erase_count, line_widths.size());
+                    line.erase(0, erase_count);
+                    line = utf8_to_u32("<") + leading_padding + line; // add color code here will mess up formation bc color codes occupies no spaces on screen
+
+                    std::vector<int> trimmed_widths;
+                    trimmed_widths.reserve(
+                        1 + leading_padding.size() + (line_widths.size() - tail_begin));
+                    trimmed_widths.emplace_back(1); // '<'
+                    trimmed_widths.insert(trimmed_widths.end(), leading_padding.size(), 1);
+
+                    total_size_ = 1 + static_cast<int>(leading_padding.size());
+                    for (std::size_t i = tail_begin; i < line_widths.size(); ++i)
                     {
-                        const auto p_leading_offset = leading_offset + 1;
-                        int leads = 0;
-                        int len = 0;
-                        std::size_t erase_count = 0;
+                        trimmed_widths.emplace_back(line_widths[i]);
+                        total_size_ += line_widths[i];
+                    }
+                    line_widths = std::move(trimmed_widths);
+                }
+                else if (leading_offset > 0)
+                {
+                    if (endl) frame << std::endl;
+                    printed_lines++;
+                    return;
+                }
 
-                        while (erase_count < line.size())
+                if (total_size_ > col)
+                {
+                    if (col > 1)
+                    {
+                        int p_size = 0, ap_size = 0;
+                        uint64_t i = 0;
+                        for (;i < line.size(); i++)
                         {
-                            len = line_widths[erase_count];
-                            leads += len;
-
-                            if (leads > p_leading_offset) {
-                                leads -= len;
+                            p_size += line_widths[i];
+                            if (p_size > (col - 1)) {
                                 break;
                             }
 
-                            ++erase_count;
+                            ap_size = p_size;
                         }
 
-                        // Preserve the original partial-wide-character handling, but
-                        // perform only one front erase instead of shifting the string
-                        // once per consumed code point.
-                        std::u32string leading_padding;
-                        if (leads < p_leading_offset) { // not enough leads
-                            ++erase_count;
-                            leading_padding = utf8_to_u32(
-                                std::string(leads + len - p_leading_offset, ' '));
-                        } else if (leads > p_leading_offset) { // more than enough
-                            leading_padding = utf8_to_u32(
-                                std::string(leads - p_leading_offset, ' '));
+                        std::string padding;
+                        if (ap_size < (col - 1)) {
+                            padding = std::string((col - 1) - ap_size, ' ');
                         }
 
-                        line.erase(0, erase_count);
-                        line = utf8_to_u32("<") + leading_padding + line; // add color code here will mess up formation bc color codes occupies no spaces on screen
+                        line = line.substr(0, i) + utf8_to_u32(padding) +
+                               utf8_to_u32(white_strip + ">" + color::no_color());
                     }
-                    else if (leading_offset > 0)
+                    else
                     {
-                        if (endl) frame << std::endl;
-                        printed_lines++;
-                        return;
-                    }
-                }
-
-                {
-                    int total_size_ = 0;
-                    std::vector<int> line_widths; line_widths.reserve(line_.size());
-                    for (const auto c : line) {
-                        const auto len = UnicodeDisplayWidth::get_width(c);
-                        line_widths.emplace_back(len);
-                        total_size_ += len;
-                    }
-
-                    if (total_size_ > col)
-                    {
-                        if (col > 1)
-                        {
-                            int p_size = 0, ap_size = 0;
-                            uint64_t i = 0;
-                            for (;i < line.size(); i++)
-                            {
-                                p_size += line_widths[i];
-                                if (p_size > (col - 1)) {
-                                    break;
-                                }
-
-                                ap_size = p_size;
-                            }
-
-                            std::string padding;
-                            if (ap_size < (col - 1)) {
-                                padding = std::string((col - 1) - ap_size, ' ');
-                            }
-
-                            line = line.substr(0, i) + utf8_to_u32(padding) +
-                                   utf8_to_u32(white_strip + ">" + color::no_color());
-                        }
-                        else
-                        {
-                            line = line.substr(0, col);
-                        }
+                        line = line.substr(0, col);
                     }
                 }
             }
@@ -733,6 +772,8 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
             }
 
             int index = 0;
+            const auto row_width_offset =
+                static_cast<std::size_t>(vals - table_values.first) * static_cast<std::size_t>(table_keys_size);
             std::string val_line;
             val_line.reserve(title_line.size());
 
@@ -746,7 +787,8 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
 
                 const int current_alignment =
                     column_alignment.second == column_alignment.first ? 0 /* left */ : *(column_alignment.first + index);
-                const int val_width = UnicodeDisplayWidth::get_width(val);
+                const int val_width = static_cast<int>(
+                    value_screen_widths[row_width_offset + static_cast<std::size_t>(index)]);
                 const int column_width = static_cast<int>(column_widths[index]);
                 ++index;
 
