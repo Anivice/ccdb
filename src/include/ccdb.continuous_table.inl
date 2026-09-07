@@ -633,7 +633,8 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
 
                 if (mouse_x_ == 1) {
                     const int ll_max_skip_lines = max_skip_lines_;
-                    current_skip_lines_ = static_cast<int>(std::round(static_cast<double>(mouse_y_) / static_cast<double>(line_size - 1) * ll_max_skip_lines));
+                    current_skip_lines_ = mouse_y_ == 1 ? 0 :
+                        static_cast<int>(std::round(static_cast<double>(mouse_y_) / static_cast<double>(line_size - 1) * ll_max_skip_lines));
                     if (current_skip_lines_ > ll_max_skip_lines) current_skip_lines_ = ll_max_skip_lines;
                     if (current_skip_lines_ < 0) current_skip_lines_ = 0;
                     mouse_x_ = -1;
