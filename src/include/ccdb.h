@@ -79,6 +79,16 @@ namespace ccdb
         int col_size = 0;
 
         int * message_box_width_ = nullptr;
+        struct width_context_t
+        {
+            std::vector<std::string> values;
+            std::vector<uint32_t> value_screen_widths;
+            std::vector<int> key_screen_widths;
+            std::vector<uint32_t> column_widths;
+            std::vector<int> line_widths;
+            std::vector<int> trimmed_line_widths;
+        };
+        width_context_t * width_context_ = nullptr;
     };
 
     template <

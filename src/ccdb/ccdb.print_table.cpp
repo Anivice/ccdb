@@ -159,16 +159,26 @@ namespace {
 }
 
 template < typename charTrait >
-static display_width_scan_t scan_display_widths(const std::basic_string<charTrait> & str)
+static int scan_display_widths(
+    const std::basic_string<charTrait> & str,
+    std::vector<int> & widths)
 {
-    display_width_scan_t ret;
-    ret.widths.reserve(str.size());
+    widths.clear();
+    widths.reserve(str.size());
+    int total = 0;
     for (const auto c : str)
     {
         const auto len = UnicodeDisplayWidth::get_width(c);
-        ret.widths.emplace_back(len);
-        ret.total += len;
+        widths.emplace_back(len);
+        total += len;
     }
+    return total;
+}
+template < typename charTrait >
+static display_width_scan_t scan_display_widths(const std::basic_string<charTrait> & str)
+{
+    display_width_scan_t ret;
+    ret.total = scan_display_widths(str, ret.widths);
     return ret;
 }
 
@@ -386,12 +396,14 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
     const auto & [ table_keys, table_values, table_hide, leading_offset_, max_leading_offset_ptr, using_pager,
         additional_info_before_table_, skip_lines_, max_skip_lines_ptr, enforce_no_pager, color_code_overrides,
         highlight_screen_line, out, show_search, search_line_boxContent, cursor_position_in_search_box, highlight_str,
-        column_alignment, line_size, col_size, message_box_width_ ] = context;
+        column_alignment, line_size, col_size, message_box_width_, width_context_ ] = context;
     uint64_t leading_offset = leading_offset_;
     std::string additional_info_before_table = additional_info_before_table_;
     int skip_lines = skip_lines_;
 
     std::string final_frame;
+    print_table_context_t::width_context_t local_width_context;
+    auto & width_context = width_context_ ? *width_context_ : local_width_context;
 
     [&]
     {
@@ -437,40 +449,75 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
         const auto table_hide_size = table_hide.second - table_hide.first;
         const bool table_hide_enabled = table_hide_size != 0 && table_hide_size == table_keys_size;
 
-        std::vector<int> key_screen_widths;
-        key_screen_widths.reserve(table_keys_size);
-
-        tsl::hopscotch_map < std::string /* table keys */, uint32_t /* longest value in this column */ > size_map;
-        for (auto key = table_keys.first; key != table_keys.second; ++key) {
+        const auto table_keys_size_ = static_cast<std::size_t>(table_keys_size);
+        const auto table_vals_size_ = static_cast<std::size_t>(table_vals_size);
+        auto & key_screen_widths = width_context.key_screen_widths;
+        auto & column_widths = width_context.column_widths;
+        key_screen_widths.resize(table_keys_size_);
+        column_widths.resize(table_keys_size_);
+        std::size_t key_index = 0;
+        for (auto key = table_keys.first; key != table_keys.second; ++key, ++key_index)
+        {
             const int key_width = UnicodeDisplayWidth::get_width(*key);
-            key_screen_widths.emplace_back(key_width);
-            size_map[*key] = key_width;
+            key_screen_widths[key_index] = key_width;
+            column_widths[key_index] = static_cast<uint32_t>(key_width);
         }
 
-        std::vector<uint32_t> value_screen_widths;
-        value_screen_widths.reserve(
-            static_cast<std::size_t>(table_vals_size) * static_cast<std::size_t>(table_keys_size));
+        const auto value_count = table_vals_size_ * table_keys_size_;
+        auto & value_screen_widths = width_context.value_screen_widths;
+        value_screen_widths.resize(value_count);
+        auto & cached_values = width_context.values;
+        if (width_context_) {
+            cached_values.resize(value_count);
+        }
+
+        std::size_t value_index = 0;
         for (auto vals = table_values.first; vals < table_values.second; ++vals)
         {
-            if (vals->size() != table_keys_size) return;
-            int index = 0;
+            if (vals->size() != table_keys_size_) return;
+            std::size_t index = 0;
             for (const auto & val : *vals)
             {
-                const auto & current_key = *(table_keys.first + index++);
-                const auto val_width = static_cast<uint32_t>(UnicodeDisplayWidth::get_width(val));
-                value_screen_widths.emplace_back(val_width);
-                if (auto & current_width = size_map[current_key]; current_width < val_width) {
+                uint32_t val_width = 0;
+                if (width_context_)
+                {
+                    auto & cached_value = cached_values[value_index];
+                    if (cached_value != val)
+                    {
+                        cached_value = val;
+                        value_screen_widths[value_index] =
+                            static_cast<uint32_t>(UnicodeDisplayWidth::get_width(val));
+                    }
+                    val_width = value_screen_widths[value_index];
+                }
+                else
+                {
+                    val_width = static_cast<uint32_t>(UnicodeDisplayWidth::get_width(val));
+                    value_screen_widths[value_index] = val_width;
+                }
+
+                if (auto & current_width = column_widths[index]; current_width < val_width) {
                     current_width = val_width;
                 }
+                ++index;
+                ++value_index;
             }
         }
 
         // Preserve the original key-based width semantics (including duplicate
         // table key names), but avoid hashing the key for every rendered cell.
-        std::vector<uint32_t> column_widths;
-        column_widths.reserve(table_keys_size);
-        for (auto key = table_keys.first; key < table_keys.second; ++key) {
-            column_widths.emplace_back(size_map[*key]);
+        for (std::size_t i = 0; i < table_keys_size_; ++i)
+        {
+            for (std::size_t j = i + 1; j < table_keys_size_; ++j)
+            {
+                if (*(table_keys.first + static_cast<std::ptrdiff_t>(i)) ==
+                    *(table_keys.first + static_cast<std::ptrdiff_t>(j)))
+                {
+                    const auto width = std::max(column_widths[i], column_widths[j]);
+                    column_widths[i] = width;
+                    column_widths[j] = width;
+                }
+            }
         }
 
         std::string title_line;
@@ -547,9 +594,8 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
             auto line = utf8_to_u32(line_);
             if (max_leading_offset_ptr && !using_pager && !enforce_no_pager)
             {
-                auto line_width_scan = scan_display_widths(line);
-                auto & line_widths = line_width_scan.widths;
-                int total_size_ = line_width_scan.total;
+                auto & line_widths = width_context.line_widths;
+                int total_size_ = scan_display_widths(line, line_widths);
 
                 // cut
                 if (leading_offset > 0 && total_size_ >= leading_offset)
@@ -589,7 +635,8 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
                     line.erase(0, erase_count);
                     line = utf8_to_u32("<") + leading_padding + line; // add color code here will mess up formation bc color codes occupies no spaces on screen
 
-                    std::vector<int> trimmed_widths;
+                    auto & trimmed_widths = width_context.trimmed_line_widths;
+                    trimmed_widths.clear();
                     trimmed_widths.reserve(
                         1 + leading_padding.size() + (line_widths.size() - tail_begin));
                     trimmed_widths.emplace_back(1); // '<'
@@ -601,7 +648,7 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
                         trimmed_widths.emplace_back(line_widths[i]);
                         total_size_ += line_widths[i];
                     }
-                    line_widths = std::move(trimmed_widths);
+                    line_widths.swap(trimmed_widths);
                 }
                 else if (leading_offset > 0)
                 {

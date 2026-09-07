@@ -33,7 +33,7 @@ void ccdb::ccdb::get_log()
 {
     tsl::hopscotch_map < std::string, int > color_line_override_cache;
     std::vector < bool > do_col_hide; do_col_hide.resize(log_titles.size(), false);
-    decltype(logPullerNoFilter) lines_local_incrimination;
+    std::vector<std::vector<std::string>> lines_local_incrimination;
     decltype(logPullerNoFilter) log_local_incrimination;
 
     std::string log_level_filter, log_content_filter;
@@ -70,7 +70,6 @@ void ccdb::ccdb::get_log()
     using ConstItrType = decltype(logPullerNoFilter)::const_iterator;
     using ScopeType = std::pair<ConstItrType /* begin */, ConstItrType /* end */>;
     auto before = std::chrono::system_clock::now() - std::chrono::seconds(2);
-    std::vector < std::vector < std::string > > table_vals;
     std::vector<std::string> log_titles_ {log_titles.begin(), log_titles.end()};
 
     continuous_table < log_frame_t, ConstItrType, ScopeType >
@@ -113,6 +112,7 @@ void ccdb::ccdb::get_log()
 
                 if (!new_logs.empty())
                 {
+                    std::ranges::reverse(lines_local_incrimination);
                     for (auto it = logPullerNoFilter.begin() + static_cast<ssize_t>(new_logs.size()) - 1;;--it)
                     {
                         const auto & level = (*it)[1];
@@ -120,7 +120,7 @@ void ccdb::ccdb::get_log()
                         const auto & log = (*it)[2];
 
                         if (!if_skip(level, log)) {
-                            lines_local_incrimination.emplace_front(std::vector{ time, level, log });
+                            lines_local_incrimination.emplace_back(std::vector{ time, level, log });
                             log_local_incrimination.emplace_front(*it);
                         }
 
@@ -128,6 +128,7 @@ void ccdb::ccdb::get_log()
                             break;
                         }
                     }
+                    std::ranges::reverse(lines_local_incrimination);
                 }
 
                 if (logPullerNoFilter.size() > max_log_size) logPullerNoFilter.resize(max_log_size);
@@ -216,15 +217,12 @@ void ccdb::ccdb::get_log()
         [&]->StringScopeType {
             return {log_titles_.begin(), log_titles_.end()};
         },
-        [&table_vals](const ScopeType & logs)->PrintTableValScopeType
+        [&](const ScopeType & logs)->PrintTableValScopeType
         {
-            table_vals.clear();
-            table_vals.reserve(logs.second - logs.first);
-            std::for_each(logs.first, logs.second, [&](const log_frame_t & log) {
-                table_vals.emplace_back(std::vector{log[0], log[1], log[2]});
-            });
-
-            return {table_vals.begin(), table_vals.end()};
+            return {
+                lines_local_incrimination.begin() + (logs.first - log_local_incrimination.begin()),
+                lines_local_incrimination.begin() + (logs.second - log_local_incrimination.begin())
+            };
         },
         [](session_compliment_data_t *){});
 }

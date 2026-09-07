@@ -58,6 +58,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
     uint64_t frame_index = 0;
     ccdb_atomic_t<frame_data_t> frame_data;
     frame_data.set({});
+    print_table_context_t::width_context_t width_context;
     int skip_lines_before = current_skip_lines_;
     auto watcher_ = watcher.make_status_watcher();
 
@@ -138,7 +139,6 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
         conn_show_detail_ = false;
         atm_focus_ = -1;
         search_focus_move_ = IDLE_STATE;
-        search_matches.clear();
         const auto [title_begin, title_end] = GetTitleForCurrentSession();
         const auto [values_begin, values_end] = GetTableValueForCurrentSession(content);
 
@@ -151,8 +151,19 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                 const bool matched = index < contentSize
                                          ? is_highlight_match(*(values_begin + index), search_content)
                                          : false;
-                search_matches.emplace_back(HashContent(*it), matched);
+                auto hash = HashContent(*it);
+                if (index < search_matches.size())
+                {
+                    auto & entry = search_matches[index];
+                    entry.first = std::move(hash);
+                    entry.second = matched;
+                }
+                else
+                {
+                    search_matches.emplace_back(std::move(hash), matched);
+                }
             }
+            search_matches.resize(index);
         }
 
         const int fr = line_size - start_line - 1 /* print_table do not use the last line */; // space without heads
@@ -559,7 +570,8 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
             .column_alignment = {alignment.begin(), alignment.end()},
             .line_size = line_size,
             .col_size = col_size,
-            .message_box_width_ = &message_box_width
+            .message_box_width_ = &message_box_width,
+            .width_context_ = &width_context
         });
 
         if (const bool i_dont_print = (/*skip_due_to_lock || */skip_due_to_shrink); !i_dont_print)
