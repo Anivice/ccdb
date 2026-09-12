@@ -1001,7 +1001,9 @@ void general_info_pulling::notify_all(const notifications_t& msg)
     }
 }
 
-general_info_pulling::general_info_pulling(const std::string& url, const std::string& token): backend_client(url, token)
+general_info_pulling::general_info_pulling(const std::string& url, const std::string& token,
+    const std::function<std::vector < std::vector < std::string > >()> & get_buffered_logs_):
+backend_client(url, token), get_buffered_logs(get_buffered_logs_)
 {
     const auto CCDB_SYNC_ADDRESS_BIND_TO = ccdb::utils::getenv("CCDB_SYNC_ADDRESS_BIND_TO");
 
@@ -1071,38 +1073,18 @@ general_info_pulling::general_info_pulling(const std::string& url, const std::st
                 {
                     if (const nlohmann::json json = json::parse(str); json.contains("payload"))
                     {
-                        if (const auto payload = std::string(json["payload"]); payload == "Switch loglevel")
+                        if (const auto payload = std::string(json["payload"]);
+                            payload == "Switch loglevel")
                         {
-                            const auto loglevel = std::string(json["loglevel"]);
-                            nlohmann::json log = {
-                                    {"type", "info"},
-                                    {"payload",
-                                        "Loglevel is changed by a CCDB within the local network! "
-                                        "Restarting CCDB general info puller... (loglevel=" + loglevel + ")"},
-                            };
-                            update_from_logs(log.dump());
-                            stop_continuous_updates();
-                            start_continuous_updates();
+                            switch_loglevel(json);
                         }
-                        else if (payload == "generic messages")
-                        {
-                            const nlohmann::json log = {
-                                    {"type", "info"},
-                                    // remove control codes from online clients
-                                    {"payload", ccdb::utils::strip_color(std::string(json["content"])) },
-                            };
-                            update_from_logs(log.dump());
+                        else if (payload == "generic messages") {
+                            generic_messages(json);
                         }
-                        else if (payload == "chat message")
-                        {
-                            const auto message = ccdb::utils::strip_color(std::string(json["content"]));
-                            const auto user = ccdb::utils::strip_color(std::string(json["user"]));
-                            const nlohmann::json chatMessage = {
-                                    { "message", message },
-                                    { "user", user },
-                                    { "time", ::ccdb::utils::getTimeNow() },
-                            };
-                            chat.push(chatMessage.dump());
+                        else if (payload == "chat message") {
+                            chat_message(json);
+                        } else if (payload == "log synchronization notification") {
+                            log_synchronization_notification(json);
                         }
                     }
                 }
@@ -1293,7 +1275,8 @@ void general_info_pulling::update_from_logs(const std::string& info)
     try
     {
         json data = json::parse(info);
-        std::string type = data["type"], payload = data["payload"];
+        std::string type = data["type"];
+        const std::string payload = data["payload"];
         std::ranges::transform(type, type.begin(), ::toupper);
 
         std::lock_guard lock(logs_mutex);
@@ -1341,6 +1324,116 @@ void general_info_pulling::update_from_memory(const std::string& info)
         current_memory_in_use_by_mihomo.store(inuse, std::memory_order_relaxed);
         // current_memory_limit_by_mihomo = oslimit;
     } catch (...) { }
+}
+
+void general_info_pulling::switch_loglevel(const nlohmann::json & json)
+{
+    const auto loglevel = std::string(json["loglevel"]);
+    const nlohmann::json log = {
+        {"type", "info"},
+        {"payload",
+            "Loglevel is changed by a CCDB within the local network! "
+            "Restarting CCDB general info puller... (loglevel=" + loglevel + ")"},
+    };
+    update_from_logs(log.dump());
+    stop_continuous_updates();
+    start_continuous_updates();
+}
+
+void general_info_pulling::generic_messages(const nlohmann::json & json)
+{
+    const auto message = ccdb::utils::strip_color(std::string(json["content"]));
+    const nlohmann::json log = {
+        {"type", "info"},
+        // remove control codes from online clients
+        {"payload", message },
+    };
+
+    update_from_logs(log.dump());
+    if (message == "New CCDB client joined the network.")
+    {
+        nlohmann::json sync_json = nlohmann::json::array();
+        auto logs = get_logs();
+        auto buffers = get_buffered_logs(); // buffers are always reversedco
+        logs.insert(logs.begin(), buffers.begin(), buffers.end());
+        for ( const auto & c : logs) {
+            if (c.size() < 3) continue;
+            nlohmann::json sync_log = { c[0], c[1], c[2] }; // only sync time, level, and content
+            sync_json.push_back(sync_log.dump());
+        }
+
+        const nlohmann::json sync_logs = {
+            {"payload", "log synchronization notification"},
+            {"content", sync_json.dump() },
+        };
+
+        sendNotification(sync_logs);
+    }
+}
+
+static uint64_t to_unix_seconds(const std::string& s)
+{
+    using namespace std::chrono;
+    sys_time<nanoseconds> tp{};
+    std::istringstream ss(s);
+    ss >> parse("%Y-%m-%d %H:%M:%S", tp);
+    if (ss.fail()) throw std::runtime_error("bad timestamp: " + s);
+    return static_cast<uint64_t>(
+        duration_cast<seconds>(tp.time_since_epoch()).count());
+}
+
+void general_info_pulling::log_synchronization_notification(const nlohmann::json & json)
+{
+    const auto message = nlohmann::json::parse(ccdb::utils::strip_color(std::string(json["content"])));
+    std::vector<std::vector<std::string>> new_logs;
+    for (const auto & it : message) {
+        std::vector<std::string> log;
+        for (const auto & ij : nlohmann::json::parse(it.get<std::string>())) {
+            log.emplace_back(ij.get<std::string>());
+        }
+        new_logs.emplace_back(log);
+    }
+
+    std::vector<std::string> last_entry;
+    {
+        std::lock_guard<std::mutex> lock(logs_mutex);
+        last_entry = logs.front();
+    }
+
+    std::ranges::reverse(new_logs);
+
+    const auto oldest_entry_time = to_unix_seconds(last_entry.front());
+    for (auto & log : new_logs) // order: latest to oldest
+    {
+        if (log.size() < 3) continue;
+        if (const auto entry_time = to_unix_seconds(log.front());
+            entry_time > oldest_entry_time) // entry_time newer than oldest_entry_time
+        {
+            continue;
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(logs_mutex);
+            const auto hash_checksum = get_checksum(log);
+            log.emplace_back(hash_checksum);
+            logs.emplace_front(log); // the front is older, and should be older
+            // auto delete will attempt to remove front, which is, in order
+        }
+    }
+}
+
+void general_info_pulling::chat_message(const nlohmann::json & json)
+{
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
+    const auto message = ccdb::utils::strip_color(std::string(json["content"]));
+    const auto user = ccdb::utils::strip_color(std::string(json["user"]));
+    const nlohmann::json chatMessage = {
+        { "message", message },
+        { "user", user },
+        { "time", ::ccdb::utils::getTimeNow() },
+    };
+    chat.push(chatMessage.dump());
+#endif //__YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
 }
 
 void general_info_pulling::pull_continuous_updates()

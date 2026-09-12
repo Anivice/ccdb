@@ -297,7 +297,8 @@ private:
 #endif//__YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
 
 public:
-    general_info_pulling(const std::string & url, const std::string& token);
+    general_info_pulling(const std::string & url, const std::string& token,
+        const std::function<std::vector < std::vector < std::string > >()> &);
     ~general_info_pulling();
     const mihomo & backend_client_ref = backend_client;
 
@@ -314,6 +315,12 @@ protected:
     void update_from_logs(const std::string& info);
     void update_from_memory(const std::string& info);
 
+    void switch_loglevel(const nlohmann::json &);
+    void generic_messages(const nlohmann::json &);
+    void log_synchronization_notification(const nlohmann::json &);
+    void chat_message(const nlohmann::json &);
+
+    std::function<std::vector < std::vector < std::string > >()> get_buffered_logs;
 public:
     using proxy_info_summary_t = std::pair < decltype(proxy_groups), tsl::hopscotch_map < std::string /* proxy name */, int /* latency in ms */ > /* proxy_latency */ >;
     [[nodiscard]] uint64_t get_current_upload_speed() const { return current_upload_speed.load(); }
@@ -347,8 +354,9 @@ public:
 
     std::atomic < uint64_t > current_memory_in_use_by_mihomo = 0;
     // std::atomic < uint64_t > current_memory_limit_by_mihomo = 0;
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
     ccdb::NotificationType<std::string> chat;
-
+#endif //__YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
     void get_memory_pprof(const std::string & name, std::vector < char > & profiles);
 };
 

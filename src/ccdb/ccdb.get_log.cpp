@@ -82,6 +82,7 @@ void ccdb::ccdb::get_log()
                 !pause_log_update && std::chrono::duration_cast<std::chrono::seconds>(now - before).count() > 1)
             {
                 before = now;
+                std::lock_guard lock(logPullerNoFilter_mtx);
                 if (lines_local_incrimination.empty() && !logPullerNoFilter.empty())
                 {
                     std::ranges::for_each(logPullerNoFilter,

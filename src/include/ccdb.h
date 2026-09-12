@@ -252,6 +252,7 @@ namespace ccdb
         std::string external_puller_command;
         int external_puller_command_time_out_ms = 10000;
         std::deque < std::vector<std::string> > logPullerNoFilter;
+        std::mutex logPullerNoFilter_mtx;
         enum log_level_t : uint8_t { ERROR = 1, DEBUG, WARNING, };
         using handler_t = std::function<bool(const std::vector<std::string> &)>;
         RegexDispatcher<handler_t> commandMatchesRegexCompiled;
