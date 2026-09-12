@@ -1418,22 +1418,34 @@ void general_info_pulling::log_synchronization_notification(const nlohmann::json
     std::vector<std::string> last_entry;
     {
         std::lock_guard<std::mutex> lock(logs_mutex);
-        last_entry = logs.front();
+        if (!logs.empty()) last_entry = logs.front();
+    }
+
+    if (last_entry.empty()) {
+        if (const auto log_ = get_buffered_logs(); !log_.empty()) last_entry = log_.front();
+    }
+
+    uint64_t oldest_entry_time = to_unix_seconds(ccdb::utils::getTimeNow());
+    if (!last_entry.empty()) {
+        oldest_entry_time = to_unix_seconds(last_entry.front());
     }
 
     std::ranges::reverse(new_logs);
 
-    const auto oldest_entry_time = to_unix_seconds(last_entry.front());
+
     std::lock_guard<std::mutex> lock(logs_mutex);
+    bool begin = false;
     for (auto & log : new_logs) // order: latest to oldest
     {
         if (log.size() < 3) continue;
-        if (const auto entry_time = to_unix_seconds(log.front());
-            entry_time > oldest_entry_time) // entry_time newer than oldest_entry_time
-        {
-            continue;
-        }
+        if (!begin)
+            if (const auto entry_time = to_unix_seconds(log.front());
+                entry_time > oldest_entry_time) // entry_time newer than oldest_entry_time
+            {
+                continue;
+            }
 
+        begin = true;
         const auto hash_checksum = get_checksum(log);
         log.emplace_back(hash_checksum);
         logs.emplace_front(log); // the front is older, and should be older

@@ -187,6 +187,7 @@ std::string ccdb::utils::getTimeNow()
     oss << std::put_time(&now_tm, "%Y-%m-%d %H:%M:%S") << '.' << std::setfill('0') << std::setw(9) << ms.count();
     return oss.str();
 #else
-    return std::format("{:%Y-%m-%d %H:%M:%S}", std::chrono::high_resolution_clock::now());
+    std::chrono::zoned_time local{ std::chrono::current_zone(), std::chrono::system_clock::now() };
+    return std::format("{:%Y-%m-%d %H:%M:%S}", local);
 #endif
 }
