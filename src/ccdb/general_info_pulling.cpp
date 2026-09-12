@@ -1424,6 +1424,7 @@ void general_info_pulling::log_synchronization_notification(const nlohmann::json
     std::ranges::reverse(new_logs);
 
     const auto oldest_entry_time = to_unix_seconds(last_entry.front());
+    std::lock_guard<std::mutex> lock(logs_mutex);
     for (auto & log : new_logs) // order: latest to oldest
     {
         if (log.size() < 3) continue;
@@ -1433,13 +1434,10 @@ void general_info_pulling::log_synchronization_notification(const nlohmann::json
             continue;
         }
 
-        {
-            std::lock_guard<std::mutex> lock(logs_mutex);
-            const auto hash_checksum = get_checksum(log);
-            log.emplace_back(hash_checksum);
-            logs.emplace_front(log); // the front is older, and should be older
-            // auto delete will attempt to remove front, which is, in order
-        }
+        const auto hash_checksum = get_checksum(log);
+        log.emplace_back(hash_checksum);
+        logs.emplace_front(log); // the front is older, and should be older
+        // auto delete will attempt to remove front, which is, in order
     }
 }
 
