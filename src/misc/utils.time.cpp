@@ -57,9 +57,7 @@ int dec4(std::string_view s, std::size_t p)
 //
 //     2026-09-12T11:23:46.676218741+08:00
 //
-std::string
-format_time_rfc3339_local(
-    std::chrono::system_clock::time_point tp)
+std::string format_time_rfc3339_local(const std::chrono::system_clock::time_point tp)
 {
     using namespace std::chrono;
 
@@ -193,8 +191,7 @@ format_time_rfc3339_local(
 
 } // namespace
 
-unsigned long long
-ccdb::utils::get_time(const std::string& input)
+unsigned long long ccdb::utils::get_time(const std::string& input)
 {
     using namespace std::chrono;
 
@@ -456,21 +453,15 @@ ccdb::utils::get_time(const std::string& input)
             "in uint64 nanoseconds");
     }
 
-    return sec_u * billion + frac_ns;
+    return (sec_u * billion + frac_ns) / 1000000000ULL;
 }
 
 
-std::string
-ccdb::utils::format_time_local(
-    const std::chrono::system_clock::time_point tp)
-{
+std::string ccdb::utils::format_time_local(const std::chrono::system_clock::time_point tp) {
     return format_time_rfc3339_local(tp);
 }
 
 
-std::string
-ccdb::utils::getTimeNow()
-{
-    return format_time_rfc3339_local(
-        std::chrono::system_clock::now());
+std::string ccdb::utils::getTimeNow() {
+    return format_time_rfc3339_local(std::chrono::system_clock::now());
 }
