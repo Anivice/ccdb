@@ -1373,6 +1373,7 @@ void general_info_pulling::generic_messages(const nlohmann::json & json)
 
 static uint64_t to_unix_seconds(const std::string& s)
 {
+#if __cplusplus > 202302
     using namespace std::chrono;
     sys_time<nanoseconds> tp{};
     std::istringstream ss(s);
@@ -1380,6 +1381,26 @@ static uint64_t to_unix_seconds(const std::string& s)
     if (ss.fail()) throw std::runtime_error("bad timestamp: " + s);
     return static_cast<uint64_t>(
         duration_cast<seconds>(tp.time_since_epoch()).count());
+#else
+    int y, mo, d, h, mi, se;
+    if (std::sscanf(s.c_str(), "%d-%d-%d %d:%d:%d",
+                    &y, &mo, &d, &h, &mi, &se) != 6)
+    {
+        throw std::runtime_error("bad timestamp: " + s);
+    }
+
+    std::tm tm{};
+    tm.tm_year = y - 1900;
+    tm.tm_mon  = mo - 1;
+    tm.tm_mday = d;
+    tm.tm_hour = h;
+    tm.tm_min  = mi;
+    tm.tm_sec  = se;
+
+    // POSIX: timegm treats tm as UTC.
+    std::time_t t = timegm(&tm);
+    return static_cast<uint64_t>(t);
+#endif
 }
 
 void general_info_pulling::log_synchronization_notification(const nlohmann::json & json)
