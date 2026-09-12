@@ -123,14 +123,6 @@ namespace ccdb::utils
         return get_screen_row_col().first;
     }
 
-    /// Return current UNIX timestamp
-    /// @return Current UNIX timestamp
-    uint64_t get_timestamp() noexcept;
-
-    /// Return current timespec
-    /// @return Current timespec
-    timespec get_timespec() noexcept;
-
     /// Converts a numerical value to a human-readable string with scaled units.
     /// This function scales down the input `value` by repeatedly dividing by `p` (e.g., 1024 for binary prefixes)
     /// until the result is less than `p` or the end of the unit list is reached.
@@ -403,7 +395,7 @@ namespace ccdb::utils
     std::string unpack_string(const unsigned char str[], unsigned int len);
 
     /// Mihomo backend time string to UNIX timestamp
-    unsigned long long get_time(std::string time);
+    unsigned long long get_time(const std::string &);
 
     std::string getTimeNow();
 

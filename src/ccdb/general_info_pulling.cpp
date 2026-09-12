@@ -1371,38 +1371,6 @@ void general_info_pulling::generic_messages(const nlohmann::json & json)
     }
 }
 
-static uint64_t to_unix_seconds(const std::string& s)
-{
-#if __cplusplus > 202302
-    using namespace std::chrono;
-    sys_time<nanoseconds> tp{};
-    std::istringstream ss(s);
-    ss >> parse("%Y-%m-%d %H:%M:%S", tp);
-    if (ss.fail()) throw std::runtime_error("bad timestamp: " + s);
-    return static_cast<uint64_t>(
-        duration_cast<seconds>(tp.time_since_epoch()).count());
-#else
-    int y, mo, d, h, mi, se;
-    if (std::sscanf(s.c_str(), "%d-%d-%d %d:%d:%d",
-                    &y, &mo, &d, &h, &mi, &se) != 6)
-    {
-        throw std::runtime_error("bad timestamp: " + s);
-    }
-
-    std::tm tm{};
-    tm.tm_year = y - 1900;
-    tm.tm_mon  = mo - 1;
-    tm.tm_mday = d;
-    tm.tm_hour = h;
-    tm.tm_min  = mi;
-    tm.tm_sec  = se;
-
-    // POSIX: timegm treats tm as UTC.
-    std::time_t t = timegm(&tm);
-    return static_cast<uint64_t>(t);
-#endif
-}
-
 void general_info_pulling::log_synchronization_notification(const nlohmann::json & json)
 {
     const auto message = nlohmann::json::parse(ccdb::utils::strip_color(std::string(json["content"])));
@@ -1425,9 +1393,9 @@ void general_info_pulling::log_synchronization_notification(const nlohmann::json
         if (const auto log_ = get_buffered_logs(); !log_.empty()) last_entry = log_.front();
     }
 
-    uint64_t oldest_entry_time = to_unix_seconds(ccdb::utils::getTimeNow());
+    uint64_t oldest_entry_time = ccdb::utils::get_time(ccdb::utils::getTimeNow());
     if (!last_entry.empty()) {
-        oldest_entry_time = to_unix_seconds(last_entry.front());
+        oldest_entry_time = ccdb::utils::get_time(last_entry.front());
     }
 
     std::ranges::reverse(new_logs);
@@ -1439,7 +1407,7 @@ void general_info_pulling::log_synchronization_notification(const nlohmann::json
     {
         if (log.size() < 3) continue;
         if (!begin)
-            if (const auto entry_time = to_unix_seconds(log.front());
+            if (const auto entry_time = ccdb::utils::get_time(log.front());
                 entry_time > oldest_entry_time) // entry_time newer than oldest_entry_time
             {
                 continue;
