@@ -1289,7 +1289,7 @@ void general_info_pulling::update_from_logs(const std::string& info)
 
         std::lock_guard lock(logs_mutex);
         while (logs.size() >= max_log_size) {
-            logs.erase(logs.begin());
+            logs.pop_front();
         }
 
         std::vector line { ::ccdb::utils::getTimeNow(), type, payload };
@@ -1971,26 +1971,29 @@ void general_info_pulling::receiveNotification(std::vector<uint8_t> & data)
             uint64_t packName_cur, pack_cur;
             std::memcpy(&packName_cur, &notification->header.packName, sizeof(packName_cur));
             std::memcpy(&pack_cur, &notification->header.sequence, sizeof(pack_cur));
-            SessionNotifications[packName_cur].emplace(pack_cur, *notification);
+            auto & map = SessionNotifications[packName_cur];
+            map.emplace(pack_cur, *notification);
 
             if (puller_logLevel.get() == "debug")
             {
                 uint64_t overall_size;
                 std::memcpy(&overall_size, &notification->header.overall_sequence_size, sizeof(overall_size));
-                const double pct = static_cast<double>(pack_cur) / static_cast<double>(overall_size);
-                if (const int bucket = static_cast<int>(pct * 10); buckets[packName_cur] != bucket)
+                const double pct = static_cast<double>(map.size()) / static_cast<double>(overall_size);
+                auto & last_bucket = buckets[packName_cur];
+                if (const int bucket = static_cast<int>(pct * 10);
+                    last_bucket != bucket)
                 {
                     const nlohmann::json json =
                     {
                         {"type", "debug"},
                         {"payload", ccdb::utils::sprint("Sync pack ", std::hex, packName_cur, ", #", std::dec,
-                            pack_cur, " of ", std::dec, overall_size, ", ",
-                            static_cast<double>(pack_cur) / static_cast<double>(overall_size) * 100, "%")
+                            map.size(), " of ", std::dec, overall_size, ", ",
+                            static_cast<double>(map.size()) / static_cast<double>(overall_size) * 100, "%")
                         }
                     };
 
                     update_from_logs(json.dump());
-                    buckets[packName_cur] = bucket;
+                    last_bucket = bucket;
                 }
             }
         }
