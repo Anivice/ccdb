@@ -304,6 +304,8 @@ private:
 #endif
     < uint64_t, std::map<uint64_t, notifications_t, std::less<>> > SessionNotifications;
 
+    std::map < uint64_t, int > buckets;
+
 public:
     general_info_pulling(const std::string & url, const std::string& token,
         const std::function<std::vector < std::vector < std::string > >()> &);

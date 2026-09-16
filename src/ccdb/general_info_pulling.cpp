@@ -1972,6 +1972,27 @@ void general_info_pulling::receiveNotification(std::vector<uint8_t> & data)
             std::memcpy(&packName_cur, &notification->header.packName, sizeof(packName_cur));
             std::memcpy(&pack_cur, &notification->header.sequence, sizeof(pack_cur));
             SessionNotifications[packName_cur].emplace(pack_cur, *notification);
+
+            if (puller_logLevel.get() == "debug")
+            {
+                uint64_t overall_size;
+                std::memcpy(&overall_size, &notification->header.overall_sequence_size, sizeof(overall_size));
+                const double pct = static_cast<double>(pack_cur) / static_cast<double>(overall_size);
+                if (const int bucket = static_cast<int>(pct * 10); buckets[packName_cur] != bucket)
+                {
+                    const nlohmann::json json =
+                    {
+                        {"type", "debug"},
+                        {"payload", ccdb::utils::sprint("Sync pack ", std::hex, packName_cur, ", #", std::dec,
+                            pack_cur, " of ", std::dec, overall_size, ", ",
+                            static_cast<double>(pack_cur) / static_cast<double>(overall_size) * 100, "%")
+                        }
+                    };
+
+                    update_from_logs(json.dump());
+                    buckets[packName_cur] = bucket;
+                }
+            }
         }
 
         for (const auto & pack_ordered_map : SessionNotifications | std::views::values)
@@ -1992,6 +2013,7 @@ void general_info_pulling::receiveNotification(std::vector<uint8_t> & data)
                     uint64_t packName;
                     std::memcpy(&packName, &header.packName, sizeof(packName));
                     SessionNotifications.erase(packName);
+                    if (const auto it = buckets.find(packName); it != buckets.end()) buckets.erase(it);
                     return;
                 }
             }
