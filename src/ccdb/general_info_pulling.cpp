@@ -1963,48 +1963,36 @@ void general_info_pulling::sendNotification(const std::vector<uint8_t> & data)
 
 void general_info_pulling::receiveNotification(std::vector<uint8_t> & data)
 {
-    std::map<uint64_t, notifications_t, std::less<>> SessionNotifications;
+    data.clear();
     std::optional<notifications_t> notification;
-    uint64_t packName { }; bool init = false;
-    uint64_t packSize { };
-    do
+    while (alive && ((notification = notifications.wait_for(1000))) )
     {
-        notification = notifications.wait_for(1000);
-        if (notification)
         {
-            uint64_t packname_cur, packSize_cur, pack_cur;
-            std::memcpy(&packname_cur, &notification->header.packName, sizeof(packName));
-            std::memcpy(&packSize_cur, &notification->header.overall_sequence_size, sizeof(packSize));
+            uint64_t packname_cur, pack_cur;
+            std::memcpy(&packname_cur, &notification->header.packName, sizeof(packname_cur));
             std::memcpy(&pack_cur, &notification->header.sequence, sizeof(pack_cur));
-
-            if (!init)
-            {
-                init = true;
-                packName = packname_cur;
-                packSize = packSize_cur;
-                SessionNotifications.emplace(pack_cur, *notification);
-            }
-            else if (packName == packname_cur)
-            {
-                SessionNotifications.emplace(pack_cur, *notification);
-            }
-            else
-            {
-                notifications.push(*notification); // put it back
-            }
-
+            SessionNotifications[packname_cur].emplace(pack_cur, *notification);
         }
-    } while (notification && SessionNotifications.size() < packSize);
 
-    // repack all data
-    if (packSize > 0 && SessionNotifications.size() == packSize)
-    {
-        data.clear();
-        data.reserve(packSize * sizeof(general_info_pulling::notifications_t::body));
-        for (const auto & [header_, body_] : SessionNotifications | std::views::values)
+        for (const auto & pack_ordered_map : SessionNotifications | std::views::values)
         {
-            data.resize(data.size() + header_.size);
-            std::memcpy(data.data() + data.size() - header_.size, &body_.data, header_.size);
+            uint64_t overall_size = 0;
+            if (!pack_ordered_map.empty()) {
+                std::memcpy(&overall_size, &pack_ordered_map.begin()->second.header.overall_sequence_size, sizeof(overall_size));
+                if (overall_size == pack_ordered_map.size())
+                {
+                    data.reserve(overall_size * sizeof(notifications_t::body));
+                    for (const auto & [header_, body_] : pack_ordered_map | std::views::values) {
+                        data.resize(data.size() + header_.size);
+                        std::memcpy(data.data() + data.size() - header_.size, &body_.data, header_.size);
+                    }
+                    // ERASE:
+                    uint64_t packname;
+                    std::memcpy(&packname, &notification->header.packName, sizeof(packname));
+                    SessionNotifications.erase(packname);
+                    return;
+                }
+            }
         }
     }
 }

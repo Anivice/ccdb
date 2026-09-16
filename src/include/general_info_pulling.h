@@ -297,6 +297,13 @@ private:
     tsl::hopscotch_map < std::string, std::vector<std::string> > dns_lookup_cache_;
 #endif//__YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
 
+#ifndef __DEBUG__
+    tsl::hopscotch_map
+#else
+    std::map
+#endif
+    < uint64_t, std::map<uint64_t, notifications_t, std::less<>> > SessionNotifications;
+
 public:
     general_info_pulling(const std::string & url, const std::string& token,
         const std::function<std::vector < std::vector < std::string > >()> &);
