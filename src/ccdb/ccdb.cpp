@@ -915,7 +915,7 @@ void ccdb::ccdb::init()
     commandMatches.emplace_back("get rules", [this](const auto &) { get_rules(); return true; });
     commandMatches.emplace_back("get providerRules", [this](const auto &) { get_providerRules(); return true; });
 
-    commandMatches.emplace_back(R"(upgrade (self|geo|providerRules|core))", [this](const auto &command_vector) {
+    commandMatches.emplace_back(R"(upgrade (self|geo|providerRules|(core(?: (release|alpha))?)))", [this](const auto &command_vector) {
         upgrade(command_vector); return true;
     });
 

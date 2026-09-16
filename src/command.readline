@@ -129,7 +129,7 @@
     < exportColorScheme (%cmd.readline.d/exportColorScheme.json%): [NONE] >,
     < restartContinuousUpdates (Restart background continuous update workers): [NONE] >,
     < upgrade (Upgrade backend):
-        < core (Upgrade core): [NONE] >,
+        < core (Upgrade core): release, alpha >,
         < geo (Upgrade geoip): [NONE] >,
         < providerRules (Upgrade provider rules) : [NONE] >,
         < self (%cmd.readline.d/self.json%) : [NONE] >,

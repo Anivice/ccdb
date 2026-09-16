@@ -385,7 +385,9 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
         }
     } else if (command_vector[1] == "core") {
         try {
-            auto result = backend_instance.generic_post("/upgrade");
+            std::string channel = "release";
+            if (command_vector.size() == 3) channel = command_vector[2];
+            auto result = backend_instance.generic_post("/upgrade?channel=" + channel);
             if (std::ranges::all_of(result, [](const auto & c){ return c == '\t' || c == ' ' || c == '\n'; })) {
                 result.clear();
             }
