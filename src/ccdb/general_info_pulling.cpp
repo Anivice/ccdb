@@ -356,7 +356,8 @@ bool general_info_pulling::parse_packet(const std::span<const std::uint8_t> wire
 
 bool general_info_pulling::open_protocol_sockets()
 {
-    close_protocol_sockets();
+    std::lock_guard send_lock(network_send_mtx_);
+    close_protocol_sockets_unlocked();
     if (!multicast_interface_config_valid)
     {
         const nlohmann::json json = {
@@ -387,14 +388,14 @@ bool general_info_pulling::open_protocol_sockets()
             {"payload", "setsockopt(SO_REUSEADDR): " + std::string(strerror(errno)) }
         };
         update_from_logs(json.dump());
-        close_protocol_sockets();
+        close_protocol_sockets_unlocked();
         return false;
     }
 
     // Device binding is socket initialization state. Configure it once here;
     // never re-apply SO_BINDTODEVICE while serializing or sending packets.
     if (!bind_socket_to_device(multicast_fd_, multicast_interface)) {
-        close_protocol_sockets();
+        close_protocol_sockets_unlocked();
         return false;
     }
 
@@ -410,7 +411,7 @@ bool general_info_pulling::open_protocol_sockets()
             {"payload", "IP_MULTICAST_ALL: " + std::string(strerror(errno)) }
         };
         update_from_logs(json.dump());
-        close_protocol_sockets();
+        close_protocol_sockets_unlocked();
         return false;
     }
 #endif
@@ -427,7 +428,7 @@ bool general_info_pulling::open_protocol_sockets()
             {"payload", "bind(multicast): " + std::string(strerror(errno)) }
         };
         update_from_logs(json.dump());
-        close_protocol_sockets();
+        close_protocol_sockets_unlocked();
         return false;
     }
 
@@ -440,7 +441,7 @@ bool general_info_pulling::open_protocol_sockets()
             {"payload", "Invalid multicast address" }
         };
         update_from_logs(json.dump());
-        close_protocol_sockets();
+        close_protocol_sockets_unlocked();
         return false;
     }
     membership.imr_address = multicast_interface.any
@@ -459,7 +460,7 @@ bool general_info_pulling::open_protocol_sockets()
             {"payload", "IP_ADD_MEMBERSHIP: " + std::string(strerror(errno)) }
         };
         update_from_logs(json.dump());
-        close_protocol_sockets();
+        close_protocol_sockets_unlocked();
         return false;
     }
 
@@ -472,12 +473,12 @@ bool general_info_pulling::open_protocol_sockets()
             {"payload", "socket(tx): " + std::string(strerror(errno)) }
         };
         update_from_logs(json.dump());
-        close_protocol_sockets();
+        close_protocol_sockets_unlocked();
         return false;
     }
 
     if (!bind_socket_to_device(tx_fd_, multicast_interface)) {
-        close_protocol_sockets();
+        close_protocol_sockets_unlocked();
         return false;
     }
 
@@ -495,7 +496,7 @@ bool general_info_pulling::open_protocol_sockets()
             {"payload", "bind(tx): " + std::string(strerror(errno)) }
         };
         update_from_logs(json.dump());
-        close_protocol_sockets();
+        close_protocol_sockets_unlocked();
         return false;
     }
 
@@ -512,7 +513,7 @@ bool general_info_pulling::open_protocol_sockets()
                 {"payload", "IP_MULTICAST_IF: " + std::string(strerror(errno)) }
             };
             update_from_logs(json.dump());
-            close_protocol_sockets();
+            close_protocol_sockets_unlocked();
             return false;
         }
     }
@@ -528,7 +529,7 @@ bool general_info_pulling::open_protocol_sockets()
             {"payload", "multicast tx options: " + std::string(strerror(errno)) }
         };
         update_from_logs(json.dump());
-        close_protocol_sockets();
+        close_protocol_sockets_unlocked();
         return false;
     }
 
@@ -544,7 +545,7 @@ bool general_info_pulling::open_protocol_sockets()
             {"payload", "fcntl(O_NONBLOCK): " + std::string(strerror(errno)) }
         };
         update_from_logs(json.dump());
-        close_protocol_sockets();
+        close_protocol_sockets_unlocked();
         return false;
     }
 
@@ -558,7 +559,7 @@ bool general_info_pulling::open_protocol_sockets()
             {"payload", "getsockname(tx): " + std::string(strerror(errno)) }
         };
         update_from_logs(json.dump());
-        close_protocol_sockets();
+        close_protocol_sockets_unlocked();
         return false;
     }
     tx_port_ = ntohs(actual_tx.sin_port);
@@ -586,6 +587,12 @@ bool general_info_pulling::open_protocol_sockets()
 }
 
 void general_info_pulling::close_protocol_sockets()
+{
+    std::lock_guard send_lock(network_send_mtx_);
+    close_protocol_sockets_unlocked();
+}
+
+void general_info_pulling::close_protocol_sockets_unlocked()
 {
     if (multicast_fd_ >= 0)
     {
@@ -615,7 +622,7 @@ bool general_info_pulling::send_multicast_packet(const packet_type_t type, const
     const std::span<const std::uint8_t> payload)
 {
     const auto wire = serialize_packet(type, message_id, payload);
-    if (wire.empty() || tx_fd_ < 0) return false;
+    if (wire.empty()) return false;
 
     sockaddr_in destination { };
     destination.sin_family = AF_INET;
@@ -623,6 +630,7 @@ bool general_info_pulling::send_multicast_packet(const packet_type_t type, const
     if (::inet_pton(AF_INET, MULTICAST_GROUP, &destination.sin_addr) != 1) return false;
 
     std::lock_guard lock(network_send_mtx_);
+    if (tx_fd_ < 0) return false;
     const auto n = ::sendto(tx_fd_, wire.data(), wire.size(), 0,
         reinterpret_cast<const sockaddr*>(&destination), sizeof(destination));
     if (n != static_cast<ssize_t>(wire.size()))
@@ -654,9 +662,10 @@ bool general_info_pulling::send_unicast_packet(const sockaddr_in& destination, c
     const std::uint64_t message_id)
 {
     const auto wire = serialize_packet(type, message_id, { });
-    if (wire.empty() || tx_fd_ < 0) return false;
+    if (wire.empty()) return false;
 
     std::lock_guard lock(network_send_mtx_);
+    if (tx_fd_ < 0) return false;
     const auto n = ::sendto(tx_fd_, wire.data(), wire.size(), 0,
         reinterpret_cast<const sockaddr*>(&destination), sizeof(destination));
     if (n != static_cast<ssize_t>(wire.size()))
@@ -898,7 +907,6 @@ void general_info_pulling::receive_ready_datagram(const int fd)
 
 void general_info_pulling::network_receiver_loop()
 {
-    ccdb::utils::set_thread_name("Group:UDP");
     auto next_hello = std::chrono::steady_clock::now() + hello_interval_;
     auto next_housekeeping = std::chrono::steady_clock::now() + std::chrono::seconds(1);
 
@@ -958,7 +966,7 @@ void general_info_pulling::notify_all(const notifications_t& msg)
 {
     static_assert(sizeof(notifications_t) == 255, "Unexpected notification wire size");
     std::unique_lock send_lock(notification_send_mtx_);
-    if (tx_fd_ < 0 || !keep_pull_continuous_updates.load() || force_quit.load()) return;
+    if (!keep_pull_continuous_updates.load() || force_quit.load()) return;
 
     const auto message_id = next_message_id();
     const auto* payload_ptr = reinterpret_cast<const std::uint8_t*>(&msg);
@@ -1063,7 +1071,7 @@ backend_client(url, token), get_buffered_logs(get_buffered_logs_)
         }
     }
 
-    ccdb_multicast_watcher = std::thread([this]
+    ccdb_multicast_watcher = std::jthread([this]
     {
         while (alive)
         {
@@ -1105,9 +1113,9 @@ backend_client(url, token), get_buffered_logs(get_buffered_logs_)
 
 general_info_pulling::~general_info_pulling()
 {
-    alive = false;
-    stop_continuous_updates();
+    alive.store(false, std::memory_order_release);
     if (ccdb_multicast_watcher.joinable()) ccdb_multicast_watcher.join();
+    stop_continuous_updates();
 }
 
 void general_info_pulling::update_from_traffic(const std::string& info)
@@ -1467,36 +1475,18 @@ void general_info_pulling::chat_message(const nlohmann::json & json)
 
 void general_info_pulling::pull_continuous_updates()
 {
-    std::vector < std::pair < std::shared_ptr < std::atomic_bool >, std::thread > > thread_pool;
-    std::string last_update;
+    ccdb::utils::thread_group workers;
 
-    auto clear_and_stop_all_threads = [&]
+    auto make_thread = [&]<typename Func>(Func worker, const std::string & name = "")
     {
-        for (auto & running : thread_pool | std::views::keys) {
-            *running = false;
-        }
-
-        for (auto & T : thread_pool | std::views::values) {
-            if (T.joinable()) T.join();
-        }
-
-        // clear pool
-        thread_pool.clear();
-    };
-
-    auto make_thread = [&]<typename Func = std::function <void(const std::atomic_bool *)>>
-        (Func worker, const std::string & name = "")
-    {
-        auto is_running = std::make_shared<std::atomic_bool>(true);
-        auto runner = [this](const std::atomic_bool * _is_running, std::string name_, Func worker_)
+        workers.emplace_back([this, worker = std::move(worker), name](const std::stop_token stop_token) mutable
         {
-            ccdb::utils::set_thread_name(name_);
-            if (force_quit) return;
-            while (*_is_running && !force_quit)
+            if (force_quit.load()) return;
+            while (!stop_token.stop_requested() && !force_quit.load())
             {
                 try
                 {
-                    worker_(_is_running);
+                    worker(stop_token);
                 }
                 catch (std::exception & e)
                 {
@@ -1505,73 +1495,54 @@ void general_info_pulling::pull_continuous_updates()
                         {"payload", e.what() }
                     };
                     update_from_logs(json.dump());
-                    if (!_is_running || force_quit) break;
+                    if (stop_token.stop_requested() || force_quit.load()) break;
                     std::this_thread::sleep_for(std::chrono::milliseconds(500));
                 }
             }
-        };
-        std::atomic_bool * ptr = is_running.get();
-        thread_pool.emplace_back(std::move(is_running), std::thread(runner, ptr, name, worker));
+        });
     };
 
-    auto make_traffic = [&]
+    make_thread([&](const std::stop_token stop_token)
     {
-        make_thread([&](const std::atomic_bool * _traffic_running)
-        {
-            backend_client.get_stream_info("traffic",
-                        _traffic_running,
-                        this,
-                        &general_info_pulling::update_from_traffic);
-        }, "/traffic");
-    };
+        backend_client.get_stream_info("traffic",
+                    stop_token,
+                    this,
+                    &general_info_pulling::update_from_traffic);
+    }, "/traffic");
 
-    auto make_connections = [&]
+    // /connections puller
+    make_thread([&](const std::stop_token)
     {
-        // /connections puller
-        make_thread([&](const std::atomic_bool *)
-        {
-            backend_client.get_info("connections",
-                        this,
-                        &general_info_pulling::update_from_connections);
-            std::this_thread::sleep_for(std::chrono::milliseconds(500l));
-        }, "/connections");
-    };
+        backend_client.get_info("connections",
+                    this,
+                    &general_info_pulling::update_from_connections);
+        std::this_thread::sleep_for(std::chrono::milliseconds(500l));
+    }, "/connections");
 
-    auto make_logs = [&]
+    // /logs puller
+    make_thread([&](const std::stop_token stop_token)
     {
-        // /logs puller
-        make_thread([&](const std::atomic_bool * _log_running)
-        {
-            const auto configJSON = json::parse(get_config());
-            puller_logLevel.set(std::string(configJSON["log-level"]));
-            backend_client.get_stream_info("logs?&level=" + puller_logLevel.get(),
-                                    _log_running,
-                                    this,
-                                    &general_info_pulling::update_from_logs);
-        }, "/logs");
-    };
+        const auto configJSON = json::parse(get_config());
+        puller_logLevel.set(std::string(configJSON["log-level"]));
+        backend_client.get_stream_info("logs?&level=" + puller_logLevel.get(),
+                                stop_token,
+                                this,
+                                &general_info_pulling::update_from_logs);
+    }, "/logs");
 
-    auto make_memory = [&]
+    make_thread([&](const std::stop_token stop_token)
     {
-        make_thread([&](const std::atomic_bool * _memory_running)
-        {
-            backend_client.get_stream_info("memory",
-                        _memory_running,
-                        this,
-                        &general_info_pulling::update_from_memory);
-        }, "/memory");
-    };
+        backend_client.get_stream_info("memory",
+                    stop_token,
+                    this,
+                    &general_info_pulling::update_from_memory);
+    }, "/memory");
 
-    make_traffic();
-    make_connections();
-    make_logs();
-    make_memory();
-
-    while (keep_pull_continuous_updates.load() && !force_quit) {
+    while (keep_pull_continuous_updates.load() && !force_quit.load()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10l));
     }
 
-    clear_and_stop_all_threads();
+    workers.stop_and_join();
 }
 
 [[nodiscard]] std::vector < general_info_pulling::connection_t > general_info_pulling::get_active_connections()
@@ -1601,24 +1572,18 @@ void general_info_pulling::pull_continuous_updates()
 
 void general_info_pulling::stop_continuous_updates()
 {
+    std::unique_lock lifecycle_lock(continuous_updates_mtx_);
     if (!keep_pull_continuous_updates.load()) return;
 
-    if (tx_fd_ >= 0 && node_id_.load() != 0) {
+    if (node_id_.load() != 0) {
         (void)send_multicast_packet(packet_type_t::bye);
     }
 
-    keep_pull_continuous_updates.store(false);
+    keep_pull_continuous_updates.store(false, std::memory_order_release);
     backend_client.abort();
     pending_cv_.notify_all();
 
-    if (network_receiver_thread_.joinable()) network_receiver_thread_.join();
-
-    std::ranges::for_each(pull_continuous_updates_worker, [](std::thread& worker)
-    {
-        if (worker.joinable()) worker.join();
-    });
-    pull_continuous_updates_worker.clear();
-
+    continuous_update_workers_.stop_and_clear();
     close_protocol_sockets();
 
     {
@@ -1637,12 +1602,13 @@ void general_info_pulling::stop_continuous_updates()
 
 void general_info_pulling::start_continuous_updates()
 {
-    if (keep_pull_continuous_updates.exchange(true)) return;
+    std::unique_lock lifecycle_lock(continuous_updates_mtx_);
+    if (!alive.load(std::memory_order_acquire) || keep_pull_continuous_updates.exchange(true)) return;
 
-    pull_continuous_updates_worker.emplace_back([this]
+    backend_client.resume();
+    continuous_update_workers_.emplace_back([this]
     {
         try {
-            ccdb::utils::set_thread_name("Puller");
             pull_continuous_updates();
         } catch (broken_connection_this_force_quit &) {
             force_quit = true;
@@ -1665,7 +1631,7 @@ void general_info_pulling::start_continuous_updates()
         return;
     }
 
-    network_receiver_thread_ = std::thread([this]
+    continuous_update_workers_.emplace_back([this]
     {
         try {
             network_receiver_loop();
@@ -1754,7 +1720,7 @@ void general_info_pulling::latency_test(const std::string & url)
     }
 
     std::atomic_int progress_counter = 0;
-    std::vector < std::thread > thread_pool;
+    ccdb::utils::thread_group thread_pool;
     const auto proxies = proxy_latency_local | std::views::keys;
     std::ranges::for_each(proxies, [&](const std::string & proxy)
     {
@@ -1767,7 +1733,7 @@ void general_info_pulling::latency_test(const std::string & url)
                 if (std::isprint(c)) name += c;
                 else break;
             }
-            ccdb::utils::set_thread_name("ping " + name);
+
             if (force_quit)
             {
                 ++progress_counter;
@@ -1810,9 +1776,7 @@ void general_info_pulling::latency_test(const std::string & url)
     ccdb::utils::set_progress_bar(ccdb::utils::SET_PROGRESS, 100);
     ccdb::utils::set_progress_bar(ccdb::utils::CLEAR_PROGRESS_BAR, 0);
 
-    for (auto & thread : thread_pool) {
-        if (thread.joinable()) thread.join();
-    }
+    thread_pool.join_all();
 }
 
 bool general_info_pulling::change_proxy_using_backend(const std::string & group_name, const std::string & proxy_name)

@@ -60,7 +60,7 @@ void ccdb::ccdb::chat(const std::vector<std::string> & vec)
         }
     });
 
-    std::deque < std::thread > child_workers;
+    thread_group child_workers;
     std::random_device dev;
     std::mt19937 rng(dev());
     std::uniform_int_distribution<std::mt19937::result_type> dist6(0, std::numeric_limits<std::mt19937::result_type>::max());
@@ -109,9 +109,6 @@ void ccdb::ccdb::chat(const std::vector<std::string> & vec)
                     if (child_workers.size() > 256)
                     {
                         print("Waiting for child workers to finish sending messages...\n");
-                        std::ranges::for_each(child_workers, [&](auto & worker) {
-                            if (worker.joinable()) worker.join();
-                        });
                         child_workers.clear();
                     }
                     skip_frame = true;
@@ -161,9 +158,7 @@ void ccdb::ccdb::chat(const std::vector<std::string> & vec)
 
     running = false;
     if (chatThread.joinable()) chatThread.join();
-    std::ranges::for_each(child_workers, [](auto & T) {
-        if (T.joinable()) T.join();
-    });
+    child_workers.join_all();
 }
 
 void ccdb::ccdb::sendNotification(const std::vector<std::string>& command_vector)

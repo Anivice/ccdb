@@ -179,10 +179,11 @@ private:
     mihomo backend_client;
     std::atomic_bool keep_pull_continuous_updates { false };
     std::atomic_bool alive { true };
-    std::thread ccdb_multicast_watcher;
+    std::jthread ccdb_multicast_watcher;
     std::deque < std::vector < std::string > > logs;
     std::mutex logs_mutex;
-    std::vector < std::thread > pull_continuous_updates_worker;
+    std::mutex continuous_updates_mtx_;
+    ccdb::utils::thread_group continuous_update_workers_;
 
     // UDP multicast synchronization protocol v1.
     enum class packet_type_t : std::uint8_t {
@@ -232,7 +233,6 @@ private:
     int multicast_fd_ = -1;
     int tx_fd_ = -1;
     std::uint16_t tx_port_ = 0;
-    std::thread network_receiver_thread_;
     std::chrono::steady_clock::time_point scheduled_hello_ { };
     std::atomic_uint64_t node_id_ { 0 };
     std::atomic_uint64_t message_counter_ { 0 };
@@ -262,6 +262,7 @@ private:
 
     bool open_protocol_sockets();
     void close_protocol_sockets();
+    void close_protocol_sockets_unlocked();
     bool send_multicast_packet(packet_type_t type, std::uint64_t message_id = 0,
         std::span<const std::uint8_t> payload = { });
     bool send_unicast_packet(const sockaddr_in& destination, packet_type_t type,

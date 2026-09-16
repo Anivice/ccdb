@@ -412,51 +412,44 @@ namespace sim
                                 thread_count,  " thread(s)...\n");
                             struct results
                             {
-                                std::atomic_int flag { };
                                 Num key { };
                                 NumPack_t pack { };
                             };
 
                             using result_box_t = std::unique_ptr<results>;
-                            std::vector <std::pair<std::thread, result_box_t>> workers;
+                            ccdb::utils::thread_group workers;
+                            std::vector<result_box_t> worker_results;
+                            auto flush_workers = [&]
+                            {
+                                workers.clear();
+                                for (const auto & result : worker_results) {
+                                    color::local_color_cache.emplace_back(result->key, result->pack);
+                                }
+                                worker_results.clear();
+                            };
+
                             for (int i = 1; i <= cache_fraction; i++) {
                                 for (int j = 1; j < i; j++) {
-                                    auto results_ = std::make_unique<results>();
-                                    results * flag_ptr = results_.get();
-                                    workers.emplace_back(std::thread([&](results * flag_)
+                                    auto result = std::make_unique<results>();
+                                    results * result_ptr = result.get();
+                                    worker_results.emplace_back(std::move(result));
+                                    workers.emplace_back([&, i, j, precision](results * output)
                                     {
                                         const auto ratio = static_cast<double>(j) / static_cast<double>(i);
                                         const auto key = ratio * Span + Begin;
-                                        flag_->key = key;
-                                        flag_->pack = simulation_rainbow_(key, static_cast<int>(precision));
-                                        flag_->flag = 1;
+                                        output->key = key;
+                                        output->pack = simulation_rainbow_(key, static_cast<int>(precision));
                                         ccdb::utils::set_progress_bar(ccdb::utils::SET_PROGRESS,
                                             static_cast<int>(std::round(static_cast<double>(offset++) / static_cast<double>(estimated_capacity) * 100)));
-                                    }, flag_ptr), std::move(results_));
+                                    }, result_ptr);
 
-                                    if (workers.size() > thread_count)
-                                    {
-                                        std::ranges::for_each(workers, [](std::pair<std::thread, result_box_t> & T) {
-                                            if (T.first.joinable()) T.first.join();
-                                        });
-
-                                        const auto span = workers | std::views::values;
-                                        std::ranges::for_each(span, [](const result_box_t & r) {
-                                            color::local_color_cache.emplace_back(r->key, r->pack);
-                                        });
-                                        workers.clear();
+                                    if (workers.size() > static_cast<std::size_t>(std::max(thread_count, 0L))) {
+                                        flush_workers();
                                     }
                                 }
                             }
 
-                            std::ranges::for_each(workers, [](std::pair<std::thread, result_box_t> & T) {
-                                if (T.first.joinable()) T.first.join();
-                            });
-
-                            const auto span = workers | std::views::values;
-                            std::ranges::for_each(span, [](const result_box_t & r) {
-                                color::local_color_cache.emplace_back(r->key, r->pack);
-                            });
+                            flush_workers();
                             color::local_color_cache.emplace_back(0 * Span + Begin, simulation_rainbow_(0 * Span + Begin));
                             color::local_color_cache.emplace_back(1 * Span + Begin, simulation_rainbow_(1 * Span + Begin));
 

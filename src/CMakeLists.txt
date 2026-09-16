@@ -9,12 +9,7 @@ else ()
 endif ()
 
 message(STATUS "CCDB Version is ${CCDB_VERSION}")
-
-if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    set(CMAKE_CXX_STANDARD 26)
-else ()
-    set(CMAKE_CXX_STANDARD 23)
-endif()
+set(CMAKE_CXX_STANDARD 26)
 
 # readline only supports Makefile
 find_program(MAKE_EXECUTABLE NAMES make gmake REQUIRED)

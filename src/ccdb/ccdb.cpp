@@ -869,7 +869,6 @@ void ccdb::ccdb::init()
         }
     }
 
-    set_thread_name("Readline:" + utils::getenv("CCDB"));
     backend_instance.start_continuous_updates();
     get_vecGroupProxy(false);
 

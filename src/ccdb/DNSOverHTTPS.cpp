@@ -53,10 +53,10 @@ std::vector<std::string> ccdb::resolve(
 {
     std::vector<std::string> result;
     std::vector<std::string> A, AAAA;
-    std::vector<std::thread> Ts;
-    Ts.emplace_back([&]{ A = get(url, "/" + dns_query + "?name=" + host + "&type=A", timeout_sec); });
-    Ts.emplace_back([&]{ AAAA = get(url, "/" + dns_query + "?name=" + host + "&type=AAAA", timeout_sec); });
-    std::ranges::for_each(Ts, [&](auto& t) { if (t.joinable()) t.join(); });
+    ccdb::utils::thread_group workers;
+    workers.emplace_back([&]{ A = get(url, "/" + dns_query + "?name=" + host + "&type=A", timeout_sec); });
+    workers.emplace_back([&]{ AAAA = get(url, "/" + dns_query + "?name=" + host + "&type=AAAA", timeout_sec); });
+    workers.join_all();
     result.insert(result.end(), A.begin(), A.end());
     result.insert(result.end(), AAAA.begin(), AAAA.end());
     return result;

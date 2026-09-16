@@ -39,8 +39,6 @@ void ccdb::ccdb::nload(
     std::vector<std::string> &top_3_connections_using_most_speed,
     std::mutex *top_3_connections_using_most_speed_mtx)
 {
-    set_thread_name("nload:/show");
-
     std::atomic_bool window_size_change = false;
     uint64_t frame_index = 0;
     ccdb_atomic_t<frame_data_t> frame_data;
@@ -333,8 +331,8 @@ void ccdb::ccdb::nload(
     int info_space_size_before = info_space_size;
     int conn_list_size_before = 0;
     auto subinfo_ball = std::make_unique<ccdb_atomic_t<subinfo_ball_t>>();
-    std::vector < std::pair < std::unique_ptr<std::atomic_bool>, std::thread > > threads;
-    std::vector<std::thread> local_workers;
+    subinfo_worker_t subinfo_worker;
+    utils::thread_group local_workers;
     struct line_view_tmp_data_t {
         uint64_t skipped_len = 0;
         std::chrono::time_point<std::chrono::steady_clock> last_accessed_time;
@@ -347,7 +345,6 @@ void ccdb::ccdb::nload(
 
     local_workers.emplace_back([&]
     {
-        utils::set_thread_name("nload:/update_merit");
         decltype(frame) frame_self;
         auto & [up_speed_list,
             down_speed_list,
@@ -586,7 +583,7 @@ void ccdb::ccdb::nload(
                 });
             }
 
-            const auto subinfo = update_subinfo(subinfo_ball, threads);
+            const auto subinfo = update_subinfo(subinfo_ball, subinfo_worker);
             const auto msg = sprint("* P: On this page, O: Overall", ", ", "-: Direct, x: Proxied", ", ",
                 "Backend memory usage: ", value_to_size(backend_instance.current_memory_in_use_by_mihomo.load(std::memory_order_relaxed)), ", "
                 "Frontend memory usage: ", value_to_size(cur_mem_size()),
@@ -736,8 +733,8 @@ void ccdb::ccdb::nload(
     watcher_.stop();
     print("\n\n", "Wait...\n", "Press Ctrl+C (^C) to end immediately.\n");
     if (input_watcher.joinable()) input_watcher.join();
-    std::ranges::for_each(threads, [](auto & T) { if (T.second.joinable()) T.second.join(); });
-    std::ranges::for_each(local_workers, [](auto & T) { if (T.joinable()) T.join(); });
+    subinfo_worker.join();
+    local_workers.join_all();
     if (Display.joinable()) Display.join();
 }
 

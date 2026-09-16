@@ -149,7 +149,7 @@ namespace ccdb
 
     protected:
         std::atomic_bool sigint_watcher_running = true;
-        std::vector<std::thread> worker_threads;
+        utils::thread_group worker_threads;
         void sigint_watcher();
 
     private:
@@ -445,13 +445,18 @@ namespace ccdb
         };
 
         using atomic_subinfo_ball_t = std::unique_ptr < ccdb_atomic_t < subinfo_ball_t > >;
-        [[nodiscard]] std::string update_subinfo(atomic_subinfo_ball_t &,
-            std::vector < std::pair < std::unique_ptr<std::atomic_bool>, std::thread > > & thread_pool) const;
+        struct subinfo_worker_t
+        {
+            std::atomic_bool finished { true };
+            std::jthread worker;
 
-        template < typename vec >
-        static void wait_thread(vec & child_workers) {
-            std::ranges::for_each(child_workers, [](std::thread & T) { if (T.joinable()) T.join(); });
-        }
+            void join()
+            {
+                if (worker.joinable()) worker.join();
+            }
+        };
+
+        [[nodiscard]] std::string update_subinfo(atomic_subinfo_ball_t &, subinfo_worker_t &) const;
 
         const std::string history_file_loc = utils::getenv("HOME") + "/.cache/ccdb/ccdb_history";
 

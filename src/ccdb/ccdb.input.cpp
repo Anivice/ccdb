@@ -20,6 +20,7 @@
 //
 
 #include <chrono>
+#include <csignal>
 #include <thread>
 #include <utility>
 #include <algorithm>
@@ -71,8 +72,8 @@ ccdb::signal_watcher_ ccdb::watcher;
 std::atomic<int> ccdb::g_pid = -1;
 namespace
 {
-    volatile bool window_size_change = false;
-    volatile bool sysint_pressed = false;
+    volatile std::sig_atomic_t window_size_change = 0;
+    volatile std::sig_atomic_t sysint_pressed = 0;
 
     void sigint_handler(int)
     {
@@ -87,7 +88,6 @@ namespace
 
 void ccdb::signal_watcher_::sigint_watcher()
 {
-    utils::set_thread_name("Signal Watcher");
     while (sigint_watcher_running)
     {
         if (sysint_pressed)
@@ -121,7 +121,6 @@ ccdb::signal_watcher_::signal_watcher_()
     worker_threads.emplace_back(&signal_watcher_::sigint_watcher, this);
     worker_threads.emplace_back([this]
     {
-        utils::set_thread_name("Signal Dispatcher");
         while (sigint_watcher_running)
         {
             if (const int sig = SignalWatcher.wait(); sig != -1)
@@ -143,7 +142,7 @@ ccdb::signal_watcher_::~signal_watcher_()
 {
     sigint_watcher_running = false;
     SignalWatcher.push(-1);
-    std::ranges::for_each(worker_threads, [](auto & worker_thread){ if (worker_thread.joinable()) { worker_thread.join(); } });
+    worker_threads.join_all();
 }
 
 [[nodiscard]]
@@ -173,20 +172,17 @@ static ssize_t read_with_timeout(const int fd, void *buf, const size_t count, co
 
 void ccdb::ccdb::generic_input_watcher(const std::string &name, std::atomic_bool *running) const
 {
-    set_thread_name(name);
     interactive_verification();
     auto sigint_status = watcher.make_status_watcher();
-    std::vector<std::thread> child_workers;
+    thread_group child_workers;
 
     child_workers.emplace_back([&] { while (*running) {
-        set_thread_name("input:/Backend Force Quit Puller");
         if (backend_instance.force_quit) { (*running) = false; break; }
         std::this_thread::sleep_for(std::chrono::milliseconds(50l));
     } });
 
     child_workers.emplace_back([&]
     {
-        set_thread_name("input:/SIGINT Puller");
         while (*running)
         {
             if (const auto sig = sigint_status.wait(); sig == SIGINT || sig < 0) {
@@ -200,7 +196,6 @@ void ccdb::ccdb::generic_input_watcher(const std::string &name, std::atomic_bool
     NotificationType<char> buffer;
     child_workers.emplace_back([&]
     {
-        set_thread_name("input:/Reader");
         char buf[64]{ };
         while (*running)
         {
@@ -230,7 +225,7 @@ void ccdb::ccdb::generic_input_watcher(const std::string &name, std::atomic_bool
 
     *running = false;
     sigint_status.stop();
-    std::ranges::for_each(child_workers, [](auto &T){ if (T.joinable()) T.join(); });
+    child_workers.join_all();
 }
 
 namespace {
@@ -480,7 +475,6 @@ void ccdb::ccdb::get_conn_input_watcher(
     std::atomic<search_move_t>* search_focus_move,
     std::atomic_int* tab_suggestion_requested)
 {
-    set_thread_name("get/conn:input");
     interactive_verification();
 
     auto& running = *running_ptr;
@@ -489,11 +483,10 @@ void ccdb::ccdb::get_conn_input_watcher(
     auto& current_skip_lines = *current_skip_lines_ptr;
     const auto& max_skip_lines = *max_skip_lines_ptr;
 
-    std::vector<std::thread> threads;
+    thread_group threads;
     auto sigint_status = watcher.make_status_watcher();
 
     threads.emplace_back([&] {
-        set_thread_name("input:/Backend Force Quit Puller");
         while (running) {
             if (backend_instance.force_quit) {
                 running = false;
@@ -504,7 +497,6 @@ void ccdb::ccdb::get_conn_input_watcher(
     });
 
     threads.emplace_back([&] {
-        set_thread_name("input:/SIGINT Puller");
         while (running) {
             if (const auto sig = sigint_status.wait(); sig == SIGINT || sig < 0) {
                 running = false;
@@ -635,8 +627,8 @@ void ccdb::ccdb::get_conn_input_watcher(
     // Keep the existing NotificationType<char> instantiation for drop-in compatibility.
     // (The -1 sentinel is signed-char dependent; see notes in the review.)
     NotificationType<char> buffer;
-    threads.emplace_back([&] {
-        set_thread_name("input:/Reader");
+    threads.emplace_back([&]
+    {
         char buf[4096]{};
 
         while (running) {
@@ -906,7 +898,5 @@ void ccdb::ccdb::get_conn_input_watcher(
 
     running = false;
     sigint_status.stop();
-    std::ranges::for_each(threads, [](std::thread& thread) {
-        if (thread.joinable()) thread.join();
-    });
+    threads.join_all();
 }

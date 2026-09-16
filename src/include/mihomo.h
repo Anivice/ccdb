@@ -25,6 +25,7 @@
 #include <functional>
 #include <stdexcept>
 #include <thread>
+#include <stop_token>
 #include <utility>
 #include <vector>
 #include "httplib.h"
@@ -50,7 +51,8 @@ public:
     const std::string & backend_address = backend_address_;
 
     [[nodiscard]] bool change_proxy(const std::string & group_name, const std::string & proxy_name) const;
-    void abort() { info_streaming_pulling_ = false; }
+    void abort() noexcept { info_streaming_pulling_.store(false, std::memory_order_release); }
+    void resume() noexcept { info_streaming_pulling_.store(true, std::memory_order_release); }
     void get_info_no_instance(const std::string & endpoint_name, const std::function < void(const std::string&) > & method) const;
     [[nodiscard]] bool change_config(const std::string& json) const;
     [[nodiscard]] bool change_proxy_mode(const std::string & mode) const { return change_config( R"({"mode": ")" + mode +  "\"}"); }
@@ -72,11 +74,11 @@ public:
     template < typename InstanceType >
     void get_stream_info(
         const std::string & endpoint_name,
-        const std::atomic_bool * keep_running,
+        const std::stop_token stop_token,
         InstanceType* instance,
         void (InstanceType::*method)(const std::string&))
     {
-        std::thread T;
+        std::jthread request_thread;
         try
         {
             std::atomic_bool is_running(false);
@@ -84,71 +86,72 @@ public:
             ccdb::utils::set_ssl_automatically(http_cli, backend_address_);
             http_cli.set_decompress(false);
             http_cli.set_read_timeout(timeout_on_backend_ops_in_seconds, 0);
-            auto worker = [&]()->void
+
+            const auto keep_running = [&]() noexcept
             {
-                if (is_running) return;
-                is_running = true;
-                std::string buffer;
-                std::string first_line;
-                std::vector < std::thread > thread_pool;
-
-                auto puller = [&](const char *data, const size_t len)
-                {
-                    buffer.append(data, len);
-                    if (const auto pos = buffer.find('\n'); pos != std::string::npos)
-                    {
-                        first_line = buffer.substr(0, pos);
-                        buffer = buffer.substr(pos + 1);
-                        thread_pool.emplace_back([&](std::string _first_line) {
-                            ccdb::utils::set_thread_name(endpoint_name + " hdlr");
-                            (instance->*method)(_first_line);
-                        }, first_line);
-
-                        if (thread_pool.size() > 32) // oversized pool cleanup
-                        {
-                            for (auto & thread : thread_pool)
-                            {
-                                if (thread.joinable()) {
-                                    thread.join();
-                                }
-                            }
-
-                            thread_pool.clear();
-                        }
-
-                        return keep_running->load();
-                    }
-
-                    return true;
-                };
-
-                const httplib::Headers headers = {
-                    {"Authorization", "Bearer " + token_},
-                };
-
-                if (!token_.empty()) {
-                    http_cli.Get("/" + endpoint_name, headers, puller);
-                } else {
-                    http_cli.Get("/" + endpoint_name, puller);
-                }
-
-                for (auto & thread : thread_pool)
-                {
-                    if (thread.joinable()) {
-                        thread.join();
-                    }
-                }
-
-                is_running = false;
+                return !stop_token.stop_requested()
+                    && info_streaming_pulling_.load(std::memory_order_acquire);
             };
 
-            while (*keep_running)
+            auto worker = [&]()->void
             {
-                if (!is_running)
+                if (is_running.exchange(true, std::memory_order_acq_rel)) return;
+
+                try
                 {
-                    if (T.joinable()) { T.join(); }
-                    T = std::thread([&] {
-                        ccdb::utils::set_thread_name(endpoint_name + " cont");
+                    std::string buffer;
+                    std::string first_line;
+                    ccdb::utils::thread_group handlers;
+
+                    auto puller = [&](const char *data, const size_t len)
+                    {
+                        if (!keep_running()) return false;
+
+                        buffer.append(data, len);
+                        if (const auto pos = buffer.find('\n'); pos != std::string::npos)
+                        {
+                            first_line = buffer.substr(0, pos);
+                            buffer = buffer.substr(pos + 1);
+                            handlers.emplace_back([&, line = std::move(first_line)]() mutable {
+                                (instance->*method)(line);
+                            });
+
+                            if (handlers.size() > 32) // oversized pool cleanup
+                            {
+                                handlers.clear();
+                            }
+                        }
+
+                        return keep_running();
+                    };
+
+                    const httplib::Headers headers = {
+                        {"Authorization", "Bearer " + token_},
+                    };
+
+                    if (!token_.empty()) {
+                        http_cli.Get("/" + endpoint_name, headers, puller);
+                    } else {
+                        http_cli.Get("/" + endpoint_name, puller);
+                    }
+
+                    handlers.join_all();
+                }
+                catch (...)
+                {
+                    is_running.store(false, std::memory_order_release);
+                    throw;
+                }
+
+                is_running.store(false, std::memory_order_release);
+            };
+
+            while (keep_running())
+            {
+                if (!is_running.load(std::memory_order_acquire))
+                {
+                    if (request_thread.joinable()) request_thread.join();
+                    request_thread = std::jthread([&] {
                         try { worker(); } catch (...) { }
                     });
                 }
@@ -157,10 +160,10 @@ public:
             }
 
             http_cli.stop();
-            if (T.joinable()) { T.join(); }
+            if (request_thread.joinable()) request_thread.join();
 
         } catch (std::exception &) {
-            if (T.joinable()) { T.join(); }
+            if (request_thread.joinable()) request_thread.join();
             throw;
         }
     }

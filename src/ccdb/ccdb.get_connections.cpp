@@ -159,7 +159,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     tsl::hopscotch_map < std::string, connection_frame_t > connection_frame;
     std::vector < connection_frame_t > connections_filtered;
     auto subinfo_ball = std::make_unique<ccdb_atomic_t<subinfo_ball_t>>();
-    std::vector < std::pair < std::unique_ptr<std::atomic_bool>, std::thread > > threads;
+    subinfo_worker_t subinfo_worker;
     std::vector < std::string > title_this_session;
     bool pause_update = false;
 
@@ -454,7 +454,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     append_msg("   ");
                     append_msg(sprint("Frontend memory usage: ") + value_to_size(cur_mem_size()));
                     append_msg("   ");
-                    append_msg(update_subinfo(subinfo_ball, threads));
+                    append_msg(update_subinfo(subinfo_ball, subinfo_worker));
                     return ss.str();
                 }
             case FOCUSED_ON_NON_PRESENCE:

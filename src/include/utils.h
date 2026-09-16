@@ -34,6 +34,7 @@
 #include <poll.h>
 #include <limits>
 #include <type_traits>
+#include <utility>
 #include <thread>
 #include "lzw6.h"
 #include "utf8.h"
@@ -45,9 +46,10 @@
 #include "caches/lfu_cache_policy.hpp"
 #include "tsl/hopscotch_map.h"
 
-#ifdef __DEBUG__
+#if ((defined(__GNUC__) && __GNUC__ >= 16) || __cplusplus >= 20260L)
 # include <meta>
 # include <source_location>
+#define CCDB_REFLECTION true
 #endif //__DEBUG__
 
 #ifndef __attribute_deprecated__
@@ -78,6 +80,89 @@ extern char * const * environ;
 /// Utilities
 namespace ccdb::utils
 {
+    /// Small RAII owner for related worker threads.
+    ///
+    /// std::jthread gives every worker a stop-state when the callable accepts
+    /// std::stop_token and guarantees that a still-joinable worker is stopped
+    /// and joined during destruction. join_all() intentionally does not request
+    /// cancellation so callers can preserve the old "wait for completion"
+    /// semantics; stop_and_join() is for cooperative shutdown.
+    class thread_group
+    {
+        std::vector<std::jthread> threads_;
+
+        /// NEVER CALL THIS AS NON CONSTEXPR!
+        /// Strip meta reflector's function name in print(...) to indicate caller.
+        /// This is a helper for print(...) only.
+        /// This introduces zero overhead at runtime.
+        /// @param name Meta reflector's function name
+        /// @return caller name
+        static constexpr std::string_view strip_name(const char* name)
+        {
+            const char* pos = name;
+            while (*pos)
+            {
+                if (pos[0] == '^' && pos[1] == '^') {
+                    const char* begin = pos + 2;
+                    const char* end = begin;
+                    while (*end && *end != '(') {
+                        ++end;
+                    }
+                    return { begin, static_cast<std::string_view::size_type>(end - begin) };
+                }
+                ++pos;
+            }
+
+            return {};
+        }
+
+    public:
+        thread_group() = default;
+        thread_group(const thread_group &) = delete;
+        thread_group & operator=(const thread_group &) = delete;
+        thread_group(thread_group &&) noexcept = default;
+        thread_group & operator=(thread_group &&) noexcept = default;
+        ~thread_group() = default;
+
+        template <typename Func, typename... Args>
+        std::jthread & emplace_back(Func && func, Args &&... args) {
+            return threads_.emplace_back(std::forward<Func>(func), std::forward<Args>(args)...);
+        }
+
+        void request_stop() noexcept
+        {
+            for (auto & thread : threads_) thread.request_stop();
+        }
+
+        void join_all()
+        {
+            for (auto & thread : threads_) {
+                if (thread.joinable()) thread.join();
+            }
+        }
+
+        void stop_and_join()
+        {
+            request_stop();
+            join_all();
+        }
+
+        void clear()
+        {
+            join_all();
+            threads_.clear();
+        }
+
+        void stop_and_clear()
+        {
+            stop_and_join();
+            threads_.clear();
+        }
+
+        [[nodiscard]] bool empty() const noexcept { return threads_.empty(); }
+        [[nodiscard]] std::size_t size() const noexcept { return threads_.size(); }
+    };
+
     /// Get environment variable (safe)
     /// @param name Name of the environment variable
     /// @return Return the environment variable, or empty string if unset
@@ -270,13 +355,6 @@ namespace ccdb::utils
     /// Check if pager is invokable
     /// @return true if available, false if not
     bool is_less_available();
-
-    /// Set current thread's name
-    inline void set_thread_name(const std::string & name) {
-#if !defined(USE_CYGWIN)
-        pthread_setname_np(pthread_self(), name.c_str());
-#endif
-    }
 
 #ifdef __USE_IMG__
     /// Print hidden avatar

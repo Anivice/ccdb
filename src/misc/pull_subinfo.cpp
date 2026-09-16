@@ -136,7 +136,7 @@ ccdb::subinfo_t ccdb::pull_clash_subinfo(const std::string &url, int timeout, co
 using namespace ccdb::utils;
 
 std::string ccdb::ccdb::update_subinfo(atomic_subinfo_ball_t & atomic_subinfo_ball,
-    std::vector < std::pair < std::unique_ptr<std::atomic_bool>, std::thread > > & thread_pool) const
+    subinfo_worker_t & thread_worker) const
 {
     if (clash_sublink.empty() && external_puller_command.empty()) return "";
     auto [total_uploaded, total_downloaded, quota, last_subinfo_pulling_time] = atomic_subinfo_ball->get();
@@ -157,86 +157,88 @@ std::string ccdb::ccdb::update_subinfo(atomic_subinfo_ball_t & atomic_subinfo_ba
         return return_subinfo();
     }
 
-    if (!thread_pool.empty() && *thread_pool.front().first) {
-        if (thread_pool.front().second.joinable()) thread_pool.front().second.join();
-        thread_pool.clear();
-    } else if (!thread_pool.empty()) {
-        return return_subinfo(); // a thread is already created to pull the data, but not finished yet
+    if (thread_worker.worker.joinable())
+    {
+        if (!thread_worker.finished.load(std::memory_order_acquire)) {
+            return return_subinfo();
+        }
+        thread_worker.worker.join();
     }
 
-    auto finished = std::make_unique<std::atomic_bool>(false);
-    std::atomic_bool * finished_ptr = finished.get();
-    thread_pool.emplace_back(std::make_pair<std::unique_ptr<std::atomic_bool>, std::thread>
-        (std::move(finished),
-        std::thread([this](const atomic_subinfo_ball_t & atomic_subinfo_ball_, std::atomic_bool * finished_ptr)
+    thread_worker.finished.store(false, std::memory_order_release);
+    thread_worker.worker = std::jthread([this, &atomic_subinfo_ball, &thread_worker]
+    {
+        try
         {
-            try {
-                subinfo_ball_t ball;
-                const auto result = detach_execute([&](const int fd)->bool
-                {
-                    auto [
-                        total_uploaded_,
-                        total_downloaded_,
-                        quota_,
-                        expire_unix_timestamp_] =
-                            external_puller_command.empty() ?
-                                pull_clash_subinfo(clash_sublink, 30) :
-                                [this]()->subinfo_t
+            subinfo_ball_t ball;
+            const auto result = detach_execute([&](const int fd)->bool
+            {
+                auto [
+                    total_uploaded_,
+                    total_downloaded_,
+                    quota_,
+                    expire_unix_timestamp_] =
+                        external_puller_command.empty() ?
+                            pull_clash_subinfo(clash_sublink, 30) :
+                            [this]()->subinfo_t
+                            {
+                                subinfo_t ball { };
+                                if (const auto status = exec_command2("/bin/sh", external_puller_command);
+                                     status.exit_status == 0)
                                 {
-                                    subinfo_t ball { };
-                                    if (const auto status = exec_command2("/bin/sh", external_puller_command);
-                                             status.exit_status == 0)
-                                    {
-                                        try {
-                                            json json = json::parse(status.fd_stdout);
-                                            ball.total_uploaded = json["total_uploaded"];
-                                            ball.total_downloaded = json["total_downloaded"];
-                                            ball.quota = json["quota"];
-                                            ball.expire_unix_timestamp = json["expire_unix_timestamp"];
-                                        } catch (std::exception & /* e */) {
-                                            // std::cerr << e.what() << std::endl;
-                                        }
+                                    try {
+                                        json json = json::parse(status.fd_stdout);
+                                        ball.total_uploaded = json["total_uploaded"];
+                                        ball.total_downloaded = json["total_downloaded"];
+                                        ball.quota = json["quota"];
+                                        ball.expire_unix_timestamp = json["expire_unix_timestamp"];
+                                    } catch (std::exception & /* e */) {
+                                        // std::cerr << e.what() << std::endl;
                                     }
-                                    return ball;
-                                }();
+                                }
+                                return ball;
+                            }();
 
-                    const subinfo_ball_t ball_ = {
-                        .total_uploaded = total_uploaded_,
-                        .total_downloaded = total_downloaded_,
-                        .quota = quota_,
-                        .last_subinfo_pulling_time =
-                            static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>
-                                (std::chrono::high_resolution_clock::now().time_since_epoch()).count())
-                    };
+                const subinfo_ball_t ball_ = {
+                    .total_uploaded = total_uploaded_,
+                    .total_downloaded = total_downloaded_,
+                    .quota = quota_,
+                    .last_subinfo_pulling_time =
+                        static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>
+                            (std::chrono::high_resolution_clock::now().time_since_epoch()).count())
+                };
 
-                    if (const ssize_t written = write(fd, &ball_, sizeof(ball_));
-                        written != sizeof(ball_))
-                    {
-                        _exit(1);
-                    }
-
-                    return true;
-                },
-                [&](const int fd)->bool
+                if (const ssize_t written = write(fd, &ball_, sizeof(ball_));
+                    written != sizeof(ball_))
                 {
-                    std::vector<uint8_t> buffer(sizeof(subinfo_ball_t) + 1);
-                    const ssize_t n = read(fd, buffer.data(), buffer.size());
-                    if (n == sizeof(ball)) {
-                        std::memcpy(&ball, buffer.data(), sizeof(ball));
-                    } else {
-                        return false;
-                    }
+                    _exit(1);
+                }
 
-                    return true;
-                },
-                external_puller_command_time_out_ms);
+                return true;
+            },
+            [&](const int fd)->bool
+            {
+                std::vector<uint8_t> buffer(sizeof(subinfo_ball_t) + 1);
+                const ssize_t n = read(fd, buffer.data(), buffer.size());
+                if (n == sizeof(ball)) {
+                    std::memcpy(&ball, buffer.data(), sizeof(ball));
+                } else {
+                    return false;
+                }
 
-                if (result) atomic_subinfo_ball_->set(ball);
-                *finished_ptr = true;
-            } catch (...) { } // silent drop
-        },
-        std::ref(atomic_subinfo_ball),
-        finished_ptr))
-    );
+                return true;
+            },
+            external_puller_command_time_out_ms);
+
+            if (result) atomic_subinfo_ball->set(ball);
+        }
+        catch (...) { } // silent drop
+
+        // Always publish completion, including the exception path. The old
+        // per-thread flag was left false on exceptions and permanently blocked
+        // future subscription refreshes.
+        thread_worker.finished.store(true, std::memory_order_release);
+    });
+
     return return_subinfo();
 }

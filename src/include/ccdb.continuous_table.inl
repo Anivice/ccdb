@@ -48,7 +48,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
     SearchMatches search_matches;
     int64_t focused_index = -1;
     std::vector < std::pair < String, std::pair < int, std::chrono::time_point<std::chrono::steady_clock> > > > g_title_lines;
-    std::vector < std::thread > child_workers;
+    utils::thread_group child_workers;
     ccdb_atomic_t < std::u32string > search_content_buffer;
     String search_content;
     String command_input_prev_cmd;
@@ -674,7 +674,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
     running = false;
     watcher_.stop();
     print("\n\n", "Wait...\n", "Press Ctrl+C (^C) to end immediately.\n");
-    wait_thread(child_workers);
+    child_workers.join_all();
     // if (const char* clear = capstr("clear")) {
         // std::cout.write(clear, static_cast<std::streamsize>(strlen(clear)));
         // std::cout.flush();

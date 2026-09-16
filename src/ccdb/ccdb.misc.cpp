@@ -194,7 +194,6 @@ void ccdb::ccdb::reset_terminal_mode_forcefully()
 
 void ccdb::ccdb::display(ccdb_atomic_t< frame_data_t > & frame, const std::atomic_bool* running)
 {
-    set_thread_name("TUIRenderer");
     setup_term setup_term;
     uint64_t current_frame_index = -1;
     std::string frame_;
