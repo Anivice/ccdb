@@ -71,6 +71,12 @@ void ccdb::ccdb::get_log()
     using ScopeType = std::pair<ConstItrType /* begin */, ConstItrType /* end */>;
     auto before = std::chrono::system_clock::now() - std::chrono::seconds(2);
     std::vector<std::string> log_titles_ {log_titles.begin(), log_titles.end()};
+    int log_refresh_interval = 100;
+    if (const auto CCDB_LOG_REFRESH_INTERVAL = utils::getenv("CCDB_LOG_REFRESH_INTERVAL");
+        !CCDB_LOG_REFRESH_INTERVAL.empty())
+    {
+        log_refresh_interval = convertToNumber<int>(CCDB_LOG_REFRESH_INTERVAL);
+    }
 
     continuous_table < log_frame_t, ConstItrType, ScopeType >
     (
@@ -79,7 +85,7 @@ void ccdb::ccdb::get_log()
         [&](const session_compliment_data_t * data)->ScopeType
         {
             if (const auto now = std::chrono::system_clock::now();
-                !pause_log_update && std::chrono::duration_cast<std::chrono::seconds>(now - before).count() > 1)
+                !pause_log_update && std::chrono::duration_cast<std::chrono::milliseconds>(now - before).count() > log_refresh_interval)
             {
                 before = now;
                 std::lock_guard lock(logPullerNoFilter_mtx);

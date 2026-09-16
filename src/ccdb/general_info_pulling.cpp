@@ -1399,25 +1399,52 @@ void general_info_pulling::log_synchronization_notification(const nlohmann::json
     }
 
     std::ranges::reverse(new_logs);
-
-
-    std::lock_guard<std::mutex> lock(logs_mutex);
-    bool begin = false;
-    for (auto & log : new_logs) // order: latest to oldest
     {
-        if (log.size() < 3) continue;
-        if (!begin)
-            if (const auto entry_time = ccdb::utils::get_time(log.front());
-                entry_time > oldest_entry_time) // entry_time newer than oldest_entry_time
-            {
-                continue;
+        int log_count = 0;
+        std::lock_guard<std::mutex> lock(logs_mutex);
+        {
+            std::vector <std::string> msg = { ccdb::utils::getTimeNow(), "INFO",
+                "-------- Received " + std::to_string(new_logs.size()) + " log " + (new_logs.size() > 1 ? "entries" : "entry") +
+                " from the CCDB local synchronization network --------",
+            };
+            const auto hash = get_checksum(msg);
+            msg.emplace_back(hash);
+            logs.emplace_front(msg);
+        }
+        bool begin = false;
+        for (auto & log : new_logs) // order: latest to oldest
+        {
+            if (log.size() < 3) continue;
+            if (!begin) {
+                if (const auto entry_time = ccdb::utils::get_time(log.front());
+                    entry_time > oldest_entry_time) // entry_time newer than oldest_entry_time
+                {
+                    continue;
+                }
             }
 
-        begin = true;
-        const auto hash_checksum = get_checksum(log);
-        log.emplace_back(hash_checksum);
-        logs.emplace_front(log); // the front is older, and should be older
-        // auto delete will attempt to remove front, which is, in order
+            begin = true;
+            const auto hash_checksum = get_checksum(log);
+            log.emplace_back(hash_checksum);
+            logs.emplace_front(log); // the front is older, and should be older
+            // auto delete will attempt to remove front, which is, in order
+            ++log_count;
+        }
+
+        if (log_count > 0)
+        {
+            std::vector <std::string> msg = { ccdb::utils::getTimeNow(), "INFO",
+                "-------- Added " + std::to_string(log_count) + " log " + (log_count > 1 ? "entries" : "entry") +
+                " from the CCDB local synchronization network --------",
+            };
+            const auto hash = get_checksum(msg);
+            msg.emplace_back(hash);
+            logs.emplace_front(msg);
+        }
+
+        // dedup
+        const auto [beg, end] = std::ranges::unique(logs);
+        logs.erase(beg, end);
     }
 }
 
