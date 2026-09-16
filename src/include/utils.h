@@ -46,7 +46,7 @@
 #include "caches/lfu_cache_policy.hpp"
 #include "tsl/hopscotch_map.h"
 
-#if ((defined(__GNUC__) && __GNUC__ >= 16) || __cplusplus >= 20260L)
+#ifdef __DEBUG__
 # include <meta>
 # include <source_location>
 #define CCDB_REFLECTION true
