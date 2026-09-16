@@ -1968,17 +1968,19 @@ void general_info_pulling::receiveNotification(std::vector<uint8_t> & data)
     while (alive && ((notification = notifications.wait_for(1000))) )
     {
         {
-            uint64_t packname_cur, pack_cur;
-            std::memcpy(&packname_cur, &notification->header.packName, sizeof(packname_cur));
+            uint64_t packName_cur, pack_cur;
+            std::memcpy(&packName_cur, &notification->header.packName, sizeof(packName_cur));
             std::memcpy(&pack_cur, &notification->header.sequence, sizeof(pack_cur));
-            SessionNotifications[packname_cur].emplace(pack_cur, *notification);
+            SessionNotifications[packName_cur].emplace(pack_cur, *notification);
         }
 
         for (const auto & pack_ordered_map : SessionNotifications | std::views::values)
         {
             uint64_t overall_size = 0;
-            if (!pack_ordered_map.empty()) {
-                std::memcpy(&overall_size, &pack_ordered_map.begin()->second.header.overall_sequence_size, sizeof(overall_size));
+            if (!pack_ordered_map.empty())
+            {
+                const auto & [header, body] = pack_ordered_map.begin()->second;
+                std::memcpy(&overall_size, &header.overall_sequence_size, sizeof(overall_size));
                 if (overall_size == pack_ordered_map.size())
                 {
                     data.reserve(overall_size * sizeof(notifications_t::body));
@@ -1987,9 +1989,9 @@ void general_info_pulling::receiveNotification(std::vector<uint8_t> & data)
                         std::memcpy(data.data() + data.size() - header_.size, &body_.data, header_.size);
                     }
                     // ERASE:
-                    uint64_t packname;
-                    std::memcpy(&packname, &notification->header.packName, sizeof(packname));
-                    SessionNotifications.erase(packname);
+                    uint64_t packName;
+                    std::memcpy(&packName, &header.packName, sizeof(packName));
+                    SessionNotifications.erase(packName);
                     return;
                 }
             }
