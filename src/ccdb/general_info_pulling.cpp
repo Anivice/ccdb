@@ -1443,6 +1443,9 @@ void general_info_pulling::log_synchronization_notification(const nlohmann::json
         }
 
         // dedup
+        std::ranges::sort(logs, [](const auto & a, const auto & b)->bool {
+            return a.front() < b.front();
+        });
         const auto [beg, end] = std::ranges::unique(logs);
         logs.erase(beg, end);
     }

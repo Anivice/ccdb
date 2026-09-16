@@ -208,7 +208,7 @@ namespace
         {
             std::string exec = "addr2line --demangle -f -p -a -e \"";
             exec += path;
-            exec +=  "\" ";
+            exec +=  "\" -s ";
             exec += name;
             if (auto addr2line_res = utils::exec_command2("/bin/sh", "", "-c", exec);
                 addr2line_res.exit_status == 0)
@@ -282,7 +282,7 @@ namespace
                 if (vec[i].second.find("landmark") != std::string::npos) break;
                 {
                     const thread_local std::regex has_external_lib_reg(R"(0x[0-9|A-F]+ \#(.*)\: (0x[0-9|A-F]+))");
-                    const int64_t frame = static_cast<int64_t>(vec[i].first) - offset;
+                    const auto frame = static_cast<int64_t>(vec[i].first);
                     const ccdb::init_crash_report_t::flatSymbolicTable_t * sym_name = nullptr;
                     if (frame >= 0)
                     {
