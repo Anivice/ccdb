@@ -76,6 +76,7 @@ public:
         InstanceType* instance,
         void (InstanceType::*method)(const std::string&))
     {
+        std::thread T;
         try
         {
             std::atomic_bool is_running(false);
@@ -98,11 +99,10 @@ public:
                     {
                         first_line = buffer.substr(0, pos);
                         buffer = buffer.substr(pos + 1);
-                        std::thread T([&](std::string _first_line) {
+                        thread_pool.emplace_back([&](std::string _first_line) {
                             ccdb::utils::set_thread_name(endpoint_name + " hdlr");
                             (instance->*method)(_first_line);
                         }, first_line);
-                        thread_pool.emplace_back(std::move(T)); // execute handler but doesn't block receive threads
 
                         if (thread_pool.size() > 32) // oversized pool cleanup
                         {
@@ -142,7 +142,6 @@ public:
                 is_running = false;
             };
 
-            std::thread T;
             while (*keep_running)
             {
                 if (!is_running)
@@ -160,10 +159,9 @@ public:
             http_cli.stop();
             if (T.joinable()) { T.join(); }
 
-        } catch (std::exception & e) {
-            throw std::runtime_error(e.what());
-        } catch (...) {
-            throw std::runtime_error("Unknown error");
+        } catch (std::exception &) {
+            if (T.joinable()) { T.join(); }
+            throw;
         }
     }
 

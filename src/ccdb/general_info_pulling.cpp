@@ -1510,10 +1510,10 @@ void general_info_pulling::pull_continuous_updates()
     auto make_logs = [&]
     {
         // /logs puller
-        const auto configJSON = json::parse(get_config());
-        puller_logLevel.set(std::string(configJSON["log-level"]));
         make_thread([&](const std::atomic_bool * _log_running)
         {
+            const auto configJSON = json::parse(get_config());
+            puller_logLevel.set(std::string(configJSON["log-level"]));
             backend_client.get_stream_info("logs?&level=" + puller_logLevel.get(),
                                     _log_running,
                                     this,

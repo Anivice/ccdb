@@ -1109,10 +1109,9 @@ ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::stri
         }
     }
     catch (std::exception & e) {
-        std::cerr << e.what() << std::endl;
-    }
-    catch (...) {
-        print<is_error>("Unknown exception\n");
+        print<is_error>("Cannot even initialize: ", e.what(), "\n");
+        backend_instance.force_quit = true;
+        backend_instance.stop_continuous_updates();
     }
 }
 
