@@ -463,6 +463,7 @@ void ccdb::ccdb::get_conn_input_watcher(
     const std::atomic_int* max_skip_lines_ptr,
     std::atomic_int* mouse_x,
     std::atomic_int* mouse_y,
+    std::atomic_bool* space_pressed,
     std::atomic_bool* kill_signal_sent,
     std::atomic_bool* refocus,
     std::atomic_bool* show_detail,
@@ -680,6 +681,11 @@ void ccdb::ccdb::get_conn_input_watcher(
 
             if ((!show_search || !show_search->load()) && (*ch == 'q' || *ch == 'Q')) {
                 break;
+            }
+
+            if ((!show_search || !show_search->load()) && *ch == ' ') {
+                if (space_pressed) *space_pressed = true;
+                continue;
             }
         }
 

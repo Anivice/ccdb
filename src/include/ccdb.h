@@ -27,6 +27,7 @@
 #include <atomic>
 #include <thread>
 #include <algorithm>
+#include <map>
 #include <utility>
 #include "config.h"
 #include "general_info_pulling.h"
@@ -68,7 +69,7 @@ namespace ccdb
         bool enforce_no_pager = false;
 
         const tsl::hopscotch_map<uint64_t, std::string> & color_code_overrides; // override color code for a specific line
-        int highlight_screen_line = -1; // Lines to be selected or highlighted
+        std::map < int, std::string > highlight_screen_line; // Lines to be selected or highlighted, with their color codes
         std::ostream * out = nullptr; // If std::ostream is provided and content is redirected to a pager, this will be used as output instead of the pager
         std::atomic_bool * show_search = nullptr; // Show search blue box?
         ccdb_atomic_t < std::u32string > * search_line_boxContent = nullptr; // Content shown inside search line
@@ -423,6 +424,7 @@ namespace ccdb
             const std::atomic_int * max_skip_lines_ptr,
             std::atomic_int * mouse_x,
             std::atomic_int * mouse_y,
+            std::atomic_bool * space_pressed,
             std::atomic_bool * kill_signal_sent,
             std::atomic_bool * refocus,
             std::atomic_bool * show_detail,

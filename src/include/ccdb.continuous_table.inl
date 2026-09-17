@@ -23,6 +23,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
     std::atomic_int current_skip_lines_ = 0;
     std::atomic_int mouse_x_ = -1;
     std::atomic_int mouse_y_ = -1;
+    std::atomic_bool space_pressed_ = false;
     std::atomic_bool kill_connection_ = false;
     std::atomic_bool focus_to_highlight_ = false;
     std::atomic_bool conn_show_detail_ = false;
@@ -44,7 +45,10 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
         .skip_frame = false
     };
 
-    HashType focused_id;
+    const std::string focused_line_color = "\033[07m";
+    const std::string selected_line_color = color::color(5,5,0);
+    std::map < HashType, std::string > focused_id;
+    HashType active_focused_id;
     SearchMatches search_matches;
     int64_t focused_index = -1;
     std::vector < std::pair < String, std::pair < int, std::chrono::time_point<std::chrono::steady_clock> > > > g_title_lines;
@@ -74,7 +78,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
     });
     child_workers.emplace_back(&ccdb::get_conn_input_watcher, this,
                                &running, &leading_spaces_, &max_leading_spaces_, &current_skip_lines_, &max_skip_lines_,
-                               &mouse_x_, &mouse_y_, &kill_connection_, &focus_to_highlight_, &conn_show_detail_, &sort_by_from_watcher_, &atm_focus_,
+                               &mouse_x_, &mouse_y_, &space_pressed_, &kill_connection_, &focus_to_highlight_, &conn_show_detail_, &sort_by_from_watcher_, &atm_focus_,
                                &pause_input_watcher, &show_search, &search_content_buffer, &cursor_position, &search_focus_move_,
                                &tab_suggestion_requested);
 
@@ -124,6 +128,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
         int focus_line = -1;
         const auto mouse_y = mouse_y_.load();
         const auto mouse_x = mouse_x_.load();
+        const auto space_pressed = space_pressed_.load();
         const auto kill_connection = kill_connection_.load();
         auto focus_to_highlight = focus_to_highlight_.load();
         const auto conn_show_detail = conn_show_detail_.load();
@@ -134,6 +139,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
 
         mouse_y_ = -1;
         mouse_x_ = -1;
+        space_pressed_ = false;
         kill_connection_ = false;
         focus_to_highlight_ = false;
         conn_show_detail_ = false;
@@ -171,22 +177,60 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                                                            fr - (contentSize > static_cast<std::size_t>(std::max(fr, 0)) ? 1 : 0)
                                                            - (current_skip_lines == max_skip_lines ? 1 : 0)));
 
-        // if focused_id is not present anymore, delete it
-        if (!focused_id.empty())
+        auto set_active_focus = [&](HashType next_focused_id)
+        {
+            if (!active_focused_id.empty() && active_focused_id != next_focused_id)
+            {
+                if (const auto old_focus = focused_id.find(active_focused_id);
+                    old_focus != focused_id.end())
+                {
+                    if (old_focus->second == focused_line_color) {
+                        focused_id.erase(old_focus);
+                    }
+                    else if (old_focus->second.find(focused_line_color) != std::string::npos) {
+                        replace_all(old_focus->second, focused_line_color, "");
+                    }
+                }
+            }
+
+            active_focused_id = std::move(next_focused_id);
+            if (const auto it = focused_id.find(active_focused_id);
+                it != focused_id.end())
+            {
+                if (it->second.find(focused_line_color) == std::string::npos) {
+                    it->second = it->second + focused_line_color;
+                }
+            } else {
+                focused_id.emplace(active_focused_id, focused_line_color);
+            }
+        };
+
+        // If highlighted rows are not present anymore, delete them.
+        bool active_focus_removed = false;
+        for (auto highlight = focused_id.begin(); highlight != focused_id.end();)
         {
             if (!std::any_of(content.first, content.second, [&](const ContainerType & conn) {
-                return HashContent(conn) == focused_id;
+                return HashContent(conn) == highlight->first;
             }))
             {
-                show_info(GenerateBanner(FOCUSED_ON_NON_PRESENCE, focused_container), "INFO");
-                focused_id.clear();
+                active_focus_removed = active_focus_removed || highlight->first == active_focused_id;
+                highlight = focused_id.erase(highlight);
             }
+            else
+            {
+                ++highlight;
+            }
+        }
+        if (active_focus_removed)
+        {
+            show_info(GenerateBanner(FOCUSED_ON_NON_PRESENCE, focused_container), "INFO");
+            active_focused_id.clear();
         }
 
         if (search_focus_move != IDLE_STATE)
         {
             if (const auto it = std::ranges::find_if(search_matches,
-                                                     [&](const std::pair < std::string, bool > & conn)->bool { return conn.first == focused_id; });
+                                                     [&](const std::pair < std::string, bool > & conn)->bool { return conn.first == active_focused_id; });
                 it != search_matches.end())
             {
                 switch (search_focus_move)
@@ -198,7 +242,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                             const auto match = std::find_if(
                                 std::make_reverse_iterator(it), search_matches.rend(),
                                 [](const auto & conn) { return conn.second; });
-                            if (match != search_matches.rend()) focused_id = match->first;
+                            if (match != search_matches.rend()) set_active_focus(match->first);
                         }
 
                         focus_to_highlight = true;
@@ -211,7 +255,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                         {
                             const auto match = std::find_if(next, search_matches.end(),
                                                             [](const auto & conn) { return conn.second; });
-                            if (match != search_matches.end()) focused_id = match->first;
+                            if (match != search_matches.end()) set_active_focus(match->first);
                         }
 
                         focus_to_highlight = true;
@@ -258,17 +302,17 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
 
         auto move = [&](auto && do_i_process, auto && how_do_i_process)
         {
-            if (!focused_id.empty())
+            if (!active_focused_id.empty())
             {
                 bool found = false;
                 for (auto it_ = content.first; it_ != content.second; ++it_)
                 {
-                    if (HashContent(*it_) == focused_id)
+                    if (HashContent(*it_) == active_focused_id)
                     {
                         if (do_i_process(it_, content.first, content.second))
                         {
                             focus_to_highlight = true;
-                            focused_id = how_do_i_process(it_);
+                            set_active_focus(how_do_i_process(it_));
                         }
 
                         found = true;
@@ -278,43 +322,45 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
 
                 if (!found && focused_index >= 0
                     && focused_index < static_cast<decltype(focused_index)>(contentSize)) {
-                    focused_id = HashContent(*(content.first + focused_index));
+                    set_active_focus(HashContent(*(content.first + focused_index)));
                     }
             }
+        };
+
+        auto highlight_move_down = [&]{
+            move([&](auto it_, auto, auto end)->bool {
+                     return it_ != (end - 1);
+                 },
+                 [&](auto it_)->std::string {
+                     return HashContent(*(it_ + 1));
+                 });
+        };
+
+        auto highlight_move_up = [&]{
+            move([&](auto it_, auto begin, auto)->bool {
+                     return it_ != begin;
+                 },
+                 [&](auto it_)->std::string {
+                     return HashContent(*(it_ - 1));
+                 });
         };
 
         /// move
         switch (atm_focus)
         {
             // move down
-        case 1:
-            {
-                move([&](auto it_, auto, auto end)->bool {
-                         return it_ != (end - 1);
-                     },
-                     [&](auto it_)->std::string {
-                         return HashContent(*(it_ + 1));
-                     });
-            }
+        case 1: highlight_move_down();
         break;
             // move up
-        case 2:
-            {
-                move([&](auto it_, auto begin, auto)->bool {
-                         return it_ != begin;
-                     },
-                     [&](auto it_)->std::string {
-                         return HashContent(*(it_ - 1));
-                     });
-            }
+        case 2: highlight_move_up();
         break;
         default: break;
         }
 
         /// refocus
-        if ((focus_to_highlight || kill_connection) && !focused_id.empty()
+        if ((focus_to_highlight || kill_connection) && !active_focused_id.empty()
             && std::any_of(content.first, content.second, [&](const ContainerType & c_)->bool {
-                return HashContent(c_) == focused_id;
+                return HashContent(c_) == active_focused_id;
             }))
         {
             auto can_i_find_in_this_index = [&](const int i)->bool
@@ -322,7 +368,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                 auto connections_current_page = make_screen_vector_frame(content.first, content.second, contentSize,
                                                                          i, line_size, start_line, window_frame_size);
                 return std::any_of(connections_current_page.first, connections_current_page.second, [&](const ContainerType & conn)->bool {
-                    return (HashContent(conn) == focused_id);
+                    return (HashContent(conn) == active_focused_id);
                 });
             };
 
@@ -353,7 +399,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                 std::ranges::advance(target, offset, content_on_cur_page.second);
                 if (target != content_on_cur_page.second)
                 {
-                    focused_id = HashContent(*target);
+                    set_active_focus(HashContent(*target));
                     focused_container = *target;
                     focus_line = mouse_y;
                 }
@@ -362,14 +408,14 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                     show_info(GenerateBanner(FOCUSED_ON_NON_PRESENCE, focused_container), "INFO");
                 }
             }
-            else if (!focused_id.empty())
+            else if (!active_focused_id.empty())
             {
                 // find the focused line on page
                 if (int index = 0;
                     std::any_of(content_on_cur_page.first, content_on_cur_page.second, [&](const ContainerType & line)->bool
                     {
                         index++;
-                        if (const auto & line_hash = HashContent(line); line_hash == focused_id)
+                        if (const auto & line_hash = HashContent(line); line_hash == active_focused_id)
                         {
                             focused_container = line;
                             return true;
@@ -382,6 +428,12 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                     focus_line = index + start_line;
                     focused_index = index;
                 }
+            }
+
+            if (space_pressed && !active_focused_id.empty())
+            {
+                focused_id.insert_or_assign(active_focused_id, selected_line_color);
+                highlight_move_down();
             }
 
             color_code_overrides = GenerateOverrideColorInContent(content_on_cur_page, current_skip_lines);
@@ -402,7 +454,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
             {
                 (void)std::any_of(content.first, content.second, [&](const ContainerType & conn)->bool
                 {
-                    if (HashContent(conn) == focused_id) {
+                    if (HashContent(conn) == active_focused_id) {
                         matched = &conn;
                         return true;
                     }
@@ -549,6 +601,19 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
         }
 
         int message_box_width = 0;
+        std::map < int, std::string > focus_lines;
+        {
+            auto content_on_cur_page = make_screen_vector_frame(content.first, content.second, contentSize,
+                                                                current_skip_lines, line_size, start_line, window_frame_size);
+            int index = 1;
+            for (auto it = content_on_cur_page.first; it != content_on_cur_page.second; ++it, ++index)
+            {
+                if (const auto highlight = focused_id.find(HashContent(*it)); highlight != focused_id.end())
+                {
+                    focus_lines.emplace(index + start_line, highlight->second);
+                }
+            }
+        }
         const auto frame_string = print_table(print_table_context_t{
             .table_keys = {title_begin, title_end},
             .table_values = {values_begin, values_end},
@@ -561,7 +626,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
             .max_skip_lines_ptr = &max_skip_lines_,
             .enforce_no_pager = false,
             .color_code_overrides = color_code_overrides,
-            .highlight_screen_line = focus_line,
+            .highlight_screen_line = std::move(focus_lines),
             .out = nullptr,
             .show_search = &show_search,
             .search_line_boxContent = &search_content_buffer,
@@ -597,6 +662,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
         const int local_search_focus_move = search_focus_move;
         const int local_atm_focus = atm_focus;
         const int local_tab_suggestion = tab_suggestion_requested;
+        const bool local_space_pressed = space_pressed_.load();
         if (lock_to_max) leading_spaces_ = max_leading_spaces_.load();
         FrameVisitEach(&compliment_data);
 
@@ -619,7 +685,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                 || local_atm_focus != atm_focus_
                 || !running
                 || skip_due_to_shrink
-                // || skip_due_to_lock
+                || local_space_pressed != space_pressed_
                 || local_tab_suggestion != tab_suggestion_requested
                 || (!on_display && !g_title_lines.empty()) // not on display, and has notifications
             )

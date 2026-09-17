@@ -694,17 +694,18 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
             } else {
                 std::string utf8_str;
                 utf8::utf32to8(line.begin(), line.end(), std::back_inserter(utf8_str));
-                const auto use_line_highlighter = printed_lines + 1 == highlight_screen_line;
-                if (use_line_highlighter) {
-                    frame << color_line_hl;
-                }
+                const auto line_highlighter = highlight_screen_line.find(printed_lines + 1);
+                const bool use_line_highlighter = line_highlighter != highlight_screen_line.end();
+                const std::string line_highlight_color =
+                    use_line_highlighter && YES_HIGHLIGHTER_LINE_COLOR_CODE ? line_highlighter->second : "";
+                const std::string effective_color = color + line_highlight_color;
 
                 if (!utf8_str.empty() && utf8_str.front() == '<') // add color code for '<' at the beginning
                 {
                     utf8_str.erase(utf8_str.begin());
-                    utf8_str = white_strip + "<" + color + utf8_str;
+                    utf8_str = white_strip + "<" + effective_color + utf8_str;
                 } else {
-                    utf8_str = color + utf8_str;
+                    utf8_str = effective_color + utf8_str;
                 }
 
                 if (YES_HIGHLIGHTER_LINE_COLOR_CODE) {
@@ -714,7 +715,7 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
                 frame << highlight(
                     utf8_str,
                     highlight_str,
-                    color + (use_line_highlighter ? color_line_hl : ""),
+                    effective_color,
                     matches,
                     YES_HIGHLIGHTER_LINE_COLOR_CODE ? "\033[01;05;07m" : "")
                       << color::no_color();
@@ -916,7 +917,7 @@ void ccdb::ccdb::simple_print_table_to_ostream(std::vector<std::string> const &t
         .max_skip_lines_ptr = nullptr,
         .enforce_no_pager = true,
         .color_code_overrides = {},
-        .highlight_screen_line = -1,
+        .highlight_screen_line = {},
         .out = &out_stream,
         .show_search = nullptr,
         .search_line_boxContent = nullptr,
@@ -956,7 +957,7 @@ void ccdb::ccdb::simple_print_table_w_pager(
         .max_skip_lines_ptr = nullptr,
         .enforce_no_pager = less.empty(),
         .color_code_overrides = { },
-        .highlight_screen_line = -1,
+        .highlight_screen_line = {},
         .out = nullptr,
         .show_search = nullptr,
         .search_line_boxContent = nullptr,
