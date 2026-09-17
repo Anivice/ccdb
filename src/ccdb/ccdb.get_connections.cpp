@@ -410,8 +410,11 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                             return std::tie(a.ruleName, aH) > std::tie(b.ruleName, bH);
                         case 7:
                             return std::tie(a.timeElapsedSinceConnectionEstablished, aH) > std::tie(b.timeElapsedSinceConnectionEstablished, bH);
-                        case 8:
-                            return std::tie(a.src, aH) > std::tie(b.src, bH);
+                        case 8: {
+                            const std::string a_src = a.src.substr(0, a.src.find_last_of(':'));
+                            const std::string b_src = b.src.substr(0, b.src.find_last_of(':'));
+                            return std::tie(a_src, aH) > std::tie(b_src, bH);
+                        }
                         case 9:
                             return std::tie(a.destination, aH) > std::tie(b.destination, bH);
                         case 10:
