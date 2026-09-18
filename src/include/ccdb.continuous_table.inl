@@ -197,8 +197,8 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
             if (const auto it = focused_id.find(active_focused_id);
                 it != focused_id.end())
             {
-                if (it->second.find(focused_line_color) == std::string::npos) {
-                    it->second = it->second + focused_line_color;
+                if (it->second.find(focused_line_color) == std::string::npos) { // no focus
+                    it->second = it->second + focused_line_color; // highlight AND focus
                 }
             } else {
                 focused_id.emplace(active_focused_id, focused_line_color);
@@ -357,36 +357,6 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
         default: break;
         }
 
-        /// refocus
-        if ((focus_to_highlight || kill_connection) && !active_focused_id.empty()
-            && std::any_of(content.first, content.second, [&](const ContainerType & c_)->bool {
-                return HashContent(c_) == active_focused_id;
-            }))
-        {
-            auto can_i_find_in_this_index = [&](const int i)->bool
-            {
-                auto connections_current_page = make_screen_vector_frame(content.first, content.second, contentSize,
-                                                                         i, line_size, start_line, window_frame_size);
-                return std::any_of(connections_current_page.first, connections_current_page.second, [&](const ContainerType & conn)->bool {
-                    return (HashContent(conn) == active_focused_id);
-                });
-            };
-
-            // don't refresh window if this already exists
-            if (!can_i_find_in_this_index(current_skip_lines))
-            {
-                for (int i = 0; i <= max_skip_lines; ++i)
-                {
-                    if (can_i_find_in_this_index(i))
-                    {
-                        current_skip_lines_ = i;
-                        current_skip_lines = i;
-                        break;
-                    }
-                }
-            }
-        }
-
         /// focus
         {
             auto content_on_cur_page = make_screen_vector_frame(content.first, content.second, contentSize,
@@ -432,11 +402,51 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
 
             if (space_pressed && !active_focused_id.empty())
             {
-                focused_id.insert_or_assign(active_focused_id, selected_line_color);
+                // focused_id.insert_or_assign(active_focused_id, selected_line_color);
+                if (const auto it = focused_id.find(active_focused_id);
+                    it != focused_id.end()) // found
+                {
+                    if (it->second.find(selected_line_color) != std::string::npos) { // already highlighted
+                        focused_id.erase(it);
+                    } else {
+                        focused_id.insert_or_assign(active_focused_id, selected_line_color);
+                    }
+                }
                 highlight_move_down();
+                focus_to_highlight = true;
             }
 
             color_code_overrides = GenerateOverrideColorInContent(content_on_cur_page, current_skip_lines);
+        }
+
+        /// refocus
+        if ((focus_to_highlight || kill_connection) && !active_focused_id.empty()
+            && std::any_of(content.first, content.second, [&](const ContainerType & c_)->bool {
+                return HashContent(c_) == active_focused_id;
+            }))
+        {
+            auto can_i_find_in_this_index = [&](const int i)->bool
+            {
+                auto connections_current_page = make_screen_vector_frame(content.first, content.second, contentSize,
+                                                                         i, line_size, start_line, window_frame_size);
+                return std::any_of(connections_current_page.first, connections_current_page.second, [&](const ContainerType & conn)->bool {
+                    return (HashContent(conn) == active_focused_id);
+                });
+            };
+
+            // don't refresh window if this already exists
+            if (!can_i_find_in_this_index(current_skip_lines))
+            {
+                for (int i = 0; i <= max_skip_lines; ++i)
+                {
+                    if (can_i_find_in_this_index(i))
+                    {
+                        current_skip_lines_ = i;
+                        current_skip_lines = i;
+                        break;
+                    }
+                }
+            }
         }
 
         if (kill_connection)
@@ -614,33 +624,34 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                 }
             }
         }
-        const auto frame_string = print_table(print_table_context_t{
-            .table_keys = {title_begin, title_end},
-            .table_values = {values_begin, values_end},
-            .table_hide = {do_col_hide.begin(), do_col_hide.end()},
-            .leading_offset = static_cast<int>(lock_to_max ? std::numeric_limits<decltype(leading_spaces)>::max() : leading_spaces),
-            .max_leading_offset_ptr = &max_leading_spaces_,
-            .using_pager = false,
-            .additional_info_before_table = title_line,
-            .skip_lines = current_skip_lines,
-            .max_skip_lines_ptr = &max_skip_lines_,
-            .enforce_no_pager = false,
-            .color_code_overrides = color_code_overrides,
-            .highlight_screen_line = std::move(focus_lines),
-            .out = nullptr,
-            .show_search = &show_search,
-            .search_line_boxContent = &search_content_buffer,
-            .cursor_position_in_search_box = &cursor_position,
-            .highlight_str = search_content,
-            .column_alignment = {alignment.begin(), alignment.end()},
-            .line_size = line_size,
-            .col_size = col_size,
-            .message_box_width_ = &message_box_width,
-            .width_context_ = &width_context
-        });
 
-        if (const bool i_dont_print = (/*skip_due_to_lock || */skip_due_to_shrink); !i_dont_print)
+        if (const bool i_dont_print = skip_due_to_shrink; !i_dont_print)
         {
+            const auto frame_string = print_table(print_table_context_t{
+                .table_keys = {title_begin, title_end},
+                .table_values = {values_begin, values_end},
+                .table_hide = {do_col_hide.begin(), do_col_hide.end()},
+                .leading_offset = static_cast<int>(lock_to_max ? std::numeric_limits<decltype(leading_spaces)>::max() : leading_spaces),
+                .max_leading_offset_ptr = &max_leading_spaces_,
+                .using_pager = false,
+                .additional_info_before_table = title_line,
+                .skip_lines = current_skip_lines,
+                .max_skip_lines_ptr = &max_skip_lines_,
+                .enforce_no_pager = false,
+                .color_code_overrides = color_code_overrides,
+                .highlight_screen_line = std::move(focus_lines),
+                .out = nullptr,
+                .show_search = &show_search,
+                .search_line_boxContent = &search_content_buffer,
+                .cursor_position_in_search_box = &cursor_position,
+                .highlight_str = search_content,
+                .column_alignment = {alignment.begin(), alignment.end()},
+                .line_size = line_size,
+                .col_size = col_size,
+                .message_box_width_ = &message_box_width,
+                .width_context_ = &width_context
+            });
+
             frame_data.set({
                 .frame_index = ++frame_index,
                 .frame = frame_string,
