@@ -1,42 +1,116 @@
 环境变量:
-   PAGER:    指定分页器. 此环境变量被指定后，ccdb不再做分页器可用性检查
-   NOPAGER:  设置该环境变量为'y'会强制禁用分页器
-   COLOR:    设置为`never`来禁用色彩码
-   JQ:       设置JSON解释器，如果存在`jq`则默认为`jq`
-   TABSIZE:  设置制表符大小，默认为4个空格
-   CURSOR:   设置搜索和命令的指针
-   REVERSE_MOUSE: 设置为`true`时鼠标滚动逆向
-   NO_0xFE0F_EXPAND_EMOJI: 修复Unicode 0xFE0F扩展。例如，"✈和✈️".
-                           如果你看不出区别，或者出现Unicode处理BUG，
-                           设置该环境变量为`true`可能可以修复该问题
-   DISABLE_SERVER_CERTIFICATE_VERIFICATION: 如果链接是https，拉取信息时会默认加载SSL，
-                                            设置该环境变量为`true`可以跳过SSL证书认证
-   SSL_CERTIFICATE: 如果链接是https， 使用该环境变量设置SSL证书位置
-   NO_HIGHLIGHTER_LINE_COLOR_CODE: 即使已经设置COLOR为`n`， 在`get connections`里，高亮行依然带有ANSI颜色码。
-                                   COLOR=n实际上将输出变为单色输出。
-                                   如果你想完全禁用色彩码，设置NO_HIGHLIGHTER_LINE_COLOR_CODE为true。
-                                   禁用色彩码将导致高亮行将无法显示
-   DISABLE_CACHE_BEHAVIOR: 禁用`ccdb`内置的缓存器。
-                           如果有任何内存泄漏或高内存使用，使用本环境变量可以禁用内置缓存。
-                           禁用缓存会降低内存使用，但可能导致CPU时间消耗增多
-                                                                      SCHEME_CACHE_SIZE
-                SCHEME_CACHE_SIZE: 着色器缓存大小。 预计最大缓存大小为          ∑ (i)
-                                                                          i=1
-        SCHEME_CACHE_THREAD_COUNT: 着色器缓存线程数量。如果存在数据竞态关系，设置该环境变量为1。
-   SCHEME_CACHE_DECIMAL_PRECISION: 着色器数据精确度。默认为16。
+  语言:
+    LANG: 选择附加帮助的语言。`zh_CN`（后面可以带`.UTF-8`等编码名称）选择简体中文；
+          其他值均选择英文。
 
-键盘快捷键:
-  `get connections`: 拉取活跃连接有多个键盘快捷键:
-        鼠标单击/Ctrl+UP/Ctrl+DOWN: 移动高亮
-                            K: 关闭高亮的连接
-                            P: 输出Mihomo后端提供的该连接的JSON数据. 如果 `jq` 可用，JSON数据会被 `jq` 处理
-                       F1-F12: 设置排序，F1-F12对应列表0-11。同一列表按两次则会反向排序
-                       Ctrl+C: 关闭活跃连接监视器
-                            /: 搜索
-                          n/N: 将高亮行移动到下一个/上一个搜索匹配的行
-  `get log`: 拉取后端日志有多个键盘快捷键:
-                      鼠标单击: 高亮
-                            P: 暂停日志更新
-                       Ctrl+C: 关闭日志监视器
-                            /: 搜索
-                          n/N: 将高亮行移动到下一个/上一个搜索匹配的行
+  显示与交互:
+    PAGER: 分页器命令。非空值会直接使用，不检查该命令是否可用。未设置时，ccdb会在`less`可用时
+           使用它（无色彩模式使用`less`，其他模式使用`less -SR -S --rscroll='>'`）。
+   NOPAGER: PAGER未设置时，值为`true`、`1`、`yes`或`y`会禁用分页器探测和使用。
+     COLOR: `always`强制启用ANSI色彩；`never`、`none`、`off`、`no`、`n`、`0`或`false`禁用色彩；
+            其他值则只在标准输出为终端时启用色彩。若COLOR未设置且COLORFGBG表示浅色背景，
+            ccdb会自动选择无色彩模式。
+        JQ: JSON格式化命令。未设置时，若系统中存在`jq`，ccdb会使用它。非空值不会经过可用性检查。
+   TABSIZE: 表格中一个制表符显示成多少个空格。必须是正整数；默认值：4。
+    CURSOR: 表格搜索/命令输入框使用的光标字符。只使用第一个Unicode字符；默认值：`█`。
+            在Termux中，若尚未设置CURSOR，ccdb会自动改用空格。
+REVERSE_MOUSE: `true`或`false`反转/恢复鼠标滚轮方向，并覆盖`~/.ccdbrc`中的
+               `Global::ReverseMouse`。
+FOCUS_FOLLOW_MOUSE_SCROLLING: 设置为`true`时，使用鼠标滚轮滚动会同时移动当前焦点行。
+NO_0xFE0F_EXPAND_EMOJI: 若终端把U+FE0F当作零宽字符，请设置为`true`；否则ccdb会把U+FE0F计算为
+                        一个额外字符宽度。此变量未设置时，ccdb会为若干已知终端自动选择取值。
+NO_HIGHLIGHTER_LINE_COLOR_CODE: 设置为`true`可禁止焦点行及选中行使用的ANSI序列。若COLOR同时禁用了
+                                普通色彩，行焦点和选择状态将不再有任何视觉标记。
+ENABLE_CLEAR_ON_SHRINK: 设置为`true`后，当交互表格内容缩短并可能遗留旧终端行时，清屏并重新绘制。
+CCDB_REVERT_TO_BACKGROUND: 设置为`true`可把当前色彩方案绘制为背景色，而不是前景色。
+SPECIFIED_BACKGROUND_RGB: 使用前景色方案时的背景色，格式为`R;G;B`。各分量会限制在0-255；
+                          默认值：`32;32;32`。
+
+  缓存与自定义色彩方案:
+DISABLE_CACHE_BEHAVIOR: 设置为`true`可禁用ccdb中可复用的正则表达式缓存和频率缓存。这会减少这些
+                        内存缓存，但会增加CPU工作量；它不会禁用所有缓存，也不会禁用自定义色彩方案
+                        的磁盘缓存。
+SCHEME_CACHE_SIZE: 生成自定义色彩方案缓存时使用的采样密度；默认值：32。生成器会计算
+                   `1 <= i <= SIZE`、`1 <= j < i`范围内的`j/i`，去除相同采样点，并加入两个端点。
+SCHEME_CACHE_THREAD_COUNT: 生成自定义色彩方案缓存时的工作线程批次阈值；默认值：
+                           `std::thread::hardware_concurrency()`报告的数量。
+SCHEME_CACHE_DECIMAL_PRECISION: 自定义色彩方案偏移值的小数位数，同时作为`precision`传给方案命令；
+                                默认值：16。
+
+  网络与TLS:
+DISABLE_SERVER_CERTIFICATE_VERIFICATION: 设置为`true`可禁用HTTPS服务器证书验证（不安全）。设置有效的
+                                         `clash::sslCert`并使用`clash::sslVerify=on`，可为订阅链接请求
+                                         重新启用验证。
+SSL_CERTIFICATE: CA证书或证书包路径；ccdb会在内置系统CA路径列表之前尝试此路径。
+          PREFIX: 添加到内置系统CA路径前的前缀（可用于Termux等环境）。
+http_proxy / https_proxy: 对应HTTP/HTTPS订阅及升级请求所使用的代理，格式为`scheme://host:port`。
+CCDB_SYNC_ADDRESS_BIND_TO: CCDB UDP组同步使用的接口。可设为`ADDR_ANY`、本地接口名称或本地IPv4地址。
+                           未设置时，ccdb通常会选择访问后端所使用的接口；显式设置的值若无效，
+                           UDP组同步会被禁用。
+
+  定时与诊断:
+CCDB_LOG_REFRESH_INTERVAL: `get log`刷新间隔，单位为毫秒；默认值：100。
+MIHOMO_PPROF_SECONDS: `get memory pprof profile`及`trace`请求的持续时间，单位为秒；默认值：15。
+MIHOMO_PPROF_DBG: 传给Mihomo pprof的`debug`查询参数值；默认值：1。
+DO_NOT_USE_ADDR2LINE: 设置为`true`可禁止`--feedBacktrace`调用`addr2line`。
+SHOW_INPUT_TRACE: 设置为`true`可把交互按键的原始序列及编码序列输出到标准错误。
+
+  由ccdb导出:
+    CCDB: 完整的ccdb启动命令。该变量会提供给子Shell管道使用，不会作为启动配置读取。
+
+交互表格通用操作（`get connections`及`get log`）:
+  不在搜索/命令输入框中时:
+    q / Q、Ctrl+C: 退出表格。
+          鼠标单击: 聚焦某一行；单击左侧或底部滚动指示区可跳转到相应位置。
+          鼠标滚轮: 纵向滚动（REVERSE_MOUSE会改变方向）。
+          左/右方向键: 横向滚动。
+          上/下方向键: 纵向滚动。
+              Home/End: 跳到左/右边缘。
+           PageUp/Down: 滚动约一页。
+          Ctrl+上/下: 将焦点向上/下移动一行。
+                     f: 滚动表格，直至焦点行可见。
+                  空格: 切换焦点行的持久高亮状态，然后把焦点下移一行。
+                     /: 打开搜索/命令输入框。
+                 n / N: 应用搜索后，将焦点移到下一个/上一个匹配行。
+
+  在搜索/命令输入框中时:
+                  Enter: 应用搜索，或执行一条`:`命令。
+                  Alt+E: 取消输入并清空内容。
+  左/右方向键、Home/End: 移动输入光标。
+       Backspace/Delete: 删除输入光标前/后的文本。
+                    Tab: 在`get connections`中补全或循环选择`:`命令名称。
+
+  搜索文本是区分大小写的ECMAScript正则表达式，与拼接后的显示列进行匹配。搜索只高亮匹配文本，
+  不会过滤掉不匹配的行。搜索导航从当前焦点行开始。
+
+  k、p、f、方向键、Home/End、PageUp/Down、F1-F12及Ctrl+上/下这些操作，可在`~/.ccdbrc`的
+  `[Shortcut]`段中使用ccdb的按键序列编码格式重新映射。鼠标操作、q/Q、Ctrl+C、空格、/、n/N
+  以及搜索编辑按键是固定的。
+
+`get connections`操作:
+                     k: 关闭焦点所在的连接。
+                     p: 使用JQ（若可用）及PAGER打开焦点连接的Mihomo原始JSON。
+                F1-F12: 按第0-11列排序；再次按当前排序列对应的按键可反转顺序。
+
+  用`/`打开输入框，输入下列命令之一（包括开头的`:`），然后按Enter:
+    :hide LIST                 在本次表格会话中隐藏指定列。LIST接受逗号分隔的索引及闭区间，
+                               例如`0,2,4-6`。
+    :closeAll                  关闭后端中的全部连接。
+    :closeOnScreen             关闭当前已过滤表格范围内的全部连接（不只是当前终端视口内可见的行）。
+    :filter COLUMN REGEX       为可过滤列设置一个排除用正则表达式。
+    :filterReverse             在“排除匹配项”和“只保留匹配项”两种过滤语义之间切换。
+    :clearFilters              删除所有活动连接过滤器。
+    :reverseChainParser        切换代理链解析方式，并重建连接帧。
+    :pause / :resume           暂停或恢复连接帧更新。
+    :sort COLUMN               按数字列索引排序。
+    :sortReverse               反转当前排序顺序。
+
+  连接列为：0 主机、1 进程、2 已下载、3 已上传、4 下载速度、5 上传速度、6 规则、7 时间、
+  8 源IP、9 目标IP、10 类型、11 代理链。列0、1、6、8、9、10、11实现了过滤。
+  在普通过滤模式下，只要一行匹配任意活动过滤器，该行就会被排除。
+
+`get log`操作:
+                     p: 在暂停和继续拉取日志之间切换。最新日志显示在顶部。
+
+`nload`操作:
+    q / Q、Ctrl+C: 退出监视器。

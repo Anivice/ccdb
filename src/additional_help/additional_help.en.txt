@@ -1,44 +1,127 @@
 Environment:
-   PAGER:    Specify a pager. Pager availability check is ignored when this environmental variable is set.
-   NOPAGER:  Set this to 'y' and force ccdb to ignore pager.
-   COLOR:    Set it to `never` to disable color codes.
-   JQ:       Set JSON parser, default is `jq`, if available.
-   TABSIZE:  Set tab size when printing tables, default is 4.
-   CURSOR:   Set cursor for print_table's search and embedded command strip.
-   REVERSE_MOUSE: Reverse mouse scrolling direction when set to `true`.
-   NO_0xFE0F_EXPAND_EMOJI: Fix Unicode processing issues for emoji space expand code, e.g., "✈" and "✈️".
-                           If you cannot notice any differences of the above emojis, or there's weird Unicode processing bugs in your terminal,
-                           you might want to set this to `true`.
-   DISABLE_SERVER_CERTIFICATE_VERIFICATION: TLS is enabled by default when URLs use HTTPS.
-                                            Set this to `true` to skip server SSL certificate check (insecure).
-   SSL_CERTIFICATE: When URLs are https, specify an SSL certificate location.
-   NO_HIGHLIGHTER_LINE_COLOR_CODE: Even when setting COLOR to `n`, highlight line still has color codes to retain its
-                                    basic function in `get connections`.
-                                   COLOR=n is essentially a way to turn terminal into monocolor.
-                                   If you want to disable color codes completely, including highlight lines,
-                                    set NO_HIGHLIGHTER_LINE_COLOR_CODE to true.
-                                   Note that this will make highlighted lines invisible.
-   DISABLE_CACHE_BEHAVIOR: Disable cache behavior inside `ccdb`.
-                           If you notice any memory leaks or huge memory uses, you can disable im-memory caches for utilities.
-                           This will cost more CPU time, with reduced memory use.
-                                                                                            SCHEME_CACHE_SIZE
-                SCHEME_CACHE_SIZE: Cache size of the color scheme. The estimated size is          ∑ (i)
-                                                                                                 i=1
-        SCHEME_CACHE_THREAD_COUNT: Cache generation thread. Should concurrancy be an issue, set this to 1.
-   SCHEME_CACHE_DECIMAL_PRECISION: Decimal precision for each step. Default is 16.
+  Locale:
+    LANG: Select the additional-help language. `zh_CN` (optionally followed by an encoding such as `.UTF-8`)
+          selects Simplified Chinese; all other values select English.
 
-Keyboard Shortcuts:
-  `get connections`: Get connections has multiple keyboard shortcuts:
-     Mouse Click/Ctrl+UP/Ctrl+DOWN: Move highlight
-                            K: Kill the highlighted connection
-                            P: Print raw JSON from Mihomo core. If `jq` can be found, JSON will be parsed by jq
-                       F1-F12: Specify which column (0-11) to sort the table, press on the same column again to reverse the sort
-                       Ctrl+C: Abort the watcher
-                            /: Search and highlight
-                          n/N: Move highlight to next/last match
-  `get log`: Get backend logs has multiple keyboard shortcuts:
-                  Mouse Click: Highlight
-                            P: Pause log fetch
-                       Ctrl+C: Abort the watcher
-                            /: Search and highlight
-                          n/N: Move highlight to next/last match
+  Display and interaction:
+    PAGER: Pager command. A non-empty value is used without an availability check. If unset, ccdb uses
+           `less` when it is available (`less` in no-color mode, otherwise `less -SR -S --rscroll='>'`).
+   NOPAGER: When PAGER is unset, `true`, `1`, `yes`, or `y` disables pager detection and use.
+     COLOR: `always` forces ANSI colors. `never`, `none`, `off`, `no`, `n`, `0`, or `false` disables them.
+            Otherwise, color is enabled only when standard output is a terminal. If COLOR is unset and
+            COLORFGBG reports a light background, ccdb automatically selects no-color mode.
+        JQ: JSON formatter command. If unset, ccdb uses `jq` when it is available. A non-empty value is
+            accepted without an availability check.
+   TABSIZE: Number of spaces used to display a tab in tables. Must be a positive integer; default: 4.
+    CURSOR: Cursor character used in the table search/command input. Only the first Unicode character is
+            used; default: `█` (a space is selected automatically in Termux unless CURSOR is already set).
+REVERSE_MOUSE: `true` or `false` reverses/restores mouse-wheel scrolling and overrides
+               `Global::ReverseMouse` from `~/.ccdbrc`.
+FOCUS_FOLLOW_MOUSE_SCROLLING: Set to `true` to move the focused row together with mouse-wheel scrolling.
+NO_0xFE0F_EXPAND_EMOJI: Set to `true` when the terminal treats U+FE0F as zero-width. ccdb otherwise counts
+                        U+FE0F as one extra cell. ccdb auto-selects a value for several known terminals
+                        when this variable is unset.
+NO_HIGHLIGHTER_LINE_COLOR_CODE: Set to `true` to suppress the ANSI sequences used for focused and selected
+                                rows. This also removes the last visual indication of row focus/selection
+                                when COLOR disables ordinary colors.
+ENABLE_CLEAR_ON_SHRINK: Set to `true` to clear and redraw an interactive table after its content shrinks
+                        enough to leave stale terminal lines.
+CCDB_REVERT_TO_BACKGROUND: Set to `true` to render the active color scheme as background colors instead of
+                           foreground colors.
+SPECIFIED_BACKGROUND_RGB: Background used with foreground color schemes, in `R;G;B` form. Each component
+                          is clamped to 0-255; default: `32;32;32`.
+
+  Cache and custom color schemes:
+DISABLE_CACHE_BEHAVIOR: Set to `true` to disable ccdb's reusable regex and frequency caches. This reduces
+                        those memory caches at the cost of more CPU work; it does not disable every cache
+                        or the custom color-scheme disk cache.
+SCHEME_CACHE_SIZE: Sampling density used while generating a custom color-scheme cache; default: 32.
+                   Generation evaluates the fractions `j/i` for `1 <= i <= SIZE` and `1 <= j < i`,
+                   deduplicates equal samples, and adds the two endpoints.
+SCHEME_CACHE_THREAD_COUNT: Worker batch threshold while generating a custom color-scheme cache; default:
+                           the number reported by `std::thread::hardware_concurrency()`.
+SCHEME_CACHE_DECIMAL_PRECISION: Decimal digits used for the custom scheme's offset and passed to the scheme
+                                command as `precision`; default: 16.
+
+  Network and TLS:
+DISABLE_SERVER_CERTIFICATE_VERIFICATION: Set to `true` to disable HTTPS server-certificate verification
+                                         (insecure). A valid `clash::sslCert` with `clash::sslVerify=on`
+                                         re-enables verification for subscription-link requests.
+SSL_CERTIFICATE: Path to a CA certificate/bundle tried before ccdb's built-in list of system CA paths.
+          PREFIX: Prefix prepended to the built-in system CA paths (useful for environments such as Termux).
+http_proxy / https_proxy: Proxy for matching HTTP/HTTPS subscription and upgrade requests, in
+                          `scheme://host:port` form.
+CCDB_SYNC_ADDRESS_BIND_TO: Interface used for CCDB's UDP group synchronization. Accepts `ADDR_ANY`, a local
+                           interface name, or a local IPv4 address. If unset, ccdb normally selects the
+                           interface used to reach the backend; an invalid explicit value disables UDP
+                           group synchronization.
+
+  Timing and diagnostics:
+CCDB_LOG_REFRESH_INTERVAL: `get log` refresh interval in milliseconds; default: 100.
+MIHOMO_PPROF_SECONDS: Duration in seconds requested by `get memory pprof profile` and `trace`; default: 15.
+MIHOMO_PPROF_DBG: Value sent as the Mihomo pprof `debug` query parameter; default: 1.
+DO_NOT_USE_ADDR2LINE: Set to `true` to stop `--feedBacktrace` from invoking `addr2line`.
+SHOW_INPUT_TRACE: Set to `true` to print raw and encoded interactive key sequences to standard error.
+
+  Exported by ccdb:
+    CCDB: The full ccdb invocation. It is exported for child shell pipelines and is not read as a startup
+          setting.
+
+Interactive Table Controls (`get connections` and `get log`):
+  Outside the search/command input:
+    q / Q, Ctrl+C: Leave the table.
+       Mouse click: Focus a row. Clicking the left or bottom scroll indicator jumps to that position.
+       Mouse wheel: Scroll vertically (REVERSE_MOUSE changes the direction).
+ Left/Right arrows: Scroll horizontally.
+    Up/Down arrows: Scroll vertically.
+          Home/End: Jump to the left/right edge.
+       PageUp/Down: Scroll by approximately one page.
+      Ctrl+Up/Down: Move the focused row by one row.
+                 f: Scroll the table until the focused row is visible.
+             Space: Toggle a persistent highlight on the focused row, then move focus down one row.
+                 /: Open the search/command input.
+             n / N: Move focus to the next/previous matching row after a search has been applied.
+
+  In the search/command input:
+              Enter: Apply the search, or execute a `:` command.
+              Alt+E: Cancel the input and clear its contents.
+ Left/Right, Home/End: Move the input cursor.
+   Backspace/Delete: Delete text around the input cursor.
+                Tab: Complete or cycle `:` command names in `get connections`.
+
+  Search text is a case-sensitive ECMAScript regular expression matched against the concatenated displayed
+  columns. It highlights matching text; it does not remove non-matching rows. Search navigation starts from
+  the currently focused row.
+
+  The k, p, f, arrow, Home/End, PageUp/Down, F1-F12, and Ctrl+Up/Down actions are configurable in the
+  `[Shortcut]` section of `~/.ccdbrc` using ccdb's encoded key-sequence form. Mouse handling, q/Q,
+  Ctrl+C, Space, /, n/N, and search-editor keys are fixed.
+
+`get connections` Controls:
+                 k: Close the focused connection.
+                 p: Open the focused connection's raw Mihomo JSON through JQ (when available) and PAGER.
+            F1-F12: Sort by columns 0-11. Press the key for the active sort column again to reverse order.
+
+  Open the input with `/`, type one of the following commands (including the leading `:`), and press Enter:
+    :hide LIST                 Hide columns for this table session. LIST accepts comma-separated indexes
+                               and inclusive ranges, for example `0,2,4-6`.
+    :closeAll                  Close every backend connection.
+    :closeOnScreen             Close every connection in the current filtered table scope (not merely the
+                               rows visible in the current terminal viewport).
+    :filter COLUMN REGEX       Set an exclusion regex for a filterable column.
+    :filterReverse             Toggle filter semantics between excluding and retaining matches.
+    :clearFilters              Remove all active connection filters.
+    :reverseChainParser        Toggle proxy-chain parsing and rebuild the connection frame.
+    :pause / :resume           Pause or resume connection-frame updates.
+    :sort COLUMN               Sort by a numeric column index.
+    :sortReverse               Reverse the current sort order.
+
+  Connection columns are: 0 Host, 1 Process, 2 Downloaded, 3 Uploaded, 4 Download speed, 5 Upload speed,
+  6 Rule, 7 Time, 8 Source IP, 9 Destination IP, 10 Type, and 11 Chains. Filters are implemented for columns
+  0, 1, 6, 8, 9, 10, and 11. In normal filter mode, a row matching any active filter is excluded.
+
+`get log` Controls:
+                 p: Toggle log fetching between paused and running. Newest entries are shown at the top.
+
+`nload` Controls:
+    q / Q, Ctrl+C: Leave the watcher.
