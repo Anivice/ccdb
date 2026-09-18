@@ -938,10 +938,6 @@ void ccdb::ccdb::init()
 #ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
     commandMatches.emplace_back(R"(sendNotification\s.(.*))", [this](const auto &command_vector)
         { sendNotification(command_vector); return true; });
-    commandMatches.emplace_back(R"(chat [\w]+)", [this](const auto &command_vector) {
-        chat(command_vector);
-        return true;
-    });
 #endif
 
     commandMatches.emplace_back(R"(set mode (global|rule|direct))", [this](const auto &command_vector) { set_mode(command_vector); return true; });

@@ -259,9 +259,8 @@ namespace
             }
         }
 
-        const auto result = utils::exec_command2("/bin/sh", "addr2line --help").exit_status == 0;
-        const int64_t offset = static_cast<int64_t>(landmark_addr) -
-            static_cast<int64_t>(ccdb::init_crash_report.landmark_addr_in_symbol_map);
+        const auto result = utils::getenv("DO_NOT_USE_ADDR2LINE") == "true" ? false :
+            utils::exec_command2("/bin/sh", "addr2line --help").exit_status == 0;
         const auto it = std::ranges::find_if(ccdb::init_crash_report.flatObjectRuntimeTable,
             [](const auto & obj)->bool
             {

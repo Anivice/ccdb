@@ -385,7 +385,6 @@ namespace ccdb
         void reload(const std::vector<std::string> &) const;
 
 #ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
-        void chat(const std::vector<std::string> &);
         void sendNotification(const std::vector<std::string> &);
 #endif
 

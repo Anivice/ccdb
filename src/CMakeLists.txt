@@ -169,8 +169,6 @@ add_library(ccdb SHARED
         ccdb/general_info_pulling.cpp   include/general_info_pulling.h
         ccdb/ccdb.print_table.cpp       include/ccdb.h
         ccdb/ccdb.continuous_table.cpp
-        ccdb/ccdb.chat.cpp
-        ccdb/ccdb.pprof.cpp
 
         versions.cpp                    include/versions.h
         ccdb/libmaxmind.cpp             include/libmaxmind.h

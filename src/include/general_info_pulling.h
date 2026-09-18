@@ -328,7 +328,6 @@ protected:
     void switch_loglevel(const nlohmann::json &);
     void generic_messages(const nlohmann::json &);
     void log_synchronization_notification(const nlohmann::json &);
-    void chat_message(const nlohmann::json &);
 
     std::function<std::vector < std::vector < std::string > >()> get_buffered_logs;
 public:
@@ -364,9 +363,6 @@ public:
 
     std::atomic < uint64_t > current_memory_in_use_by_mihomo = 0;
     // std::atomic < uint64_t > current_memory_limit_by_mihomo = 0;
-#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
-    ccdb::NotificationType<std::string> chat;
-#endif //__YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
     void get_memory_pprof(const std::string & name, std::vector < char > & profiles);
 };
 

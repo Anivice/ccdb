@@ -1088,9 +1088,6 @@ backend_client(url, token), get_buffered_logs(get_buffered_logs_)
                         }
                         else if (payload == "generic messages") {
                             generic_messages(json);
-                        }
-                        else if (payload == "chat message") {
-                            chat_message(json);
                         } else if (payload == "log synchronization notification") {
                             log_synchronization_notification(json);
                         }
@@ -1457,20 +1454,6 @@ void general_info_pulling::log_synchronization_notification(const nlohmann::json
         const auto [beg, end] = std::ranges::unique(logs);
         logs.erase(beg, end);
     }
-}
-
-void general_info_pulling::chat_message(const nlohmann::json & json)
-{
-#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
-    const auto message = ccdb::utils::strip_color(std::string(json["content"]));
-    const auto user = ccdb::utils::strip_color(std::string(json["user"]));
-    const nlohmann::json chatMessage = {
-        { "message", message },
-        { "user", user },
-        { "time", ::ccdb::utils::getTimeNow() },
-    };
-    chat.push(chatMessage.dump());
-#endif //__YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
 }
 
 void general_info_pulling::pull_continuous_updates()
