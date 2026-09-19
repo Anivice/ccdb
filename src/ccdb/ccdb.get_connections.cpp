@@ -154,7 +154,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     const auto color_for_closed_connections = color::color24(255,255,255,128,128,128);
 
     tsl::hopscotch_map < std::string, connection_frame_t > connection_frame;
-    tsl::hopscotch_map < std::string, connection_frame_t > closed_connection_frame;
+    tsl::hopscotch_map < std::string, std::pair < connection_frame_t, std::chrono::time_point<std::chrono::system_clock> > > closed_connection_frame;
     std::vector < connection_frame_t > connections_filtered;
     auto subinfo_ball = std::make_unique<ccdb_atomic_t<subinfo_ball_t>>();
     subinfo_worker_t subinfo_worker;
@@ -169,6 +169,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     auto before = std::chrono::system_clock::now() - std::chrono::seconds(2);
     std::vector < std::vector < std::string > > table_vals;
     bool show_only_closed_connection_view = false;
+    int closed_connection_view_max_size = 128;
 
     continuous_table <connection_frame_t, std::vector<connection_frame_t>::const_iterator, ScopeType >
     (
@@ -185,9 +186,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                                     {
                                         if (cmd.size() == 2)
                                             hide_col(cmd[1], do_col_hide);
-                                        else
-                                            return sprint("Unknown command");
-                                        return { };
+
+                                        return sprint("Unknown command");
                                     },
                     },
                 {
@@ -251,12 +251,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                                         return sprint("Failed to parse filter pattern: ", e.what());
                                     }
                                 }
-                                else
-                                {
-                                    return sprint("Invalid filter command");
-                                }
 
-                                return {};
+                                return sprint("Invalid filter command");
                             },
                 },
                 {
@@ -288,11 +284,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                                         return sprint("Invalid sort: ", e.what());
                                     }
                                 }
-                                else {
-                                    return sprint("Invalid sort command");;
-                                }
 
-                                return {};
+                                return sprint("Invalid sort command");
                             }
                 },
                 {
@@ -302,6 +295,26 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     "switchView", [&](ArgsCopyScope, CommandVectorType)->std::string {
                         show_only_closed_connection_view = !show_only_closed_connection_view;
                         return sprint(show_only_closed_connection_view ? "Closed connection view" : "Continuous connection view");
+                    }
+                },
+                {
+                    "setClosedConnectionBufferSpace", [&](ArgsCopyScope, CommandVectorType vec)->std::string
+                    {
+                        if (vec.size() == 2)
+                        {
+                            try
+                            {
+                                closed_connection_view_max_size = convertToNumber<int>(vec[1]);
+                                if (closed_connection_view_max_size <= 0)
+                                    closed_connection_view_max_size = 128;
+                                return sprint(closed_connection_view_max_size, " is invalid.");
+                            }
+                            catch (const std::exception& e) {
+                                return sprint("Invalid arguments: ", e.what());
+                            }
+                        }
+
+                        return sprint("Invalid command");
                     }
                 }
             },
@@ -368,7 +381,9 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                         std::chrono::duration_cast<std::chrono::seconds>(cur_time - c_.time_of_the_closure).count() > 3;
 
                     if (should_delete) {
-                        closed_connection_frame.emplace(it->first, it->second);
+                        auto new_data = it->second.connection_data;
+                        new_data.chainName = "Closed at " + format_time_local(it->second.time_of_the_closure) + " | " + new_data.chainName;
+                        closed_connection_frame.emplace(it->first, std::pair { new_data, std::chrono::system_clock::now() });
                         it = connection_frame.erase(it);
                     } else {
                         ++it;
@@ -377,13 +392,41 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
                 // get connection frame as a vector list, and filter
                 connections_filtered.clear();
-                for (const auto & connection :
-                    (show_only_closed_connection_view ? closed_connection_frame : connection_frame) | std::views::values)
+                auto filter = [&](const connection_frame_t & connection)
                 {
                     // determine if we need to filter out the result
                     if (is_connection_valid(connection.connection_data)) {
                         connections_filtered.emplace_back(connection);
                     }
+                };
+
+                if (show_only_closed_connection_view)
+                {
+                    if (closed_connection_frame.size() > closed_connection_view_max_size)
+                    {
+                        const auto & map_closed = closed_connection_frame | std::views::values;
+                        std::vector<std::pair<connection_frame_t, std::chrono::time_point<std::chrono::system_clock>>>
+                            map_closed_vector { map_closed.begin(), map_closed.end() };
+                        std::ranges::sort(map_closed_vector, [](const auto & a_, const auto & b_)->bool {
+                            return a_.second < b_.second; // older ones goes first
+                        });
+                        map_closed_vector.resize(map_closed_vector.size() - closed_connection_view_max_size);
+                        for (const auto & connection : map_closed_vector | std::views::keys) {
+                            closed_connection_frame.erase(connection.connection_data.metadata.connectionID);
+                        }
+                    }
+
+                    for (const auto & map_closed = (closed_connection_frame | std::views::values) | std::views::keys;
+                        const auto & connection : map_closed)
+                    {
+                        filter(connection);
+                    }
+                } else {
+                    for ( const auto & map_active = connection_frame | std::views::values;
+                        const auto & connection : map_active)
+                    {
+                       filter(connection);
+                   }
                 }
             }
             else
