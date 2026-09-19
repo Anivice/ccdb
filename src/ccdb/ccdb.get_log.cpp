@@ -89,6 +89,7 @@ void ccdb::ccdb::get_log()
             {
                 before = now;
                 std::lock_guard lock(logPullerNoFilter_mtx);
+                const auto old_size = log_local_incrimination.size();
                 if (lines_local_incrimination.empty() && !logPullerNoFilter.empty())
                 {
                     std::ranges::for_each(logPullerNoFilter,
@@ -106,10 +107,6 @@ void ccdb::ccdb::get_log()
                 auto new_logs = backend_instance.get_logs();
                 std::ranges::reverse(new_logs); // lastest one shows up on top
                 backend_instance.clearLogs();
-
-                if (*data->skip_lines_ != 0) {
-                    *data->skip_lines_ += static_cast<int>(new_logs.size());
-                }
 
     #           if ((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
                 logPullerNoFilter.insert_range(logPullerNoFilter.begin(), new_logs);
@@ -141,6 +138,11 @@ void ccdb::ccdb::get_log()
                 if (logPullerNoFilter.size() > max_log_size) logPullerNoFilter.resize(max_log_size);
                 if (lines_local_incrimination.size() > max_log_size) lines_local_incrimination.resize(max_log_size);
                 if (log_local_incrimination.size() > max_log_size) log_local_incrimination.resize(max_log_size);
+
+                const auto new_size = log_local_incrimination.size();
+                if (*data->skip_lines_ != 0 && new_size > old_size) {
+                    *data->skip_lines_ += static_cast<int>(new_size - old_size);
+                }
             }
 
             return {log_local_incrimination.begin(), log_local_incrimination.end()};

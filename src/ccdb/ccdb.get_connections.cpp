@@ -154,7 +154,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     const auto color_for_closed_connections = color::color24(255,255,255,128,128,128);
 
     tsl::hopscotch_map < std::string, connection_frame_t > connection_frame;
-    tsl::hopscotch_map < std::string, std::pair < connection_frame_t, std::chrono::time_point<std::chrono::system_clock> > > closed_connection_frame;
+    static tsl::hopscotch_map < std::string, connection_frame_t > closed_connection_frame; // preserved
     std::vector < connection_frame_t > connections_filtered;
     auto subinfo_ball = std::make_unique<ccdb_atomic_t<subinfo_ball_t>>();
     subinfo_worker_t subinfo_worker;
@@ -307,7 +307,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                                 closed_connection_view_max_size = convertToNumber<int>(vec[1]);
                                 if (closed_connection_view_max_size <= 0)
                                     closed_connection_view_max_size = 128;
-                                return sprint(closed_connection_view_max_size, " is invalid.");
+                                return sprint("Size set to ", closed_connection_view_max_size);
                             }
                             catch (const std::exception& e) {
                                 return sprint("Invalid arguments: ", e.what());
@@ -383,14 +383,18 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     if (should_delete) {
                         auto new_data = it->second.connection_data;
                         new_data.chainName = "Closed at " + format_time_local(it->second.time_of_the_closure) + " | " + new_data.chainName;
-                        closed_connection_frame.emplace(it->first, std::pair { new_data, std::chrono::system_clock::now() });
+                        closed_connection_frame.emplace(it->first, connection_frame_t{
+                            .connection_data = new_data,
+                            .time_of_the_closure = it->second.time_of_the_closure,
+                            .connection_is_closed = false, // remove the color override
+                        });
                         it = connection_frame.erase(it);
                     } else {
                         ++it;
                     }
                 }
 
-                // get connection frame as a vector list, and filter
+                const auto old_size = connections_filtered.size();
                 connections_filtered.clear();
                 auto filter = [&](const connection_frame_t & connection)
                 {
@@ -400,33 +404,29 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     }
                 };
 
-                if (show_only_closed_connection_view)
+                if (closed_connection_frame.size() > closed_connection_view_max_size)
                 {
-                    if (closed_connection_frame.size() > closed_connection_view_max_size)
-                    {
-                        const auto & map_closed = closed_connection_frame | std::views::values;
-                        std::vector<std::pair<connection_frame_t, std::chrono::time_point<std::chrono::system_clock>>>
-                            map_closed_vector { map_closed.begin(), map_closed.end() };
-                        std::ranges::sort(map_closed_vector, [](const auto & a_, const auto & b_)->bool {
-                            return a_.second < b_.second; // older ones goes first
-                        });
-                        map_closed_vector.resize(map_closed_vector.size() - closed_connection_view_max_size);
-                        for (const auto & connection : map_closed_vector | std::views::keys) {
-                            closed_connection_frame.erase(connection.connection_data.metadata.connectionID);
-                        }
+                    const auto & map_closed = closed_connection_frame | std::views::values;
+                    std::vector<connection_frame_t> map_closed_vector { map_closed.begin(), map_closed.end() };
+                    std::ranges::sort(map_closed_vector, [](const connection_frame_t & a_, const connection_frame_t & b_)->bool {
+                        return a_.time_of_the_closure < b_.time_of_the_closure; // older ones goes first
+                    });
+                    map_closed_vector.resize(map_closed_vector.size() - closed_connection_view_max_size);
+                    for (const auto & connection : map_closed_vector) {
+                        closed_connection_frame.erase(connection.connection_data.metadata.connectionID);
                     }
+                }
 
-                    for (const auto & map_closed = (closed_connection_frame | std::views::values) | std::views::keys;
-                        const auto & connection : map_closed)
-                    {
-                        filter(connection);
-                    }
-                } else {
-                    for ( const auto & map_active = connection_frame | std::views::values;
+                for (const auto & map_active =
+                    (show_only_closed_connection_view ? closed_connection_frame : connection_frame) | std::views::values;
                         const auto & connection : map_active)
-                    {
-                       filter(connection);
-                   }
+                {
+                    filter(connection);
+                }
+
+                const auto new_size = connections_filtered.size();
+                if (show_only_closed_connection_view && *data_->skip_lines_ != 0 && new_size > old_size) {
+                    *data_->skip_lines_ += static_cast<int>(new_size - old_size);
                 }
             }
             else
@@ -545,9 +545,9 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 }
             }
         },
-        [this](const connection_frame_t * matched_connection)
+        [this, &show_only_closed_connection_view](const connection_frame_t * matched_connection)
         {
-            if (matched_connection) {
+            if (matched_connection && !show_only_closed_connection_view) {
                 try {
                     (void)backend_instance.close_connection(matched_connection->connection_data.metadata.connectionID);
                 } catch (...) { }
