@@ -77,10 +77,10 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
         }
     });
     child_workers.emplace_back(&ccdb::get_conn_input_watcher, this,
-                               &running, &leading_spaces_, &max_leading_spaces_, &current_skip_lines_, &max_skip_lines_,
+                               get_conn_input_watcher_context_t{&running, &leading_spaces_, &max_leading_spaces_, &current_skip_lines_, &max_skip_lines_,
                                &mouse_x_, &mouse_y_, &space_pressed_, &kill_connection_, &focus_to_highlight_, &conn_show_detail_, &sort_by_from_watcher_, &atm_focus_,
                                &pause_input_watcher, &show_search, &search_content_buffer, &cursor_position, &search_focus_move_,
-                               &tab_suggestion_requested);
+                               &tab_suggestion_requested});
 
     auto show_info = [&](const String & msg, const String & level, int timeout = -1)
     {

@@ -396,45 +396,30 @@ namespace ccdb
         /// @param running Running flag
         void generic_input_watcher(const std::string & name, std::atomic_bool * running) const;
 
+        struct get_conn_input_watcher_context_t {
+            std::atomic_bool * running_ptr;
+            std::atomic_int * leading_spaces_ptr;
+            const std::atomic_int * max_leading_spaces_ptr;
+            std::atomic_int * current_skip_lines_ptr;
+            const std::atomic_int * max_skip_lines_ptr;
+            std::atomic_int * mouse_x;
+            std::atomic_int * mouse_y;
+            std::atomic_bool * space_pressed;
+            std::atomic_bool * kill_signal_sent;
+            std::atomic_bool * refocus;
+            std::atomic_bool * show_detail;
+            std::atomic_int * sort_by_ptr;
+            std::atomic_int * focus_move;
+            const std::atomic_bool * pause;
+            std::atomic_bool * show_search;
+            ccdb_atomic_t < std::u32string > * search_content_buffer;
+            std::atomic_int * cursor_position;
+            std::atomic < search_move_t > * search_focus_move;
+            std::atomic_int * tab_suggestion_requested;
+        };
+
         /// Input watcher that sets running flag when q is pressed, and changes
-        /// @param running_ptr Running flag
-        /// @param leading_spaces_ptr Leading spaces, set by watcher from left/right/Home/End keys
-        /// @param max_leading_spaces_ptr max leading space the watcher can set
-        /// @param current_skip_lines_ptr Skip lines, set by up/down keys
-        /// @param max_skip_lines_ptr max skip lines the watcher can set
-        /// @param mouse_x Input captured mouse x
-        /// @param mouse_y Input captured mouse y
-        /// @param kill_signal_sent Kill one connection, sent by pressing F. Used to kill one connection in `get connections`
-        /// @param refocus Refocus, by pressing F
-        /// @param show_detail Show full JSON raw output from backend by pressing P
-        /// @param sort_by_ptr F1-F12
-        /// @param focus_move
-        /// @param pause
-        /// @param show_search
-        /// @param search_content_buffer
-        /// @param cursor_position
-        /// @param search_focus_move
-        /// @param tab_suggestion_requested
-        void get_conn_input_watcher(
-            std::atomic_bool * running_ptr,
-            std::atomic_int * leading_spaces_ptr,
-            const std::atomic_int * max_leading_spaces_ptr,
-            std::atomic_int * current_skip_lines_ptr,
-            const std::atomic_int * max_skip_lines_ptr,
-            std::atomic_int * mouse_x,
-            std::atomic_int * mouse_y,
-            std::atomic_bool * space_pressed,
-            std::atomic_bool * kill_signal_sent,
-            std::atomic_bool * refocus,
-            std::atomic_bool * show_detail,
-            std::atomic_int * sort_by_ptr,
-            std::atomic_int * focus_move,
-            const std::atomic_bool * pause,
-            std::atomic_bool * show_search,
-            ccdb_atomic_t < std::u32string > * search_content_buffer,
-            std::atomic_int * cursor_position,
-            std::atomic < search_move_t > * search_focus_move,
-            std::atomic_int * tab_suggestion_requested);
+        void get_conn_input_watcher(const get_conn_input_watcher_context_t &);
 
         void init();
 

@@ -333,7 +333,7 @@ struct MouseEvent {
     }
 
     const char final = input.back();
-    if (final != 'M' && final != 'm') {
+    if (final != 'M' /* && final != 'm' */) {
         return std::nullopt;
     }
 
@@ -364,7 +364,7 @@ struct MouseEvent {
     // Equivalent for this input representation to the old:
     // ^\^\[\[.*[Mm]$
     return input.size() >= 4 && input.starts_with("^[[") &&
-           (input.back() == 'M' || input.back() == 'm');
+           (input.back() == 'M'); // || input.back() == 'm');
 }
 
 enum class InputAction {
@@ -455,27 +455,28 @@ constexpr std::array kPostMouseBindings{
 
 } // namespace
 
-void ccdb::ccdb::get_conn_input_watcher(
-    std::atomic_bool* running_ptr,
-    std::atomic_int* leading_spaces_ptr,
-    const std::atomic_int* max_leading_spaces_ptr,
-    std::atomic_int* current_skip_lines_ptr,
-    const std::atomic_int* max_skip_lines_ptr,
-    std::atomic_int* mouse_x,
-    std::atomic_int* mouse_y,
-    std::atomic_bool* space_pressed,
-    std::atomic_bool* kill_signal_sent,
-    std::atomic_bool* refocus,
-    std::atomic_bool* show_detail,
-    std::atomic_int* sort_by_ptr,
-    std::atomic_int* focus_move,
-    const std::atomic_bool* pause,
-    std::atomic_bool* show_search,
-    ccdb_atomic_t<std::u32string>* search_content_buffer,
-    std::atomic_int* cursor_position,
-    std::atomic<search_move_t>* search_focus_move,
-    std::atomic_int* tab_suggestion_requested)
+void ccdb::ccdb::get_conn_input_watcher(const get_conn_input_watcher_context_t & context)
 {
+    const auto & [ running_ptr,
+        leading_spaces_ptr,
+        max_leading_spaces_ptr,
+        current_skip_lines_ptr,
+        max_skip_lines_ptr,
+        mouse_x,
+        mouse_y,
+        space_pressed,
+        kill_signal_sent,
+        refocus,
+        show_detail,
+        sort_by_ptr,
+        focus_move,
+        pause,
+        show_search,
+        search_content_buffer,
+        cursor_position,
+        search_focus_move,
+        tab_suggestion_requested ] = context;
+
     interactive_verification();
 
     auto& running = *running_ptr;
@@ -701,9 +702,8 @@ void ccdb::ccdb::get_conn_input_watcher(
         // The old code kept a local str_buffer even after validation() cleared ch_list.
         // Keep this frozen view to preserve that ordering quirk exactly.
         const std::string encoded = sequence.encoded();
-        const bool search_mode = show_search && show_search->load();
 
-        if (search_mode) {
+        if (const bool search_mode = show_search && show_search->load(); search_mode) {
             enum class SearchHead { None, Left, Exit, Right, Start, End };
             SearchHead head = SearchHead::None;
 
