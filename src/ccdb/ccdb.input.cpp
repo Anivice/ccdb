@@ -788,16 +788,18 @@ void ccdb::ccdb::get_conn_input_watcher(const get_conn_input_watcher_context_t &
                 sequence.clear();
                 std::this_thread::sleep_for(10ms);
                 buffer.flush();
-            } else if (!encoded.empty() && *ch != 27 && !sequence.contains_escape() &&
-                       sequence.all_printable_or_tab()) {
+            }
+            else if (!encoded.empty() && *ch != 27 && !sequence.contains_escape() &&
+                       sequence.all_printable_or_tab())
+            {
                 auto str = search_content_buffer->get();
-                int tab_request = 0; // original variable was uninitialized (UB)
+                if (tab_suggestion_requested) *tab_suggestion_requested = 0;
 
                 for (const int c : sequence.raw()) {
                     if (c == '\t') {
-                        ++tab_request;
+                        if (tab_suggestion_requested) ++*tab_suggestion_requested;
                     } else if (std::isprint(static_cast<unsigned char>(c))) {
-                        tab_request = 0;
+                        if (tab_suggestion_requested) *tab_suggestion_requested = 0;
                         if (*cursor_position < static_cast<int>(str.length())) {
                             str.insert(cursor_position->load(), 1,
                                        static_cast<std::u32string::value_type>(c));
@@ -807,12 +809,6 @@ void ccdb::ccdb::get_conn_input_watcher(const get_conn_input_watcher_context_t &
                             *cursor_position = static_cast<int>(str.length());
                         }
                     }
-                }
-
-                if (tab_suggestion_requested && tab_request == 1) {
-                    *tab_suggestion_requested = 1;
-                } else if (tab_suggestion_requested && tab_request >= 2) {
-                    *tab_suggestion_requested = 2;
                 }
 
                 search_content_buffer->set(str);

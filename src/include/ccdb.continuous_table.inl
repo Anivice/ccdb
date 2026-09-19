@@ -488,82 +488,85 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                 !CommandMap.empty() && !command_input.empty() && command_input.front() == ':')
             {
                 command_input.erase(command_input.begin());
-                auto vec = split_via_history(command_input);
-                const auto & possible_args = CommandMap | std::views::keys;
-
-                /// tab suggestions?
-                if (tab_suggestion_requested > 0
-                    /// update candidates on content change
-                    && command_input_prev_cmd != command_input
-                    && cursor_position_prev != cursor_position)
+                if (auto vec = split_via_history(command_input);
+                    !(vec.empty() || (!vec.empty() && std::ranges::all_of(vec, [](const std::string & c)->bool{ return c.empty(); }))))
                 {
-                    // record last candidate state
-                    command_input_prev_cmd = command_input;
-                    cursor_position_prev = cursor_position;
-                    tab_suggestions.clear(); // old candidates are invalid for the new command state
+                    const auto & possible_args = CommandMap | std::views::keys;
 
-                    if (vec.empty())
+                    /// tab suggestions?
+                    if (tab_suggestion_requested > 0
+                        /// update candidates on content change
+                        && command_input_prev_cmd != command_input
+                        && cursor_position_prev != cursor_position)
                     {
-                        // no args, return all candidates
-                        tab_suggestions = {possible_args.begin(), possible_args.end()};
-                    }
-                    else if (vec.size() == 1)
-                        tab_suggestions = auto_complete(vec.back(), {possible_args.begin(), possible_args.end()}); // or, match the candidate in list
+                        // record last candidate state
+                        command_input_prev_cmd = command_input;
+                        cursor_position_prev = cursor_position;
+                        tab_suggestions.clear(); // old candidates are invalid for the new command state
 
-                    // only one suggestion? immediately fill
-                    if (tab_suggestions.size() == 1)
-                    {
-                        search_content_buffer.set(utf8_to_u32(":" + tab_suggestions.front())); // set display
-                        cursor_position = static_cast<int>(search_content_buffer.get().size()); // move cursor to end
-                    }
+                        if (vec.empty())
+                        {
+                            // no args, return all candidates
+                            tab_suggestions = {possible_args.begin(), possible_args.end()};
+                        }
+                        else if (vec.size() == 1)
+                            tab_suggestions = auto_complete(vec.back(), {possible_args.begin(), possible_args.end()}); // or, match the candidate in list
 
-                    // clear suggestion handler
-                    in_tab_suggestion = 0;
-                    tab_suggestion_requested = 0;
-                }
-                else if (tab_suggestion_requested > 0 && command_input.empty() && tab_suggestions.empty()) // no content?
-                {
-                    // return full list
-                    tab_suggestions = {possible_args.begin(), possible_args.end()}; // no args, return all candidates
-                    in_tab_suggestion = 0;
-                    tab_suggestion_requested = 0;
-                }
+                        // only one suggestion? immediately fill
+                        if (tab_suggestions.size() == 1)
+                        {
+                            search_content_buffer.set(utf8_to_u32(":" + tab_suggestions.front())); // set display
+                            cursor_position = static_cast<int>(search_content_buffer.get().size()); // move cursor to end
+                        }
 
-                /// tab_suggestions not empty, cache not invalid so no tab_suggestions handled
-                if (tab_suggestions.size() > 1 && tab_suggestion_requested > 0)
-                {
-                    tab_suggestion_requested = 0; // handle request
-                    if (in_tab_suggestion < 0
-                        || static_cast<std::size_t>(in_tab_suggestion) >= tab_suggestions.size())
-                        in_tab_suggestion = 0; // out of bound? reset index to 0
-                    search_content_buffer.set(utf8_to_u32(":" + tab_suggestions[in_tab_suggestion])); // set display
-                    cursor_position = static_cast<int>(search_content_buffer.get().size()); // move cursor to the end
-
-                    // update cache, so it stays valid until it is changed outside in the get:/input thread
-                    command_input_prev_cmd = tab_suggestions[in_tab_suggestion];
-                    cursor_position_prev = cursor_position;
-
-                    /// display a notification, and clear notification queue so it goes immediately
-                    g_title_lines.clear();
-                    std::string sug_str;
-                    for (auto it = tab_suggestions.begin() + in_tab_suggestion; it != tab_suggestions.end(); ++it)
-                    {
-                        sug_str += *it;
-                        sug_str += ' ';
-                    }
-                    for (auto it = tab_suggestions.begin(); it != tab_suggestions.begin() + in_tab_suggestion; ++it)
-                    {
-                        sug_str += *it;
-                        sug_str += ' ';
-                    }
-                    show_info(sprint("(Tab suggestion: ") + sug_str + ")", "INFO", 60000);
-                    on_display = false;
-
-                    // move to next, or cycle back
-                    if (static_cast<std::size_t>(in_tab_suggestion) < tab_suggestions.size())
-                        ++in_tab_suggestion;
-                    else
+                        // clear suggestion handler
                         in_tab_suggestion = 0;
+                        tab_suggestion_requested = 0;
+                    }
+                    else if (tab_suggestion_requested > 0 && command_input.empty() && tab_suggestions.empty()) // no content?
+                    {
+                        // return full list
+                        tab_suggestions = {possible_args.begin(), possible_args.end()}; // no args, return all candidates
+                        in_tab_suggestion = 0;
+                        tab_suggestion_requested = 0;
+                    }
+
+                    /// tab_suggestions not empty, cache not invalid so no tab_suggestions handled
+                    if (tab_suggestions.size() > 1 && tab_suggestion_requested > 0)
+                    {
+                        tab_suggestion_requested = 0; // handle request
+                        if (in_tab_suggestion < 0
+                            || static_cast<std::size_t>(in_tab_suggestion) >= tab_suggestions.size())
+                            in_tab_suggestion = 0; // out of bound? reset index to 0
+                        search_content_buffer.set(utf8_to_u32(":" + tab_suggestions[in_tab_suggestion])); // set display
+                        cursor_position = static_cast<int>(search_content_buffer.get().size()); // move cursor to the end
+
+                        // update cache, so it stays valid until it is changed outside in the get:/input thread
+                        command_input_prev_cmd = tab_suggestions[in_tab_suggestion];
+                        cursor_position_prev = cursor_position;
+
+                        /// display a notification, and clear notification queue so it goes immediately
+                        g_title_lines.clear();
+                        std::string sug_str;
+                        for (auto it = tab_suggestions.begin() + in_tab_suggestion; it != tab_suggestions.end(); ++it)
+                        {
+                            sug_str += *it;
+                            sug_str += ' ';
+                        }
+                        for (auto it = tab_suggestions.begin(); it != tab_suggestions.begin() + in_tab_suggestion; ++it)
+                        {
+                            sug_str += *it;
+                            sug_str += ' ';
+                        }
+                        show_info(sprint("(Tab suggestion: ") + sug_str + ")", "INFO", 60000);
+                        on_display = false;
+
+                        // move to next, or cycle back
+                        if (static_cast<std::size_t>(in_tab_suggestion) < tab_suggestions.size())
+                            ++in_tab_suggestion;
+                        else
+                            in_tab_suggestion = 0;
+                    }
                 }
             }
 

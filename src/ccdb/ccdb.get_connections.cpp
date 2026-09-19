@@ -118,22 +118,19 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         std::istringstream numeric_stream(hides);
         while (std::getline(numeric_stream, str_num, ','))
         {
-            try {
-                if (str_num.find('-') == std::string::npos)
-                {
-                    numeric_values.push_back(std::stoi(str_num));
+            if (str_num.find('-') == std::string::npos)
+            {
+                numeric_values.push_back(convertToNumber<int>(str_num));
+            }
+            else
+            {
+                std::string start = str_num.substr(0, str_num.find('-'));
+                std::string stop = str_num.substr(str_num.find('-') + 1);
+                const auto begin = convertToNumber<int>(start);
+                const auto end = convertToNumber<int>(stop);
+                for (int i = begin; i <= end; i++) {
+                    numeric_values.push_back(i);
                 }
-                else
-                {
-                    std::string start = str_num.substr(0, str_num.find('-'));
-                    std::string stop = str_num.substr(str_num.find('-') + 1);
-                    int begin = std::stoi(start);
-                    int end = std::stoi(stop);
-                    for (int i = begin; i <= end; i++) {
-                        numeric_values.push_back(i);
-                    }
-                }
-            } catch (...) {
             }
         }
 
@@ -157,6 +154,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     const auto color_for_closed_connections = color::color24(255,255,255,128,128,128);
 
     tsl::hopscotch_map < std::string, connection_frame_t > connection_frame;
+    tsl::hopscotch_map < std::string, connection_frame_t > closed_connection_frame;
     std::vector < connection_frame_t > connections_filtered;
     auto subinfo_ball = std::make_unique<ccdb_atomic_t<subinfo_ball_t>>();
     subinfo_worker_t subinfo_worker;
@@ -170,6 +168,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     bool sorted_already = false;
     auto before = std::chrono::system_clock::now() - std::chrono::seconds(2);
     std::vector < std::vector < std::string > > table_vals;
+    bool show_only_closed_connection_view = false;
 
     continuous_table <connection_frame_t, std::vector<connection_frame_t>::const_iterator, ScopeType >
     (
@@ -202,8 +201,9 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                                     },
                 },
                 {
-                    "closeOnScreen", [this](ArgsCopyScope conns, CommandVectorType)->std::string
+                    "closeOnScreen", [this, &show_only_closed_connection_view](ArgsCopyScope conns, CommandVectorType)->std::string
                                     {
+                                        if (show_only_closed_connection_view) return {}; // silent drop
                                         std::stringstream ss;
                                         std::for_each(conns.first, conns.second,[&](const auto & conn)
                                         {
@@ -228,6 +228,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 {
                     "reverseChainParser", [&](ArgsCopyScope, CommandVectorType)->std::string
                                     {
+                                        if (show_only_closed_connection_view) return {}; // silent drop
                                         backend_instance.parse_chains = !backend_instance.parse_chains;
                                         connection_frame.clear();
                                         return {};
@@ -296,6 +297,12 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 },
                 {
                     "sortReverse", [&](ArgsCopyScope, CommandVectorType)->std::string { sort_reverse = !sort_reverse; return {}; }
+                },
+                {
+                    "switchView", [&](ArgsCopyScope, CommandVectorType)->std::string {
+                        show_only_closed_connection_view = !show_only_closed_connection_view;
+                        return sprint(show_only_closed_connection_view ? "Closed connection view" : "Continuous connection view");
+                    }
                 }
             },
         [&](const session_compliment_data_t * data_)->ScopeType
@@ -361,6 +368,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                         std::chrono::duration_cast<std::chrono::seconds>(cur_time - c_.time_of_the_closure).count() > 3;
 
                     if (should_delete) {
+                        closed_connection_frame.emplace(it->first, it->second);
                         it = connection_frame.erase(it);
                     } else {
                         ++it;
@@ -369,7 +377,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
                 // get connection frame as a vector list, and filter
                 connections_filtered.clear();
-                for (const auto & connection : connection_frame | std::views::values)
+                for (const auto & connection :
+                    (show_only_closed_connection_view ? closed_connection_frame : connection_frame) | std::views::values)
                 {
                     // determine if we need to filter out the result
                     if (is_connection_valid(connection.connection_data)) {
@@ -396,7 +405,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                         const auto b_traffic = b.uploadSpeed + b.downloadSpeed;
                         switch (sort_by_final)
                         {
-                            case 0:
+                        case 0:
                             return aH > bH;
                         case 1:
                             return std::tie(a.processName, aH) > std::tie(b.processName, bH);
@@ -413,7 +422,9 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                         case 8: {
                             const std::string a_src = a.src.substr(0, a.src.find_last_of(':'));
                             const std::string b_src = b.src.substr(0, b.src.find_last_of(':'));
-                            return std::tie(a_src, aH) > std::tie(b_src, bH);
+                            const std::string a_port = a.src.substr(a.src.find_last_of(':'));
+                            const std::string b_port = b.src.substr(b.src.find_last_of(':'));
+                            return std::tie(a_src, aH, a_port) > std::tie(b_src, bH, b_port);
                         }
                         case 9:
                             return std::tie(a.destination, aH) > std::tie(b.destination, bH);
