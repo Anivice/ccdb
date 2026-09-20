@@ -90,6 +90,11 @@ namespace ccdb
             std::vector<int> trimmed_line_widths;
         };
         width_context_t * width_context_ = nullptr;
+
+        struct {
+            const char * locked_1;
+            const char * locked_2;
+        } locked_info;
     };
 
     template <

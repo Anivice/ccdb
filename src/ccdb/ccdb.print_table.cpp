@@ -396,7 +396,7 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
     const auto & [ table_keys, table_values, table_hide, leading_offset_, max_leading_offset_ptr, using_pager,
         additional_info_before_table_, skip_lines_, max_skip_lines_ptr, enforce_no_pager, color_code_overrides,
         highlight_screen_line, out, show_search, search_line_boxContent, cursor_position_in_search_box, highlight_str,
-        column_alignment, line_size, col_size, message_box_width_, width_context_ ] = context;
+        column_alignment, line_size, col_size, message_box_width_, width_context_, locked_info ] = context;
     uint64_t leading_offset = leading_offset_;
     std::string additional_info_before_table = additional_info_before_table_;
     int skip_lines = skip_lines_;
@@ -751,8 +751,10 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
             ssa << skip_lines << "/" << current_line_index << "/" << sz << "/"
                 << std::fixed << std::setprecision(2)
                 << (sz == 0 ? 1 : static_cast<double>(current_line_index) / static_cast<double>(sz)) * 100 << "%"
+                << locked_info.locked_1
                 << "/" << leading_offset << "/" << max_leading_offset << "/"
-                << (max_leading_offset == 0 ? 1 : static_cast<double>(leading_offset) / static_cast<double>(max_leading_offset)) * 100 << "%";
+                << (max_leading_offset == 0 ? 1 : static_cast<double>(leading_offset) / static_cast<double>(max_leading_offset)) * 100 << "%"
+                << locked_info.locked_2;
             const std::string ssa_str = ssa.str();
             if (message_box_width_) *message_box_width_ = static_cast<int>(ssa_str.size());
 

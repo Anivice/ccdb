@@ -16,7 +16,8 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
         const std::function<void(session_compliment_data_t*)>& FrameVisitEach)
 {
     using namespace ::ccdb::utils;
-    bool lock_to_max = false;
+    bool lock_to_right = false;
+    bool lock_to_bottom = false;
     std::atomic_int leading_spaces_ = 0;
     std::atomic_int max_leading_spaces_ = get_col_size() / 4;
     std::atomic_int max_skip_lines_ = 0;
@@ -291,7 +292,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
 
             if (!g_title_line)
             {
-                title_line = GenerateBanner(NORMAL, focused_container) + (lock_to_max ? "  *" : "");
+                title_line = GenerateBanner(NORMAL, focused_container);
                 if (title_line.empty()) title_line = " ";
             }
             else
@@ -609,8 +610,12 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
             || skip_lines_before < current_skip_lines || command_executed;
         vector_size_last_time = static_cast<int64_t>(contentSize);
         skip_lines_before = current_skip_lines;
-        if (leading_spaces >= max_leading_spaces && max_leading_spaces > 0) {
-            lock_to_max = true;
+        if (max_leading_spaces > 0 && leading_spaces >= max_leading_spaces) {
+            lock_to_right = true;
+        }
+
+        if (max_skip_lines > 0 && current_skip_lines >= max_skip_lines) {
+            lock_to_bottom = true;
         }
 
         int message_box_width = 0;
@@ -634,11 +639,11 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                 .table_keys = {title_begin, title_end},
                 .table_values = {values_begin, values_end},
                 .table_hide = {do_col_hide.begin(), do_col_hide.end()},
-                .leading_offset = static_cast<int>(lock_to_max ? std::numeric_limits<decltype(leading_spaces)>::max() : leading_spaces),
+                .leading_offset = lock_to_right ? std::numeric_limits<decltype(leading_spaces)>::max() : leading_spaces,
                 .max_leading_offset_ptr = &max_leading_spaces_,
                 .using_pager = false,
                 .additional_info_before_table = title_line,
-                .skip_lines = current_skip_lines,
+                .skip_lines = lock_to_bottom ? std::numeric_limits<decltype(current_skip_lines)>::max() : current_skip_lines,
                 .max_skip_lines_ptr = &max_skip_lines_,
                 .enforce_no_pager = false,
                 .color_code_overrides = color_code_overrides,
@@ -652,7 +657,11 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                 .line_size = line_size,
                 .col_size = col_size,
                 .message_box_width_ = &message_box_width,
-                .width_context_ = &width_context
+                .width_context_ = &width_context,
+                .locked_info = {
+                    .locked_1 = lock_to_bottom ? "(locked)" : "",
+                    .locked_2 = lock_to_right ? "(locked)" : "",
+                }
             });
 
             frame_data.set({
@@ -677,7 +686,8 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
         const int local_atm_focus = atm_focus;
         const int local_tab_suggestion = tab_suggestion_requested;
         const bool local_space_pressed = space_pressed_.load();
-        if (lock_to_max) leading_spaces_ = max_leading_spaces_.load();
+        if (lock_to_right) leading_spaces_ = max_leading_spaces_.load();
+        if (lock_to_bottom) current_skip_lines_ = max_skip_lines_.load();
         FrameVisitEach(&compliment_data);
 
         for (int i = 0; i < screen_refresh_interval_in_ms / 10; i++)
@@ -733,7 +743,11 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                 }
 
                 if (leading_spaces_ != local_leading_spaces && leading_spaces_ < max_leading_spaces_) {
-                    lock_to_max = false;
+                    lock_to_right = false;
+                }
+
+                if (current_skip_lines_ != local_skip_lines && current_skip_lines_ < max_skip_lines_) {
+                    lock_to_bottom = false;
                 }
 
                 break;
