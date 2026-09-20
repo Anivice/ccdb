@@ -43,41 +43,101 @@ namespace
         int height{};
         int mouse_x{};
         int mouse_y{};
-    };
-}
 
-static void proxyView_peak(std::vector<std::string> & frame, cross_frame_context_t & cross_frame_context)
-{
-    const auto last_frame_time_backup = cross_frame_context.last_frame_time;
-    cross_frame_context.last_frame_time = std::chrono::steady_clock::now();
-    cross_frame_context.width = 256; cross_frame_context.height = 256;
-    frame.resize(cross_frame_context.height, std::string(cross_frame_context.width, ' '));
-    if (cross_frame_context.mouse_x != -1 && cross_frame_context.mouse_y != -1)
-    {
-        cross_frame_context.mouse_position = {
-            cross_frame_context.mouse_x + cross_frame_context.leading_space - 1 /* starts with 0 */ - 1 /* row indicator */
-                - (cross_frame_context.leading_space > 0 ? 1 : 0),
-            cross_frame_context.mouse_y + cross_frame_context.skip_lines - 1
+        struct ProxyNode {
+            std::vector<std::string> endpoints_;
+            std::string selected_endpoint_;
+            int latency_ = -1;
         };
 
-        if (cross_frame_context.mouse_position.first < 0 || cross_frame_context.mouse_position.first >= cross_frame_context.width)
-            cross_frame_context.mouse_position.first = -1;
-        if (cross_frame_context.mouse_position.second < 0 || cross_frame_context.mouse_position.second >= cross_frame_context.height)
-            cross_frame_context.mouse_position.second = -1;
-    }
+        tsl::hopscotch_map<std::string, ProxyNode> proxy_list;
+    };
 
-    if (cross_frame_context.mouse_position.first >= 0 && cross_frame_context.mouse_position.second >= 0) {
-        frame[cross_frame_context.mouse_position.second][cross_frame_context.mouse_position.first] = 'X';
-    }
-
-    std::stringstream FPS_indicator_ss;
-    FPS_indicator_ss << (std::chrono::seconds(1) / (cross_frame_context.last_frame_time - last_frame_time_backup)) << " FPS";
-    const std::string FPS_indicator = FPS_indicator_ss.str();
-    for (uint64_t i = 0; i < FPS_indicator.size(); ++i)
-        frame[0][i] = FPS_indicator[i];
-
+    void proxyView_draw(std::vector<std::string> & frame, cross_frame_context_t & cross_frame_context)
     {
+        for (auto & [name_, node] : cross_frame_context.proxy_list)
+        {
+            auto & [endpoints_, selected_endpoint_, latency_] = node;
+            const auto name_len = ccdb::utils::UnicodeDisplayWidth::get_width(name_);
+            // 1.
+            {
+                std::stringstream line;
+                line << unicode_box_upper_left;
+                for (int i = 0; i < name_len; ++i) {
+                    line << unicode_box_line;
+                }
+                line << unicode_box_upper_right;
+                frame.emplace_back(line.str());
+            }
+            // 2.
+            {
+                std::stringstream line;
+                line << unicode_box_vertical;
+                line << name_;
+                line << unicode_box_vertical;
+                frame.emplace_back(line.str());
+            }
+            // 3.
+            {
+                std::stringstream line;
+                line << unicode_box_bottom_left;
+                for (int i = 0; i < name_len; ++i) {
+                    line << unicode_box_line;
+                }
+                line << unicode_box_bottom_right;
+                frame.emplace_back(line.str());
+            }
+        }
+    }
 
+    void proxyView_conv(std::vector<std::string> & frame, cross_frame_context_t & cross_frame_context)
+    {
+        const auto last_frame_time_backup = cross_frame_context.last_frame_time;
+        cross_frame_context.last_frame_time = std::chrono::steady_clock::now();
+
+        std::vector<std::string> inner_frame_data;
+        proxyView_draw(inner_frame_data, cross_frame_context);
+        cross_frame_context.width = 0;
+        cross_frame_context.height = static_cast<int>(inner_frame_data.size()) + 2;
+        int data_len_required = 0;
+        for (const auto & line : inner_frame_data) {
+            cross_frame_context.width = std::max(cross_frame_context.width, ccdb::utils::UnicodeDisplayWidth::get_width(line));
+            data_len_required = std::max(data_len_required, static_cast<int>(line.size()));
+        }
+        cross_frame_context.width += 2;
+        data_len_required += 2;
+
+        frame.resize(cross_frame_context.height, std::string(data_len_required, ' '));
+        if (cross_frame_context.mouse_x != -1 && cross_frame_context.mouse_y != -1)
+        {
+            cross_frame_context.mouse_position = {
+                cross_frame_context.mouse_x + cross_frame_context.leading_space - 1 /* starts with 0 */ - 1 /* row indicator */
+                    - (cross_frame_context.leading_space > 0 ? 1 : 0),
+                cross_frame_context.mouse_y + cross_frame_context.skip_lines - 1
+            };
+
+            if (cross_frame_context.mouse_position.first < 0 || cross_frame_context.mouse_position.first >= cross_frame_context.width)
+                cross_frame_context.mouse_position.first = -1;
+            if (cross_frame_context.mouse_position.second < 0 || cross_frame_context.mouse_position.second >= cross_frame_context.height)
+                cross_frame_context.mouse_position.second = -1;
+        }
+
+        if (cross_frame_context.mouse_position.first >= 0 && cross_frame_context.mouse_position.second >= 0) {
+            frame[cross_frame_context.mouse_position.second][cross_frame_context.mouse_position.first] = 'X';
+        }
+
+        std::stringstream FPS_indicator_ss;
+        FPS_indicator_ss << (std::chrono::seconds(1) / (cross_frame_context.last_frame_time - last_frame_time_backup)) << " FPS";
+        const std::string FPS_indicator = FPS_indicator_ss.str();
+        for (uint64_t i = 0; i < FPS_indicator.size(); ++i)
+            frame[0][i] = FPS_indicator[i];
+
+        for (uint64_t i = 0; i < inner_frame_data.size(); ++i)
+        {
+            for (uint64_t j = 0; j < inner_frame_data[i].size(); ++j) {
+                frame[i+1][j+1] = inner_frame_data[i][j];
+            }
+        }
     }
 }
 
@@ -123,6 +183,27 @@ void ccdb::ccdb::proxyView()
             nullptr
         });
 
+    auto get_proxy_map = [this]->tsl::hopscotch_map<std::string, cross_frame_context_t::ProxyNode>
+    {
+        tsl::hopscotch_map<std::string, cross_frame_context_t::ProxyNode> ret;
+        backend_instance.update_proxy_list();
+        const auto & [ proxy_list, latencies ] = backend_instance.get_proxies_and_latencies_as_pair();
+        get_vecGroupProxy(false);
+        for (const auto & [name, children] : proxy_list)
+        {
+            auto lat_ = latencies.find(name);
+            ret.emplace(name, cross_frame_context_t::ProxyNode{
+                .endpoints_ = children.first,
+                .selected_endpoint_ = children.second,
+                .latency_ = lat_ == latencies.end() ? -1 : lat_->second,
+            });
+        }
+
+        return ret;
+    };
+
+    cross_frame_context.proxy_list = get_proxy_map();
+
     while (running)
     {
         const int mouse_x = mouse_x_; mouse_x_ = -1;
@@ -135,7 +216,7 @@ void ccdb::ccdb::proxyView()
         cross_frame_context.mouse_x = mouse_x;
         cross_frame_context.mouse_y = mouse_y;
 
-        proxyView_peak(vector_frame_view, cross_frame_context);
+        proxyView_conv(vector_frame_view, cross_frame_context);
 
         const int row = row_;
         const int col = col_;
@@ -194,8 +275,8 @@ void ccdb::ccdb::proxyView()
                     presumed_view_point_end > vector_frame_view.size() ? vector_frame_view.size() : presumed_view_point_end),
             };
 
-            const std::u32string width_strip = utf8::utf8to32(utils::generate_linear_handle(cross_frame_context.width,
-                leading_space, leading_space + viewSize_col, col));
+            const std::string width_strip = utils::generate_linear_handle(cross_frame_context.width,
+                leading_space, leading_space + viewSize_col, col);
             const std::u32string height_strip = utf8::utf8to32(utils::generate_linear_handle(cross_frame_context.height,
                 skip_lines, skip_lines + viewSize_row, viewSize_row));
 
@@ -237,7 +318,7 @@ void ccdb::ccdb::proxyView()
                 }
             }
 
-            frame << utf8::utf32to8(width_strip);
+            frame << width_strip;
         }
 
         frame_data.set({
