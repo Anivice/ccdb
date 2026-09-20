@@ -371,7 +371,7 @@ void ccdb::ccdb::proxyView()
             {
                 frame << utf8::utf32to8({height_strip[offset++]});
                 std::u32string u32 = utf8::utf8to32(view);
-                int printed_width = 0, skipped_width = 0;
+                int printed_width = 0;
                 bool color_codes = false;
                 int source_width = 0;
                 for (const auto & p : u32)
