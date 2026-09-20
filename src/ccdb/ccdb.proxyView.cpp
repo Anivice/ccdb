@@ -59,6 +59,7 @@ namespace
         currently_invoked_action_t currently_invoked_action { };
         int action_frame_time = 0;
         std::vector<std::string> inner_frame_data;
+        std::function<void(const std::string &, const std::string &)> change_proxy_endpoint;
     };
 
     std::vector < std::string > draw_text_in_a_box(const std::string & name_, const int name_len)
@@ -202,9 +203,11 @@ namespace
                             {
                                 selected_text = ccdb::utils::strip_color(selected_text);
                                 thread_local std::regex r(R"(Sel > \((.*)\)> \`(.*)\`)");
-                                if (std::smatch sm; std::regex_search(selected_text, sm, r)) {
+                                if (std::smatch sm; std::regex_search(selected_text, sm, r))
+                                {
                                     const std::string group_name = sm[1];
                                     const std::string end_point_name = sm[2];
+                                    cross_frame_context.change_proxy_endpoint(group_name, end_point_name);
                                 }
                             }
 
@@ -371,6 +374,9 @@ void ccdb::ccdb::proxyView()
     };
 
     cross_frame_context.proxy_list = get_proxy_map();
+    cross_frame_context.change_proxy_endpoint = [this](const std::string & name, const std::string & endpoint) {
+        backend_instance.change_proxy_using_backend(name, endpoint);
+    };
 
     while (running)
     {
