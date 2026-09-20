@@ -137,15 +137,14 @@ void ccdb::ccdb::proxyView()
 
         proxyView_peak(vector_frame_view, cross_frame_context);
 
+        const int row = row_;
+        const int col = col_;
         // recalibrate boundaries for this frame
-        max_leading_space_ = cross_frame_context.width > col_ - 1 ? cross_frame_context.width - col_ - 1 : 0;
-        max_skip_lines_ = cross_frame_context.height > row_ - 1 ? cross_frame_context.height - row_ - 1 : 0;
+        max_leading_space_ = cross_frame_context.width > col - 1 ? cross_frame_context.width - (col - 1) : 0;
+        max_skip_lines_ = cross_frame_context.height > row - 1 ? cross_frame_context.height - (row - 1) : 0;
 
         if (leading_space_ > max_leading_space_) leading_space_ = max_leading_space_.load();
         if (skip_lines_ > max_skip_lines_) skip_lines_ = max_skip_lines_.load();
-
-        const int row = row_;
-        const int col = col_;
 
         if (mouse_y == row && mouse_x >= 1)
         {
@@ -195,9 +194,9 @@ void ccdb::ccdb::proxyView()
                     presumed_view_point_end > vector_frame_view.size() ? vector_frame_view.size() : presumed_view_point_end),
             };
 
-            const auto width_strip = utils::generate_linear_handle(cross_frame_context.width,
-                leading_space, leading_space + viewSize_col, viewSize_col);
-            const auto height_strip = utf8::utf8to32(utils::generate_linear_handle(cross_frame_context.height,
+            const std::u32string width_strip = utf8::utf8to32(utils::generate_linear_handle(cross_frame_context.width,
+                leading_space, leading_space + viewSize_col, col));
+            const std::u32string height_strip = utf8::utf8to32(utils::generate_linear_handle(cross_frame_context.height,
                 skip_lines, skip_lines + viewSize_row, viewSize_row));
 
             int offset = 0;
@@ -238,7 +237,7 @@ void ccdb::ccdb::proxyView()
                 }
             }
 
-            frame << width_strip;
+            frame << utf8::utf32to8(width_strip);
         }
 
         frame_data.set({
