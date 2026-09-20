@@ -633,9 +633,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
             }
         }
 
-        if (const bool i_dont_print = skip_due_to_shrink; !i_dont_print)
-        {
-            const auto frame_string = print_table(print_table_context_t{
+        const auto frame_string = print_table(print_table_context_t{
                 .table_keys = {title_begin, title_end},
                 .table_values = {values_begin, values_end},
                 .table_hide = {do_col_hide.begin(), do_col_hide.end()},
@@ -664,6 +662,8 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                 }
             });
 
+        if (const bool i_dont_print = skip_due_to_shrink; !i_dont_print)
+        {
             frame_data.set({
                 .frame_index = ++frame_index,
                 .frame = frame_string,
