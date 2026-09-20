@@ -476,7 +476,7 @@ void ccdb::ccdb::proxyView()
     cross_frame_context.update_proxy_endpoint_info = [&]
     {
         cross_frame_context.proxy_list = get_proxy_map();
-        cross_frame_context.latency_map.get([](const auto & lat){ lat.clear(); });
+        cross_frame_context.latency_map.get([](auto & lat){ lat.clear(); });
         local_workers.emplace_back([&]
         {
             std::vector<std::string> list;
@@ -520,7 +520,7 @@ void ccdb::ccdb::proxyView()
                             //          utils::iqr_filtered_latency(latency_history_vec);
                             const auto avg = latency_history_vec.empty() ? static_cast<double>(UINT64_MAX) :
                                 utils::iqr_filtered_latency(latency_history_vec, false);
-                            cross_frame_context.latency_map.get([&](const auto & lat_){ lat_.emplace(proxyName, avg); });
+                            cross_frame_context.latency_map.get([&](auto & lat_){ lat_.emplace(proxyName, avg); });
                         }
                     }
                 }
