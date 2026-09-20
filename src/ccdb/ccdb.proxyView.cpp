@@ -371,30 +371,51 @@ void ccdb::ccdb::proxyView()
                 frame << utf8::utf32to8({height_strip[offset++]});
                 std::u32string u32 = utf8::utf8to32(view);
                 int printed_width = 0, skipped_width = 0;
+                bool color_codes = false;
                 for (const auto & p : u32)
                 {
-                    const int len = utils::UnicodeDisplayWidth::get_width(p);
-                    if (printed_width + len > viewSize_col)
-                    {
-                        while (printed_width < viewSize_col) {
-                            frame << ' ';
-                            printed_width++;
-                        }
-
-                        break;
+                    if (p == '\033') {
+                        color_codes = true;
+                        frame << '\033';
+                        continue;
                     }
 
-                    if (skipped_width + len < leading_space) {
+                    if (color_codes) {
+                        frame << utf8::utf32to8({p});
+
+                        if (p == 'm') {
+                            color_codes = false;
+                        }
+
+                        continue;
+                    }
+
+                    const int len = utils::UnicodeDisplayWidth::get_width(p);
+
+                    // Character lies completely before the viewport.
+                    if (skipped_width + len <= leading_space) {
                         skipped_width += len;
                         continue;
                     }
 
-                    if (skipped_width < leading_space && skipped_width + len > leading_space) { // switch point, len > 1
+                    // The viewport starts in the middle of a wide character.
+                    if (skipped_width < leading_space) {
                         while (skipped_width < leading_space) {
                             frame << ' ';
-                            skipped_width++;
+                            ++skipped_width;
                         }
+
                         continue;
+                    }
+
+                    if (printed_width + len > viewSize_col)
+                    {
+                        while (printed_width < viewSize_col) {
+                            frame << ' ';
+                            ++printed_width;
+                        }
+
+                        break;
                     }
 
                     frame << utf8::utf32to8({p});
