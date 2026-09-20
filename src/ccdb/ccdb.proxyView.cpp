@@ -25,15 +25,17 @@
 #include "ccdb.h"
 #include "utils.h"
 
-static constexpr char unicode_box_upper_left[]   = "┌";
-static constexpr char unicode_box_upper_right[]  = "┐";
-static constexpr char unicode_box_bottom_left[]  = "└";
-static constexpr char unicode_box_bottom_right[] = "┘";
-static constexpr char unicode_box_line[]         = "─";
-static constexpr char unicode_box_vertical[]     = "│";
 
 namespace
 {
+    constexpr char unicode_box_upper_left[]   = "┌";
+    constexpr char unicode_box_upper_right[]  = "┐";
+    constexpr char unicode_box_bottom_left[]  = "└";
+    constexpr char unicode_box_bottom_right[] = "┘";
+    constexpr char unicode_box_line[]         = "─";
+    constexpr char unicode_box_vertical[]     = "│";
+    constexpr char unicode_dot[]              = "●";
+
     struct cross_frame_context_t {
         std::pair<int, int> mouse_position;
         std::chrono::time_point<std::chrono::steady_clock> last_frame_time;
@@ -51,42 +53,86 @@ namespace
         };
 
         tsl::hopscotch_map<std::string, ProxyNode> proxy_list;
+
+        enum currently_invoked_action_t : int { NONE = 0, MOUSE_SELECT_BOX };
+        currently_invoked_action_t currently_invoked_action { };
+        int action_frame_time = 0;
     };
 
-    void proxyView_draw(std::vector<std::string> & frame, cross_frame_context_t & cross_frame_context)
+    std::vector < std::string > draw_text_in_a_box(const std::string & name_, int name_max,
+        const std::string & appends, const int appends_len,
+        const tsl::hopscotch_map<std::string, int> & len_cache)
     {
-        for (auto & [name_, node] : cross_frame_context.proxy_list)
+        name_max += appends_len;
+        std::vector < std::string > frame;
+        // 1.
         {
-            auto & [endpoints_, selected_endpoint_, latency_] = node;
-            const auto name_len = ccdb::utils::UnicodeDisplayWidth::get_width(name_);
-            // 1.
+            std::stringstream line;
+            line << unicode_box_upper_left;
+            for (int i = 0; i < name_max; ++i) {
+                line << unicode_box_line;
+            }
+            line << unicode_box_upper_right;
+            frame.emplace_back(line.str());
+        }
+        // 2.
+        {
+            const int before = (name_max - (len_cache.at(name_) + appends_len)) / 2;
+            const int after = name_max - (len_cache.at(name_) + appends_len) - before;
+            std::stringstream line;
+            line << unicode_box_vertical;
+            line << std::string(before, ' ') << name_ << appends << std::string(after, ' ');
+            line << unicode_box_vertical;
+            frame.emplace_back(line.str());
+        }
+        // 3.
+        {
+            std::stringstream line;
+            line << unicode_box_bottom_left;
+            for (int i = 0; i < name_max; ++i) {
+                line << unicode_box_line;
+            }
+            line << unicode_box_bottom_right;
+            frame.emplace_back(line.str());
+        }
+
+        return frame;
+    }
+
+    void proxyView_draw(std::vector<std::string> & frame,
+        cross_frame_context_t & cross_frame_context)
+    {
+        thread_local tsl::hopscotch_map<std::string, int> len_cache;
+        switch (cross_frame_context.currently_invoked_action)
+        {
+            default:
+            case cross_frame_context_t::NONE:
             {
-                std::stringstream line;
-                line << unicode_box_upper_left;
-                for (int i = 0; i < name_len; ++i) {
-                    line << unicode_box_line;
+                int name_max = 0;
+                for (const auto & name_ : cross_frame_context.proxy_list | std::views::keys) {
+                    const auto name_len = ccdb::utils::UnicodeDisplayWidth::get_width(name_);
+                    name_max = std::max(name_max, name_len);
+                    len_cache[name_] = name_len;
                 }
-                line << unicode_box_upper_right;
-                frame.emplace_back(line.str());
-            }
-            // 2.
-            {
-                std::stringstream line;
-                line << unicode_box_vertical;
-                line << name_;
-                line << unicode_box_vertical;
-                frame.emplace_back(line.str());
-            }
-            // 3.
-            {
-                std::stringstream line;
-                line << unicode_box_bottom_left;
-                for (int i = 0; i < name_len; ++i) {
-                    line << unicode_box_line;
+
+                for (auto & [name_, node] : cross_frame_context.proxy_list)
+                {
+                    auto & [endpoints_, selected_endpoint_, latency_] = node;
+                    std::string node_dots;
+                    for (uint64_t i = 0; i < endpoints_.size(); i++) {
+                        node_dots += ccdb::color::color24(5,2,2) + std::string(unicode_dot) + ccdb::color::no_color();
+                    }
+
+                    const auto fr = draw_text_in_a_box(name_, name_max, node_dots,
+                        ccdb::utils::UnicodeDisplayWidth::get_width(ccdb::utils::strip_color(node_dots)), len_cache);
+                    frame.insert(frame.end(), fr.begin(), fr.end());
                 }
-                line << unicode_box_bottom_right;
-                frame.emplace_back(line.str());
             }
+            break;
+            case cross_frame_context_t::MOUSE_SELECT_BOX: {
+
+            }
+            break;
         }
     }
 
@@ -120,10 +166,11 @@ namespace
                 cross_frame_context.mouse_position.first = -1;
             if (cross_frame_context.mouse_position.second < 0 || cross_frame_context.mouse_position.second >= cross_frame_context.height)
                 cross_frame_context.mouse_position.second = -1;
-        }
 
-        if (cross_frame_context.mouse_position.first >= 0 && cross_frame_context.mouse_position.second >= 0) {
-            frame[cross_frame_context.mouse_position.second][cross_frame_context.mouse_position.first] = 'X';
+            if (cross_frame_context.mouse_position.first >= 0 && cross_frame_context.mouse_position.second >= 0) {
+                cross_frame_context.currently_invoked_action = cross_frame_context_t::MOUSE_SELECT_BOX;
+                cross_frame_context.action_frame_time = 60 * 2; // 2 seconds, 60 FPS
+            }
         }
 
         std::stringstream FPS_indicator_ss;
@@ -296,7 +343,6 @@ void ccdb::ccdb::proxyView()
                             printed_width++;
                         }
 
-                        frame << '\n';
                         break;
                     }
 
@@ -316,6 +362,8 @@ void ccdb::ccdb::proxyView()
                     frame << utf8::utf32to8({p});
                     printed_width += len;
                 }
+
+                frame << '\n';
             }
 
             frame << width_strip;
