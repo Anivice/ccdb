@@ -170,7 +170,7 @@ namespace
                 for (const auto & i : endpoints_)
                 {
                     const auto lat_ = cross_frame_context.latency_map.find(i);
-                    node_dots += (lat_ == cross_frame_context.latency_map.end() ?
+                    node_dots += (lat_ != cross_frame_context.latency_map.end() && lat_->second > 0 ?
                         ccdb::utils::color_coding(lat_->second) : ccdb::color::color(2,2,2))
                         + " " + std::string(unicode_dot) + ccdb::color::no_color();
                 }
@@ -262,9 +262,15 @@ namespace
                                     std::vector<std::string> proxy_lists;
                                     for (const auto & proxy : it_->second.endpoints_)
                                     {
-                                        const auto sub_name = "      " + std::string(selector) + "(" + group_name + ")> `" + proxy + "`";
+                                        const auto lat_ = cross_frame_context.latency_map.find(proxy);
+                                        std::ostringstream sub_name_ss;
+                                        sub_name_ss << "    " << (lat_ != cross_frame_context.latency_map.end() && lat_->second > 0 ?
+                                            ccdb::utils::color_coding(lat_->second) : ccdb::color::color(2,2,2))
+                                            << " " << std::string(unicode_dot) << ccdb::color::no_color() << " "
+                                            << std::string(selector) << "(" << group_name << ")> `" << proxy << "`";
+                                        const auto sub_name = sub_name_ss.str();
                                         auto fr = draw_text_in_a_box(sub_name,
-                                            ccdb::utils::UnicodeDisplayWidth::get_width(sub_name));
+                                            ccdb::utils::UnicodeDisplayWidth::get_width(ccdb::utils::strip_color(sub_name)));
                                         proxy_lists.insert(proxy_lists.end(), fr.begin(), fr.end());
                                     }
                                     frame.insert(it + 2, proxy_lists.begin(), proxy_lists.end());
