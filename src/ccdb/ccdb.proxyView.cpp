@@ -73,6 +73,7 @@ namespace
         std::function<void()> update_proxy_endpoint_info;
         std::map<std::string, pending_endpoint_verification_t> pending_endpoint_verifications;
         ccdb_atomic_t<tsl::hopscotch_map<std::string, int>> latency_map;
+        std::chrono::time_point<std::chrono::steady_clock> idle_time;
     };
 
     std::vector < std::string > draw_text_in_a_box(const std::string & name_, const int name_len)
@@ -193,6 +194,7 @@ namespace
             }
         }
 
+        const auto now = std::chrono::steady_clock::now();
         switch (cross_frame_context.currently_invoked_action)
         {
             default:
@@ -200,6 +202,7 @@ namespace
             case cross_frame_context_t::REFRESH_LIST:
                 default_proxy_renderer();
                 cross_frame_context.currently_invoked_action = cross_frame_context_t::IDLE_NO_ACTION_OR_UPDATES;
+                cross_frame_context.idle_time = now;
             break;
             case cross_frame_context_t::MOUSE_SELECT_BOX:
             {
@@ -303,11 +306,11 @@ namespace
                 }
 
                 cross_frame_context.currently_invoked_action = cross_frame_context_t::IDLE_NO_ACTION_OR_UPDATES;
+                cross_frame_context.idle_time = now;
             }
             break;
             case cross_frame_context_t::VERIFY_PROXY_ENDPOINT:
             {
-                const auto now = std::chrono::steady_clock::now();
                 const auto backend_endpoints = cross_frame_context.get_backend_selected_endpoints();
                 for (auto it = cross_frame_context.pending_endpoint_verifications.begin();
                     it != cross_frame_context.pending_endpoint_verifications.end();)
@@ -329,9 +332,16 @@ namespace
 
                 cross_frame_context.update_proxy_endpoint_info();
                 cross_frame_context.currently_invoked_action = cross_frame_context_t::REFRESH_LIST;
+                cross_frame_context.idle_time = now;
             }
             break;
-            case cross_frame_context_t::IDLE_NO_ACTION_OR_UPDATES:
+            case cross_frame_context_t::IDLE_NO_ACTION_OR_UPDATES: {
+                if (std::chrono::duration_cast<std::chrono::seconds>(now - cross_frame_context.idle_time).count() > 5)
+                {
+                    default_proxy_renderer();
+                    cross_frame_context.idle_time = now;
+                }
+            }
             break;
         }
     }
