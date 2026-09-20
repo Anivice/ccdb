@@ -50,7 +50,6 @@ namespace
         struct ProxyNode {
             std::vector<std::string> endpoints_;
             std::vector<std::string> selected_endpoint_;
-            int latency_ = -1;
         };
 
         tsl::hopscotch_map<std::string, ProxyNode> proxy_list;
@@ -73,6 +72,7 @@ namespace
         std::function<std::map<std::string, std::string>()> get_backend_selected_endpoints;
         std::function<void()> update_proxy_endpoint_info;
         std::map<std::string, pending_endpoint_verification_t> pending_endpoint_verifications;
+        tsl::hopscotch_map<std::string, int> latency_map;
     };
 
     std::vector < std::string > draw_text_in_a_box(const std::string & name_, const int name_len)
@@ -158,15 +158,21 @@ namespace
         auto default_proxy_renderer = [&]
         {
             frame.clear();
+            cross_frame_context.update_proxy_endpoint_info();
             for (auto & [name_, node] : cross_frame_context.proxy_list)
             {
-                auto & [endpoints_, selected_endpoint_, latency_] = node;
+                auto & [endpoints_, selected_endpoint_] = node;
                 std::string node_dots;
                 std::ranges::for_each(selected_endpoint_, [&](const auto & c) {
                     node_dots += connector + c;
                 });
-                for (uint64_t i = 0; i < endpoints_.size(); i++) {
-                    node_dots += ccdb::color::color24(5,2,2) + " " + std::string(unicode_dot) + ccdb::color::no_color();
+
+                for (const auto & i : endpoints_)
+                {
+                    const auto lat_ = cross_frame_context.latency_map.find(i);
+                    node_dots += (lat_ == cross_frame_context.latency_map.end() ?
+                        ccdb::utils::color_coding(lat_->second) : ccdb::color::color(2,2,2))
+                        + " " + std::string(unicode_dot) + ccdb::color::no_color();
                 }
 
                 const auto content = name_ + node_dots;
@@ -418,7 +424,7 @@ void ccdb::ccdb::proxyView()
     auto get_proxy_map = [this]->tsl::hopscotch_map<std::string, cross_frame_context_t::ProxyNode>
     {
         backend_instance.update_proxy_list();
-        const auto & [ proxy_list, latencies ] = backend_instance.get_proxies_and_latencies_as_pair();
+        const auto & proxy_list = backend_instance.get_proxies_and_latencies_as_pair().first;
         std::map < std::string, std::vector < std::string > > path_map;
         std::ranges::for_each(proxy_list, [&](const std::pair < std::string, std::pair < std::vector<std::string>, std::string> > & element)
         {
@@ -456,11 +462,9 @@ void ccdb::ccdb::proxyView()
         std::ranges::for_each(path_map, [&](const std::pair < std::string, std::vector < std::string > > & pair)
         {
             const auto & [name, chains] = pair;
-            auto lat_ = latencies.find(name);
             cross_frame_context_t::ProxyNode Node = {
                 .endpoints_ = proxy_list.at(name).first,
                 .selected_endpoint_ = chains,
-                .latency_ = lat_ == latencies.end() ? -1 : lat_->second
             };
             ret.emplace(name, Node);
         });
@@ -468,7 +472,6 @@ void ccdb::ccdb::proxyView()
         return ret;
     };
 
-    cross_frame_context.proxy_list = get_proxy_map();
     cross_frame_context.change_proxy_endpoint = [this](const std::string & name, const std::string & endpoint) {
         backend_instance.change_proxy_using_backend(name, endpoint);
     };
@@ -482,8 +485,56 @@ void ccdb::ccdb::proxyView()
         }
         return selected_endpoints;
     };
-    cross_frame_context.update_proxy_endpoint_info = [&] {
+    cross_frame_context.update_proxy_endpoint_info = [&]
+    {
         cross_frame_context.proxy_list = get_proxy_map();
+        cross_frame_context.latency_map.clear();
+        std::vector<std::string> list;
+        const auto & groups = backend_instance.get_proxies_and_latencies_as_pair().first;
+        const auto & pack1 = groups | std::views::keys;
+        list.insert(list.end(), pack1.begin(), pack1.end());
+        for (const auto & pack2 : (groups | std::views::values) | std::views::keys) {
+            list.insert(list.end(), pack2.begin(), pack2.end());
+        }
+
+        auto [begin, end] = std::ranges::unique(list);
+        list.erase(begin, end);
+
+        for (const auto & proxyName : list)
+        {
+            const auto metadata = backend_instance.get_proxy_metadata(proxyName);
+            if (const auto json = json::parse(metadata); json.contains("extra"))
+            {
+                for (const auto & [ url, latency_history ] : json["extra"].items())
+                {
+                    if (latency_history.contains("history"))
+                    {
+                        std::vector < std::pair < uint64_t, int > > latency_history_vec;
+                        for (const auto & history : latency_history["history"])
+                        {
+                            std::string time = history["time"];
+                            const int delay = history["delay"];
+                            latency_history_vec.emplace_back(utils::get_time(time), delay);
+                        }
+
+                        for (auto it = latency_history_vec.begin(); it != latency_history_vec.end();)
+                        {
+                            if (it->second == 0) {
+                                latency_history_vec.erase(it);
+                            } else {
+                                ++it;
+                            }
+                        }
+
+                        // const auto typical = latency_history_vec.empty() ? static_cast<double>(UINT64_MAX) :
+                        //          utils::iqr_filtered_latency(latency_history_vec);
+                        const auto avg = latency_history_vec.empty() ? static_cast<double>(UINT64_MAX) :
+                            utils::iqr_filtered_latency(latency_history_vec, false);
+                        cross_frame_context.latency_map.emplace(proxyName, avg);
+                    }
+                }
+            }
+        }
     };
 
     while (running)

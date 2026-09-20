@@ -477,6 +477,33 @@ namespace ccdb::utils
 
     std::string getTimeNow();
 
+    template < typename Type >
+    std::string color_coding(const Type delay, const int boundary = 500)
+    {
+        const Type r = (delay > boundary || delay == 0) ? boundary : delay;
+        const double rd_pct = static_cast<double>(r) / boundary;
+        const double gr_pct = 1.00 - rd_pct;
+        const auto rgb_r = static_cast<Type>(rd_pct * 255);
+        const auto rgb_g = static_cast<Type>(gr_pct * 255);
+        return color::color24(static_cast<int>(rgb_r), static_cast<int>(rgb_g), 0);
+    }
+
+    /**
+     * Compute the median of a sorted sub‑range of integers.
+     * Returns a double to avoid unwanted integer truncation.
+     */
+    double median_of_sorted(const std::vector<int>& sorted, size_t start, size_t end);
+
+    /**
+     * Apply IQR‑based outlier removal and return a summary latency.
+     *
+     * @param data       Vector of (timestamp_epoch, latency_ms) pairs.
+     * @param use_median If true, return the median of the cleaned data;
+     *                   otherwise the arithmetic mean.
+     * @return           Summary latency in milliseconds (double).
+     */
+    double iqr_filtered_latency(const std::vector<std::pair<uint64_t, int>>& data, bool use_median = true);
+
     /// timepoint to localtime string
     /// @param tp Timepoint
     /// @return localtime string

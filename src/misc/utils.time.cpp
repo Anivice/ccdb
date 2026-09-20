@@ -465,3 +465,78 @@ std::string ccdb::utils::format_time_local(const std::chrono::system_clock::time
 std::string ccdb::utils::getTimeNow() {
     return format_time_rfc3339_local(std::chrono::system_clock::now());
 }
+
+double ccdb::utils::median_of_sorted(const std::vector<int>& sorted, const size_t start, const size_t end)
+{
+    if (const size_t count = end - start + 1; /* count % 2 == 1 */ count & 0x01) { // odd
+        return sorted[start + count / 2];
+    } else {
+        const size_t idx = start + count / 2;
+        return (sorted[idx - 1] + sorted[idx]) / 2.0;
+    }
+}
+
+double ccdb::utils::iqr_filtered_latency(const std::vector<std::pair<uint64_t, int>>& data, const bool use_median)
+{
+    if (data.empty()) {
+        throw std::invalid_argument("data vector is empty");
+    }
+
+    std::vector<int> latencies;
+    latencies.reserve(data.size());
+    for (const auto& lat : data | std::views::values) {
+        latencies.push_back(lat);
+    }
+
+    std::vector<int> sorted_lat = latencies;
+    std::ranges::sort(sorted_lat);
+
+    // Determine Q1 (25th percentile) and Q3 (75th percentile)
+    // Using the inclusive median method (Tukey's hinges):
+    //  - If odd size, the median is included in both halves.
+    const size_t n = sorted_lat.size();
+    const size_t mid = n / 2;
+    double Q1, Q3;
+
+    if (!(n & 0x01) /* n % 2 == 0 */) {
+        // Even: lower half [0 .. mid-1], upper half [mid .. n-1]
+        Q1 = median_of_sorted(sorted_lat, 0, mid - 1);
+        Q3 = median_of_sorted(sorted_lat, mid, n - 1);
+    } else {
+        // Odd: both halves include the median
+        Q1 = median_of_sorted(sorted_lat, 0, mid);      // mid is inclusive
+        Q3 = median_of_sorted(sorted_lat, mid, n - 1);
+    }
+
+    const double IQR = Q3 - Q1;
+    const double lower_bound = Q1 - 1.5 * IQR;
+    const double upper_bound = Q3 + 1.5 * IQR;
+
+    // Keep only measurements whose latency lies within [lower_bound, upper_bound]
+    std::vector<int> clean_latencies;
+    for (const auto& lat : data | std::views::values) {
+        if (lat >= lower_bound && lat <= upper_bound) {
+            clean_latencies.push_back(lat);
+        }
+    }
+
+    // If all data were outliers (extremely rare but possible), fall back to original data.
+    // Otherwise the cleaned vector would be empty.
+    if (clean_latencies.empty()) {
+        // Everything was marked as outlier – return the original median/mean.
+        clean_latencies = latencies;
+    }
+
+    // Compute final summary statistic
+    if (use_median) {
+        std::ranges::sort(clean_latencies);
+        if (const size_t sz = clean_latencies.size(); /* sz % 2 == 1 */ sz & 0x01) { // odd
+            return clean_latencies[sz / 2];
+        } else {
+            return (clean_latencies[sz / 2 - 1] + clean_latencies[sz / 2]) / 2.0;
+        }
+    } else {
+        const double sum = std::accumulate(clean_latencies.begin(), clean_latencies.end(), 0.0);
+        return sum / static_cast<double>(clean_latencies.size());
+    }
+}
