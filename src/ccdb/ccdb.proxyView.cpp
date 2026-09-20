@@ -55,11 +55,24 @@ namespace
 
         tsl::hopscotch_map<std::string, ProxyNode> proxy_list;
 
-        enum currently_invoked_action_t : int { NONE = 0, MOUSE_SELECT_BOX, IDLE_NO_ACTION_OR_UPDATES = 400 };
+        struct pending_endpoint_verification_t {
+            std::string endpoint;
+            std::chrono::time_point<std::chrono::steady_clock> verify_at;
+        };
+
+        enum currently_invoked_action_t : int {
+            NONE = 0,
+            MOUSE_SELECT_BOX,
+            VERIFY_PROXY_ENDPOINT,
+            REFRESH_LIST,
+            IDLE_NO_ACTION_OR_UPDATES = 400
+        };
         currently_invoked_action_t currently_invoked_action { };
-        int action_frame_time = 0;
         std::vector<std::string> inner_frame_data;
         std::function<void(const std::string &, const std::string &)> change_proxy_endpoint;
+        std::function<std::map<std::string, std::string>()> get_backend_selected_endpoints;
+        std::function<void()> update_proxy_endpoint_info;
+        std::map<std::string, pending_endpoint_verification_t> pending_endpoint_verifications;
     };
 
     std::vector < std::string > draw_text_in_a_box(const std::string & name_, const int name_len)
@@ -97,6 +110,47 @@ namespace
         return frame;
     }
 
+    bool parse_selector(const std::string & text, std::string & group_name,
+        std::string & endpoint_name)
+    {
+        thread_local const std::regex selector_regex(R"(Sel > \((.*)\)> \`(.*)\`)");
+        const std::string plain_text = ccdb::utils::strip_color(text);
+        if (std::smatch match; std::regex_search(plain_text, match, selector_regex))
+        {
+            group_name = match[1];
+            endpoint_name = match[2];
+            return true;
+        }
+
+        return false;
+    }
+
+    void highlight_selector(std::vector<std::string> & frame, const std::string & group_name,
+        const std::string & endpoint_name)
+    {
+        for (auto & line : frame)
+        {
+            const std::string plain_line = ccdb::utils::strip_color(line);
+            std::string line_group;
+            std::string line_endpoint;
+            if (!parse_selector(plain_line, line_group, line_endpoint) || line_group != group_name) {
+                continue;
+            }
+
+            line = plain_line;
+            if (line_endpoint == endpoint_name)
+            {
+                ccdb::utils::regex_replace_all(line, R"(│.*│)", [&](const auto & matched) {
+                    const std::string & contents = *matched.first;
+                    return std::string(unicode_box_vertical) + ccdb::color::color(0,0,0,5,5,5)
+                        + contents.substr(sizeof(unicode_box_vertical) - 1,
+                            contents.size() - 2 * (sizeof(unicode_box_vertical) - 1))
+                        + ccdb::color::no_color() + unicode_box_vertical;
+                });
+            }
+        }
+    }
+
     void proxyView_draw(std::vector<std::string> & frame,
         cross_frame_context_t & cross_frame_context)
     {
@@ -122,10 +176,21 @@ namespace
             }
         };
 
+        if (cross_frame_context.currently_invoked_action == cross_frame_context_t::IDLE_NO_ACTION_OR_UPDATES)
+        {
+            const auto now = std::chrono::steady_clock::now();
+            if (std::ranges::any_of(cross_frame_context.pending_endpoint_verifications,
+                [&](const auto & pending) { return pending.second.verify_at <= now; }))
+            {
+                cross_frame_context.currently_invoked_action = cross_frame_context_t::VERIFY_PROXY_ENDPOINT;
+            }
+        }
+
         switch (cross_frame_context.currently_invoked_action)
         {
             default:
             case cross_frame_context_t::NONE:
+            case cross_frame_context_t::REFRESH_LIST:
                 default_proxy_renderer();
                 cross_frame_context.currently_invoked_action = cross_frame_context_t::IDLE_NO_ACTION_OR_UPDATES;
             break;
@@ -172,16 +237,16 @@ namespace
                     {
                         if (ccdb::utils::strip_color(*it).find(selected_text) != std::string::npos)
                         {
-                            *it = ccdb::utils::strip_color(*it);
-                            ccdb::utils::regex_replace_all(*it, R"(│.*│)",[&](const auto &){
-                                return unicode_box_vertical + ccdb::color::color(0,0,0,5,5,5)
-                                    + selected_text + ccdb::color::no_color() + unicode_box_vertical;
-                            });
-
                             const char * selector = "Sel > ";
                             if (const auto connector_pos = selected_text.find(connector);
                                 connector_pos != std::string::npos)
                             {
+                                *it = ccdb::utils::strip_color(*it);
+                                ccdb::utils::regex_replace_all(*it, R"(│.*│)",[&](const auto &){
+                                    return unicode_box_vertical + ccdb::color::color(0,0,0,5,5,5)
+                                        + selected_text + ccdb::color::no_color() + unicode_box_vertical;
+                                });
+
                                 std::string group_name = selected_text.substr(0, connector_pos);
                                 if (!group_name.empty()) group_name.erase(group_name.begin());
 
@@ -201,13 +266,18 @@ namespace
                             }
                             else if (const auto selector_pos = selected_text.find(selector); selector_pos != std::string::npos)
                             {
-                                selected_text = ccdb::utils::strip_color(selected_text);
-                                thread_local std::regex r(R"(Sel > \((.*)\)> \`(.*)\`)");
-                                if (std::smatch sm; std::regex_search(selected_text, sm, r))
+                                std::string group_name;
+                                std::string endpoint_name;
+                                if (parse_selector(selected_text, group_name, endpoint_name))
                                 {
-                                    const std::string group_name = sm[1];
-                                    const std::string end_point_name = sm[2];
-                                    cross_frame_context.change_proxy_endpoint(group_name, end_point_name);
+                                    // This also removes the old highlight from every other selector
+                                    // in the same group before asking the backend to make the change.
+                                    highlight_selector(frame, group_name, endpoint_name);
+                                    cross_frame_context.pending_endpoint_verifications[group_name] = {
+                                        .endpoint = endpoint_name,
+                                        .verify_at = std::chrono::steady_clock::now() + std::chrono::seconds(2)
+                                    };
+                                    cross_frame_context.change_proxy_endpoint(group_name, endpoint_name);
                                 }
                             }
 
@@ -217,6 +287,32 @@ namespace
                 }
 
                 cross_frame_context.currently_invoked_action = cross_frame_context_t::IDLE_NO_ACTION_OR_UPDATES;
+            }
+            break;
+            case cross_frame_context_t::VERIFY_PROXY_ENDPOINT:
+            {
+                const auto now = std::chrono::steady_clock::now();
+                const auto backend_endpoints = cross_frame_context.get_backend_selected_endpoints();
+                for (auto it = cross_frame_context.pending_endpoint_verifications.begin();
+                    it != cross_frame_context.pending_endpoint_verifications.end();)
+                {
+                    if (it->second.verify_at > now) {
+                        ++it;
+                        continue;
+                    }
+
+                    if (const auto backend_endpoint = backend_endpoints.find(it->first);
+                        backend_endpoint != backend_endpoints.end() &&
+                        backend_endpoint->second != it->second.endpoint)
+                    {
+                        highlight_selector(frame, it->first, backend_endpoint->second);
+                    }
+
+                    it = cross_frame_context.pending_endpoint_verifications.erase(it);
+                }
+
+                cross_frame_context.update_proxy_endpoint_info();
+                cross_frame_context.currently_invoked_action = cross_frame_context_t::REFRESH_LIST;
             }
             break;
             case cross_frame_context_t::IDLE_NO_ACTION_OR_UPDATES:
@@ -258,7 +354,6 @@ namespace
 
             if (cross_frame_context.mouse_position.first >= 0 && cross_frame_context.mouse_position.second >= 0) {
                 cross_frame_context.currently_invoked_action = cross_frame_context_t::MOUSE_SELECT_BOX;
-                cross_frame_context.action_frame_time = 60 * 2; // 2 seconds, 60 FPS
             }
         }
 
@@ -376,6 +471,19 @@ void ccdb::ccdb::proxyView()
     cross_frame_context.proxy_list = get_proxy_map();
     cross_frame_context.change_proxy_endpoint = [this](const std::string & name, const std::string & endpoint) {
         backend_instance.change_proxy_using_backend(name, endpoint);
+    };
+    cross_frame_context.get_backend_selected_endpoints = [this]
+    {
+        backend_instance.update_proxy_list();
+        const auto proxy_groups = backend_instance.get_proxies_and_latencies_as_pair().first;
+        std::map<std::string, std::string> selected_endpoints;
+        for (const auto & [group_name, group] : proxy_groups) {
+            selected_endpoints.emplace(group_name, group.second);
+        }
+        return selected_endpoints;
+    };
+    cross_frame_context.update_proxy_endpoint_info = [&] {
+        cross_frame_context.proxy_list = get_proxy_map();
     };
 
     while (running)
