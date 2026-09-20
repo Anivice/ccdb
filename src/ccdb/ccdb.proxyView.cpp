@@ -551,6 +551,7 @@ void ccdb::ccdb::proxyView()
             // width to col - 1, height to row - 1
             const auto viewSize_col = col - 1, viewSize_row = row - 1;
             const decltype(vector_frame_view.size()) presumed_view_point_end = skip_lines + viewSize_row;
+            if (skip_lines >= vector_frame_view.size()) continue; // skip damaged nonsensical frame
             vector_frame_view = {
                 vector_frame_view.begin() + skip_lines,
                 vector_frame_view.begin() + static_cast<decltype(vector_frame_view)::difference_type>(
