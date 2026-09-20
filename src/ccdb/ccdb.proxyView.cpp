@@ -48,7 +48,7 @@ namespace
 
         struct ProxyNode {
             std::vector<std::string> endpoints_;
-            std::string selected_endpoint_;
+            std::vector<std::string> selected_endpoint_;
             int latency_ = -1;
         };
 
@@ -119,8 +119,11 @@ namespace
                 {
                     auto & [endpoints_, selected_endpoint_, latency_] = node;
                     std::string node_dots;
+                    std::ranges::for_each(selected_endpoint_, [&node_dots](const auto & c) {
+                        node_dots += " -> " + c;
+                    });
                     for (uint64_t i = 0; i < endpoints_.size(); i++) {
-                        node_dots += ccdb::color::color24(5,2,2) + std::string(unicode_dot) + ccdb::color::no_color();
+                        node_dots += /*ccdb::color::color24(5,2,2) +*/ + " " + std::string(unicode_dot) /*+ ccdb::color::no_color()*/;
                     }
 
                     const auto fr = draw_text_in_a_box(name_, name_max, node_dots,
@@ -130,7 +133,7 @@ namespace
             }
             break;
             case cross_frame_context_t::MOUSE_SELECT_BOX: {
-
+                frame.resize(1, std::string(20, ' '));
             }
             break;
         }
@@ -176,8 +179,9 @@ namespace
         std::stringstream FPS_indicator_ss;
         FPS_indicator_ss << (std::chrono::seconds(1) / (cross_frame_context.last_frame_time - last_frame_time_backup)) << " FPS";
         const std::string FPS_indicator = FPS_indicator_ss.str();
-        for (uint64_t i = 0; i < FPS_indicator.size(); ++i)
-            frame[0][i] = FPS_indicator[i];
+        if (frame[0].size() >= FPS_indicator.size())
+            for (uint64_t i = 0; i < FPS_indicator.size(); ++i)
+                frame[0][i] = FPS_indicator[i];
 
         for (uint64_t i = 0; i < inner_frame_data.size(); ++i)
         {
@@ -232,19 +236,53 @@ void ccdb::ccdb::proxyView()
 
     auto get_proxy_map = [this]->tsl::hopscotch_map<std::string, cross_frame_context_t::ProxyNode>
     {
-        tsl::hopscotch_map<std::string, cross_frame_context_t::ProxyNode> ret;
         backend_instance.update_proxy_list();
         const auto & [ proxy_list, latencies ] = backend_instance.get_proxies_and_latencies_as_pair();
-        get_vecGroupProxy(false);
-        for (const auto & [name, children] : proxy_list)
+        std::map < std::string, std::vector < std::string > > path_map;
+        std::ranges::for_each(proxy_list, [&](const std::pair < std::string, std::pair < std::vector<std::string>, std::string> > & element)
         {
-            auto lat_ = latencies.find(name);
-            ret.emplace(name, cross_frame_context_t::ProxyNode{
-                .endpoints_ = children.first,
-                .selected_endpoint_ = children.second,
-                .latency_ = lat_ == latencies.end() ? -1 : lat_->second,
+            std::ranges::for_each(element.second.first, [&](const std::string & proxy)
+            {
+                if (proxy == element.second.second) {
+                    path_map.emplace(element.first, std::vector { proxy });
+                }
             });
+        });
+
+        // merge to chains
+        std::set < std::string > remove_set;
+        while (true)
+        {
+            std::set < std::string > remove_list;
+            for (auto it = path_map.begin(); it != path_map.end(); ++it)
+            {
+                if (const auto res = path_map.find(it->second.back()); res != path_map.end())
+                {
+                    remove_list.emplace(res->first);
+                    it->second.insert(it->second.end(), res->second.begin(), res->second.end());
+                }
+            }
+
+            std::ranges::for_each(remove_list, [&](const std::string & key){ remove_set.emplace(key); });
+
+            if (remove_list.empty()) {
+                break;
+            }
         }
+
+        std::ranges::for_each(remove_set, [&](const std::string & key){ path_map.erase(key); });
+        tsl::hopscotch_map<std::string, cross_frame_context_t::ProxyNode> ret;
+        std::ranges::for_each(path_map, [&](const std::pair < std::string, std::vector < std::string > > & pair)
+        {
+            const auto & [name, chains] = pair;
+            auto lat_ = latencies.find(name);
+            cross_frame_context_t::ProxyNode Node = {
+                .endpoints_ = proxy_list.at(name).first,
+                .selected_endpoint_ = chains,
+                .latency_ = lat_ == latencies.end() ? -1 : lat_->second
+            };
+            ret.emplace(name, Node);
+        });
 
         return ret;
     };
