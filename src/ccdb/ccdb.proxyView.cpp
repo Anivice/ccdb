@@ -241,7 +241,10 @@ namespace
                 {
                     for (auto it = frame.begin(); it != frame.end(); ++it)
                     {
-                        if (ccdb::utils::strip_color(*it).find(selected_text) != std::string::npos)
+                        auto no_color = ccdb::utils::strip_color(*it);
+                        if (std::smatch sm;
+                            std::regex_search(no_color, sm, std::regex(R"(│(.*)│)"))
+                            && sm[1] == selected_text)
                         {
                             const char * selector = "Sel > ";
                             if (const auto connector_pos = selected_text.find(connector);
@@ -442,28 +445,6 @@ void ccdb::ccdb::proxyView()
             });
         });
 
-        // merge to chains
-        std::set < std::string > remove_set;
-        while (true)
-        {
-            std::set < std::string > remove_list;
-            for (auto it = path_map.begin(); it != path_map.end(); ++it)
-            {
-                if (const auto res = path_map.find(it->second.back()); res != path_map.end())
-                {
-                    remove_list.emplace(res->first);
-                    it->second.insert(it->second.end(), res->second.begin(), res->second.end());
-                }
-            }
-
-            std::ranges::for_each(remove_list, [&](const std::string & key){ remove_set.emplace(key); });
-
-            if (remove_list.empty()) {
-                break;
-            }
-        }
-
-        std::ranges::for_each(remove_set, [&](const std::string & key){ path_map.erase(key); });
         tsl::hopscotch_map<std::string, cross_frame_context_t::ProxyNode> ret;
         std::ranges::for_each(path_map, [&](const std::pair < std::string, std::vector < std::string > > & pair)
         {
