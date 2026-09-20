@@ -23,8 +23,8 @@
 #include <chrono>
 #include <utility>
 #include "ccdb.h"
+#include "Readline.h"
 #include "utils.h"
-
 
 namespace
 {
@@ -36,7 +36,8 @@ namespace
     constexpr char unicode_box_vertical[]     = "│";
     constexpr char unicode_dot[]              = "●";
 
-    struct cross_frame_context_t {
+    struct cross_frame_context_t
+    {
         std::pair<int, int> mouse_position;
         std::chrono::time_point<std::chrono::steady_clock> last_frame_time;
         int leading_space{};
@@ -54,22 +55,20 @@ namespace
 
         tsl::hopscotch_map<std::string, ProxyNode> proxy_list;
 
-        enum currently_invoked_action_t : int { NONE = 0, MOUSE_SELECT_BOX };
+        enum currently_invoked_action_t : int { NONE = 0, MOUSE_SELECT_BOX, IDLE_NO_ACTION_OR_UPDATES = 400 };
         currently_invoked_action_t currently_invoked_action { };
         int action_frame_time = 0;
+        std::vector<std::string> inner_frame_data;
     };
 
-    std::vector < std::string > draw_text_in_a_box(const std::string & name_, int name_max,
-        const std::string & appends, const int appends_len,
-        const tsl::hopscotch_map<std::string, int> & len_cache)
+    std::vector < std::string > draw_text_in_a_box(const std::string & name_, const int name_len)
     {
-        name_max += appends_len;
         std::vector < std::string > frame;
         // 1.
         {
             std::stringstream line;
             line << unicode_box_upper_left;
-            for (int i = 0; i < name_max; ++i) {
+            for (int i = 0; i < name_len + 2; ++i) {
                 line << unicode_box_line;
             }
             line << unicode_box_upper_right;
@@ -77,11 +76,9 @@ namespace
         }
         // 2.
         {
-            const int before = (name_max - (len_cache.at(name_) + appends_len)) / 2;
-            const int after = name_max - (len_cache.at(name_) + appends_len) - before;
             std::stringstream line;
             line << unicode_box_vertical;
-            line << std::string(before, ' ') << name_ << appends << std::string(after, ' ');
+            line << ' ' << name_ << ' ';
             line << unicode_box_vertical;
             frame.emplace_back(line.str());
         }
@@ -89,7 +86,7 @@ namespace
         {
             std::stringstream line;
             line << unicode_box_bottom_left;
-            for (int i = 0; i < name_max; ++i) {
+            for (int i = 0; i < name_len + 2; ++i) {
                 line << unicode_box_line;
             }
             line << unicode_box_bottom_right;
@@ -102,39 +99,126 @@ namespace
     void proxyView_draw(std::vector<std::string> & frame,
         cross_frame_context_t & cross_frame_context)
     {
-        thread_local tsl::hopscotch_map<std::string, int> len_cache;
+        constexpr char connector[] = " -> ";
+        auto default_proxy_renderer = [&]
+        {
+            frame.clear();
+            for (auto & [name_, node] : cross_frame_context.proxy_list)
+            {
+                auto & [endpoints_, selected_endpoint_, latency_] = node;
+                std::string node_dots;
+                std::ranges::for_each(selected_endpoint_, [&](const auto & c) {
+                    node_dots += connector + c;
+                });
+                for (uint64_t i = 0; i < endpoints_.size(); i++) {
+                    node_dots += ccdb::color::color24(5,2,2) + " " + std::string(unicode_dot) + ccdb::color::no_color();
+                }
+
+                const auto content = name_ + node_dots;
+                const auto fr = draw_text_in_a_box(content,
+                    ccdb::utils::UnicodeDisplayWidth::get_width(ccdb::utils::strip_color(content)));
+                frame.insert(frame.end(), fr.begin(), fr.end());
+            }
+        };
+
         switch (cross_frame_context.currently_invoked_action)
         {
             default:
             case cross_frame_context_t::NONE:
+                default_proxy_renderer();
+                cross_frame_context.currently_invoked_action = cross_frame_context_t::IDLE_NO_ACTION_OR_UPDATES;
+            break;
+            case cross_frame_context_t::MOUSE_SELECT_BOX:
             {
-                int name_max = 0;
-                for (const auto & name_ : cross_frame_context.proxy_list | std::views::keys) {
-                    const auto name_len = ccdb::utils::UnicodeDisplayWidth::get_width(name_);
-                    name_max = std::max(name_max, name_len);
-                    len_cache[name_] = name_len;
-                }
+                if (frame.empty()) default_proxy_renderer();
+                bool box_detected = false;
+                std::string selected_text;
 
-                for (auto & [name_, node] : cross_frame_context.proxy_list)
+                // mouse_position already includes scrolling and screen-coordinate mapping.
+                // proxyView_conv places inner_frame_data at frame[i + 1][j + 1],
+                // so remove that outer padding to address this inner frame.
+                const int x = cross_frame_context.mouse_position.first - 1;
+                const int y = cross_frame_context.mouse_position.second - 1;
+
+                if (x >= 0 && y >= 0 &&
+                    static_cast<std::size_t>(y) < frame.size())
                 {
-                    auto & [endpoints_, selected_endpoint_, latency_] = node;
-                    std::string node_dots;
-                    std::ranges::for_each(selected_endpoint_, [&node_dots](const auto & c) {
-                        node_dots += " -> " + c;
-                    });
-                    for (uint64_t i = 0; i < endpoints_.size(); i++) {
-                        node_dots += ccdb::color::color24(5,2,2) + " " + std::string(unicode_dot) + ccdb::color::no_color();
-                    }
+                    const auto top = static_cast<std::size_t>(y / 3) * 3;
 
-                    const auto fr = draw_text_in_a_box(name_, name_max, node_dots,
-                        ccdb::utils::UnicodeDisplayWidth::get_width(ccdb::utils::strip_color(node_dots)), len_cache);
-                    frame.insert(frame.end(), fr.begin(), fr.end());
+                    if (top + 2 < frame.size())
+                    {
+                        const auto upper = ccdb::utils::strip_color(frame[top]);
+                        const int box_width = ccdb::utils::UnicodeDisplayWidth::get_width(upper);
+
+                        // Includes clicks on the box's borders.
+                        if (x < box_width)
+                        {
+                            const auto middle = ccdb::utils::utf8_to_u32(ccdb::utils::strip_color(frame[top + 1]));
+                            if (middle.size() >= 2 &&
+                                middle.front() == U'│' &&
+                                middle.back() == U'│')
+                            {
+                                selected_text = utf8::utf32to8(middle.substr(1, middle.size() - 2));
+                                box_detected = true;
+                            }
+                        }
+                    }
                 }
+
+                if (box_detected == true)
+                {
+                    for (auto it = frame.begin(); it != frame.end(); ++it)
+                    {
+                        if (ccdb::utils::strip_color(*it).find(selected_text) != std::string::npos)
+                        {
+                            *it = ccdb::utils::strip_color(*it);
+                            ccdb::utils::regex_replace_all(*it, R"(│.*│)",[&](const auto &){
+                                return unicode_box_vertical + ccdb::color::color(0,0,0,5,5,5)
+                                    + selected_text + ccdb::color::no_color() + unicode_box_vertical;
+                            });
+
+                            const char * selector = "Sel > (";
+                            if (const auto connector_pos = selected_text.find(connector);
+                                connector_pos != std::string::npos)
+                            {
+                                std::string group_name = selected_text.substr(0, connector_pos);
+                                if (!group_name.empty()) group_name.erase(group_name.begin());
+
+                                if (const auto it_ = cross_frame_context.proxy_list.find(group_name);
+                                    it_ != cross_frame_context.proxy_list.end())
+                                {
+                                    std::vector<std::string> proxy_lists;
+                                    for (const auto & proxy : it_->second.endpoints_)
+                                    {
+                                        const auto sub_name = selector + group_name + ")> `" + proxy + "`";
+                                        auto fr = draw_text_in_a_box(sub_name,
+                                            ccdb::utils::UnicodeDisplayWidth::get_width(sub_name));
+                                        for (auto & str : fr) {
+                                            str = "    " + str;
+                                        }
+                                        proxy_lists.insert(proxy_lists.end(), fr.begin(), fr.end());
+                                    }
+                                    frame.insert(it + 2, proxy_lists.begin(), proxy_lists.end());
+                                }
+                            }
+                            else if (const auto selector_pos = selected_text.find(selector); selector_pos != std::string::npos)
+                            {
+                                thread_local std::regex r(R"(Sel > \((.*)\)> \`(.*)\`)");
+                                if (std::smatch sm; std::regex_match(selected_text, sm, r)) {
+                                    const std::string group_name = sm[1];
+                                    const std::string end_point_name = sm[2];
+                                }
+                            }
+
+                            break;
+                        }
+                    }
+                }
+
+                cross_frame_context.currently_invoked_action = cross_frame_context_t::IDLE_NO_ACTION_OR_UPDATES;
             }
             break;
-            case cross_frame_context_t::MOUSE_SELECT_BOX: {
-                frame.resize(1, std::string(20, ' '));
-            }
+            case cross_frame_context_t::IDLE_NO_ACTION_OR_UPDATES:
             break;
         }
     }
@@ -144,7 +228,7 @@ namespace
         const auto last_frame_time_backup = cross_frame_context.last_frame_time;
         cross_frame_context.last_frame_time = std::chrono::steady_clock::now();
 
-        std::vector<std::string> inner_frame_data;
+        auto & inner_frame_data = cross_frame_context.inner_frame_data;
         proxyView_draw(inner_frame_data, cross_frame_context);
         cross_frame_context.width = 0;
         cross_frame_context.height = static_cast<int>(inner_frame_data.size()) + 2;
@@ -363,14 +447,14 @@ void ccdb::ccdb::proxyView()
 
             const std::string width_strip = utils::generate_linear_handle(cross_frame_context.width,
                 leading_space, leading_space + viewSize_col, col);
-            const std::u32string height_strip = utf8::utf8to32(utils::generate_linear_handle(cross_frame_context.height,
+            const std::u32string height_strip = utils::utf8_to_u32(utils::generate_linear_handle(cross_frame_context.height,
                 skip_lines, skip_lines + viewSize_row, viewSize_row));
 
             int offset = 0;
             for (const auto & view : vector_frame_view)
             {
                 frame << utf8::utf32to8({height_strip[offset++]});
-                std::u32string u32 = utf8::utf8to32(view);
+                std::u32string u32 = utils::utf8_to_u32(view);
                 int printed_width = 0;
                 bool color_codes = false;
                 int source_width = 0;
