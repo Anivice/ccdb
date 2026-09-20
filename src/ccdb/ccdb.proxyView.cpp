@@ -177,7 +177,7 @@ namespace
                                     + selected_text + ccdb::color::no_color() + unicode_box_vertical;
                             });
 
-                            const char * selector = "Sel > (";
+                            const char * selector = "Sel > ";
                             if (const auto connector_pos = selected_text.find(connector);
                                 connector_pos != std::string::npos)
                             {
@@ -190,12 +190,9 @@ namespace
                                     std::vector<std::string> proxy_lists;
                                     for (const auto & proxy : it_->second.endpoints_)
                                     {
-                                        const auto sub_name = selector + group_name + ")> `" + proxy + "`";
+                                        const auto sub_name = "      " + std::string(selector) + "(" + group_name + ")> `" + proxy + "`";
                                         auto fr = draw_text_in_a_box(sub_name,
                                             ccdb::utils::UnicodeDisplayWidth::get_width(sub_name));
-                                        for (auto & str : fr) {
-                                            str = "    " + str;
-                                        }
                                         proxy_lists.insert(proxy_lists.end(), fr.begin(), fr.end());
                                     }
                                     frame.insert(it + 2, proxy_lists.begin(), proxy_lists.end());
@@ -203,8 +200,9 @@ namespace
                             }
                             else if (const auto selector_pos = selected_text.find(selector); selector_pos != std::string::npos)
                             {
+                                selected_text = ccdb::utils::strip_color(selected_text);
                                 thread_local std::regex r(R"(Sel > \((.*)\)> \`(.*)\`)");
-                                if (std::smatch sm; std::regex_match(selected_text, sm, r)) {
+                                if (std::smatch sm; std::regex_search(selected_text, sm, r)) {
                                     const std::string group_name = sm[1];
                                     const std::string end_point_name = sm[2];
                                 }
