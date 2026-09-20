@@ -123,7 +123,7 @@ namespace
                         node_dots += " -> " + c;
                     });
                     for (uint64_t i = 0; i < endpoints_.size(); i++) {
-                        node_dots += /*ccdb::color::color24(5,2,2) +*/ + " " + std::string(unicode_dot) /*+ ccdb::color::no_color()*/;
+                        node_dots += ccdb::color::color24(5,2,2) + " " + std::string(unicode_dot) + ccdb::color::no_color();
                     }
 
                     const auto fr = draw_text_in_a_box(name_, name_max, node_dots,
@@ -150,7 +150,8 @@ namespace
         cross_frame_context.height = static_cast<int>(inner_frame_data.size()) + 2;
         int data_len_required = 0;
         for (const auto & line : inner_frame_data) {
-            cross_frame_context.width = std::max(cross_frame_context.width, ccdb::utils::UnicodeDisplayWidth::get_width(line));
+            cross_frame_context.width = std::max(cross_frame_context.width,
+                ccdb::utils::UnicodeDisplayWidth::get_width(ccdb::utils::strip_color(line)));
             data_len_required = std::max(data_len_required, static_cast<int>(line.size()));
         }
         cross_frame_context.width += 2;
@@ -433,7 +434,7 @@ void ccdb::ccdb::proxyView()
                     printed_width += len;
                 }
 
-                frame << '\n';
+                frame << '\n' << color::no_color();
             }
 
             frame << width_strip;
