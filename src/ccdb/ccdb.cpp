@@ -996,6 +996,11 @@ void ccdb::ccdb::init()
         return true;
     });
 
+    commandMatches.emplace_back("proxyView", [this](const auto &) {
+        proxyView();
+        return true;
+    });
+
     std::ranges::for_each(commandMatches, [this](const auto & pair) {
         if (!commandMatchesRegexCompiled.add(pair.first, pair.second))
             throw std::logic_error(pair.first);

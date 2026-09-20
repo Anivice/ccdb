@@ -332,7 +332,7 @@ void ccdb::ccdb::nload(
     int conn_list_size_before = 0;
     auto subinfo_ball = std::make_unique<ccdb_atomic_t<subinfo_ball_t>>();
     subinfo_worker_t subinfo_worker;
-    utils::thread_group local_workers;
+    thread_group local_workers;
     struct line_view_tmp_data_t {
         uint64_t skipped_len = 0;
         std::chrono::time_point<std::chrono::steady_clock> last_accessed_time;

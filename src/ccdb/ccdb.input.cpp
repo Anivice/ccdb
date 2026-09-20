@@ -480,10 +480,10 @@ void ccdb::ccdb::get_conn_input_watcher(const get_conn_input_watcher_context_t &
     interactive_verification();
 
     auto& running = *running_ptr;
-    auto& leading_spaces = *leading_spaces_ptr;
-    const auto& max_leading_spaces = *max_leading_spaces_ptr;
-    auto& current_skip_lines = *current_skip_lines_ptr;
-    const auto& max_skip_lines = *max_skip_lines_ptr;
+    // auto& leading_spaces = *leading_spaces_ptr;
+    // const auto& max_leading_spaces = *max_leading_spaces_ptr;
+    // auto& current_skip_lines = *current_skip_lines_ptr;
+    // const auto& max_skip_lines = *max_skip_lines_ptr;
 
     thread_group threads;
     auto sigint_status = watcher.make_status_watcher();
@@ -507,22 +507,23 @@ void ccdb::ccdb::get_conn_input_watcher(const get_conn_input_watcher_context_t &
         }
     });
 
-    auto up = [&](const int step) {
-        if (current_skip_lines > 0) {
-            if (current_skip_lines > step) {
-                current_skip_lines -= step;
+    auto up = [&](const int step)
+    {
+        if (current_skip_lines_ptr && *current_skip_lines_ptr > 0) {
+            if (*current_skip_lines_ptr > step) {
+                *current_skip_lines_ptr -= step;
             } else {
-                current_skip_lines = 0;
+                *current_skip_lines_ptr = 0;
             }
         }
     };
 
     auto down = [&](const int step) {
-        if (current_skip_lines < max_skip_lines) {
-            if ((current_skip_lines + step) < max_skip_lines) {
-                current_skip_lines += step;
+        if (current_skip_lines_ptr && max_skip_lines_ptr && *current_skip_lines_ptr < *max_skip_lines_ptr) {
+            if ((*current_skip_lines_ptr + step) < *max_skip_lines_ptr) {
+                *current_skip_lines_ptr += step;
             } else {
-                current_skip_lines = max_skip_lines.load();
+                *current_skip_lines_ptr = max_skip_lines_ptr->load();
             }
         }
     };
@@ -556,11 +557,11 @@ void ccdb::ccdb::get_conn_input_watcher(const get_conn_input_watcher_context_t &
                 const auto [row, col] = get_screen_row_col();
                 (void)row;
                 const int step = std::max(col / 8, 1);
-                if (leading_spaces > 0) {
-                    if (leading_spaces > step) {
-                        leading_spaces -= step;
+                if (leading_spaces_ptr && *leading_spaces_ptr > 0) {
+                    if (*leading_spaces_ptr > step) {
+                        *leading_spaces_ptr -= step;
                     } else {
-                        leading_spaces = 0;
+                        *leading_spaces_ptr = 0;
                     }
                 }
                 break;
@@ -569,11 +570,11 @@ void ccdb::ccdb::get_conn_input_watcher(const get_conn_input_watcher_context_t &
                 const auto [row, col] = get_screen_row_col();
                 (void)row;
                 const int step = std::max(col / 8, 1);
-                if (leading_spaces < max_leading_spaces) {
-                    if ((leading_spaces + step) < max_leading_spaces) {
-                        leading_spaces += step;
+                if (leading_spaces_ptr && max_leading_spaces_ptr && *leading_spaces_ptr < *max_leading_spaces_ptr) {
+                    if ((*leading_spaces_ptr + step) < *max_leading_spaces_ptr) {
+                        *leading_spaces_ptr += step;
                     } else {
-                        leading_spaces = max_leading_spaces.load();
+                        *leading_spaces_ptr = max_leading_spaces_ptr->load();
                     }
                 }
                 break;
@@ -591,24 +592,24 @@ void ccdb::ccdb::get_conn_input_watcher(const get_conn_input_watcher_context_t &
                 break;
             }
             case InputAction::ToStart:
-                leading_spaces = 0;
+                if (leading_spaces_ptr) *leading_spaces_ptr = 0;
                 break;
             case InputAction::ToEnd:
-                leading_spaces = max_leading_spaces.load();
+                if (leading_spaces_ptr && max_leading_spaces_ptr) *leading_spaces_ptr = max_leading_spaces_ptr->load();
                 break;
-            case InputAction::PageUp: {
+            case InputAction::PageUp: if (current_skip_lines_ptr) {
                 const auto [row, col] = get_screen_row_col();
                 (void)col;
-                current_skip_lines -= std::max(row - 8, 1);
-                if (current_skip_lines < 0) current_skip_lines = 0;
+                *current_skip_lines_ptr -= std::max(row - 8, 1);
+                if (*current_skip_lines_ptr < 0) *current_skip_lines_ptr = 0;
                 break;
             }
-            case InputAction::PageDown: {
+            case InputAction::PageDown: if (current_skip_lines_ptr && max_skip_lines_ptr) {
                 const auto [row, col] = get_screen_row_col();
                 (void)col;
-                current_skip_lines += std::max(row - 8, 1);
-                if (current_skip_lines > max_skip_lines) {
-                    current_skip_lines = max_skip_lines.load();
+                *current_skip_lines_ptr += std::max(row - 8, 1);
+                if (*current_skip_lines_ptr > *max_skip_lines_ptr) {
+                    *current_skip_lines_ptr = max_skip_lines_ptr->load();
                 }
                 break;
             }

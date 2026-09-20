@@ -388,6 +388,7 @@ namespace ccdb
         void map_proxy_chain();
         void ccdbrc();
         void reload(const std::vector<std::string> &) const;
+        void proxyView();
 
 #ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
         void sendNotification(const std::vector<std::string> &);

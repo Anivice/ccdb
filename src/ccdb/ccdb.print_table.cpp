@@ -31,44 +31,6 @@
 using namespace ccdb::utils;
 const auto YES_HIGHLIGHTER_LINE_COLOR_CODE = ccdb::utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") != "true";
 
-static std::string generate_linear_handle(
-    const int content_total,
-    const int view_start,
-    const int view_end,
-    const int track_len)
-{
-    if (track_len <= 0) return {};
-    if (content_total <= 0) return { static_cast<std::string::size_type>(track_len), ' ', std::allocator<char>() };
-
-    int viewport = std::max(0, view_end - view_start);
-    viewport = std::min(viewport, content_total);
-
-    if (viewport >= content_total) {
-        std::string ret;
-        ret.reserve(track_len * 3);
-        for (int i = 0; i < track_len; ++i) ret += "█";
-        return ret;
-    }
-
-    const int max_scroll = content_total - viewport;         // >= 1
-    const int offset = std::clamp(view_start, 0, max_scroll);
-
-    int thumb_len = static_cast<int>(std::lround(static_cast<double>(track_len) * static_cast<double>(viewport) / static_cast<double>(content_total)));
-    thumb_len = std::clamp(thumb_len, 1, track_len);
-
-    const int track_range = track_len - thumb_len;           // >= 0
-    int thumb_start = static_cast<int>(std::lround(static_cast<double>(track_range) * static_cast<double>(offset) / static_cast<double>(max_scroll)));
-    thumb_start = std::clamp(thumb_start, 0, track_range);
-    const int thumb_end = thumb_start + thumb_len - 1;
-
-    std::string ret;
-    ret.reserve(track_len * 3);
-    for (int i = 0; i < track_len; ++i) {
-        ret += (i >= thumb_start && i <= thumb_end) ? "█" : "░";
-    }
-    return ret;
-}
-
 static std::string highlight(const std::string & str,
     const std::string & pattern,
     const std::string & original_color,
