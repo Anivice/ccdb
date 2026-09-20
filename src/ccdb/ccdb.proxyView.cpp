@@ -72,7 +72,7 @@ namespace
         std::function<std::map<std::string, std::string>()> get_backend_selected_endpoints;
         std::function<void()> update_proxy_endpoint_info;
         std::map<std::string, pending_endpoint_verification_t> pending_endpoint_verifications;
-        tsl::hopscotch_map<std::string, int> latency_map;
+        ccdb_atomic_t<tsl::hopscotch_map<std::string, int>> latency_map;
     };
 
     std::vector < std::string > draw_text_in_a_box(const std::string & name_, const int name_len)
@@ -154,6 +154,7 @@ namespace
     void proxyView_draw(std::vector<std::string> & frame,
         cross_frame_context_t & cross_frame_context)
     {
+        auto latencies = cross_frame_context.latency_map.get();
         constexpr char connector[] = " -> ";
         auto default_proxy_renderer = [&]
         {
@@ -169,8 +170,8 @@ namespace
 
                 for (const auto & i : endpoints_)
                 {
-                    const auto lat_ = cross_frame_context.latency_map.find(i);
-                    node_dots += (lat_ != cross_frame_context.latency_map.end() && lat_->second > 0 ?
+                    const auto lat_ = latencies.find(i);
+                    node_dots += (lat_ != latencies.end() && lat_->second > 0 ?
                         ccdb::utils::color_coding(lat_->second) : ccdb::color::color(2,2,2))
                         + " " + std::string(unicode_dot) + ccdb::color::no_color();
                 }
@@ -265,9 +266,9 @@ namespace
                                     std::vector<std::string> proxy_lists;
                                     for (const auto & proxy : it_->second.endpoints_)
                                     {
-                                        const auto lat_ = cross_frame_context.latency_map.find(proxy);
+                                        const auto lat_ = latencies.find(proxy);
                                         std::ostringstream sub_name_ss;
-                                        sub_name_ss << "    " << (lat_ != cross_frame_context.latency_map.end() && lat_->second > 0 ?
+                                        sub_name_ss << "    " << (lat_ != latencies.end() && lat_->second > 0 ?
                                             ccdb::utils::color_coding(lat_->second) : ccdb::color::color(2,2,2))
                                             << " " << std::string(unicode_dot) << ccdb::color::no_color() << " "
                                             << std::string(selector) << "(" << group_name << ")> `" << proxy << "`";
@@ -475,53 +476,56 @@ void ccdb::ccdb::proxyView()
     cross_frame_context.update_proxy_endpoint_info = [&]
     {
         cross_frame_context.proxy_list = get_proxy_map();
-        cross_frame_context.latency_map.clear();
-        std::vector<std::string> list;
-        const auto & groups = backend_instance.get_proxies_and_latencies_as_pair().first;
-        const auto & pack1 = groups | std::views::keys;
-        list.insert(list.end(), pack1.begin(), pack1.end());
-        for (const auto & pack2 : (groups | std::views::values) | std::views::keys) {
-            list.insert(list.end(), pack2.begin(), pack2.end());
-        }
-
-        auto [begin, end] = std::ranges::unique(list);
-        list.erase(begin, end);
-
-        for (const auto & proxyName : list)
+        cross_frame_context.latency_map.get([](const auto & lat){ lat.clear(); });
+        local_workers.emplace_back([&]
         {
-            const auto metadata = backend_instance.get_proxy_metadata(proxyName);
-            if (const auto json = json::parse(metadata); json.contains("extra"))
+            std::vector<std::string> list;
+            const auto & groups = backend_instance.get_proxies_and_latencies_as_pair().first;
+            const auto & pack1 = groups | std::views::keys;
+            list.insert(list.end(), pack1.begin(), pack1.end());
+            for (const auto & pack2 : (groups | std::views::values) | std::views::keys) {
+                list.insert(list.end(), pack2.begin(), pack2.end());
+            }
+
+            auto [begin, end] = std::ranges::unique(list);
+            list.erase(begin, end);
+
+            for (const auto & proxyName : list)
             {
-                for (const auto & [ url, latency_history ] : json["extra"].items())
+                const auto metadata = backend_instance.get_proxy_metadata(proxyName);
+                if (const auto json = json::parse(metadata); json.contains("extra"))
                 {
-                    if (latency_history.contains("history"))
+                    for (const auto & [ url, latency_history ] : json["extra"].items())
                     {
-                        std::vector < std::pair < uint64_t, int > > latency_history_vec;
-                        for (const auto & history : latency_history["history"])
+                        if (latency_history.contains("history"))
                         {
-                            std::string time = history["time"];
-                            const int delay = history["delay"];
-                            latency_history_vec.emplace_back(utils::get_time(time), delay);
-                        }
-
-                        for (auto it = latency_history_vec.begin(); it != latency_history_vec.end();)
-                        {
-                            if (it->second == 0) {
-                                latency_history_vec.erase(it);
-                            } else {
-                                ++it;
+                            std::vector < std::pair < uint64_t, int > > latency_history_vec;
+                            for (const auto & history : latency_history["history"])
+                            {
+                                std::string time = history["time"];
+                                const int delay = history["delay"];
+                                latency_history_vec.emplace_back(utils::get_time(time), delay);
                             }
-                        }
 
-                        // const auto typical = latency_history_vec.empty() ? static_cast<double>(UINT64_MAX) :
-                        //          utils::iqr_filtered_latency(latency_history_vec);
-                        const auto avg = latency_history_vec.empty() ? static_cast<double>(UINT64_MAX) :
-                            utils::iqr_filtered_latency(latency_history_vec, false);
-                        cross_frame_context.latency_map.emplace(proxyName, avg);
+                            for (auto it = latency_history_vec.begin(); it != latency_history_vec.end();)
+                            {
+                                if (it->second == 0) {
+                                    latency_history_vec.erase(it);
+                                } else {
+                                    ++it;
+                                }
+                            }
+
+                            // const auto typical = latency_history_vec.empty() ? static_cast<double>(UINT64_MAX) :
+                            //          utils::iqr_filtered_latency(latency_history_vec);
+                            const auto avg = latency_history_vec.empty() ? static_cast<double>(UINT64_MAX) :
+                                utils::iqr_filtered_latency(latency_history_vec, false);
+                            cross_frame_context.latency_map.get([&](const auto & lat_){ lat_.emplace(proxyName, avg); });
+                        }
                     }
                 }
             }
-        }
+        });
     };
 
     while (running)
