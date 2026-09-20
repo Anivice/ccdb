@@ -372,6 +372,7 @@ void ccdb::ccdb::proxyView()
                 std::u32string u32 = utf8::utf8to32(view);
                 int printed_width = 0, skipped_width = 0;
                 bool color_codes = false;
+                int source_width = 0;
                 for (const auto & p : u32)
                 {
                     if (p == '\033') {
@@ -392,22 +393,32 @@ void ccdb::ccdb::proxyView()
 
                     const int len = utils::UnicodeDisplayWidth::get_width(p);
 
-                    // Character lies completely before the viewport.
-                    if (skipped_width + len <= leading_space) {
-                        skipped_width += len;
-                        continue;
-                    }
+                    const int char_begin = source_width;
+                    const int char_end   = source_width + len;
 
-                    // The viewport starts in the middle of a wide character.
-                    if (skipped_width < leading_space) {
-                        while (skipped_width < leading_space) {
+                    source_width = char_end;
+
+                    // Completely left of viewport.
+                    if (char_end <= leading_space)
+                        continue;
+
+                    // Viewport cuts through a wide character.
+                    if (char_begin < leading_space)
+                    {
+                        const int visible_part = char_end - leading_space;
+
+                        for (int i = 0;
+                             i < visible_part && printed_width < viewSize_col;
+                             ++i)
+                        {
                             frame << ' ';
-                            ++skipped_width;
+                            ++printed_width;
                         }
 
                         continue;
                     }
 
+                    // Character would exceed right edge.
                     if (printed_width + len > viewSize_col)
                     {
                         while (printed_width < viewSize_col) {
