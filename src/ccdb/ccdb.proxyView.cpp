@@ -476,7 +476,7 @@ void ccdb::ccdb::proxyView()
     cross_frame_context.update_proxy_endpoint_info = [&]
     {
         cross_frame_context.proxy_list = get_proxy_map();
-        cross_frame_context.latency_map.get([](auto & lat){ lat.clear(); });
+        // cross_frame_context.latency_map.get([](auto & lat){ lat.clear(); });
         local_workers.emplace_back([&]
         {
             std::vector<std::string> list;
