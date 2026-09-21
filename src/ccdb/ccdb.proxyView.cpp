@@ -19,6 +19,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
+
 #include <algorithm>
 #include <chrono>
 #include <utility>
@@ -732,3 +734,4 @@ void ccdb::ccdb::proxyView()
     watcher_.stop();
     local_workers.join_all();
 }
+#endif

@@ -138,8 +138,8 @@
     < flush (Flush fake-ip cache): [NONE] >,
     < reload (Reload configuration): [NONE] >, # reload configuration, can be provided by `reload [PATH]`
     < sendNotification (%cmd.readline.d/sendNotification.json%): [NONE] >,
-    < chat (%cmd.readline.d/chat.json%): [NONE] >,
-    < proxyView (View proxy): [NONE] >,
+    # < chat (%cmd.readline.d/chat.json%): [NONE] >,
+    < proxyView (%cmd.readline.d/proxyView.json%): [NONE] >,
 }
 
 # $ ssh me@localhost

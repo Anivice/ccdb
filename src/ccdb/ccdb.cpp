@@ -996,10 +996,12 @@ void ccdb::ccdb::init()
         return true;
     });
 
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
     commandMatches.emplace_back("proxyView", [this](const auto &) {
         proxyView();
         return true;
     });
+#endif //__YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
 
     std::ranges::for_each(commandMatches, [this](const auto & pair) {
         if (!commandMatchesRegexCompiled.add(pair.first, pair.second))
