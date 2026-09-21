@@ -285,9 +285,9 @@ namespace
 
                 if (box_detected == true)
                 {
-                    for (auto it = frame.begin(); it != frame.end(); ++it)
+                    for (auto & it : frame)
                     {
-                        auto no_color = ccdb::utils::strip_color(*it);
+                        auto no_color = ccdb::utils::strip_color(it);
                         if (std::smatch sm;
                             std::regex_search(no_color, sm, std::regex(R"(│(.*)│)"))
                             && sm[1] == selected_text)
@@ -365,7 +365,7 @@ namespace
             }
             break;
             case cross_frame_context_t::IDLE_NO_ACTION_OR_UPDATES: {
-                if (std::chrono::duration_cast<std::chrono::seconds>(now - cross_frame_context.idle_time).count() > 5)
+                if (std::chrono::duration_cast<std::chrono::seconds>(now - cross_frame_context.idle_time).count() > 1)
                 {
                     default_proxy_renderer();
                     cross_frame_context.idle_time = now;
