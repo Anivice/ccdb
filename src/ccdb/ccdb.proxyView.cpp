@@ -72,6 +72,9 @@ namespace
         std::function<std::map<std::string, std::string>()> get_backend_selected_endpoints;
         std::function<void()> update_proxy_endpoint_info;
         std::map<std::string, pending_endpoint_verification_t> pending_endpoint_verifications;
+        // An entry means that the group's endpoint list is expanded.  Its value
+        // is the selector that should remain highlighted across full redraws.
+        std::map<std::string, std::string> expanded_proxy_groups;
         ccdb_atomic_t<tsl::hopscotch_map<std::string, int>> latency_map;
         std::chrono::time_point<std::chrono::steady_clock> idle_time;
     };
@@ -138,9 +141,9 @@ namespace
                 continue;
             }
 
-            line = plain_line;
             if (line_endpoint == endpoint_name)
             {
+                line = plain_line;
                 ccdb::utils::regex_replace_all(line, R"(│.*│)", [&](const auto & matched) {
                     const std::string & contents = *matched.first;
                     return std::string(unicode_box_vertical) + ccdb::color::color(0,0,0,5,5,5)
@@ -152,15 +155,31 @@ namespace
         }
     }
 
+    void highlight_box(std::vector<std::string> & box)
+    {
+        if (box.size() != 3) return;
+
+        auto & middle = box[1];
+        const std::string plain_middle = ccdb::utils::strip_color(middle);
+        ccdb::utils::regex_replace_all(middle, R"(│.*│)", [&](const auto &) {
+            const std::string contents = plain_middle.substr(sizeof(unicode_box_vertical) - 1,
+                plain_middle.size() - 2 * (sizeof(unicode_box_vertical) - 1));
+            return std::string(unicode_box_vertical) + ccdb::color::color(0,0,0,5,5,5)
+                + contents + ccdb::color::no_color() + unicode_box_vertical;
+        });
+    }
+
     void proxyView_draw(std::vector<std::string> & frame,
         cross_frame_context_t & cross_frame_context)
     {
-        auto latencies = cross_frame_context.latency_map.get();
         constexpr char connector[] = " -> ";
         auto default_proxy_renderer = [&]
         {
             frame.clear();
             cross_frame_context.update_proxy_endpoint_info();
+            // Take the snapshot after refreshing the model so every redraw uses
+            // the newest available latency colors.
+            const auto latencies = cross_frame_context.latency_map.get();
             for (auto & [name_, node] : cross_frame_context.proxy_list)
             {
                 auto & [endpoints_, selected_endpoint_] = node;
@@ -178,9 +197,32 @@ namespace
                 }
 
                 const auto content = name_ + node_dots;
-                const auto fr = draw_text_in_a_box(content,
+                auto fr = draw_text_in_a_box(content,
                     ccdb::utils::UnicodeDisplayWidth::get_width(ccdb::utils::strip_color(content)));
+                const auto expanded = cross_frame_context.expanded_proxy_groups.find(name_);
+                if (expanded != cross_frame_context.expanded_proxy_groups.end()) {
+                    highlight_box(fr);
+                }
                 frame.insert(frame.end(), fr.begin(), fr.end());
+
+                if (expanded == cross_frame_context.expanded_proxy_groups.end()) continue;
+
+                constexpr char selector[] = "Sel > ";
+                for (const auto & proxy : endpoints_)
+                {
+                    const auto lat_ = latencies.find(proxy);
+                    std::ostringstream sub_name_ss;
+                    sub_name_ss << "    " << (lat_ != latencies.end() && lat_->second > 0 ?
+                        ccdb::utils::color_coding(lat_->second) : ccdb::color::color(2,2,2))
+                        << " " << std::string(unicode_dot) << ccdb::color::no_color() << " "
+                        << selector << "(" << name_ << ")> `" << proxy << "`";
+                    const auto sub_name = sub_name_ss.str();
+                    auto selector_box = draw_text_in_a_box(sub_name,
+                        ccdb::utils::UnicodeDisplayWidth::get_width(ccdb::utils::strip_color(sub_name)));
+                    frame.insert(frame.end(), selector_box.begin(), selector_box.end());
+                }
+
+                highlight_selector(frame, name_, expanded->second);
             }
         };
 
@@ -250,37 +292,20 @@ namespace
                             std::regex_search(no_color, sm, std::regex(R"(│(.*)│)"))
                             && sm[1] == selected_text)
                         {
-                            const char * selector = "Sel > ";
+                            constexpr char selector[] = "Sel > ";
                             if (const auto connector_pos = selected_text.find(connector);
                                 connector_pos != std::string::npos)
                             {
-                                *it = ccdb::utils::strip_color(*it);
-                                ccdb::utils::regex_replace_all(*it, R"(│.*│)",[&](const auto &){
-                                    return unicode_box_vertical + ccdb::color::color(0,0,0,5,5,5)
-                                        + selected_text + ccdb::color::no_color() + unicode_box_vertical;
-                                });
-
                                 std::string group_name = selected_text.substr(0, connector_pos);
                                 if (!group_name.empty()) group_name.erase(group_name.begin());
 
                                 if (const auto it_ = cross_frame_context.proxy_list.find(group_name);
                                     it_ != cross_frame_context.proxy_list.end())
                                 {
-                                    std::vector<std::string> proxy_lists;
-                                    for (const auto & proxy : it_->second.endpoints_)
-                                    {
-                                        const auto lat_ = latencies.find(proxy);
-                                        std::ostringstream sub_name_ss;
-                                        sub_name_ss << "    " << (lat_ != latencies.end() && lat_->second > 0 ?
-                                            ccdb::utils::color_coding(lat_->second) : ccdb::color::color(2,2,2))
-                                            << " " << std::string(unicode_dot) << ccdb::color::no_color() << " "
-                                            << std::string(selector) << "(" << group_name << ")> `" << proxy << "`";
-                                        const auto sub_name = sub_name_ss.str();
-                                        auto fr = draw_text_in_a_box(sub_name,
-                                            ccdb::utils::UnicodeDisplayWidth::get_width(ccdb::utils::strip_color(sub_name)));
-                                        proxy_lists.insert(proxy_lists.end(), fr.begin(), fr.end());
-                                    }
-                                    frame.insert(it + 2, proxy_lists.begin(), proxy_lists.end());
+                                    const auto selected_endpoint = it_->second.selected_endpoint_.empty() ?
+                                        std::string{} : it_->second.selected_endpoint_.front();
+                                    cross_frame_context.expanded_proxy_groups.try_emplace(
+                                        group_name, selected_endpoint);
                                 }
                             }
                             else if (const auto selector_pos = selected_text.find(selector); selector_pos != std::string::npos)
@@ -289,9 +314,9 @@ namespace
                                 std::string endpoint_name;
                                 if (parse_selector(selected_text, group_name, endpoint_name))
                                 {
-                                    // This also removes the old highlight from every other selector
-                                    // in the same group before asking the backend to make the change.
-                                    highlight_selector(frame, group_name, endpoint_name);
+                                    // The renderer uses one value per group, so choosing a new
+                                    // selector immediately replaces the old highlight.
+                                    cross_frame_context.expanded_proxy_groups[group_name] = endpoint_name;
                                     cross_frame_context.pending_endpoint_verifications[group_name] = {
                                         .endpoint = endpoint_name,
                                         .verify_at = std::chrono::steady_clock::now() + std::chrono::seconds(2)
@@ -305,6 +330,10 @@ namespace
                     }
                 }
 
+                // Rebuild instead of editing the previous frame in place.  This
+                // refreshes latency color codes while the persisted map restores
+                // expanded groups and their highlighted selectors.
+                default_proxy_renderer();
                 cross_frame_context.currently_invoked_action = cross_frame_context_t::IDLE_NO_ACTION_OR_UPDATES;
                 cross_frame_context.idle_time = now;
             }
@@ -324,14 +353,14 @@ namespace
                         backend_endpoint != backend_endpoints.end() &&
                         backend_endpoint->second != it->second.endpoint)
                     {
-                        highlight_selector(frame, it->first, backend_endpoint->second);
+                        cross_frame_context.expanded_proxy_groups[it->first] = backend_endpoint->second;
                     }
 
                     it = cross_frame_context.pending_endpoint_verifications.erase(it);
                 }
 
-                cross_frame_context.update_proxy_endpoint_info();
-                cross_frame_context.currently_invoked_action = cross_frame_context_t::REFRESH_LIST;
+                default_proxy_renderer();
+                cross_frame_context.currently_invoked_action = cross_frame_context_t::IDLE_NO_ACTION_OR_UPDATES;
                 cross_frame_context.idle_time = now;
             }
             break;
