@@ -588,6 +588,19 @@ namespace ccdb::utils
     std::vector<uint8_t> importBinary(std::basic_istream<char> &);
     std::string generate_linear_handle(int content_total, int view_start, int view_end, int track_len);
     ssize_t cur_mem_size();
+
+    constexpr char unicode_box_upper_left[]   = "┌";
+    constexpr char unicode_box_upper_right[]  = "┐";
+    constexpr char unicode_box_upper_middle[] = "┬";
+    constexpr char unicode_box_middle_middle[]= "┼";
+    constexpr char unicode_box_bottom_left[]  = "└";
+    constexpr char unicode_box_bottom_right[] = "┘";
+    constexpr char unicode_box_left_middle[]  = "├";
+    constexpr char unicode_box_right_middle[] = "┤";
+    constexpr char unicode_box_line[]         = "─";
+    constexpr char unicode_box_vertical[]     = "│";
+    constexpr char unicode_dot[]              = "●";
+
     constexpr char dump_start_signature[] = "----------------- START OF THE DATA STRUCTURE -----------------";
     constexpr char dump_end_signature[] =   "------------------ END OF THE DATA STRUCTURE ------------------";
 

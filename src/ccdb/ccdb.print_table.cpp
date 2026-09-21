@@ -485,6 +485,7 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
         std::string title_line;
         std::string header_line;
         int title_line_width = 0;
+        std::vector<int> title_line_widths;
         {
             int index = 0;
             for (auto key = table_keys.first; key < table_keys.second; ++key)
@@ -496,24 +497,24 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
                 }
 
                 {
-                    const int paddings =
-                        static_cast<int>(column_widths[index]) - key_screen_widths[index] + 2;
+                    const int paddings = static_cast<int>(column_widths[index]) - key_screen_widths[index] + 2;
                     const int before = std::max(paddings / 2, 1);
                     const int after = std::max(paddings - before, 1);
-                    title_line.push_back('|');
+                    title_line.append(unicode_box_vertical);
                     title_line.append(static_cast<std::size_t>(before), ' ');
                     title_line += *key;
                     title_line.append(static_cast<std::size_t>(after), ' ');
-                    title_line_width += 1 + before + key_screen_widths[index] + after;
+                    int len = 1 + before + key_screen_widths[index] + after;
+                    title_line_width += len;
+                    title_line_widths.push_back(len);
                 }
 
                 {
                     const std::string index_str = std::to_string(index);
-                    const int paddings =
-                        static_cast<int>(column_widths[index]) - static_cast<int>(index_str.size()) + 2;
+                    const int paddings = static_cast<int>(column_widths[index]) - static_cast<int>(index_str.size()) + 2;
                     const int before = std::max(paddings / 2, 1);
                     const int after = std::max(paddings - before, 1);
-                    header_line.push_back('|');
+                    header_line.append(unicode_box_vertical);
                     header_line.append(static_cast<std::size_t>(before), ' ');
                     header_line += index_str;
                     header_line.append(static_cast<std::size_t>(after), ' ');
@@ -521,16 +522,34 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
                 ++index;
             }
         }
-        title_line.push_back('|');
-        header_line.push_back('|');
+        title_line.append(unicode_box_vertical);
+        header_line.append(unicode_box_vertical);
         ++title_line_width;
 
-        std::string separation_line;
-        if (title_line_width > 2) {
-            separation_line = "+" + std::string(static_cast<std::size_t>(title_line_width - 2), '-') + "+";
+        std::string separation_line_top, separation_line_middle;
+        if (title_line_width > 2)
+        {
+            auto get_separation_line = [&](const char * code)
+            {
+                std::string separation_line;
+                for (auto it = title_line_widths.begin(); it != title_line_widths.end(); ++it)
+                {
+                    for (int i = 0; i < *it - 1; ++i) {
+                        separation_line.append(unicode_box_line);
+                    }
+
+                    if (it != title_line_widths.end() - 1) {
+                        separation_line.append(code);
+                    }
+                }
+                return separation_line;
+            };
+
+            separation_line_top = unicode_box_upper_left + get_separation_line(unicode_box_upper_middle) + unicode_box_upper_right;
+            separation_line_middle = unicode_box_left_middle + get_separation_line(unicode_box_middle_middle) + unicode_box_right_middle;
         }
 
-        const int separation_line_width = static_cast<int>(separation_line.size());
+        const int separation_line_width = UnicodeDisplayWidth::get_width(separation_line_top);
         const auto additional_info_before_table_length = UnicodeDisplayWidth::get_width(additional_info_before_table);
         const auto defined_str_len = std::max(separation_line_width, additional_info_before_table_length);
         auto max_leading_offset = defined_str_len > col ? (defined_str_len - col) : 0;
@@ -696,11 +715,11 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
             print_line(additional_info_before_table, white_strip);
         }
 
-        print_line(separation_line, white_strip);
+        print_line(separation_line_top, white_strip);
         print_line(header_line, white_strip);
-        print_line(separation_line, white_strip);
+        print_line(separation_line_middle, white_strip);
         print_line(title_line, white_strip);
-        print_line(separation_line, white_strip);
+        print_line(separation_line_middle, white_strip);
 
         const int max_skip_lines = std::max(static_cast<int>(table_vals_size) - (lines - 2 - printed_lines), 0);
         if (max_skip_lines_ptr) *max_skip_lines_ptr = max_skip_lines;
@@ -826,26 +845,26 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
                     break;
                 }
 
-                val_line.push_back('|');
+                val_line.append(unicode_box_vertical);
                 val_line.append(static_cast<std::size_t>(before), ' ');
                 val_line += val;
                 val_line.append(static_cast<std::size_t>(after), ' ');
             }
 
-            val_line.push_back('|');
+            val_line.append(unicode_box_vertical);
             print_line(std::move(val_line), color_line);
             current_line_index++;
         }
 
         /// tailings
-        const auto col_sz = col;
+        // const auto col_sz = col;
         const auto line_sz = lines;
         if (/* (col_sz > 2) && */ (printed_lines <= (line_sz - 2) && separation_line_width > 2))
         {
-            frame << white_strip
-                  << "+" << std::string(std::min(static_cast<long long>(col_sz - 2ul),
-                        static_cast<long long>(separation_line_width - 2)), '-')
-                  << "+" << std::endl;
+            frame << white_strip << unicode_box_bottom_left;
+            const auto rep = std::min(col - 2, separation_line_width - 2);
+            for (int i = 0; i < rep; i++) frame << unicode_box_line;
+            frame << unicode_box_bottom_right << std::endl;
         }
 
         for (int j = printed_lines; j < (line_sz - 2); j++)

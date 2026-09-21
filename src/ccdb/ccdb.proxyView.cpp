@@ -30,14 +30,7 @@
 
 namespace
 {
-    constexpr char unicode_box_upper_left[]   = "┌";
-    constexpr char unicode_box_upper_right[]  = "┐";
-    constexpr char unicode_box_bottom_left[]  = "└";
-    constexpr char unicode_box_bottom_right[] = "┘";
-    constexpr char unicode_box_line[]         = "─";
-    constexpr char unicode_box_vertical[]     = "│";
-    constexpr char unicode_dot[]              = "●";
-
+    using namespace ccdb::utils;
     struct cross_frame_context_t
     {
         std::pair<int, int> mouse_position;
