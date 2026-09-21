@@ -192,7 +192,7 @@ namespace
                 {
                     const auto lat_ = latencies.find(i);
                     node_dots += (lat_ != latencies.end() && lat_->second > 0 ?
-                        ccdb::utils::color_coding(lat_->second) : ccdb::color::color(2,2,2))
+                        ccdb::utils::color_coding(lat_->second, 5000) : ccdb::color::color(2,2,2))
                         + " " + std::string(unicode_dot) + ccdb::color::no_color();
                 }
 
@@ -213,7 +213,7 @@ namespace
                     const auto lat_ = latencies.find(proxy);
                     std::ostringstream sub_name_ss;
                     sub_name_ss << "    " << (lat_ != latencies.end() && lat_->second > 0 ?
-                        ccdb::utils::color_coding(lat_->second) : ccdb::color::color(2,2,2))
+                        ccdb::utils::color_coding(lat_->second, 5000) : ccdb::color::color(2,2,2))
                         << " " << std::string(unicode_dot) << ccdb::color::no_color() << " "
                         << selector << "(" << name_ << ")> `" << proxy << "`";
                     const auto sub_name = sub_name_ss.str();
@@ -546,12 +546,11 @@ void ccdb::ccdb::proxyView()
                                 latency_history_vec.emplace_back(utils::get_time(time), delay);
                             }
 
-                            for (auto it = latency_history_vec.begin(); it != latency_history_vec.end();)
+                            for (auto & second : latency_history_vec | std::views::values)
                             {
-                                if (it->second == 0) {
-                                    latency_history_vec.erase(it);
-                                } else {
-                                    ++it;
+                                if (second <= 0) {
+                                    using numeric_type = std::remove_reference_t<decltype(second)>;
+                                    second = std::numeric_limits<numeric_type>::max();
                                 }
                             }
 
@@ -712,7 +711,8 @@ void ccdb::ccdb::proxyView()
                     printed_width += len;
                 }
 
-                frame << '\n' << color::no_color();
+                frame << (printed_width < viewSize_col ? std::string(viewSize_col - printed_width, ' ') : "") // remove ghosting
+                      << '\n' << color::no_color();
             }
 
             frame << width_strip;
