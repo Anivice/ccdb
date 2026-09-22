@@ -857,17 +857,21 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
         }
 
         /// tailings
-        // const auto col_sz = col;
-        const auto line_sz = lines;
-        if (/* (col_sz > 2) && */ (printed_lines <= (line_sz - 2) && separation_line_width > 2))
+        if (printed_lines <= lines - 2 && separation_line_width > 2)
         {
-            frame << white_strip << unicode_box_bottom_left;
-            const auto rep = std::min(col - 2, separation_line_width - 2);
-            for (int i = 0; i < rep; i++) frame << unicode_box_line;
-            frame << unicode_box_bottom_right << std::endl;
+            if (!using_pager) {
+                frame << white_strip << (leading_offset == 0 ? unicode_box_bottom_left : "<");
+                const auto rep = std::min(col - 2, separation_line_width - 2);
+                for (int i = 0; i < rep; i++) frame << unicode_box_line;
+                frame << (leading_offset == max_leading_offset ? unicode_box_bottom_right : ">") << std::endl;
+            } else {
+                less_output_redirect << color::bg_color(0,0,0) << unicode_box_bottom_left;
+                for (int i = 0; i < separation_line_width - 2; i++) less_output_redirect << unicode_box_line;
+                less_output_redirect << unicode_box_bottom_right << color::no_color();
+            }
         }
 
-        for (int j = printed_lines; j < (line_sz - 2); j++)
+        for (int j = printed_lines; j < (lines - 2); j++)
             frame << std::endl;
         print_progress();
     }();
