@@ -104,6 +104,8 @@ SHOW_INPUT_TRACE: 设置为`true`可把交互按键的原始序列及编码序�
     :pause / :resume           暂停或恢复连接帧更新。
     :sort COLUMN               按数字列索引排序。
     :sortReverse               反转当前排序顺序。
+    :switchView                切换到关闭连接页面。
+    :setClosedConnectionBufferSpace 设置关闭连接缓存大小。默认128个条目。
 
   连接列为：0 主机、1 进程、2 已下载、3 已上传、4 下载速度、5 上传速度、6 规则、7 时间、
   8 源IP、9 目标IP、10 类型、11 代理链。列0、1、6、8、9、10、11实现了过滤。

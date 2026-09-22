@@ -115,6 +115,8 @@ Interactive Table Controls (`get connections` and `get log`):
     :pause / :resume           Pause or resume connection-frame updates.
     :sort COLUMN               Sort by a numeric column index.
     :sortReverse               Reverse the current sort order.
+    :switchView                Switch to closed connections view.
+    :setClosedConnectionBufferSpace Set the buffer space holding closed connections. Default is 128.
 
   Connection columns are: 0 Host, 1 Process, 2 Downloaded, 3 Uploaded, 4 Download speed, 5 Upload speed,
   6 Rule, 7 Time, 8 Source IP, 9 Destination IP, 10 Type, and 11 Chains. Filters are implemented for columns
