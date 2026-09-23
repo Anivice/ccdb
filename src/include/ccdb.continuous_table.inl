@@ -677,12 +677,12 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                 }
             });
 
-        if (max_leading_spaces > 0 && leading_spaces == max_leading_spaces_) {
+        if (max_leading_spaces_ > 0 && leading_spaces_ == max_leading_spaces_) {
             if (!lock_to_right) skip_due_to_shrink = true;
             lock_to_right = true;
         }
 
-        if (max_skip_lines > 0 && current_skip_lines == max_skip_lines_) {
+        if (max_skip_lines_ > 0 && current_skip_lines_ == max_skip_lines_) {
             if (!lock_to_bottom) skip_due_to_shrink = true;
             lock_to_bottom = true;
         }
