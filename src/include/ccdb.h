@@ -389,11 +389,13 @@ namespace ccdb
         void map_proxy_chain();
         void ccdbrc();
         void reload(const std::vector<std::string> &) const;
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
         void proxyView();
+#endif //__YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
 
 #ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
         void sendNotification(const std::vector<std::string> &);
-#endif
+#endif //__YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
 
         bool commandProcessor(const std::vector<std::string> & command_vector_);
         std::vector<std::string> commandAutoCompletion(const std::vector<std::string> &, const std::string &, int arg_index);

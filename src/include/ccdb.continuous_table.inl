@@ -632,13 +632,6 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
             || skip_lines_before < current_skip_lines || command_executed;
         vector_size_last_time = static_cast<int64_t>(contentSize);
         skip_lines_before = current_skip_lines;
-        if (max_leading_spaces > 0 && leading_spaces >= max_leading_spaces) {
-            lock_to_right = true;
-        }
-
-        if (max_skip_lines > 0 && current_skip_lines >= max_skip_lines) {
-            lock_to_bottom = true;
-        }
 
         int message_box_width = 0;
         std::map < int, std::string > focus_lines;
@@ -683,6 +676,16 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                     .locked_2 = lock_to_right ? "(locked)" : "",
                 }
             });
+
+        if (max_leading_spaces > 0 && leading_spaces == max_leading_spaces_) {
+            if (!lock_to_right) skip_due_to_shrink = true;
+            lock_to_right = true;
+        }
+
+        if (max_skip_lines > 0 && current_skip_lines == max_skip_lines_) {
+            if (!lock_to_bottom) skip_due_to_shrink = true;
+            lock_to_bottom = true;
+        }
 
         if (const bool i_dont_print = skip_due_to_shrink; !i_dont_print)
         {
