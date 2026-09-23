@@ -135,13 +135,16 @@ void ccdb::ccdb::get_log()
                     std::ranges::reverse(lines_local_incrimination);
                 }
 
+                const auto len_before_resize = log_local_incrimination.size();
                 if (logPullerNoFilter.size() > max_log_size) logPullerNoFilter.resize(max_log_size);
                 if (lines_local_incrimination.size() > max_log_size) lines_local_incrimination.resize(max_log_size);
                 if (log_local_incrimination.size() > max_log_size) log_local_incrimination.resize(max_log_size);
+                const auto len_after_resize = log_local_incrimination.size();
 
-                const auto new_size = log_local_incrimination.size();
-                if (*data->skip_lines_ != 0 && new_size > old_size) {
-                    *data->skip_lines_ += static_cast<int>(new_size - old_size);
+                if (const auto new_size = log_local_incrimination.size();
+                    *data->skip_lines_ != 0)
+                {
+                    *data->skip_lines_ += static_cast<int>((new_size - old_size) + (len_before_resize - len_after_resize));
                 }
             }
 
