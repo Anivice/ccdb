@@ -81,7 +81,7 @@ void ccdb::ccdb::get_log()
     continuous_table < log_frame_t, ConstItrType, ScopeType >
     (
         false,
-        do_col_hide, {2, 2, 0}, {},
+        do_col_hide, {2, 2, 0}, {}, {},
         [&](const session_compliment_data_t * data)->ScopeType
         {
             if (const auto now = std::chrono::system_clock::now();

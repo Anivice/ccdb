@@ -339,6 +339,7 @@ namespace ccdb
         static bool match_logic(const std::string & s1, const std::string & s2);
         static std::vector<std::string> auto_complete(const std::string & command_arg,
             const std::vector < std::string > & possible_args);
+        static int arg_index(const std::string &buffer, int cursor_position);
 
         enum message_type_t { NORMAL = 0, FOCUSED_ON_NON_PRESENCE, KILL };
         enum search_move_t : int { IDLE_STATE = -1, SEARCH_MOVE_UP = 1, SEARCH_MOVE_DOWN = 2 };
@@ -456,6 +457,7 @@ namespace ccdb
 
         template < typename ContainerType, typename ScopeType >
         using CommandType = tsl::hopscotch_map < std::string, std::function<std::string(const ScopeType &, CommandVectorType)>>;
+        using CommandAutoCompleteType = tsl::hopscotch_map < std::string, std::vector<std::vector<std::string>>>;
         using SearchMatches = std::vector < std::pair < std::string /* checksum */, bool /* if match ? */ > >;
         struct session_compliment_data_t
         {
@@ -471,7 +473,7 @@ namespace ccdb
         requires (std::is_same_v<ScopeType, std::pair<ConstantIteratorType, ConstantIteratorType>> && Iterator<ConstantIteratorType>)
         void continuous_table(bool banner, const std::vector < bool > & do_col_hide,
             const std::vector<int> & alignment,
-            const CommandType < ContainerType, ScopeType > & CommandMap,
+            const CommandType < ContainerType, ScopeType > & CommandMap, const CommandAutoCompleteType & CommandAutoComplete,
             const std::function<ScopeType(session_compliment_data_t *)> & ReturnContent,
             const std::function<String(message_type_t, const ContainerType & current_focus)> & GenerateBanner,
             const std::function<HashType(const ContainerType &)> & HashContent,

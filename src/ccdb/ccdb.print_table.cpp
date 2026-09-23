@@ -186,7 +186,7 @@ namespace ccdb {
         std::atomic_int * cursor_position_in_search_box_; // cursor position for the buffer?
         const std::string color_line_hl_; // highlight color
         const std::u32string::value_type cursor_ =
-            utils::getenv("CURSOR").empty() ? L'█' :
+            utils::getenv("CURSOR").empty() ? L' ' :
             utf8_to_u32(utils::getenv("CURSOR")).front();
         const int & matches_;
         const std::string & highlight_str_;

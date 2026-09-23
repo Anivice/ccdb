@@ -24,7 +24,7 @@
 #include "ccdb.h"
 
 bool ccdb::ccdb::match_logic(const std::string & s1, const std::string & s2) {
-    return (s1.size() >= s2.size() && s1.find(s2) != std::string::npos);
+    return s1.size() >= s2.size() && s1.substr(0, s2.size()) == s2;
 }
 
 std::vector<std::string> ccdb::ccdb::auto_complete(const std::string & command_arg,
@@ -40,4 +40,69 @@ std::vector<std::string> ccdb::ccdb::auto_complete(const std::string & command_a
     });
 
     return possible_matches;
+}
+
+int ccdb::ccdb::arg_index(const std::string &buffer, const int cursor_position)
+{
+    const std::size_t cursor = static_cast<std::size_t>(
+        std::clamp(cursor_position, 0, static_cast<int>(buffer.size()))
+    );
+
+    int arg = 0;
+
+    bool in_single_quote = false;
+    bool in_double_quote = false;
+    bool escaped = false;
+    bool in_argument = false;
+
+    for (std::size_t i = 0; i < cursor; ++i)
+    {
+        const auto uc = static_cast<unsigned char>(buffer[i]);
+        const char c = static_cast<char>(uc);
+
+        if (escaped)
+        {
+            escaped = false;
+            in_argument = true;
+            continue;
+        }
+
+        if (c == '\\' && !in_single_quote)
+        {
+            escaped = true;
+            in_argument = true;
+            continue;
+        }
+
+        if (c == '\'' && !in_double_quote)
+        {
+            in_single_quote = !in_single_quote;
+            in_argument = true;
+            continue;
+        }
+
+        if (c == '"' && !in_single_quote)
+        {
+            in_double_quote = !in_double_quote;
+            in_argument = true;
+            continue;
+        }
+
+        if (!in_single_quote &&
+            !in_double_quote &&
+            std::isspace(uc))
+        {
+            if (in_argument)
+            {
+                ++arg;
+                in_argument = false;
+            }
+
+            continue;
+        }
+
+        in_argument = true;
+    }
+
+    return arg;
 }

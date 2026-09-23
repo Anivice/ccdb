@@ -318,6 +318,10 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     }
                 }
             },
+            {
+                {"filter", {{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"}}},
+                {"sort", {{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"}}},
+            },
         [&](const session_compliment_data_t * data_)->ScopeType
         {
             // final sort value
