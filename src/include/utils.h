@@ -595,6 +595,7 @@ namespace ccdb::utils
     constexpr char unicode_box_middle_middle[]= "┼";
     constexpr char unicode_box_bottom_left[]  = "└";
     constexpr char unicode_box_bottom_right[] = "┘";
+    constexpr char unicode_box_bottom_middle[]= "┴";
     constexpr char unicode_box_left_middle[]  = "├";
     constexpr char unicode_box_right_middle[] = "┤";
     constexpr char unicode_box_line[]         = "─";

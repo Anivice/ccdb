@@ -369,7 +369,24 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
 
     [&]
     {
-        const auto white_strip = color::color(5,5,5,0,0,0);
+        std::vector<int> title_line_widths;
+        auto get_separation_line = [&title_line_widths](const char * code)
+        {
+            std::string separation_line;
+            for (auto it = title_line_widths.begin(); it != title_line_widths.end(); ++it)
+            {
+                for (int i = 0; i < *it - 1; ++i) {
+                    separation_line.append(unicode_box_line);
+                }
+
+                if (it != title_line_widths.end() - 1) {
+                    separation_line.append(code);
+                }
+            }
+            return separation_line;
+        };
+
+        static const auto white_strip = color::color(5,5,5,0,0,0);
         std::ostringstream frame;
         std::ostringstream less_output_redirect;
         int current_line_index = 0;
@@ -485,7 +502,7 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
         std::string title_line;
         std::string header_line;
         int title_line_width = 0;
-        std::vector<int> title_line_widths;
+
         {
             int index = 0;
             for (auto key = table_keys.first; key < table_keys.second; ++key)
@@ -529,22 +546,6 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
         std::string separation_line_top, separation_line_middle;
         if (title_line_width > 2)
         {
-            auto get_separation_line = [&](const char * code)
-            {
-                std::string separation_line;
-                for (auto it = title_line_widths.begin(); it != title_line_widths.end(); ++it)
-                {
-                    for (int i = 0; i < *it - 1; ++i) {
-                        separation_line.append(unicode_box_line);
-                    }
-
-                    if (it != title_line_widths.end() - 1) {
-                        separation_line.append(code);
-                    }
-                }
-                return separation_line;
-            };
-
             separation_line_top = unicode_box_upper_left + get_separation_line(unicode_box_upper_middle) + unicode_box_upper_right;
             separation_line_middle = unicode_box_left_middle + get_separation_line(unicode_box_middle_middle) + unicode_box_right_middle;
         }
@@ -862,11 +863,13 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
             if (!using_pager) {
                 frame << white_strip << (leading_offset == 0 ? unicode_box_bottom_left : "<");
                 const auto rep = std::min(col - 2, separation_line_width - 2);
-                for (int i = 0; i < rep; i++) frame << unicode_box_line;
+                std::u32string rep_str = utf8_to_u32(get_separation_line(unicode_box_bottom_middle));
+                rep_str = rep_str.substr(leading_offset, rep);
+                frame << utf8::utf32to8(rep_str);
                 frame << (leading_offset == max_leading_offset ? unicode_box_bottom_right : ">") << std::endl;
             } else {
                 less_output_redirect << color::bg_color(0,0,0) << unicode_box_bottom_left;
-                for (int i = 0; i < separation_line_width - 2; i++) less_output_redirect << unicode_box_line;
+                less_output_redirect << get_separation_line(unicode_box_bottom_middle);
                 less_output_redirect << unicode_box_bottom_right << color::no_color();
             }
         }
