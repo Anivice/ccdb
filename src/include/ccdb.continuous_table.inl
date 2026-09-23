@@ -503,7 +503,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                     }
                 }
 
-                auto get_suggestive_content = [&](const std::string & completion, const int index) -> std::string
+                auto get_suggestive_content = [&](const String & completion, const int index) -> String
                 {
                     std::stringstream ss;
                     for (int i = 0; i < index; ++i)
@@ -514,6 +514,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                     return ss.str();
                 };
 
+                const int index = arg_index(command_input, cursor_position);
                 /// tab suggestions?
                 if (tab_suggestion_requested > 0
                     /// update candidates on content change
@@ -525,7 +526,6 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                     cursor_position_prev = cursor_position;
                     tab_suggestions.clear(); // old candidates are invalid for the new command state
 
-                    const int index = arg_index(command_input, cursor_position);
                     if (vec.empty()) // no args, return all candidates
                         tab_suggestions = {possible_args.begin(), possible_args.end()};
                     else if (vec.size() == 1)
