@@ -127,3 +127,22 @@ Interactive Table Controls (`get connections` and `get log`):
 
 `nload` Controls:
     q / Q, Ctrl+C: Leave the watcher.
+
+Additional Info:
+
+On first start, CCDB creates `~/.config/ccdb/client_private_key` (RSA-4096 PEM,
+mode 0600) and `~/.config/ccdb/client_public_key` (a single line of base64
+encoded SubjectPublicKeyInfo DER). On every CCDB instance that should receive
+notifications, create `~/.config/ccdb/acceptable_clients` and put one entire
+public-key line per trusted sender/recipient in it. For two-way communication,
+add each other's `client_public_key` line to both clients' allowlists. Keep the
+private key private; never put it into `acceptable_clients`. Missing allowlists
+mean that no peers are trusted. Existing key pairs are reused, while an
+incomplete or mismatched pair stops startup rather than silently changing identity.
+
+The UDP hello advertises the public key. Messages use a fresh AES-256-GCM key,
+wrapped with RSA-OAEP/SHA-256 separately for each trusted peer and signed with
+RSA-PSS/SHA-256 by the sender. The encrypted envelope includes the sender key,
+recipient key wraps, ciphertext, nonce, tag, timestamp, and signature. A receiver
+checks its allowlist and the signature before processing any command or log sync.
+The clocks of participating hosts should agree within two minutes.

@@ -31,6 +31,7 @@
 #include <ifaddrs.h>
 #include <netinet/in.h>
 #include <cxxabi.h>
+#include <filesystem>
 #include "ccdb.h"
 #include "general_info_pulling.h"
 #include "print.h"
@@ -441,6 +442,15 @@ int main_(int argc, char ** argv)
 
     try
     {
+        namespace fs = std::filesystem;
+        if (const auto config = fs::path(utils::getenv("HOME")) / ".config/ccdb"; fs::exists(config)) {
+            fs::create_directories(config);
+        }
+
+        if (const auto cache = fs::path(utils::getenv("HOME")) / ".cache/ccdb"; fs::exists(cache)) {
+            fs::create_directories(cache);
+        }
+
         std::string token;
         std::string backend;
         std::string latency_url = "https://www.google.com/generate_204/";

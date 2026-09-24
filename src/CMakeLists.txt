@@ -167,6 +167,7 @@ add_library(ccdb SHARED
         ccdb/ccdb.set.cpp
         ccdb/ccdb.nload.cpp
         ccdb/general_info_pulling.cpp   include/general_info_pulling.h
+        ccdb/notification_crypto.cpp
         ccdb/ccdb.print_table.cpp       include/ccdb.h
         ccdb/ccdb.continuous_table.cpp
 

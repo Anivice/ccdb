@@ -288,7 +288,9 @@ std::vector<std::uint8_t> general_info_pulling::serialize_packet(const packet_ty
     }
     else
     {
-        if (!payload.empty()) return { };
+        if (type == packet_type_t::hello) {
+            if (payload.empty() || payload.size() > 1024) return { };
+        } else if (!payload.empty()) return { };
         if (type == packet_type_t::ack && message_id == 0) return { };
         if (type != packet_type_t::ack && message_id != 0) return { };
     }
@@ -333,7 +335,9 @@ bool general_info_pulling::parse_packet(const std::span<const std::uint8_t> wire
     }
     else
     {
-        if (payload_size != 0) return false;
+        if (type == packet_type_t::hello) {
+            if (payload_size == 0 || payload_size > 1024) return false;
+        } else if (payload_size != 0) return false;
         if (type == packet_type_t::ack) {
             if (message_id == 0) return false;
         } else if (message_id != 0) {
@@ -621,7 +625,9 @@ void general_info_pulling::close_protocol_sockets_unlocked()
 bool general_info_pulling::send_multicast_packet(const packet_type_t type, const std::uint64_t message_id,
     const std::span<const std::uint8_t> payload)
 {
-    const auto wire = serialize_packet(type, message_id, payload);
+    const auto hello = std::span<const std::uint8_t>(
+        reinterpret_cast<const std::uint8_t*>(client_public_key_.data()), client_public_key_.size());
+    const auto wire = serialize_packet(type, message_id, type == packet_type_t::hello ? hello : payload);
     if (wire.empty()) return false;
 
     sockaddr_in destination { };
@@ -697,7 +703,9 @@ void general_info_pulling::refresh_peer(const std::uint64_t peer_id, const socka
 {
     if (peer_id == 0 || peer_id == node_id_.load()) return;
     std::lock_guard lock(peer_mtx_);
-    peers_[peer_id] = peer_t { endpoint, std::chrono::steady_clock::now() };
+    auto& peer = peers_[peer_id];
+    peer.endpoint = endpoint;
+    peer.last_seen = std::chrono::steady_clock::now();
 }
 
 void general_info_pulling::remove_peer(const std::uint64_t peer_id)
@@ -787,7 +795,8 @@ std::unordered_set<std::uint64_t> general_info_pulling::snapshot_peer_ids()
     std::unordered_set<std::uint64_t> result;
     std::lock_guard lock(peer_mtx_);
     result.reserve(peers_.size());
-    for (const auto peer_id : peers_ | std::views::keys) result.insert(peer_id);
+    for (const auto& [peer_id, peer] : peers_)
+        if (!peer.public_key.empty()) result.insert(peer_id);
     return result;
 }
 
@@ -827,7 +836,17 @@ void general_info_pulling::handle_packet(const decoded_packet_t& packet, const s
             break;
         }
         case packet_type_t::hello:
-            refresh_peer(packet.sender_node_id, source);
+            if (const auto accepted = acceptable_clients(); !accepted.empty()) {
+                const std::string key(packet.payload.begin(), packet.payload.end());
+                if (!accepted.contains(key)) { remove_peer(packet.sender_node_id); break; }
+                refresh_peer(packet.sender_node_id, source);
+                {
+                    std::lock_guard lock(peer_mtx_);
+                    auto& peer = peers_[packet.sender_node_id];
+                    if (peer.public_key != key) pending_client_hello_.store(true);
+                    peer.public_key = key;
+                }
+            }
             break;
 
         case packet_type_t::bye:
@@ -836,6 +855,8 @@ void general_info_pulling::handle_packet(const decoded_packet_t& packet, const s
 
         case packet_type_t::ack:
         {
+            { std::lock_guard lock(peer_mtx_);
+              if (!peers_.contains(packet.sender_node_id) || peers_.at(packet.sender_node_id).public_key.empty()) break; }
             refresh_peer(packet.sender_node_id, source);
             bool changed = false;
             {
@@ -850,6 +871,10 @@ void general_info_pulling::handle_packet(const decoded_packet_t& packet, const s
 
         case packet_type_t::data:
         {
+            const auto accepted = acceptable_clients();
+            { std::lock_guard lock(peer_mtx_);
+              if (!peers_.contains(packet.sender_node_id) ||
+                  !accepted.contains(peers_.at(packet.sender_node_id).public_key)) break; }
             refresh_peer(packet.sender_node_id, source);
             const bool first_seen = mark_message_first_seen(packet.sender_node_id, packet.message_id);
             if (first_seen)
@@ -868,7 +893,7 @@ void general_info_pulling::handle_packet(const decoded_packet_t& packet, const s
 
 void general_info_pulling::receive_ready_datagram(const int fd)
 {
-    std::array<std::uint8_t, 512> buffer { };
+    std::array<std::uint8_t, 2048> buffer { };
     iovec iov { buffer.data(), buffer.size() };
     sockaddr_in source { };
     msghdr message { };
@@ -1013,6 +1038,7 @@ general_info_pulling::general_info_pulling(const std::string& url, const std::st
     const std::function<std::vector < std::vector < std::string > >()> & get_buffered_logs_):
 backend_client(url, token), get_buffered_logs(get_buffered_logs_)
 {
+    load_or_create_client_keys();
     const auto CCDB_SYNC_ADDRESS_BIND_TO = ccdb::utils::getenv("CCDB_SYNC_ADDRESS_BIND_TO");
 
     if (CCDB_SYNC_ADDRESS_BIND_TO.empty())
@@ -1079,7 +1105,7 @@ backend_client(url, token), get_buffered_logs(get_buffered_logs_)
             {
                 if (const auto str = receiveNotification(); !str.empty())
                 {
-                    if (const nlohmann::json json = json::parse(str);
+                    if (const nlohmann::json json = decrypt_notification(json::parse(str));
                         json.contains("payload") && json.contains("backend")
                         && json["backend"] == ccdb::utils::sha256sum(backend_client_ref.backend_address + ":" + backend_client_ref.token))
                     {
@@ -1095,6 +1121,9 @@ backend_client(url, token), get_buffered_logs(get_buffered_logs_)
                         }
                     }
                 }
+
+                if (pending_client_hello_.exchange(false) && keep_pull_continuous_updates.load())
+                    broadcast(GENERIC_MESSAGE_HELLO, client_hello);
 
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
@@ -1936,7 +1965,7 @@ void general_info_pulling::sendNotification(const std::vector<uint8_t> & data)
                 && sizeof(packName) == sizeof(notifications_t::header.packName),
             "Invalid size");
         const char * data_ = reinterpret_cast<const char *>(data.data()) + i * sizeof(notifications_t::body);
-        const auto len = i == pack_num - 1 ? data.size() % sizeof(notifications_t::body) :
+        const auto len = i == pack_num - 1 ? data.size() - i * sizeof(notifications_t::body) :
             sizeof(notifications_t::body);
         PartialNotifications.header.size = static_cast<uint8_t>(len);
         std::memcpy(&PartialNotifications.body, data_, len);
@@ -2018,6 +2047,11 @@ std::string general_info_pulling::receiveNotification()
 }
 
 void general_info_pulling::sendNotification(const nlohmann::json& json)
+{
+    broadcast(json);
+}
+
+void general_info_pulling::send_raw_envelope(const nlohmann::json& json)
 {
     std::vector<uint8_t> data;
     const auto & dump = json.dump();

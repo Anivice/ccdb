@@ -116,3 +116,16 @@ SHOW_INPUT_TRACE: 设置为`true`可把交互按键的原始序列及编码序�
 
 `nload`操作:
     q / Q、Ctrl+C: 退出监视器。
+
+附加信息：
+
+首次启动时，CCDB 会创建 `~/.config/ccdb/client_private_key`（RSA-4096 PEM，权限模式 0600）
+和 `~/.config/ccdb/client_public_key`（一行 base64 编码的 SubjectPublicKeyInfo DER）。
+在每个应接收通知的 CCDB 实例上，创建 `~/.config/ccdb/acceptable_clients`，
+并在其中为每个受信任的发送方/接收方放入一整行公钥。对于双向通信，请将彼此的 `client_public_key`
+行添加到双方客户端的允许列表中。请妥善保管私钥；绝不要将其放入 `acceptable_clients`。
+缺少允许列表意味着不信任任何对等方。现有密钥对会被复用，而不完整或不匹配的密钥对会阻止启动，而不会静默更改身份。
+
+UDP hello 会通告公钥。消息使用新的 AES-256-GCM 密钥，该密钥会分别针对每个受信任对等方用
+RSA-OAEP/SHA-256 封装，并由发送方用 RSA-PSS/SHA-256 签名。加密信封包括发送方密钥、接收方密钥封装、密文、
+nonce、tag、时间戳和签名。接收方在处理任何命令或日志同步之前，会检查其允许列表和签名。参与主机的时钟应在两分钟内一致。

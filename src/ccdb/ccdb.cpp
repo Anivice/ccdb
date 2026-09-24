@@ -1012,8 +1012,6 @@ void ccdb::ccdb::init()
     auto_completion = [this](const std::vector<std::string> & args, const std::string & special_filler, const int arg_index)->std::vector<std::string> {
         return commandAutoCompletion(args, special_filler, arg_index);
     };
-
-    backend_instance.broadcast(general_info_pulling::GENERIC_MESSAGE_HELLO, client_hello);
 }
 
 ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::string latency_url_,

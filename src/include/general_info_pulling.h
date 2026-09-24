@@ -36,6 +36,7 @@
 #include <cstdint>
 #include <deque>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <span>
 #include <string>
@@ -44,6 +45,7 @@
 #include <unordered_set>
 #include <vector>
 #include <netinet/in.h>
+#include <openssl/evp.h>
 #include "libmaxmind.h"
 #include "utils.h"
 #include "mihomo.h"
@@ -210,6 +212,7 @@ private:
     struct peer_t {
         sockaddr_in endpoint { };
         std::chrono::steady_clock::time_point last_seen { };
+        std::string public_key;
     };
 
     struct pending_send_t {
@@ -227,7 +230,7 @@ private:
     };
 
     static constexpr std::uint32_t protocol_magic_ = 0x43434442u; // "CCDB"
-    static constexpr std::uint8_t protocol_version_ = 1;
+    static constexpr std::uint8_t protocol_version_ = 2;
     static constexpr std::size_t protocol_header_size_ = 32;
     static constexpr std::chrono::seconds peer_timeout_ { 35 };
     static constexpr std::chrono::seconds hello_interval_ { 10 };
@@ -246,6 +249,18 @@ private:
     std::mutex notification_send_mtx_;
     std::mutex peer_mtx_;
     std::unordered_map<std::uint64_t, peer_t> peers_;
+    std::atomic_bool pending_client_hello_ { false };
+    std::shared_ptr<evp_pkey_st> client_private_key_;
+    std::string client_public_key_;
+    std::string client_config_dir_;
+    std::mutex notification_replay_mtx_;
+    std::unordered_map<std::string, std::chrono::steady_clock::time_point> seen_signatures_;
+    void load_or_create_client_keys();
+    [[nodiscard]] std::unordered_map<std::string, std::shared_ptr<evp_pkey_st>> acceptable_clients() const;
+    void broadcast(const nlohmann::json& json);
+    void sendNotification(const std::vector<uint8_t> &);
+    void send_raw_envelope(const nlohmann::json& json);
+    [[nodiscard]] nlohmann::json decrypt_notification(const nlohmann::json& envelope);
     std::mutex pending_mtx_;
     std::condition_variable pending_cv_;
     std::unordered_map<std::uint64_t, pending_send_t> pending_sends_;
@@ -319,7 +334,6 @@ public:
 
 private:
     void notify_all(const notifications_t & msg);
-    void sendNotification(const std::vector<uint8_t> &);
     void sendNotification(const nlohmann::json & json);
     void receiveNotification(std::vector<uint8_t> &);
     std::string receiveNotification();
