@@ -103,7 +103,10 @@ void ccdb::ccdb::get_log()
                 std::ranges::sort(logPullerNoFilter, [](const auto & a, const auto & b)->bool {
                     return a.front() < b.front();
                 });
-                const auto [beg, end] = std::ranges::unique(logPullerNoFilter);
+                const auto [beg, end] = std::ranges::unique(logPullerNoFilter,
+                    [](const auto & a, const auto & b)->bool {
+                            return a[0] == b[0] && a[1] == b[1] && a[2] == b[2];
+                    });
                 logPullerNoFilter.erase(beg, end);
                 backend_instance.log_sync_refreshed = false;
             }
