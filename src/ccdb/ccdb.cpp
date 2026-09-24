@@ -1013,12 +1013,7 @@ void ccdb::ccdb::init()
         return commandAutoCompletion(args, special_filler, arg_index);
     };
 
-    const nlohmann::json log = {
-        {"payload", "generic messages"},
-        {"content", "New CCDB client joined the network." },
-        {"backend", sha256sum(backend_instance.backend_client_ref.backend_address + ":" + backend_instance.backend_client_ref.token) }
-    };
-    backend_instance.sendNotification(log);
+    backend_instance.broadcast(general_info_pulling::GENERIC_MESSAGE_HELLO, client_hello);
 }
 
 ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::string latency_url_,

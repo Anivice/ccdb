@@ -122,12 +122,7 @@ void ccdb::ccdb::set_log_level(const std::vector<std::string> &command_vector)
         if (execute_and_no_interactive) throw std::runtime_error("");
     }
 
-    const nlohmann::json json = {
-        { "payload", "Switch loglevel" },
-        { "loglevel", command_vector[2] },
-        {"backend", sha256sum(backend_instance.backend_client_ref.backend_address + ":" + backend_instance.backend_client_ref.token) }
-    };
-    backend_instance.sendNotification(json);
+    backend_instance.broadcast(general_info_pulling::SWITCH_LOG_LEVEL, command_vector[2]);
     backend_instance.stop_continuous_updates();
     backend_instance.start_continuous_updates();
 }

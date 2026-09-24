@@ -1084,13 +1084,13 @@ backend_client(url, token), get_buffered_logs(get_buffered_logs_)
                         && json["backend"] == ccdb::utils::sha256sum(backend_client_ref.backend_address + ":" + backend_client_ref.token))
                     {
                         if (const auto payload = std::string(json["payload"]);
-                            payload == "Switch loglevel")
+                            payload == switch_log_level)
                         {
                             switch_loglevel(json);
                         }
-                        else if (payload == "generic messages") {
+                        else if (payload == ::generic_messages) {
                             generic_messages(json);
-                        } else if (payload == "log synchronization notification") {
+                        } else if (payload == log_content_sync) {
                             log_synchronization_notification(json);
                         }
                     }
@@ -1327,15 +1327,18 @@ void general_info_pulling::update_from_memory(const std::string& info)
     {
         const auto json = json::parse(info);
         const auto& inuse = json["inuse"];
-        // const auto& oslimit = json["oslimit"];
         current_memory_in_use_by_mihomo.store(inuse, std::memory_order_relaxed);
-        // current_memory_limit_by_mihomo = oslimit;
     } catch (...) { }
 }
 
+const char * client_hello = "New CCDB client joined the network.";
+const char * switch_log_level = "Switch loglevel";
+const char * log_content_sync = "log synchronization notification";
+const char * generic_messages = "generic messages";
+
 void general_info_pulling::switch_loglevel(const nlohmann::json & json)
 {
-    const auto loglevel = std::string(json["loglevel"]);
+    const auto loglevel = std::string(json["content"]);
     const nlohmann::json log = {
         {"type", "info"},
         {"payload",
@@ -1357,7 +1360,7 @@ void general_info_pulling::generic_messages(const nlohmann::json & json)
     };
 
     update_from_logs(log.dump());
-    if (message == "New CCDB client joined the network.")
+    if (message == client_hello)
     {
         nlohmann::json sync_json = nlohmann::json::array();
         auto logs = get_logs();
@@ -1369,14 +1372,7 @@ void general_info_pulling::generic_messages(const nlohmann::json & json)
             sync_json.push_back(sync_log.dump());
         }
 
-        const nlohmann::json sync_logs = {
-            {"payload", "log synchronization notification"},
-            {"content", sync_json.dump() },
-            {"backend", ccdb::utils::sha256sum(backend_client_ref.backend_address + ":" + backend_client_ref.token) }
-
-        };
-
-        sendNotification(sync_logs);
+        broadcast(LOG_CONTENT_SYNC, sync_json.dump());
     }
 }
 
@@ -2028,4 +2024,23 @@ void general_info_pulling::sendNotification(const nlohmann::json& json)
     data.resize(dump.size());
     std::memcpy(data.data(), dump.data(), dump.size());
     sendNotification(data);
+}
+
+void general_info_pulling::broadcast(const message_type_t type, const std::string &content)
+{
+    const char * payload = nullptr;
+    switch (type) {
+        case GENERIC_MESSAGE_HELLO: payload = ::generic_messages; break;
+        case SWITCH_LOG_LEVEL: payload = switch_log_level; break;
+        case LOG_CONTENT_SYNC: payload = log_content_sync; break;
+        default: payload = ""; break;
+    }
+
+    const nlohmann::json json = {
+        {"payload", payload},
+        {"content", content},
+        {"backend", ccdb::utils::sha256sum(backend_client_ref.backend_address + ":" + backend_client_ref.token) }
+    };
+
+    sendNotification(json);
 }

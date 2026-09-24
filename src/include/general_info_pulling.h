@@ -75,6 +75,11 @@ public:
     ccdb_atomic_t & operator = (const T& val) { set(val); return *this; }
 };
 
+extern const char * client_hello;
+extern const char * switch_log_level;
+extern const char * log_content_sync;
+extern const char * generic_messages;
+
 class general_info_pulling
 {
 private:
@@ -312,6 +317,7 @@ public:
     ~general_info_pulling();
     const mihomo & backend_client_ref = backend_client;
 
+private:
     void notify_all(const notifications_t & msg);
     void sendNotification(const std::vector<uint8_t> &);
     void sendNotification(const nlohmann::json & json);
@@ -364,6 +370,13 @@ public:
     std::atomic < uint64_t > current_memory_in_use_by_mihomo = 0;
     // std::atomic < uint64_t > current_memory_limit_by_mihomo = 0;
     void get_memory_pprof(const std::string & name, std::vector < char > & profiles);
+
+    enum message_type_t : int {
+        UNKNOWN = 0,
+
+        GENERIC_MESSAGE_HELLO = 100, SWITCH_LOG_LEVEL, LOG_CONTENT_SYNC
+    };
+    void broadcast(message_type_t, const std::string & content);
 };
 
 #endif //SRC_GENERAL_INFO_PULLING_H
