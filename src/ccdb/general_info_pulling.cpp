@@ -1501,6 +1501,7 @@ void general_info_pulling::log_synchronization_notification(const nlohmann::json
         });
         const auto [beg, end] = std::ranges::unique(logs);
         logs.erase(beg, end);
+        log_sync_refreshed = true;
     }
 }
 

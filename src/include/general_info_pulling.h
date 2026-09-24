@@ -93,6 +93,7 @@ private:
 public:
     std::atomic < bool > parse_chains = true;
     std::atomic < bool > force_quit = false;
+    std::atomic < bool > log_sync_refreshed = false;
     ccdb_atomic_t < std::string > puller_logLevel;
     ccdb_atomic_t < std::string > mihomo_output_log_location;
     std::atomic_int max_log_size = 4096;

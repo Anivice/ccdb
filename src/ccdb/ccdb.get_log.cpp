@@ -84,6 +84,29 @@ void ccdb::ccdb::get_log()
         do_col_hide, {2, 2, 0}, {}, {},
         [&](const session_compliment_data_t * data)->ScopeType
         {
+            if (backend_instance.log_sync_refreshed) { // discard everything
+                before = std::chrono::system_clock::now() - std::chrono::seconds(100);
+                log_local_incrimination.clear();
+                lines_local_incrimination.clear();
+                auto new_logs = backend_instance.get_logs();
+                std::ranges::reverse(new_logs); // lastest one shows up on top
+                backend_instance.clearLogs();
+
+                std::lock_guard lock(logPullerNoFilter_mtx);
+#           if ((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
+                logPullerNoFilter.insert_range(logPullerNoFilter.begin(), new_logs);
+#           else
+                logPullerNoFilter.insert(logPullerNoFilter.begin(), new_logs.begin(), new_logs.end()); // append range
+#           endif
+
+                // dedup
+                std::ranges::sort(logPullerNoFilter, [](const auto & a, const auto & b)->bool {
+                    return a.front() < b.front();
+                });
+                const auto [beg, end] = std::ranges::unique(logPullerNoFilter);
+                logPullerNoFilter.erase(beg, end);
+            }
+
             if (const auto now = std::chrono::system_clock::now();
                 !pause_log_update && std::chrono::duration_cast<std::chrono::milliseconds>(now - before).count() > log_refresh_interval)
             {
@@ -108,11 +131,11 @@ void ccdb::ccdb::get_log()
                 std::ranges::reverse(new_logs); // lastest one shows up on top
                 backend_instance.clearLogs();
 
-    #           if ((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
+#               if ((defined(__GNUC__) && __GNUC__ >= 15) && __cplusplus >= 202302L)
                 logPullerNoFilter.insert_range(logPullerNoFilter.begin(), new_logs);
-    #           else
+#               else
                 logPullerNoFilter.insert(logPullerNoFilter.begin(), new_logs.begin(), new_logs.end()); // append range
-    #           endif
+#               endif
 
                 if (!new_logs.empty())
                 {
