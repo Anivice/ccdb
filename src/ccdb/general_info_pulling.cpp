@@ -796,7 +796,7 @@ std::unordered_set<std::uint64_t> general_info_pulling::snapshot_peer_ids()
     std::lock_guard lock(peer_mtx_);
     result.reserve(peers_.size());
     for (const auto& [peer_id, peer] : peers_)
-        if (!peer.public_key.empty()) result.insert(peer_id);
+        if (!peer.public_key_hash.empty()) result.insert(peer_id);
     return result;
 }
 
@@ -815,7 +815,13 @@ void general_info_pulling::handle_packet(const decoded_packet_t& packet, const s
         // Multicast loopback of our own packet has the same ephemeral source port.
         if (ntohs(source.sin_port) == tx_port_) return;
 
-        // Another endpoint claiming our 64-bit ID: regenerate and advertise immediately.
+        // Only an accepted HELLO can establish a genuine node-ID collision.
+        // An unknown BYE (or forged DATA) must not provoke a HELLO.
+        if (packet.type != packet_type_t::hello) return;
+        try {
+            const std::string key(packet.payload.begin(), packet.payload.end());
+            if (!acceptable_clients().contains(public_key_hash(key))) return;
+        } catch (const std::exception&) { return; }
         regenerate_node_identity();
         (void)send_multicast_packet(packet_type_t::hello);
     }
@@ -826,37 +832,43 @@ void general_info_pulling::handle_packet(const decoded_packet_t& packet, const s
     {
         case packet_type_t::discover:
         {
-            refresh_peer(packet.sender_node_id, source);
-            static thread_local std::mt19937 rng(std::random_device{}());
-            std::uniform_int_distribution<int> jitter_ms(5, 30);
-            const auto due = std::chrono::steady_clock::now() + std::chrono::milliseconds(jitter_ms(rng));
-            if (scheduled_hello_ == std::chrono::steady_clock::time_point { } || due < scheduled_hello_) {
-                scheduled_hello_ = due;
-            }
+            // DISCOVER has no identity. Wait for a trusted HELLO before replying.
             break;
         }
         case packet_type_t::hello:
-            if (const auto accepted = acceptable_clients(); !accepted.empty()) {
+            try {
                 const std::string key(packet.payload.begin(), packet.payload.end());
-                if (!accepted.contains(key)) { remove_peer(packet.sender_node_id); break; }
+                const auto hash = public_key_hash(key);
+                if (!acceptable_clients().contains(hash)) { remove_peer(packet.sender_node_id); break; }
                 refresh_peer(packet.sender_node_id, source);
                 {
                     std::lock_guard lock(peer_mtx_);
                     auto& peer = peers_[packet.sender_node_id];
-                    if (peer.public_key != key) pending_client_hello_.store(true);
+                    if (peer.public_key_hash != hash) {
+                        pending_client_hello_.store(true);
+                        // Respond promptly, but only once when this trusted peer is new.
+                        static thread_local std::mt19937 rng(std::random_device{}());
+                        std::uniform_int_distribution<int> jitter_ms(5, 30);
+                        const auto due = std::chrono::steady_clock::now() + std::chrono::milliseconds(jitter_ms(rng));
+                        if (scheduled_hello_ == std::chrono::steady_clock::time_point { } || due < scheduled_hello_)
+                            scheduled_hello_ = due;
+                    }
                     peer.public_key = key;
+                    peer.public_key_hash = hash;
                 }
-            }
+            } catch (const std::exception&) { /* Invalid public key; do not stop the receiver. */ }
             break;
 
         case packet_type_t::bye:
+            { std::lock_guard lock(peer_mtx_);
+              if (!peers_.contains(packet.sender_node_id) || peers_.at(packet.sender_node_id).public_key_hash.empty()) break; }
             remove_peer(packet.sender_node_id);
             break;
 
         case packet_type_t::ack:
         {
             { std::lock_guard lock(peer_mtx_);
-              if (!peers_.contains(packet.sender_node_id) || peers_.at(packet.sender_node_id).public_key.empty()) break; }
+              if (!peers_.contains(packet.sender_node_id) || peers_.at(packet.sender_node_id).public_key_hash.empty()) break; }
             refresh_peer(packet.sender_node_id, source);
             bool changed = false;
             {
@@ -872,9 +884,16 @@ void general_info_pulling::handle_packet(const decoded_packet_t& packet, const s
         case packet_type_t::data:
         {
             const auto accepted = acceptable_clients();
+            bool recognized = false;
             { std::lock_guard lock(peer_mtx_);
-              if (!peers_.contains(packet.sender_node_id) ||
-                  !accepted.contains(peers_.at(packet.sender_node_id).public_key)) break; }
+              if (const auto it = peers_.find(packet.sender_node_id); it != peers_.end())
+                  recognized = accepted.contains(it->second.public_key_hash); }
+            if (!recognized) {
+                // ACK receipt without accepting or delivering the message. This keeps
+                // a rejecting peer from delaying delivery to other trusted peers.
+                (void)send_unicast_packet(source, packet_type_t::ack, packet.message_id);
+                break;
+            }
             refresh_peer(packet.sender_node_id, source);
             const bool first_seen = mark_message_first_seen(packet.sender_node_id, packet.message_id);
             if (first_seen)
@@ -1658,7 +1677,6 @@ void general_info_pulling::start_continuous_updates()
     });
 
     (void)send_multicast_packet(packet_type_t::hello);
-    (void)send_multicast_packet(packet_type_t::discover);
 }
 
 void general_info_pulling::update_proxy_list()

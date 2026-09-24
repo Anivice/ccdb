@@ -213,6 +213,7 @@ private:
         sockaddr_in endpoint { };
         std::chrono::steady_clock::time_point last_seen { };
         std::string public_key;
+        std::string public_key_hash;
     };
 
     struct pending_send_t {
@@ -256,7 +257,8 @@ private:
     std::mutex notification_replay_mtx_;
     std::unordered_map<std::string, std::chrono::steady_clock::time_point> seen_signatures_;
     void load_or_create_client_keys();
-    [[nodiscard]] std::unordered_map<std::string, std::shared_ptr<evp_pkey_st>> acceptable_clients() const;
+    [[nodiscard]] std::unordered_set<std::string> acceptable_clients() const;
+    [[nodiscard]] static std::string public_key_hash(const std::string& public_key);
     void broadcast(const nlohmann::json& json);
     void sendNotification(const std::vector<uint8_t> &);
     void send_raw_envelope(const nlohmann::json& json);

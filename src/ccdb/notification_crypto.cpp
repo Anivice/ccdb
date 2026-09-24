@@ -138,6 +138,35 @@ std::string open_seal(const std::string& cipher, const std::string& key,
     require(EVP_DecryptFinal_ex(ctx.get(), reinterpret_cast<unsigned char*>(plain.data()) + n, &extra) == 1);
     plain.resize(n + extra); return plain;
 }
+std::string hash_public_key(const std::string& public_key) {
+    // Hash the DER bytes, matching: base64 -d | sha256sum
+    (void)parse_public(public_key);
+    const auto der = unb64(public_key);
+    unsigned char digest[EVP_MAX_MD_SIZE];
+    unsigned int length = 0;
+    require(EVP_Digest(der.data(), der.size(), digest, &length, EVP_sha256(), nullptr) == 1 && length == 32);
+    constexpr char hex[] = "0123456789abcdef";
+    std::string hash;
+    hash.reserve(64);
+    for (unsigned int i = 0; i < length; ++i) {
+        hash.push_back(hex[digest[i] >> 4]);
+        hash.push_back(hex[digest[i] & 0x0f]);
+    }
+    return hash;
+}
+std::unordered_set<std::string> read_acceptable_hashes(std::istream& input) {
+    std::unordered_set<std::string> result;
+    std::string line;
+    while (std::getline(input, line)) {
+        const auto first = line.find_first_not_of(" \t\r\v\f");
+        if (first == std::string::npos) continue;
+        line = line.substr(first, line.find_first_of("# \t\r\v\f", first) - first);
+        if (line.size() == 64 && std::all_of(line.begin(), line.end(), [](const char c) {
+                return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+            })) result.insert(line);
+    }
+    return result;
+}
 } // namespace
 
 void general_info_pulling::load_or_create_client_keys() {
@@ -182,15 +211,13 @@ void general_info_pulling::load_or_create_client_keys() {
     if (!pubwritten) { ::unlink(pub.c_str()); require(false); }
 }
 
-std::unordered_map<std::string, std::shared_ptr<evp_pkey_st>> general_info_pulling::acceptable_clients() const {
-    std::unordered_map<std::string, std::shared_ptr<evp_pkey_st>> result;
+std::string general_info_pulling::public_key_hash(const std::string& public_key) {
+    return hash_public_key(public_key);
+}
+
+std::unordered_set<std::string> general_info_pulling::acceptable_clients() const {
     std::ifstream input(std::filesystem::path(client_config_dir_) / "acceptable_clients");
-    std::string line;
-    while (std::getline(input, line)) {
-        if (line.empty() || line[0] == '#') continue;
-        result.emplace(line, parse_public(line));
-    }
-    return result;
+    return read_acceptable_hashes(input);
 }
 
 void general_info_pulling::broadcast(const nlohmann::json& message)
@@ -201,8 +228,8 @@ void general_info_pulling::broadcast(const nlohmann::json& message)
     {
         std::lock_guard lock(peer_mtx_);
         for (const auto& [id, peer] : peers_) {
-            if (const auto it = allowed.find(peer.public_key); it != allowed.end())
-                recipients[peer.public_key] = b64(wrap(it->second.get(), secret));
+            if (allowed.contains(peer.public_key_hash))
+                recipients[peer.public_key] = b64(wrap(parse_public(peer.public_key).get(), secret));
         }
     }
     if (recipients.empty()) return;
@@ -224,12 +251,12 @@ nlohmann::json general_info_pulling::decrypt_notification(const nlohmann::json& 
     require(envelope.at("encrypted").get<bool>());
     const auto sender = envelope.at("sender_public_key").get<std::string>();
     const auto allowed = acceptable_clients();
-    const auto it = allowed.find(sender);
-    require(it != allowed.end());
+    require(allowed.contains(public_key_hash(sender)));
+    const auto sender_key = parse_public(sender);
     const auto sig = unb64(envelope.at("signature").get<std::string>());
     auto signed_part = envelope;
     signed_part.erase("signature");
-    verify(it->second.get(), signed_part.dump(), sig);
+    verify(sender_key.get(), signed_part.dump(), sig);
     const auto timestamp = envelope.at("timestamp").get<std::int64_t>();
     const auto now_wall = std::chrono::duration_cast<std::chrono::seconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();

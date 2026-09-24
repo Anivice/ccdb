@@ -130,15 +130,13 @@ Interactive Table Controls (`get connections` and `get log`):
 
 Additional Info:
 
-On first start, CCDB creates `~/.config/ccdb/client_private_key` (RSA-4096 PEM,
-mode 0600) and `~/.config/ccdb/client_public_key` (a single line of base64
-encoded SubjectPublicKeyInfo DER). On every CCDB instance that should receive
-notifications, create `~/.config/ccdb/acceptable_clients` and put one entire
-public-key line per trusted sender/recipient in it. For two-way communication,
-add each other's `client_public_key` line to both clients' allowlists. Keep the
-private key private; never put it into `acceptable_clients`. Missing allowlists
-mean that no peers are trusted. Existing key pairs are reused, while an
-incomplete or mismatched pair stops startup rather than silently changing identity.
+CCDB creates an RSA-4096 key pair in `~/.config/ccdb/` on first start. To trust
+another client's notifications, add the SHA-256 hash of its decoded `client_public_key`
+to `~/.config/ccdb/acceptable_clients`, one hash per line:
+    base64 -d < ~/.config/ccdb/client_public_key | sha256sum
+Copy the first 64 hexadecimal characters of that output. Spaces and `#` end
+the entry, so a hash may have a trailing comment. Blank lines are ignored.
+For two-way communication, each client must include the other's hash.
 
 The UDP hello advertises the public key. Messages use a fresh AES-256-GCM key,
 wrapped with RSA-OAEP/SHA-256 separately for each trusted peer and signed with
