@@ -31,7 +31,7 @@
 #include "general_info_pulling.h"
 #include "print.h"
 #include "utils.h"
-#include "nlohmann/json.hpp"
+#include "json.hpp"
 
 std::atomic_int ccdb::color::g_color_status_override = -1;
 sim::color_scheme_t sim::color_scheme = UNDEFINED;

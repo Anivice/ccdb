@@ -935,11 +935,6 @@ void ccdb::ccdb::init()
         return true;
     });
 
-#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
-    commandMatches.emplace_back(R"(sendNotification\s.(.*))", [this](const auto &command_vector)
-        { sendNotification(command_vector); return true; });
-#endif
-
     commandMatches.emplace_back(R"(set mode (global|rule|direct))", [this](const auto &command_vector) { set_mode(command_vector); return true; });
     commandMatches.emplace_back(R"(set vgroup [\d]+(?:\:.*)? [\d]+(?:\:.*)?)", [this](const auto &command_vector) { set_vgroup(command_vector); return true; });
     commandMatches.emplace_back(R"(set chain_parser (on|off))", [this](const auto &command_vector) { set_chain_parser(command_vector); return true; });
@@ -1021,6 +1016,7 @@ void ccdb::ccdb::init()
     const nlohmann::json log = {
         {"payload", "generic messages"},
         {"content", "New CCDB client joined the network." },
+        {"backend", backend_instance.backend_client_ref.backend_address }
     };
     backend_instance.sendNotification(log);
 }

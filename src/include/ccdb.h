@@ -393,10 +393,6 @@ namespace ccdb
         void proxyView();
 #endif //__YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
 
-#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
-        void sendNotification(const std::vector<std::string> &);
-#endif //__YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
-
         bool commandProcessor(const std::vector<std::string> & command_vector_);
         std::vector<std::string> commandAutoCompletion(const std::vector<std::string> &, const std::string &, int arg_index);
 

@@ -1370,6 +1370,7 @@ void general_info_pulling::generic_messages(const nlohmann::json & json)
         const nlohmann::json sync_logs = {
             {"payload", "log synchronization notification"},
             {"content", sync_json.dump() },
+            {"backend", backend_client_ref.backend_address }
         };
 
         sendNotification(sync_logs);

@@ -41,6 +41,7 @@
 #include "Readline.h"
 #include "versions.h"
 #include "default_color_scheme.h"
+#include "json.hpp"
 
 extern unsigned char debugInfo[] ;
 extern unsigned int debugInfo_len ;
@@ -362,8 +363,12 @@ namespace
             }
 
             const auto json = json::parse(buffer);
-            const auto & mihomo = std::string(json["hello"]); // check for correctness
-            return mihomo;
+            if (json.contains("hello")) {
+                const auto & mihomo = std::string(json["hello"]); // check for correctness
+                return mihomo;
+            }
+
+            throw std::runtime_error("No backend hello");
         } catch (std::exception & e) {
             std::cerr << e.what() << std::endl;
             return {};

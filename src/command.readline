@@ -137,7 +137,7 @@
     < restart (Restart backend): [NONE] >,
     < flush (Flush fake-ip cache): [NONE] >,
     < reload (Reload configuration): [NONE] >, # reload configuration, can be provided by `reload [PATH]`
-    < sendNotification (%cmd.readline.d/sendNotification.json%): [NONE] >,
+    # < sendNotification (%cmd.readline.d/sendNotification.json%): [NONE] >,
     # < chat (%cmd.readline.d/chat.json%): [NONE] >,
     < proxyView (%cmd.readline.d/proxyView.json%): [NONE] >,
 }

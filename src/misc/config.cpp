@@ -24,7 +24,7 @@
 #include <regex>
 #include "utils.h"
 #include "config.h"
-#include "nlohmann/json.hpp"
+#include "json.hpp"
 
 namespace ccdb {
     namespace

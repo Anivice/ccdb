@@ -124,7 +124,8 @@ void ccdb::ccdb::set_log_level(const std::vector<std::string> &command_vector)
 
     const nlohmann::json json = {
         { "payload", "Switch loglevel" },
-        { "loglevel", command_vector[2] }
+        { "loglevel", command_vector[2] },
+        {"backend", backend_instance.backend_client_ref.backend_address }
     };
     backend_instance.sendNotification(json);
     backend_instance.stop_continuous_updates();
