@@ -105,6 +105,7 @@ void ccdb::ccdb::get_log()
                 });
                 const auto [beg, end] = std::ranges::unique(logPullerNoFilter);
                 logPullerNoFilter.erase(beg, end);
+                backend_instance.log_sync_refreshed = false;
             }
 
             if (const auto now = std::chrono::system_clock::now();
