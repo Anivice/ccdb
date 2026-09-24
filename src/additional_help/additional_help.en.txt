@@ -14,7 +14,7 @@ Environment:
             accepted without an availability check.
    TABSIZE: Number of spaces used to display a tab in tables. Must be a positive integer; default: 4.
     CURSOR: Cursor character used in the table search/command input. Only the first Unicode character is
-            used; default: `█` (a space is selected automatically in Termux unless CURSOR is already set).
+            used; default: ` ` (a space).
 REVERSE_MOUSE: `true` or `false` reverses/restores mouse-wheel scrolling and overrides
                `Global::ReverseMouse` from `~/.ccdbrc`.
 FOCUS_FOLLOW_MOUSE_SCROLLING: Set to `true` to move the focused row together with mouse-wheel scrolling.

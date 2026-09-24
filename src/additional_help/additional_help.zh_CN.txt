@@ -12,8 +12,7 @@
             ccdb会自动选择无色彩模式。
         JQ: JSON格式化命令。未设置时，若系统中存在`jq`，ccdb会使用它。非空值不会经过可用性检查。
    TABSIZE: 表格中一个制表符显示成多少个空格。必须是正整数；默认值：4。
-    CURSOR: 表格搜索/命令输入框使用的光标字符。只使用第一个Unicode字符；默认值：`█`。
-            在Termux中，若尚未设置CURSOR，ccdb会自动改用空格。
+    CURSOR: 表格搜索/命令输入框使用的光标字符。只使用第一个Unicode字符；默认值：` `。
 REVERSE_MOUSE: `true`或`false`反转/恢复鼠标滚轮方向，并覆盖`~/.ccdbrc`中的
                `Global::ReverseMouse`。
 FOCUS_FOLLOW_MOUSE_SCROLLING: 设置为`true`时，使用鼠标滚轮滚动会同时移动当前焦点行。
