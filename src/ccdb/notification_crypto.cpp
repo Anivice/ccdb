@@ -19,7 +19,7 @@ using key_ptr = std::shared_ptr<EVP_PKEY>;
 using ctx_ptr = std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)>;
 using cipher_ptr = std::unique_ptr<EVP_CIPHER_CTX, decltype(&EVP_CIPHER_CTX_free)>;
 using md_ptr = std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)>;
-void require(bool ok) { if (!ok) throw std::runtime_error("CCDB notification cryptography failed"); }
+void require(const bool ok) { if (!ok) throw std::runtime_error("CCDB notification cryptography failed"); }
 key_ptr adopt(EVP_PKEY* p) { require(p != nullptr); return {p, EVP_PKEY_free}; }
 std::string b64(const std::string& bytes) {
     require(bytes.size() <= static_cast<size_t>(INT_MAX));
