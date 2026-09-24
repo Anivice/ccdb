@@ -1016,7 +1016,7 @@ void ccdb::ccdb::init()
     const nlohmann::json log = {
         {"payload", "generic messages"},
         {"content", "New CCDB client joined the network." },
-        {"backend", backend_instance.backend_client_ref.backend_address }
+        {"backend", sha256sum(backend_instance.backend_client_ref.backend_address + ":" + backend_instance.backend_client_ref.token) }
     };
     backend_instance.sendNotification(log);
 }

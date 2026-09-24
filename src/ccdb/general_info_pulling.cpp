@@ -1081,7 +1081,7 @@ backend_client(url, token), get_buffered_logs(get_buffered_logs_)
                 {
                     if (const nlohmann::json json = json::parse(str);
                         json.contains("payload") && json.contains("backend")
-                        && json["backend"] == backend_client_ref.backend_address)
+                        && json["backend"] == ccdb::utils::sha256sum(backend_client_ref.backend_address + ":" + backend_client_ref.token))
                     {
                         if (const auto payload = std::string(json["payload"]);
                             payload == "Switch loglevel")
@@ -1372,7 +1372,8 @@ void general_info_pulling::generic_messages(const nlohmann::json & json)
         const nlohmann::json sync_logs = {
             {"payload", "log synchronization notification"},
             {"content", sync_json.dump() },
-            {"backend", backend_client_ref.backend_address }
+            {"backend", ccdb::utils::sha256sum(backend_client_ref.backend_address + ":" + backend_client_ref.token) }
+
         };
 
         sendNotification(sync_logs);

@@ -108,7 +108,6 @@ namespace ccdb
         int timeout_ms);
 
     template <typename T> concept Iterator = std::input_iterator<T>;
-    bool is_highlight_match(const std::vector < std::string > & line, const std::string & search_content);
     class auto_print_t;
     extern std::atomic<int> g_pid;
 

@@ -174,6 +174,7 @@ add_library(ccdb SHARED
         ccdb/libmaxmind.cpp             include/libmaxmind.h
         ccdb/DNSOverHTTPS.cpp           include/DNSOverHTTPS.h
         ccdb/ccdb.proxyView.cpp
+        misc/utils.bin.cpp
 )
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
 target_compile_definitions(ccdb PRIVATE CCDB_VERSION="${CCDB_VERSION}" CPPHTTPLIB_OPENSSL_SUPPORT)

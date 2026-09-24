@@ -3,7 +3,6 @@
 #define _GNU_SOURCE
 #endif //_GNU_SOURCE
 #include <sys/stat.h>
-#include <sys/ioctl.h>
 #include <unistd.h>
 #include <vector>
 #include <string>
@@ -24,6 +23,7 @@
 #include "readline/history.h"
 #include "utils.h"
 #include "dump.h"
+#include "sort.h"
 
 #ifndef __NR_memfd_create
 # if defined(__x86_64__)
@@ -43,6 +43,104 @@
 if (!(x)) {         \
     std::cout << __FILE__ ":" STR(__LINE__) ": Assertion " #x " Failed!\n"; \
     _exit(EXIT_FAILURE); \
+}
+
+bool ccdb::utils::is_highlight_match(const std::vector < std::string > & line, const std::string & search_content)
+{
+    using namespace utils;
+    if (search_content.empty()) return false;
+    static cache_w_freq_table_t < std::string, bool > cache;
+
+    std::stringstream hash;
+    std::ranges::for_each(line, [&hash](const auto & s) { hash << s; });
+    hash << search_content;
+    const auto h = hash.str();
+    if (const auto it = cache.get_cache(h); it) {
+        return *it;
+    }
+
+    std::stringstream ss;
+    std::ranges::for_each(line, [&ss](const auto & l){ ss << l; });
+    std::string str = ss.str();
+    const std::string bak = str;
+    const auto result = bak != regex_replace_all(str, search_content,
+    [&](const regex_scope_type & mat)->std::string
+        {
+            const auto & mat_str = *mat.first;
+            if ((mat_str.size() == 1 && std::isprint(mat_str.front())) || mat_str.size() > 1) {
+                return "<match>" + mat_str + "</match>";
+            }
+        return mat_str;
+    });
+    cache.emplace_cache(h, result);
+    return result;
+}
+
+bool ccdb::utils::sort_url_if_fit(const std::string& a, const std::string& b)  {
+    return url_sort::sort_url_if_fit(a, b);
+}
+
+bool ccdb::utils::parse_url(const std::string& url, std::string& scheme, std::string& host, std::string& path)
+{
+    const std::regex re(R"(^(\w+)://([^/]+(:\d+)?)(/.*)?$)");
+    std::smatch match;
+    if (!std::regex_match(url, match, re)) {
+        return false;
+    }
+    scheme = match[1];
+    host = match[2];
+    path = match[4];
+    return true;
+}
+
+bool ccdb::utils::parse_proxy(const std::string& url, std::string& host, int & port)
+{
+    const std::regex re(R"(^[\w]+://([^/]+):([\d]+)(/.*)?$)");
+    std::smatch match;
+    if (!std::regex_match(url, match, re)) {
+        return false;
+    }
+
+    host = match[1];
+    port = convertToNumber<int>(match[2].str());
+    return true;
+}
+
+void ccdb::utils::set_ssl_automatically(httplib::Client & client, const std::string & url)
+{
+    std::string scheme;
+    if (std::string host, path;
+        !parse_url(url, scheme, host, path))
+    {
+        throw std::invalid_argument("Invalid URL");
+    }
+
+    if (scheme == "https" && getenv("DISABLE_SERVER_CERTIFICATE_VERIFICATION") == "true") {
+        client.enable_server_certificate_verification(false);
+    } else {
+        std::vector ca_paths = {
+            getenv("SSL_CERTIFICATE"),
+            // possible system CA certificate locations
+            getenv("PREFIX") + "/etc/ssl/certs/ca-certificates.crt",
+            getenv("PREFIX") + "/etc/ssl/certs/ca-bundle.trust.crt",
+            getenv("PREFIX") + "/etc/ssl/cert.pem",
+            getenv("PREFIX") + "/etc/tls/cert.pem",
+            getenv("PREFIX") + "/etc/pki/ca-trust/extracted/openssl/ca-bundle.trust.crt",
+            getenv("PREFIX") + "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem",
+        };
+
+        (void)std::ranges::any_of(ca_paths, [&](const std::string& ca_path)->bool
+        {
+            if (!ca_path.empty() && std::filesystem::exists(ca_path))
+            {
+                client.set_ca_cert_path(ca_path);
+                client.enable_server_certificate_verification(true);
+                return true;
+            }
+
+            return false;
+        });
+    }
 }
 
 std::string ccdb::utils::unpack_string(const unsigned char str[], const unsigned int len)

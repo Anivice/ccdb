@@ -415,6 +415,11 @@ namespace ccdb::utils
     /// @return ANSI escapes
     const char* capstr(const char* name);
 
+    std::string sha256sum(const char * data, size_t len);
+    inline std::string sha256sum(const std::string & data) {
+        return sha256sum(data.data(), data.size());
+    };
+
     /// Automatic terminal setup
     class setup_term
     {
@@ -719,6 +724,7 @@ namespace ccdb::utils
     }
 
     cmd_status tar(const std::vector<std::string> & args, const std::string & to_write);
+    bool is_highlight_match(const std::vector < std::string > & line, const std::string & search_content);
 }
 
 namespace ccdb
