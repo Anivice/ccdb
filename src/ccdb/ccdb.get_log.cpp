@@ -84,7 +84,8 @@ void ccdb::ccdb::get_log()
         do_col_hide, {2, 2, 0}, {}, {},
         [&](const session_compliment_data_t * data)->ScopeType
         {
-            if (backend_instance.log_sync_refreshed) { // discard everything
+            if (!pause_log_update && backend_instance.log_sync_refreshed) // discard everything
+            {
                 before = std::chrono::system_clock::now() - std::chrono::seconds(100);
                 log_local_incrimination.clear();
                 lines_local_incrimination.clear();
