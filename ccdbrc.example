@@ -6,6 +6,7 @@ SortBy = 4              # Sort by which column for `get connections`
 ReverseMouse = off      # Reverse mouse scrolling
 RefreshIntervalMS = 500 # Screen refresh intervals for `get log/nload/get connections`
 logSize = 4096          # Buffer size of `get log`
+BannerScript = %HOME%/.config/ccdb/banner.sh # { "banner_lines": NUM, "banner": String }
 
 [Filter]
 Host = .*

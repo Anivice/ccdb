@@ -58,7 +58,7 @@ namespace ccdb
         int leading_offset = 0; // if the screen cannot fit the whole table, table will be shifted these characters to the right
         std::atomic_int * max_leading_offset_ptr = nullptr; // Set by print_table, tells user I can only shift these many characters max
         bool using_pager = false; // Should I use pager? If so, all the above shifting parameters will be ignored
-        const std::string & additional_info_before_table; // Additional info to print before the table content
+        const std::vector<std::string> & additional_info_before_table; // Additional info to print before the table content
         int skip_lines = 0; // Skip this many lines and shift table downward when screen is too small to fit all the content
         std::atomic_int * max_skip_lines_ptr = nullptr;
 
@@ -264,6 +264,7 @@ namespace ccdb
 
         bool execute_and_no_interactive = false;
         std::atomic_bool reverse_mouse;
+        std::string banner_command;
 
         /// Pull groups and proxies from the backend
         void update_providers();
@@ -468,11 +469,11 @@ namespace ccdb
 
         template < typename ContainerType, typename ConstantIteratorType, typename ScopeType >
         requires (std::is_same_v<ScopeType, std::pair<ConstantIteratorType, ConstantIteratorType>> && Iterator<ConstantIteratorType>)
-        void continuous_table(bool banner, const std::vector < bool > & do_col_hide,
+        void continuous_table(int banner, const std::vector < bool > & do_col_hide,
             const std::vector<int> & alignment,
             const CommandType < ContainerType, ScopeType > & CommandMap, const CommandAutoCompleteType & CommandAutoComplete,
             const std::function<ScopeType(session_compliment_data_t *)> & ReturnContent,
-            const std::function<String(message_type_t, const ContainerType & current_focus)> & GenerateBanner,
+            const std::function<void(message_type_t, const ContainerType & current_focus, std::vector<std::string> &)> & GenerateBanner,
             const std::function<HashType(const ContainerType &)> & HashContent,
             const std::function<OverrideColorType(const ScopeType &, uint64_t)> & GenerateOverrideColorInContent,
             const std::function<void(const ContainerType *)> & PressKey_P,

@@ -360,7 +360,6 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
         highlight_screen_line, out, show_search, search_line_boxContent, cursor_position_in_search_box, highlight_str,
         column_alignment, line_size, col_size, message_box_width_, width_context_, locked_info ] = context;
     uint64_t leading_offset = leading_offset_;
-    std::string additional_info_before_table = additional_info_before_table_;
     int skip_lines = skip_lines_;
 
     std::string final_frame;
@@ -551,7 +550,18 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
         }
 
         const int separation_line_width = UnicodeDisplayWidth::get_width(separation_line_top);
-        const auto additional_info_before_table_length = UnicodeDisplayWidth::get_width(additional_info_before_table);
+
+        int additional_info_before_table_length = 0;
+        std::vector<int> additional_info_before_table_vector;
+        std::ranges::for_each(additional_info_before_table_, [&](const std::string & s)
+        {
+            const int len = UnicodeDisplayWidth::get_width(strip_color(s));
+            additional_info_before_table_vector.emplace_back(len);
+            if (additional_info_before_table_length > len) {
+                additional_info_before_table_length = len;
+            }
+        });
+
         const auto defined_str_len = std::max(separation_line_width, additional_info_before_table_length);
         auto max_leading_offset = defined_str_len > col ? (defined_str_len - col) : 0;
         if (max_leading_offset_ptr) *max_leading_offset_ptr = static_cast<int>(max_leading_offset);
@@ -707,13 +717,18 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
             }
         };
 
-        if (!additional_info_before_table.empty())
+        if (!additional_info_before_table_.empty())
         {
-            additional_info_before_table += std::string(
-                    std::max(static_cast<int>(col + leading_offset - additional_info_before_table_length), 0),
-                ' ');
+            std::vector<std::string> additional_info_before_table = additional_info_before_table_;
+            for (auto it = additional_info_before_table.begin(); it != additional_info_before_table.end(); ++it)
+            {
+                *it += std::string(
+                        std::max(static_cast<int>(col + leading_offset -
+                            additional_info_before_table_vector[it - additional_info_before_table.begin()]), 0),
+                    ' ');
 
-            print_line(additional_info_before_table, white_strip);
+                print_line(*it, white_strip);
+            }
         }
 
         print_line(separation_line_top, white_strip);
@@ -902,7 +917,7 @@ void ccdb::ccdb::simple_print_table_to_ostream(std::vector<std::string> const &t
         .leading_offset = 0,
         .max_leading_offset_ptr = nullptr,
         .using_pager = true,
-        .additional_info_before_table = "",
+        .additional_info_before_table = { },
         .skip_lines = 0,
         .max_skip_lines_ptr = nullptr,
         .enforce_no_pager = true,
@@ -942,7 +957,7 @@ void ccdb::ccdb::simple_print_table_w_pager(
         .leading_offset = 0,
         .max_leading_offset_ptr = nullptr,
         .using_pager = !less.empty(),
-        .additional_info_before_table = "",
+        .additional_info_before_table = { },
         .skip_lines = 0,
         .max_skip_lines_ptr = nullptr,
         .enforce_no_pager = less.empty(),

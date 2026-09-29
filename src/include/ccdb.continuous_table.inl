@@ -2,12 +2,12 @@
 #define CCDB_CONTINUOUS_TABLE_INL
 
 template <typename ContainerType, typename ConstantIteratorType, typename ScopeType> requires (std::is_same_v<
-        ScopeType, std::pair<ConstantIteratorType, ConstantIteratorType>> && Iterator<ConstantIteratorType>)
-void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_hide,
+                                                                                                   ScopeType, std::pair<ConstantIteratorType, ConstantIteratorType>> && Iterator<ConstantIteratorType>)
+void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hide,
         const std::vector<int>& alignment, const CommandType<ContainerType, ScopeType>& CommandMap,
         const CommandAutoCompleteType & CommandAutoComplete,
         const std::function<ScopeType(session_compliment_data_t*)>& ReturnContent,
-        const std::function<String(message_type_t, const ContainerType& current_focus)>& GenerateBanner,
+        const std::function<void(message_type_t, const ContainerType&, std::vector<std::string> &)>& GenerateBanner,
         const std::function<HashType(const ContainerType&)>& HashContent,
         const std::function<OverrideColorType(const ScopeType&, uint64_t)>& GenerateOverrideColorInContent,
         const std::function<void(const ContainerType*)>& PressKey_P,
@@ -47,6 +47,35 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
         .skip_frame = false
     };
 
+    auto assert_ = [](const bool e) {
+        if (!e) {
+            throw std::logic_error("Expectation disappointed.");
+        }
+    };
+
+    auto get_frame = [&]->std::pair<int, std::string>
+    {
+        if (banner_command.empty()) return {0, ""};
+        if (const auto & [fs_stdout, fd_stderr, status] =
+            exec_command2("/bin/sh", "", "-c", banner_command); !status)
+        {
+            try {
+                if (const auto json = json::parse(fs_stdout); json.contains("banner_lines")) {
+                    return { json["banner_lines"].get<int>(), json["banner"].get<std::string>() };
+                }
+            } catch (...) { }
+        }
+
+        return {0, ""};
+    };
+
+    int start_line = 5 + banner;
+    if (!banner_command.empty())
+    {
+        const auto banner_lines= get_frame().first;
+        start_line += banner_lines;
+    }
+
     const std::string focused_line_color = "\033[07m";
     const std::string selected_line_color = color::color(5,5,0);
     std::map < HashType, std::string > focused_id;
@@ -54,14 +83,13 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
     SearchMatches search_matches;
     int64_t focused_index = -1;
     std::vector < std::pair < String, std::pair < int, std::chrono::time_point<std::chrono::steady_clock> > > > g_title_lines;
-    utils::thread_group child_workers;
+    thread_group child_workers;
     ccdb_atomic_t < std::u32string > search_content_buffer;
     String search_content;
     String command_input_prev_cmd;
     int cursor_position_prev = -1;
     std::vector<String> tab_base_args;
     int tab_arg_index = -1;
-    const int start_line = banner ? 6 : 5;
     int64_t vector_size_last_time = -1;
     uint64_t frame_index = 0;
     ccdb_atomic_t<frame_data_t> frame_data;
@@ -127,7 +155,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
         OverrideColorType color_code_overrides;
         const auto leading_spaces = leading_spaces_.load();
         auto current_skip_lines = current_skip_lines_.load();
-        String title_line;
+        std::vector<String> title_line;
         bool skip_due_to_shrink = false;
         int focus_line = -1;
         const auto mouse_y = mouse_y_.load();
@@ -139,7 +167,6 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
         const auto atm_focus = atm_focus_.load();
         const auto search_focus_move = search_focus_move_.load();
         const auto max_skip_lines = max_skip_lines_.load();
-        const auto max_leading_spaces = max_leading_spaces_.load();
 
         mouse_y_ = -1;
         mouse_x_ = -1;
@@ -164,9 +191,9 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                 auto hash = HashContent(*it);
                 if (index < search_matches.size())
                 {
-                    auto & entry = search_matches[index];
-                    entry.first = std::move(hash);
-                    entry.second = matched;
+                    auto & [first, second] = search_matches[index];
+                    first = std::move(hash);
+                    second = matched;
                 }
                 else
                 {
@@ -225,9 +252,13 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                 ++highlight;
             }
         }
+
         if (active_focus_removed)
         {
-            show_info(GenerateBanner(FOCUSED_ON_NON_PRESENCE, focused_container), "INFO");
+            std::vector<std::string> lines;
+            GenerateBanner(FOCUSED_ON_NON_PRESENCE, focused_container, lines);
+            assert_(lines.size() == 1);
+            show_info(lines.front(), "INFO");
             active_focused_id.clear();
         }
 
@@ -270,7 +301,7 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
             }
         }
 
-        if (banner)
+        // if (banner)
         {
             std::string * g_title_line = nullptr;
             while (!g_title_lines.empty())
@@ -293,15 +324,20 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
 
             on_display = g_title_line != nullptr;
 
-            if (!g_title_line)
-            {
-                title_line = GenerateBanner(NORMAL, focused_container);
-                if (title_line.empty()) title_line = " ";
+            title_line.clear();
+            GenerateBanner(NORMAL, focused_container, title_line);
+            assert_(title_line.size() == banner);
+            if (g_title_line && !g_title_line->empty()) {
+                title_line.front() = *g_title_line;
             }
-            else
-            {
-                title_line = g_title_line->empty() ? " " : *g_title_line;
+            const auto [banner_lines, banner_content] = get_frame();
+            std::istringstream ss(banner_content);
+            std::string line;
+            std::vector<std::string> ext_lines;
+            while (std::getline(ss, line)) {
+                ext_lines.push_back(line);
             }
+            title_line.insert(title_line.begin(), ext_lines.begin(), ext_lines.end());
         }
 
         auto move = [&](auto && do_i_process, auto && how_do_i_process)
@@ -379,7 +415,10 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
                 }
                 else
                 {
-                    show_info(GenerateBanner(FOCUSED_ON_NON_PRESENCE, focused_container), "INFO");
+                    std::vector<std::string> lines;
+                    GenerateBanner(FOCUSED_ON_NON_PRESENCE, focused_container, lines);
+                    assert_(lines.size() == 1);
+                    show_info(lines.front(), "INFO");
                 }
             }
             else if (!active_focused_id.empty())
@@ -456,7 +495,10 @@ void ccdb::continuous_table(const bool banner, const std::vector<bool>& do_col_h
         if (kill_connection)
         {
             if (focus_line != -1) {
-                show_info(GenerateBanner(KILL, focused_container), "INFO");
+                std::vector<std::string> lines;
+                GenerateBanner(KILL, focused_container, lines);
+                assert_(lines.size() == 1);
+                show_info(lines.front(), "INFO");
                 PressKey_K(&focused_container);
             }
         }

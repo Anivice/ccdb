@@ -777,6 +777,8 @@ void ccdb::ccdb::init()
     });
 
     string_helper("clash::metricPullerCommand", external_puller_command);
+    string_helper("Global::BannerScript", banner_command);
+
     int_helper("clash::metricPullerCommandTimeOut", external_puller_command_time_out_ms);
 
     bool sslVerify = true;

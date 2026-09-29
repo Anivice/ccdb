@@ -80,7 +80,7 @@ void ccdb::ccdb::get_log()
 
     continuous_table < log_frame_t, ConstItrType, ScopeType >
     (
-        false,
+        0,
         do_col_hide, {2, 2, 0}, {}, {},
         [&](const session_compliment_data_t * data)->ScopeType
         {
@@ -178,7 +178,7 @@ void ccdb::ccdb::get_log()
 
             return {log_local_incrimination.begin(), log_local_incrimination.end()};
         },
-        [](message_type_t, const log_frame_t &)->std::string { return {}; },
+        [](message_type_t, const log_frame_t &, std::vector<std::string>&)->void { },
         [](const log_frame_t & log)->std::string { return log.at(3); },
         [&](const ScopeType & logs, const uint64_t offset)->OverrideColorType
         {

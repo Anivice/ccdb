@@ -173,7 +173,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
     continuous_table <connection_frame_t, std::vector<connection_frame_t>::const_iterator, ScopeType >
     (
-        true,
+        1,
         do_col_hide,
         // hard coded alignment justification: 0 left, 1: right, 2 center
     {
@@ -499,7 +499,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
             return ScopeType{connections_filtered.begin(), connections_filtered.end()};
         },
-        [&](const message_type_t type, const connection_frame_t & current_focus)->std::string
+        [&](const message_type_t type, const connection_frame_t & current_focus, std::vector<std::string> & buffer)->void
         {
             switch (type)
             {
@@ -516,12 +516,14 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     append_msg(sprint("Frontend memory usage: ") + value_to_size(cur_mem_size()));
                     append_msg("   ");
                     append_msg(update_subinfo(subinfo_ball, subinfo_worker));
-                    return ss.str();
+                    buffer = {ss.str()};
                 }
+            break;
             case FOCUSED_ON_NON_PRESENCE:
-                return sprint("Connection ", current_focus.connection_data.host, " not present, deleted");
+                buffer = {sprint("Connection ", current_focus.connection_data.host, " not present, deleted")};
+            break;
             case KILL:
-                return sprint("Closing ", current_focus.connection_data.host, "...");
+                buffer = {sprint("Closing ", current_focus.connection_data.host, "...")};
             break;
             }
         },
