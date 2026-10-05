@@ -653,12 +653,32 @@ void ccdb::ccdb::get_conn_input_watcher(const get_conn_input_watcher_context_t &
     LegacyInputSequence sequence;
     auto last_updated_time = std::chrono::steady_clock::now();
 
+    auto expire_sequence = [&] {
+        // Wait for the sequence timeout so arrow keys, Alt keys and mouse
+        // reports are not mistaken for a standalone Escape.
+        if (sequence.matches("^[") && show_search && show_search->load()) {
+            *show_search = false;
+            // Submit an empty command to reuse completion cleanup without
+            // executing the unfinished input or changing the active search.
+            search_content_buffer->set(utf8_to_u32(":\n"));
+            if (cursor_position) *cursor_position = -1;
+        }
+        sequence.clear();
+    };
+
     while (running) {
         const auto ch = buffer.wait_for(50);
         if (!ch) {
-            sequence.clear();
+            expire_sequence();
             continue;
         }
+
+        const auto now = std::chrono::steady_clock::now();
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_updated_time) >
+            kInputSequenceTimeout) {
+            expire_sequence();
+        }
+        last_updated_time = now;
 
         if (*ch == -1 && show_search && !show_search->load()) {
             sequence.clear();
@@ -690,13 +710,6 @@ void ccdb::ccdb::get_conn_input_watcher(const get_conn_input_watcher_context_t &
                 continue;
             }
         }
-
-        const auto now = std::chrono::steady_clock::now();
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_updated_time) >
-            kInputSequenceTimeout) {
-            sequence.clear();
-        }
-        last_updated_time = now;
 
         if (*ch) sequence.push(*ch);
 
