@@ -170,6 +170,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::vector < std::vector < std::string > > table_vals;
     bool show_only_closed_connection_view = false;
     int closed_connection_view_max_size = 128;
+    int last_mouse_scrolling_vex = 0;
 
     continuous_table <connection_frame_t, std::vector<connection_frame_t>::const_iterator, ScopeType >
     (
@@ -324,6 +325,17 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             },
         [&](const session_compliment_data_t * data_)->ScopeType
         {
+#ifdef __DEBUG__
+            ++total;
+#endif
+            if (last_mouse_scrolling_vex != data_->skip_lines_->load()) { // skip fast scrolling
+#ifdef __DEBUG__
+                ++skip;
+#endif
+                last_mouse_scrolling_vex = data_->skip_lines_->load();
+                return ScopeType{connections_filtered.begin(), connections_filtered.end()};
+            }
+
             // final sort value
             int sort_by_final { };
             if (*data_->sort_by_from_watcher == -1) {
@@ -345,9 +357,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             if (sort_by_local != sort_by_final || sort_reverse != reverse_sort_local) sorted_already = false;
             sort_by_local = sort_by_final;
             sort_by = sort_by_final;
-#ifdef __DEBUG__
-            ++total;
-#endif
+
             // set existing ones as all closed
             if (const auto now = std::chrono::system_clock::now();
                 std::chrono::duration_cast<std::chrono::milliseconds>(now - before).count() > 500 && !pause_update)
