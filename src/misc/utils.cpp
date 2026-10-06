@@ -106,27 +106,6 @@ bool ccdb::utils::is_less_available()
     return true; // skip check if you specify a pager. fuck you for providing a faulty one
 }
 
-namespace
-{
-    void put_cap(const char* cap) {
-        if (!cap || cap == reinterpret_cast<const char *>(-1)) return;
-        putp(cap);
-    }
-
-    const char* capstr(const char* name) {
-        const char* s = tigetstr(name);
-        if (s == reinterpret_cast<const char *>(-1) || s == nullptr) return nullptr;
-        return s;
-    }
-
-    void move_home()
-    {
-        const char* cup = capstr("cup"); // cursor position
-        if (!cup) return;
-        if (const char* seq = tparm(const_cast<char*>(cup), 0, 0)) put_cap(seq);
-    }
-}
-
 ssize_t ccdb::utils::cur_mem_size()
 {
     unsigned long size, resident, share, text, lib, data, dt;

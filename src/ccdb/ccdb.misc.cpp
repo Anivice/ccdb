@@ -199,6 +199,7 @@ void ccdb::ccdb::display(ccdb_atomic_t< frame_data_t > & frame, const std::atomi
     std::string frame_;
     while (*running)
     {
+        const auto now = std::chrono::steady_clock::now();
         bool clear;
         uint64_t frame_index;
         bool skip;
@@ -229,6 +230,6 @@ void ccdb::ccdb::display(ccdb_atomic_t< frame_data_t > & frame, const std::atomi
             current_frame_index = frame_index;
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_until(now + std::chrono::microseconds(1000000 / 60));
     }
 }
