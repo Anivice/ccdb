@@ -1407,6 +1407,7 @@ void general_info_pulling::generic_messages(const nlohmann::json & json)
         {"payload", message },
     };
 
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
     update_from_logs(log.dump());
     if (message == client_hello)
     {
@@ -1422,10 +1423,12 @@ void general_info_pulling::generic_messages(const nlohmann::json & json)
 
         broadcast(LOG_CONTENT_SYNC, sync_json.dump());
     }
+#endif
 }
 
 void general_info_pulling::log_synchronization_notification(const nlohmann::json & json)
 {
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
     const auto message = nlohmann::json::parse(ccdb::utils::strip_color(std::string(json["content"])));
     std::vector<std::vector<std::string>> new_logs;
     for (const auto & it : message) {
@@ -1503,6 +1506,7 @@ void general_info_pulling::log_synchronization_notification(const nlohmann::json
         logs.erase(beg, end);
         log_sync_refreshed = true;
     }
+#endif
 }
 
 void general_info_pulling::pull_continuous_updates()
