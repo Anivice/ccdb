@@ -15,6 +15,8 @@
 # MAKE_DIRECTORIES, IMPORTED_LIBRARIES and GLOBAL_INCLUDE_DIRECTORIES paths
 # may contain <INSTALL_DIR>. PREPARE_DIRECTORIES uses literal paths.
 function(add_cmake_external_project_from_vendored_source_tarball name)
+    message(STATUS "Project name: ${name}")
+
     cmake_parse_arguments(PARSE_ARGV 1 vendored
         ""
         "EXPORT_DIRECTORY_VARIABLES;PKGCONFIG_VARIABLE;BUNDLE_TARGET"
@@ -31,6 +33,7 @@ function(add_cmake_external_project_from_vendored_source_tarball name)
         ${vendored_EXTERNAL_PROJECT_OPTIONS}
     )
     ExternalProject_Get_Property(${name} INSTALL_DIR)
+    message(STATUS "Project options: `${vendored_EXTERNAL_PROJECT_OPTIONS}`")
 
     foreach(keyword IN ITEMS MAKE_DIRECTORIES IMPORTED_LIBRARIES GLOBAL_INCLUDE_DIRECTORIES)
         string(REPLACE "<INSTALL_DIR>" "${INSTALL_DIR}"
@@ -77,6 +80,8 @@ function(add_cmake_external_project_from_vendored_source_tarball name)
 endfunction()
 
 # Perl
+set(PerlEnv "env CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" LD= ")
+set(PerlTail "")
 add_cmake_external_project_from_vendored_source_tarball(PERL
     PREPARE_DIRECTORIES ${CMAKE_BINARY_DIR}/ExternalLibraries/perl-5.42.0/p
     EXTERNAL_PROJECT_OPTIONS
@@ -156,7 +161,7 @@ add_cmake_external_project_from_vendored_source_tarball(ICU
                                 cp -r ${CMAKE_SOURCE_DIR}/ExternalLibraries/icu4c-78.3/ <SOURCE_DIR> && \
                                 cd <SOURCE_DIR> && \
                                 export CXXFLAGS='-fPIC -std=c++17' CFLAGS='-fPIC -std=c11' && \
-                                source/runConfigureICU Linux/gcc --prefix=<INSTALL_DIR> --disable-shared --enable-static"
+                                source/runConfigureICU Linux/gcc --prefix=<INSTALL_DIR> --disable-shared --enable-static --disable-tests --disable-samples ${ICU_CONFIG_ADDITIONAL_FLAGS}"
         BUILD_COMMAND       /bin/sh -c "cd <SOURCE_DIR> && ${ICU_MAKE_ENTIRE}"
         INSTALL_COMMAND     /bin/sh -c "cd <SOURCE_DIR> && ${MAKE_EXECUTABLE} install ${ICU_MAKE_INSTALL_ADDITIONAL_FLAGS}"
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libicudata.a <INSTALL_DIR>/lib/libicui18n.a <INSTALL_DIR>/lib/libicutest.a <INSTALL_DIR>/lib/libicutu.a <INSTALL_DIR>/lib/libicuuc.a
@@ -324,13 +329,14 @@ add_cmake_external_project_from_vendored_source_tarball(LIBUNWIND
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/libunwind
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/ExternalLibraries/libunwind-1.8.3
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/libunwind/install
-        CONFIGURE_COMMAND   /bin/sh -c "cp -r <SOURCE_DIR>/* ${LIBUNWIND_SRC_DEST} && cd ${LIBUNWIND_SRC_DEST} && ${LIBUNWIND_SRC_DEST}/configure --prefix=<INSTALL_DIR> --disable-tests --disable-shared --enable-static --disable-cxx-exceptions --disable-minidebuginfo ${LIBUNWIND_CONFIGURE_ADDITIONAL_FLAGS}"
+        CONFIGURE_COMMAND   /bin/sh -c "cp -r <SOURCE_DIR>/* ${LIBUNWIND_SRC_DEST} && cd ${LIBUNWIND_SRC_DEST} && CPPFLAGS='-I${ZLIB_INSTALL_DIR}/include' LDFLAGS='-L${ZLIB_INSTALL_DIR}/lib' ${LIBUNWIND_SRC_DEST}/configure --prefix=<INSTALL_DIR> --disable-tests --disable-shared --enable-static --disable-cxx-exceptions --disable-minidebuginfo ${LIBUNWIND_CONFIGURE_ADDITIONAL_FLAGS}"
         BUILD_COMMAND       /bin/sh -c "cd ${LIBUNWIND_SRC_DEST} && ${LIBUNWIND_MAKE_ENTIRE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" CFLAGS=-fPIC CXXFLAGS=-fPIC"
         INSTALL_COMMAND     /bin/sh -c "cd ${LIBUNWIND_SRC_DEST} && ${MAKE_EXECUTABLE} install ${LIBUNWIND_MAKE_INSTALL_ADDITIONAL_FLAGS}"
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libunwind.a <INSTALL_DIR>/lib/libunwind-generic.a <INSTALL_DIR>/lib/libunwind-ptrace.a <INSTALL_DIR>/lib/libunwind-setjmp.a <INSTALL_DIR>/lib/libunwind-coredump.a
         TEST_COMMAND        ""
 )
 
+add_dependencies(LIBUNWIND zlibstatic)
 set(CACHES_BUILD_TEST OFF)
 add_subdirectory(caches-0.1.1)
 include_directories(caches-0.1.1/include)

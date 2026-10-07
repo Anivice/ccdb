@@ -6,6 +6,7 @@ script_dir="$(dirname "$(readlink -f "$0")")"
 ARCH="$1"
 BUILD_DIR="$2"
 TOOLCHAIN_ROOT="$3"
+THREADS="$4"
 TARGET="$(basename "$TOOLCHAIN_ROOT"/"$ARCH"-*/bin/*-addr2line | awk -F'-' '{ for (i=1; i<NF; i++) printf "%s%s", $i, (i<NF-1?OFS:RS) }' | tr ' ' '-')"
 TARGET=$(echo $TARGET)
 if [ -z "$TARGET" ]; then echo "Unknown arch $ARCH" >&2; exit 1; fi
@@ -48,7 +49,20 @@ case $ARCH in
     ;;
 esac
 
-CMAKE_CFLAGS="-O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2"
+mkdir -p "$BUILD_DIR"/
+
+if ! [ -e "$BUILD_DIR"/icu-native_STAMP ]; then
+  rm -rf "$BUILD_DIR"/icu-native && rm -f "$BUILD_DIR"/icu-native_STAMP && \
+    cp -r "$script_dir"/ExternalLibraries/icu4c-78.3/ "$BUILD_DIR"/icu-native && \
+    cd "$BUILD_DIR"/icu-native && \
+    export CXXFLAGS='-fPIC -std=c++17' CFLAGS='-fPIC -std=c11' CC="gcc" CXX="g++" && \
+    if ccache -V >/dev/null; then CC="$(command -v ccache) gcc" CXX="$(command -v ccache) g++"; export CC CXX; fi && \
+    echo "CC=$CC, CXX=$CXX" && \
+    source/configure --prefix="$BUILD_DIR"/icu-native/ --disable-shared --enable-static --disable-tests --disable-samples && \
+    make -j$THREADS && touch "$BUILD_DIR"/icu-native_STAMP || exit 1
+fi
+
+CMAKE_CFLAGS="-O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2 -fwhole-program -flto"
 export CXXFLAGS="$CMAKE_CFLAGS"
 export CFLAGS="$CMAKE_CFLAGS"
 export CC="$TARGET"-gcc
@@ -60,6 +74,7 @@ export STRIP="$TARGET"-strip
 MUSL_SYSROOT="$(echo "$TOOLCHAIN_ROOT/$ARCH-"*)"
 export MUSL_SYSROOT="$MUSL_SYSROOT/"
 echo "$MUSL_SYSROOT"
+
 env PATH="$MUSL_SYSROOT"/bin/:"$PATH" cmake -B "$BUILD_DIR" -S "$script_dir" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_SYSTEM_NAME=Linux \
@@ -73,18 +88,22 @@ env PATH="$MUSL_SYSROOT"/bin/:"$PATH" cmake -B "$BUILD_DIR" -S "$script_dir" \
             -DREADLINE_CONFIGURE_ADDITIONAL_FLAGS="--host=$ARCH" \
             -DTAR_CONFIGURE_ADDITIONAL_FLAGS="--host=$ARCH" \
             -DNCURSES_CONFIGURE_ADDITIONAL_FLAGS="--disable-stripping;--host=$ARCH" \
+            -DICU_CONFIG_ADDITIONAL_FLAGS="--host=$ARCH-linux-musl --build=x86_64-pc-linux-gnu --with-cross-build=\"$(realpath "$BUILD_DIR")\"/icu-native" \
+            -DLIBPSL_CONFIGURE_ADDITIONAL_FLAGS="--host=$ARCH" \
+            -DLIBUNWIND_CONFIGURE_ADDITIONAL_FLAGS="--host=$ARCH-linux-musl;--build=x86_64-pc-linux-gnu" \
             -DCMAKE_STRIP="$MUSL_SYSROOT/bin/$STRIP" \
-            -DNCURSES_MAKE_ADDITIONAL_FLAGS="CFLAGS=\"$CMAKE_CFLAGS\" CXXFLAGS=\"$CMAKE_CFLAGS\" -j$(nproc)" \
-            -DREADLINE_MAKE_ADDITIONAL_FLAGS="CFLAGS=\"$CMAKE_CFLAGS\" CXXFLAGS=\"$CMAKE_CFLAGS\" -j$(nproc)" \
-            -DOPENSSL_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
-            -DPERL_MAKE_ADDITIONAL_FLAGS="-j$(nproc)" \
-            -DTAR_MAKE_ENTIRE="-j$(nproc)" \
+            -DNCURSES_MAKE_ADDITIONAL_FLAGS="CFLAGS=\"$CMAKE_CFLAGS\" CXXFLAGS=\"$CMAKE_CFLAGS\" -j$THREADS" \
+            -DREADLINE_MAKE_ADDITIONAL_FLAGS="CFLAGS=\"$CMAKE_CFLAGS\" CXXFLAGS=\"$CMAKE_CFLAGS\" -j$THREADS" \
+            -DOPENSSL_MAKE_ADDITIONAL_FLAGS="-j$THREADS" \
+            -DPERL_MAKE_ADDITIONAL_FLAGS="-j$THREADS" \
+            -DPERL_CONFIGURE_ADDITIONAL_FLAGS="LDFLAGS=-static" \
+            -DTAR_MAKE_ENTIRE="-j$THREADS" \
             -DOPENSSL_TARGET="$OPENSSL_TARGET" \
             -DOPENSSL_LIBP="$OPENSSL_LIB_EXPORT_PREFIX" \
             -DCMAKE_BUILD_STATIC="True"
 pushd "$PWD"
 cd "$BUILD_DIR"
-env PATH="$MUSL_SYSROOT"/bin/:"$PATH" make CFLAGS="$CMAKE_CFLAGS" CXXFLAGS="$CMAKE_CFLAGS" -j"$(nproc)"
+env PATH="$MUSL_SYSROOT"/bin/:"$PATH" make CFLAGS="$CMAKE_CFLAGS" CXXFLAGS="$CMAKE_CFLAGS" -j"$THREADS"
 cp ccdb ccdb.debug_info
 env PATH="$MUSL_SYSROOT"/bin/:"$PATH" "$STRIP" ccdb
 popd

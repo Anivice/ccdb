@@ -18,8 +18,6 @@ include(ExternalProject)
 
 set(MAKE_CC_EXEC "${CMAKE_C_COMPILER}")
 set(MAKE_CXX_EXEC "${CMAKE_CXX_COMPILER}")
-set(PerlEnv "env CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" LD= ")
-set(PerlTail "")
 find_program(CCACHE_PROGRAM ccache)
 # message(STATUS ${CCACHE_PROGRAM})
 if (   (NOT "${CCACHE_PROGRAM}" STREQUAL "CCACHE_PROGRAM-NOTFOUND") AND (NOT "${CCACHE_PROGRAM}" STREQUAL "NOTFOUND") AND ("${DO_NOT_USE_CCACHE}" STREQUAL "" OR (NOT "${DO_NOT_USE_CCACHE}" STREQUAL "True"))   )
@@ -39,6 +37,15 @@ message(STATUS "C: ${MAKE_CC_EXEC} C++: ${MAKE_CXX_EXEC}")
 if ("${NO_USE_PERL_AS_NATIVE}" STREQUAL "True")
     set(PerlEnv "")
 endif ()
+
+set(ZLIB_BUILD_TESTING "OFF")
+set(ZLIB_BUILD_SHARED "OFF")
+set(ZLIB_INCLUDE_DIRS
+        "${CMAKE_BINARY_DIR}/misc/img/zlib-1.3.2"
+        "${CMAKE_SOURCE_DIR}/misc/img/zlib-1.3.2"
+)
+add_subdirectory(misc/img/zlib-1.3.2)
+include_directories("${ZLIB_INCLUDE_DIRS}")
 
 add_subdirectory(ExternalLibraries)
 add_executable(xxd compile_utils/xxd.c)
@@ -181,6 +188,10 @@ set(CCDB_SRC_FILES
 if ("${CMAKE_BUILD_STATIC}" STREQUAL "True")
     add_executable(ccdb ${CCDB_SRC_FILES})
     target_compile_definitions(ccdb PRIVATE __STATIC_MUSL__=1 APPIMAGE_BUILD=1)
+    if (NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+        target_compile_options(ccdb PRIVATE -fwhole-program)
+        target_link_options(ccdb PRIVATE -fwhole-program)
+    endif ()
 else ()
     add_library(ccdb SHARED ${CCDB_SRC_FILES})
 endif ()
@@ -237,6 +248,9 @@ else ()
         set_target_properties(ccdb PROPERTIES LINK_SEARCH_START_STATIC 1)
         set_target_properties(ccdb PROPERTIES LINK_SEARCH_END_STATIC 1)
         set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+    else ()
+        target_compile_options(ccdb PRIVATE -fuse-linker-plugin)
+        target_link_options(ccdb PRIVATE -fuse-linker-plugin)
     endif ()
     string(REPLACE " " ";" CC_ADDITIONAL_OPTIONS_CHAIN "${CC_ADDITIONAL_OPTIONS}")
     string(REPLACE " " ";" LD_ADDITIONAL_OPTIONS_CHAIN "${LD_ADDITIONAL_OPTIONS}")
@@ -249,24 +263,15 @@ else ()
     endif ()
     add_dependencies(ccdb READLINE NCURSES)
     target_compile_definitions(ccdb PRIVATE NCURSES_STATIC USE_TSL_HOPSCOTCH_MAP)
-    target_compile_options(ccdb PRIVATE -O3 -flto -fuse-linker-plugin -fdevirtualize-at-ltrans -fno-omit-frame-pointer -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2 -fno-rtti -fvisibility=hidden)
-    target_link_options(ccdb PRIVATE -Wl,--version-script=${CMAKE_SOURCE_DIR}/script/stripper.map -flto -fuse-linker-plugin -fdevirtualize-at-ltrans -O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2)
+    target_compile_options(ccdb PRIVATE -O3 -flto -fdevirtualize-at-ltrans -fno-omit-frame-pointer -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2 -fno-rtti -fvisibility=hidden)
+    target_link_options(ccdb PRIVATE -Wl,--version-script=${CMAKE_SOURCE_DIR}/script/stripper.map -flto -fdevirtualize-at-ltrans -O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2)
 endif ()
 
 if ("${CCDB_COMPILE_WITH_IMG}" STREQUAL "True")
-    set(ZLIB_BUILD_TESTING "OFF")
-    set(ZLIB_BUILD_SHARED "OFF")
     set(PNG_SHARED OFF)
     set(PNG_STATIC ON)
     set(PNG_TESTS OFF)
     set(PNG_TOOLS OFF)
-    set(ZLIB_INCLUDE_DIRS
-            "${CMAKE_BINARY_DIR}/misc/img/zlib-1.3.2"
-            "${CMAKE_SOURCE_DIR}/misc/img/zlib-1.3.2"
-    )
-    set(ZLIB_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/misc/img/zlib-1.3.2")
-
-    add_subdirectory(misc/img/zlib-1.3.2)
     add_subdirectory(misc/img/libpng-1.6.58)
     add_dependencies(png_static ZLIB::ZLIBSTATIC)
     add_library(tiv STATIC misc/img/CImg.h misc/img/tiv_lib.cpp misc/img/tiv_lib.h misc/img/libtiv.cpp)
@@ -282,9 +287,7 @@ if ("${CCDB_COMPILE_WITH_IMG}" STREQUAL "True")
             misc/img/libpng-1.6.58
             "${CMAKE_BINARY_DIR}/misc/img/libpng-1.6.58/"
             "${CMAKE_BINARY_DIR}"
-            include misc/img
-            "misc/img/zlib-1.3.2"
-            "${CMAKE_BINARY_DIR}/misc/img/zlib-1.3.2")
+            include misc/img)
     target_link_libraries(tiv PRIVATE png_static img_8f87efc1c0d8fc8c)
     add_dependencies(tiv png_static)
     target_link_libraries(ccdb PRIVATE tiv)

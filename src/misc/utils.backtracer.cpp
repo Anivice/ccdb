@@ -471,6 +471,7 @@ namespace ccdb
     const init_crash_report_t::flatSymbolicTable_t* GetBacktrace(const init_crash_report_t::flatSymbolicTable_t* symbolic_table,
         const uint64_t symSize, const uint64_t symbol) noexcept
     {
+#ifndef __STATIC_MUSL__
         if (symbolic_table == nullptr || symSize == 0)
             return nullptr;
 
@@ -493,6 +494,9 @@ namespace ccdb
         // First element > symbol is lo,
         // therefore lo - 1 is the greatest element <= symbol.
         return &symbolic_table[lo - 1];
+#else
+        return nullptr;
+#endif
     }
 }
 

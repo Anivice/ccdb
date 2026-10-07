@@ -44,8 +44,10 @@
 #include "default_color_scheme.h"
 #include "json.hpp"
 
+#ifndef __STATIC_MUSL__
 extern unsigned char debugInfo[] ;
 extern unsigned int debugInfo_len ;
+#endif //__STATIC_MUSL__
 
 namespace utils = ccdb::utils;
 
@@ -76,7 +78,7 @@ namespace
         { .short_name = -1,  .long_name = "dns-over-https-query", .argument_required = true, .description = utils::get_text("Loading MaxMind GeoIP database will enable DoH audit for `destination`, this option specify how DNS is resolved.") },
 #endif
     };
-
+#ifdef __CCDB_ENABLE_LOCAL_MULTICASTING__
     [[nodiscard]]
     bool addr_to_string(sockaddr *sa, char *buf, const size_t buflen)
     {
@@ -147,7 +149,8 @@ namespace
         freeifaddrs(ifaddr);
         return { };
     }
-
+#endif //__CCDB_ENABLE_LOCAL_MULTICASTING__
+#ifndef __STATIC_MUSL__
     std::string demangle(const char* name)
     {
         int status = -4;
@@ -157,9 +160,11 @@ namespace
         };
         return (status == 0) ? res.get() : name;
     }
+#endif //__STATIC_MUSL__
 
     void init_backtrace(const bool quiet)
     {
+#ifndef __STATIC_MUSL__
         // load symbol tables
         std::string objdump_raw;
         {
@@ -202,6 +207,7 @@ namespace
 
         ccdb::init_crash_report.flatSymbolicTable_literal = ccdb::init_crash_report.flatSymbolicTable.data();
         ccdb::init_crash_report.flatSymbolicTable_Size_literal = ccdb::init_crash_report.flatSymbolicTable.size();
+#endif //__STATIC_MUSL__
     }
 
     std::string addr2line(const std::string & path, const std::string & name)
@@ -224,13 +230,19 @@ namespace
         return { };
     }
 
+#ifndef __STATIC_MUSL__
     void runFeedBacktrace()
+#else //__STATIC_MUSL__
+    void runFeedBacktrace(const std::string & path)
+#endif //__STATIC_MUSL__
     {
+#ifndef __STATIC_MUSL__
         if (ccdb::init_crash_report.flatSymbolicTable.empty() ||
                 ccdb::init_crash_report.landmark_addr_in_symbol_map == UINT64_MAX)
         {
             utils::print<utils::is_error>("No symbol table provided\n");
         }
+#endif //__STATIC_MUSL__
 
         using InfoType =  std::vector<std::pair <uint64_t, std::string >>;
         std::vector<std::pair<uint64_t, InfoType >> backtraces;
@@ -261,8 +273,12 @@ namespace
             }
         }
 
-        const auto result = utils::getenv("DO_NOT_USE_ADDR2LINE") == "true" ? false :
+        const auto result =
+#ifndef __STATIC_MUSL__
+            utils::getenv("DO_NOT_USE_ADDR2LINE") == "true" ? false :
+#endif //__STATIC_MUSL__
             utils::exec_command2("/bin/sh", "addr2line --help").exit_status == 0;
+#ifndef __STATIC_MUSL__
         const auto it = std::ranges::find_if(ccdb::init_crash_report.flatObjectRuntimeTable,
             [](const auto & obj)->bool
             {
@@ -273,6 +289,9 @@ namespace
 
                 return false;
             });
+#else //__STATIC_MUSL__
+        if (!result) throw std::runtime_error("Cannot find addr2line");
+#endif //__STATIC_MUSL__
 
         std::map <uint64_t, std::string> backtraces_lines;
         for (const auto & [tid, vec] : backtraces)
@@ -284,6 +303,7 @@ namespace
                 {
                     const thread_local std::regex has_external_lib_reg(R"(0x[0-9|A-F]+ \#(.*)\: (0x[0-9|A-F]+))");
                     const auto frame = static_cast<int64_t>(vec[i].first);
+#ifndef __STATIC_MUSL__
                     const ccdb::init_crash_report_t::flatSymbolicTable_t * sym_name = nullptr;
                     if (frame >= 0)
                     {
@@ -293,22 +313,34 @@ namespace
 
                     if (sym_name)
                     {
+#endif //__STATIC_MUSL__
                         std::string info;
+#ifndef __STATIC_MUSL__
                         if (result && it != ccdb::init_crash_report.flatObjectRuntimeTable.end())
+#endif //__STATIC_MUSL__
                         {
                             std::stringstream ss; ss << std::hex << frame;
-                            info = addr2line(it->name, "0x" + ss.str());
+                            info = addr2line(
+#ifndef __STATIC_MUSL__
+                                it->name
+#else //__STATIC_MUSL__
+                                path
+#endif //__STATIC_MUSL__
+                                , "0x" + ss.str());
                         }
 
+#ifndef __STATIC_MUSL__
                         if (info.empty() || info.find("??") != std::string::npos) // no info or addr2line has found nothing
                         {
                             std::stringstream ss_;
                             ss_ << std::setw(16) << std::hex << std::setfill('0') << frame << ": " << demangle(sym_name->name);
                             info = ss_.str();
                         }
+#endif //__STATIC_MUSL__
 
                         const auto line = utils::sprint("  #", std::setw(6), std::setfill('0'), std::dec, i, " -> ", info, "\n");
                         backtraces_lines.emplace(i, line);
+#ifndef __STATIC_MUSL__
                     }
                     else if (std::smatch sm; result && std::regex_search(vec[i].second, sm, has_external_lib_reg))
                     {
@@ -321,6 +353,7 @@ namespace
                             backtraces_lines.emplace(i, vec[i].second);
                         }
                     }
+#endif //__STATIC_MUSL__
                 }
             }
 
@@ -514,7 +547,11 @@ main
 
         if (feedBacktrace)
         {
+#ifndef __STATIC_MUSL__
             runFeedBacktrace();
+#else //__STATIC_MUSL__
+            runFeedBacktrace(*argv);
+#endif //__STATIC_MUSL__
             return EXIT_SUCCESS;
         }
 #endif
@@ -572,6 +609,7 @@ main
             ss << argv[i] << " ";
         }
         utils::setenv("CCDB", ss.str());
+#ifdef __CCDB_ENABLE_LOCAL_MULTICASTING__
         if (const auto CCDB_SYNC_ADDRESS_BIND_TO = utils::getenv("CCDB_SYNC_ADDRESS_BIND_TO");
             CCDB_SYNC_ADDRESS_BIND_TO.empty())
         {
@@ -588,6 +626,7 @@ main
                 ::setenv("CCDB_SYNC_ADDRESS_BIND_TO", "ADDR_ANY", 1);
             }
         }
+#endif //__CCDB_ENABLE_LOCAL_MULTICASTING__
 
         // verify connection
         if (const auto backend_name = testBackend(backend, token); !backend_name.empty()) {
