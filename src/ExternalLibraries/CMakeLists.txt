@@ -1,7 +1,85 @@
+# EXTERNAL_PROJECT_OPTIONS contains ExternalProject_Add keywords (including
+# command argv and DEPENDS), forwarded unchanged. Common timeout/configure
+# settings are supplied here.
+# Additional keywords:
+#   PREPARE_DIRECTORIES        directories created before ExternalProject_Add
+#   MAKE_DIRECTORIES           directories created after ExternalProject_Add
+#   EXPORT_DIRECTORY_VARIABLES prefix for <prefix>_INCLUDE_DIR / _LIB_DIR;
+#                              also preserves the caller's INSTALL_DIR variable
+#   PKGCONFIG_VARIABLE         caller variable receiving <INSTALL_DIR>/lib/pkgconfig
+#   IMPORTED_LIBRARIES          pairs of imported target name and archive path
+#   BUNDLE_TARGET              optional imported INTERFACE target
+#   BUNDLE_LIBRARIES           ordered libraries linked by that target
+#   BUNDLE_DEPENDS             explicit dependencies of that target (no defaults)
+#   GLOBAL_INCLUDE_DIRECTORIES ordered directory-wide include paths
+# MAKE_DIRECTORIES, IMPORTED_LIBRARIES and GLOBAL_INCLUDE_DIRECTORIES paths
+# may contain <INSTALL_DIR>. PREPARE_DIRECTORIES uses literal paths.
+function(add_cmake_external_project_from_vendored_source_tarball name)
+    cmake_parse_arguments(PARSE_ARGV 1 vendored
+        ""
+        "EXPORT_DIRECTORY_VARIABLES;PKGCONFIG_VARIABLE;BUNDLE_TARGET"
+        "PREPARE_DIRECTORIES;MAKE_DIRECTORIES;IMPORTED_LIBRARIES;BUNDLE_LIBRARIES;BUNDLE_DEPENDS;GLOBAL_INCLUDE_DIRECTORIES;EXTERNAL_PROJECT_OPTIONS"
+    )
+
+    if(vendored_PREPARE_DIRECTORIES)
+        file(MAKE_DIRECTORY ${vendored_PREPARE_DIRECTORIES})
+    endif()
+
+    ExternalProject_Add(${name}
+        INACTIVITY_TIMEOUT 15
+        CONFIGURE_HANDLED_BY_BUILD ON
+        ${vendored_EXTERNAL_PROJECT_OPTIONS}
+    )
+    ExternalProject_Get_Property(${name} INSTALL_DIR)
+
+    foreach(keyword IN ITEMS MAKE_DIRECTORIES IMPORTED_LIBRARIES GLOBAL_INCLUDE_DIRECTORIES)
+        string(REPLACE "<INSTALL_DIR>" "${INSTALL_DIR}"
+            vendored_${keyword} "${vendored_${keyword}}")
+    endforeach()
+
+    if(vendored_EXPORT_DIRECTORY_VARIABLES)
+        set(INSTALL_DIR "${INSTALL_DIR}" PARENT_SCOPE)
+        set(${vendored_EXPORT_DIRECTORY_VARIABLES}_INCLUDE_DIR "${INSTALL_DIR}/include" PARENT_SCOPE)
+        set(${vendored_EXPORT_DIRECTORY_VARIABLES}_LIB_DIR "${INSTALL_DIR}/lib" PARENT_SCOPE)
+    endif()
+    if(vendored_PKGCONFIG_VARIABLE)
+        set(${vendored_PKGCONFIG_VARIABLE} "${INSTALL_DIR}/lib/pkgconfig" PARENT_SCOPE)
+    endif()
+    if(vendored_MAKE_DIRECTORIES)
+        file(MAKE_DIRECTORY ${vendored_MAKE_DIRECTORIES})
+    endif()
+
+    # Each pair allows the public target name to differ from the archive name.
+    list(LENGTH vendored_IMPORTED_LIBRARIES library_count)
+    math(EXPR library_remainder "${library_count} % 2")
+    if(library_remainder)
+        message(FATAL_ERROR "${name}: IMPORTED_LIBRARIES requires target/path pairs")
+    endif()
+    while(vendored_IMPORTED_LIBRARIES)
+        list(POP_FRONT vendored_IMPORTED_LIBRARIES library_target library_path)
+        add_library(${library_target} STATIC IMPORTED GLOBAL)
+        set_target_properties(${library_target} PROPERTIES
+            IMPORTED_LOCATION "${library_path}"
+            INTERFACE_INCLUDE_DIRECTORIES "${INSTALL_DIR}/include"
+        )
+    endwhile()
+
+    if(vendored_BUNDLE_TARGET)
+        add_library(${vendored_BUNDLE_TARGET} INTERFACE IMPORTED GLOBAL)
+        target_link_libraries(${vendored_BUNDLE_TARGET} INTERFACE ${vendored_BUNDLE_LIBRARIES})
+        if(vendored_BUNDLE_DEPENDS)
+            add_dependencies(${vendored_BUNDLE_TARGET} ${vendored_BUNDLE_DEPENDS})
+        endif()
+    endif()
+    foreach(include_dir IN LISTS vendored_GLOBAL_INCLUDE_DIRECTORIES)
+        include_directories("${include_dir}")
+    endforeach()
+endfunction()
 
 # Perl
-file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/ExternalLibraries/perl-5.42.0/p)
-ExternalProject_Add(PERL
+add_cmake_external_project_from_vendored_source_tarball(PERL
+    PREPARE_DIRECTORIES ${CMAKE_BINARY_DIR}/ExternalLibraries/perl-5.42.0/p
+    EXTERNAL_PROJECT_OPTIONS
         PREFIX              ${CMAKE_BINARY_DIR}/perl
         SOURCE_DIR          ${CMAKE_BINARY_DIR}/ExternalLibraries/perl-5.42.0
         INSTALL_DIR         ${CMAKE_BINARY_DIR}/perl/install
@@ -14,8 +92,6 @@ ExternalProject_Add(PERL
         BUILD_COMMAND       sh -c "cd <SOURCE_DIR> && ${PerlEnv} ${MAKE_EXECUTABLE} ${PERL_MAKE_ADDITIONAL_FLAGS} ${PerlTail}"
         INSTALL_COMMAND     sh -c "cd <SOURCE_DIR> && ${MAKE_EXECUTABLE} install ${PERL_MAKE_INSTALL_ADDITIONAL_FLAGS}"
         TEST_COMMAND        ""
-        INACTIVITY_TIMEOUT  15
-        CONFIGURE_HANDLED_BY_BUILD ON
 )
 
 set(OPENSSL_TARGET "${OPENSSL_TARGET}")
@@ -31,7 +107,14 @@ endif ()
 # OpenSSL
 set(OPENSSL_MAKE_ENTIRE "${MAKE_EXECUTABLE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" ${OPENSSL_MAKE_ADDITIONAL_FLAGS}")
 message(STATUS "OpenSSL: ${OPENSSL_MAKE_ENTIRE}")
-ExternalProject_Add(OPENSSL
+add_cmake_external_project_from_vendored_source_tarball(OPENSSL
+    MAKE_DIRECTORIES "${CMAKE_BINARY_DIR}/openssl/install/include" "${CMAKE_BINARY_DIR}/openssl/install/lib64/"
+    IMPORTED_LIBRARIES
+        openssl::libcrypto "${CMAKE_BINARY_DIR}/openssl/install/${OPENSSL_LIBP}/libcrypto.a"
+        openssl::libssl "${CMAKE_BINARY_DIR}/openssl/install/${OPENSSL_LIBP}/libssl.a"
+    BUNDLE_TARGET openssl::openssl
+    BUNDLE_LIBRARIES openssl::libssl openssl::libcrypto
+    EXTERNAL_PROJECT_OPTIONS
         PREFIX              ${CMAKE_BINARY_DIR}/openssl
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/ExternalLibraries/openssl-4.0.2
         INSTALL_DIR         ${CMAKE_BINARY_DIR}/openssl/install
@@ -42,37 +125,29 @@ ExternalProject_Add(OPENSSL
         INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${OPENSSL_MAKE_INSTALL_ADDITIONAL_FLAGS}
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/${OPENSSL_LIBP}/libcrypto.a  <INSTALL_DIR>/${OPENSSL_LIBP}/libssl.a
         TEST_COMMAND        ""
-        INACTIVITY_TIMEOUT  15
-        CONFIGURE_HANDLED_BY_BUILD ON
         DEPENDS PERL
-)
-
-file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/openssl/install/include" "${CMAKE_BINARY_DIR}/openssl/install/lib64/")
-
-# Export to CMake
-add_library(openssl::libcrypto STATIC IMPORTED GLOBAL)
-set_target_properties(openssl::libcrypto PROPERTIES
-        IMPORTED_LOCATION             "${CMAKE_BINARY_DIR}/openssl/install/${OPENSSL_LIBP}/libcrypto.a"
-        INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_BINARY_DIR}/openssl/install/include"
-)
-
-add_library(openssl::libssl STATIC IMPORTED GLOBAL)
-set_target_properties(openssl::libssl PROPERTIES
-        IMPORTED_LOCATION             "${CMAKE_BINARY_DIR}/openssl/install/${OPENSSL_LIBP}/libssl.a"
-        INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_BINARY_DIR}/openssl/install/include"
-)
-
-add_library(openssl::openssl INTERFACE IMPORTED GLOBAL)
-target_link_libraries(openssl::openssl INTERFACE
-        openssl::libssl
-        openssl::libcrypto
 )
 
 # ICU
 set(ICU_MAKE_ENTIRE "${MAKE_EXECUTABLE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" ${ICU_MAKE_ADDITIONAL_FLAGS}")
 message(STATUS "ICU: ${ICU_MAKE_ENTIRE}")
-file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/ExternalLibraries/icu4c/p)
-ExternalProject_Add(ICU
+add_cmake_external_project_from_vendored_source_tarball(ICU
+    PREPARE_DIRECTORIES ${CMAKE_BINARY_DIR}/ExternalLibraries/icu4c/p
+
+    EXPORT_DIRECTORY_VARIABLES ICU
+    PKGCONFIG_VARIABLE ICU_PKGCONFIG_DIR
+    MAKE_DIRECTORIES "<INSTALL_DIR>/include" "<INSTALL_DIR>/lib"
+    IMPORTED_LIBRARIES
+        icu4c::libicudata "<INSTALL_DIR>/lib/libicudata.a"
+        icu4c::libicui18n "<INSTALL_DIR>/lib/libicui18n.a"
+        icu4c::libicutest "<INSTALL_DIR>/lib/libicutest.a"
+        icu4c::libicutu "<INSTALL_DIR>/lib/libicutu.a"
+        icu4c::libicuuc "<INSTALL_DIR>/lib/libicuuc.a"
+    BUNDLE_TARGET icu4c::icu4c
+    BUNDLE_LIBRARIES icu4c::libicuuc icu4c::libicudata icu4c::libicui18n icu4c::libicutu icu4c::libicutest
+    BUNDLE_DEPENDS ICU
+    GLOBAL_INCLUDE_DIRECTORIES "<INSTALL_DIR>/include"
+    EXTERNAL_PROJECT_OPTIONS
         PREFIX              ${CMAKE_BINARY_DIR}/icu4c
         SOURCE_DIR          ${CMAKE_BINARY_DIR}/ExternalLibraries/icu4c
         INSTALL_DIR         ${CMAKE_BINARY_DIR}/icu4c/install
@@ -84,67 +159,21 @@ ExternalProject_Add(ICU
                                 source/runConfigureICU Linux/gcc --prefix=<INSTALL_DIR> --disable-shared --enable-static"
         BUILD_COMMAND       /bin/sh -c "cd <SOURCE_DIR> && ${ICU_MAKE_ENTIRE}"
         INSTALL_COMMAND     /bin/sh -c "cd <SOURCE_DIR> && ${MAKE_EXECUTABLE} install ${ICU_MAKE_INSTALL_ADDITIONAL_FLAGS}"
-        INACTIVITY_TIMEOUT  15
-        CONFIGURE_HANDLED_BY_BUILD ON
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libicudata.a <INSTALL_DIR>/lib/libicui18n.a <INSTALL_DIR>/lib/libicutest.a <INSTALL_DIR>/lib/libicutu.a <INSTALL_DIR>/lib/libicuuc.a
 )
-
-ExternalProject_Get_Property(ICU INSTALL_DIR)
-set(ICU_INCLUDE_DIR "${INSTALL_DIR}/include")
-set(ICU_LIB_DIR     "${INSTALL_DIR}/lib")
-file(MAKE_DIRECTORY "${ICU_INCLUDE_DIR}" "${ICU_LIB_DIR}")
-set(ICU_PKGCONFIG_DIR "${INSTALL_DIR}/lib/pkgconfig")
-
-# Export to CMake
-add_library(icu4c::libicudata STATIC IMPORTED GLOBAL)
-set_target_properties(icu4c::libicudata PROPERTIES
-        IMPORTED_LOCATION             "${ICU_LIB_DIR}/libicudata.a"
-        INTERFACE_INCLUDE_DIRECTORIES "${ICU_INCLUDE_DIR}"
-)
-
-add_library(icu4c::libicui18n STATIC IMPORTED GLOBAL)
-set_target_properties(icu4c::libicui18n PROPERTIES
-        IMPORTED_LOCATION             "${ICU_LIB_DIR}/libicui18n.a"
-        INTERFACE_INCLUDE_DIRECTORIES "${ICU_INCLUDE_DIR}"
-)
-
-add_library(icu4c::libicutest STATIC IMPORTED GLOBAL)
-set_target_properties(icu4c::libicutest PROPERTIES
-        IMPORTED_LOCATION             "${ICU_LIB_DIR}/libicutest.a"
-        INTERFACE_INCLUDE_DIRECTORIES "${ICU_INCLUDE_DIR}"
-)
-
-add_library(icu4c::libicutu STATIC IMPORTED GLOBAL)
-set_target_properties(icu4c::libicutu PROPERTIES
-        IMPORTED_LOCATION             "${ICU_LIB_DIR}/libicutu.a"
-        INTERFACE_INCLUDE_DIRECTORIES "${ICU_INCLUDE_DIR}"
-)
-
-add_library(icu4c::libicuuc STATIC IMPORTED GLOBAL)
-set_target_properties(icu4c::libicuuc PROPERTIES
-        IMPORTED_LOCATION             "${ICU_LIB_DIR}/libicuuc.a"
-        INTERFACE_INCLUDE_DIRECTORIES "${ICU_INCLUDE_DIR}"
-)
-
-include_directories("${ICU_INCLUDE_DIR}")
-
-add_library(icu4c::icu4c INTERFACE IMPORTED GLOBAL)
-target_link_libraries(icu4c::icu4c INTERFACE
-        icu4c::libicuuc
-        icu4c::libicudata
-        icu4c::libicui18n
-        icu4c::libicutu
-        icu4c::libicutest
-)
-
-add_dependencies(icu4c::icu4c ICU)
 
 # libpsl
 
 set(LIBPSL_MAKE_ENTIRE "${MAKE_EXECUTABLE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" ${LIBPSL_MAKE_ADDITIONAL_FLAGS}")
 set(PSL_SRC_DEST ${CMAKE_BINARY_DIR}/ExternalLibraries/libpsl)
 message(STATUS "LIBPSL: ${LIBPSL_MAKE_ENTIRE}")
-ExternalProject_Add(LIBPSL
+add_cmake_external_project_from_vendored_source_tarball(LIBPSL
+    EXPORT_DIRECTORY_VARIABLES LIBPSL
+    MAKE_DIRECTORIES "<INSTALL_DIR>/include" "<INSTALL_DIR>/lib"
+    IMPORTED_LIBRARIES
+        libpsl::libpsl "<INSTALL_DIR>/lib/libpsl.a"
+    GLOBAL_INCLUDE_DIRECTORIES "<INSTALL_DIR>/include"
+    EXTERNAL_PROJECT_OPTIONS
         PREFIX              ${CMAKE_BINARY_DIR}/libpsl
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/ExternalLibraries/libpsl-0.23.3
         INSTALL_DIR         ${CMAKE_BINARY_DIR}/libpsl/install
@@ -160,30 +189,22 @@ ExternalProject_Add(LIBPSL
         INSTALL_COMMAND     /bin/sh -c "cd ${PSL_SRC_DEST} && ${MAKE_EXECUTABLE} install ${LIBPSL_MAKE_INSTALL_ADDITIONAL_FLAGS}"
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libpsl.a
         TEST_COMMAND        ""
-        INACTIVITY_TIMEOUT  15
-        CONFIGURE_HANDLED_BY_BUILD ON
         DEPENDS ICU
 )
-
-ExternalProject_Get_Property(LIBPSL INSTALL_DIR)
-set(LIBPSL_INCLUDE_DIR "${INSTALL_DIR}/include")
-set(LIBPSL_LIB_DIR     "${INSTALL_DIR}/lib")
-file(MAKE_DIRECTORY "${LIBPSL_INCLUDE_DIR}" "${LIBPSL_LIB_DIR}")
-
-# Export to CMake
-add_library(libpsl::libpsl STATIC IMPORTED GLOBAL)
-set_target_properties(libpsl::libpsl PROPERTIES
-        IMPORTED_LOCATION             "${LIBPSL_LIB_DIR}/libpsl.a"
-        INTERFACE_INCLUDE_DIRECTORIES "${LIBPSL_INCLUDE_DIR}"
-)
-
-include_directories("${LIBPSL_INCLUDE_DIR}")
 
 # Ncurses
 
 set(NCURSES_MAKE_ENTIRE "${MAKE_EXECUTABLE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" ${NCURSES_MAKE_ADDITIONAL_FLAGS}")
 message(STATUS "NCURSES: ${NCURSES_MAKE_ENTIRE}")
-ExternalProject_Add(NCURSES
+add_cmake_external_project_from_vendored_source_tarball(NCURSES
+    EXPORT_DIRECTORY_VARIABLES NCURSES
+    MAKE_DIRECTORIES "<INSTALL_DIR>/include" "<INSTALL_DIR>/lib"
+    IMPORTED_LIBRARIES
+        ncurses::ncursesw "<INSTALL_DIR>/lib/libncursesw.a"
+    BUNDLE_TARGET ncurses::ncurses
+    BUNDLE_LIBRARIES ncurses::ncursesw
+    GLOBAL_INCLUDE_DIRECTORIES "<INSTALL_DIR>/include/ncursesw" "<INSTALL_DIR>/include"
+    EXTERNAL_PROJECT_OPTIONS
         PREFIX              ${CMAKE_BINARY_DIR}/ncurses
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/ExternalLibraries/ncurses-6.6
         INSTALL_DIR         ${CMAKE_BINARY_DIR}/ncurses/install
@@ -192,35 +213,22 @@ ExternalProject_Add(NCURSES
         INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${NCURSES_MAKE_INSTALL_ADDITIONAL_FLAGS}
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libncursesw.a
         TEST_COMMAND        ""
-        INACTIVITY_TIMEOUT  15
-        CONFIGURE_HANDLED_BY_BUILD ON
-        #        DEPENDS OPENSSL
 )
-
-ExternalProject_Get_Property(NCURSES INSTALL_DIR)
-set(NCURSES_INCLUDE_DIR "${INSTALL_DIR}/include")
-set(NCURSES_LIB_DIR     "${INSTALL_DIR}/lib")
-file(MAKE_DIRECTORY "${NCURSES_INCLUDE_DIR}" "${NCURSES_LIB_DIR}")
-
-# Export to CMake
-add_library(ncurses::ncursesw STATIC IMPORTED GLOBAL)
-set_target_properties(ncurses::ncursesw PROPERTIES
-        IMPORTED_LOCATION             "${NCURSES_LIB_DIR}/libncursesw.a"
-        INTERFACE_INCLUDE_DIRECTORIES "${NCURSES_INCLUDE_DIR}"
-)
-
-add_library(ncurses::ncurses INTERFACE IMPORTED GLOBAL)
-target_link_libraries(ncurses::ncurses INTERFACE ncurses::ncursesw)
-
-#add_dependencies(ncurses::ncurses NCURSES)
-include_directories("${NCURSES_INCLUDE_DIR}/ncursesw")
-include_directories("${NCURSES_INCLUDE_DIR}")
 
 # Readline
 
 set(READLINE_MAKE_ENTIRE "${MAKE_EXECUTABLE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" ${READLINE_MAKE_ADDITIONAL_FLAGS} CFLAGS=-fPIC CXXFLAGS=-fPIC")
 message(STATUS "READLINE: ${READLINE_MAKE_ENTIRE}")
-ExternalProject_Add(READLINE
+add_cmake_external_project_from_vendored_source_tarball(READLINE
+    EXPORT_DIRECTORY_VARIABLES READLINE
+    MAKE_DIRECTORIES "<INSTALL_DIR>/include" "<INSTALL_DIR>/lib"
+    IMPORTED_LIBRARIES
+        readline::readlineas "<INSTALL_DIR>/lib/libreadline.a"
+        readline::libhistory "<INSTALL_DIR>/lib/libhistory.a"
+    BUNDLE_TARGET readline::readline
+    BUNDLE_LIBRARIES readline::readlineas readline::libhistory
+    GLOBAL_INCLUDE_DIRECTORIES "<INSTALL_DIR>/include/readline" "<INSTALL_DIR>/include"
+    EXTERNAL_PROJECT_OPTIONS
         PREFIX              ${CMAKE_BINARY_DIR}/readline
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/ExternalLibraries/readline-8.3
         INSTALL_DIR         ${CMAKE_BINARY_DIR}/readline/install
@@ -232,38 +240,8 @@ ExternalProject_Add(READLINE
         INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${READLINE_MAKE_INSTALL_ADDITIONAL_FLAGS}
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libhistory.a <INSTALL_DIR>/lib/libreadline.a
         TEST_COMMAND        ""
-        INACTIVITY_TIMEOUT  15
-        CONFIGURE_HANDLED_BY_BUILD ON
         DEPENDS NCURSES
 )
-
-ExternalProject_Get_Property(READLINE INSTALL_DIR)
-set(READLINE_INCLUDE_DIR "${INSTALL_DIR}/include")
-set(READLINE_LIB_DIR     "${INSTALL_DIR}/lib")
-file(MAKE_DIRECTORY "${READLINE_INCLUDE_DIR}" "${READLINE_LIB_DIR}")
-
-# Export to CMake
-add_library(readline::readlineas STATIC IMPORTED GLOBAL)
-set_target_properties(readline::readlineas PROPERTIES
-        IMPORTED_LOCATION               "${READLINE_LIB_DIR}/libreadline.a"
-        INTERFACE_INCLUDE_DIRECTORIES   "${READLINE_INCLUDE_DIR}"
-)
-
-add_library(readline::libhistory STATIC IMPORTED GLOBAL)
-set_target_properties(readline::libhistory PROPERTIES
-        IMPORTED_LOCATION               "${READLINE_LIB_DIR}/libhistory.a"
-        INTERFACE_INCLUDE_DIRECTORIES   "${READLINE_INCLUDE_DIR}"
-)
-
-# Bundle target consumers can link to
-add_library(readline::readline INTERFACE IMPORTED GLOBAL)
-target_link_libraries(readline::readline INTERFACE
-        readline::readlineas
-        readline::libhistory
-)
-
-include_directories("${READLINE_INCLUDE_DIR}/readline")
-include_directories("${READLINE_INCLUDE_DIR}")
 
 # Embedded tar
 set(TAR_LD_FLAGS "")
@@ -278,9 +256,10 @@ endif ()
 
 set(TAR_MAKE_ENTIRE "${MAKE_EXECUTABLE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" ${TAR_MAKE_ADDITIONAL_FLAGS}")
 message(STATUS "TAR: ${TAR_MAKE_ENTIRE}")
-file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/ExternalLibraries/tar-1.35/p)
 set(tar_dest "${CMAKE_BINARY_DIR}/ExternalLibraries/tar-1.35/")
-ExternalProject_Add(TAR
+add_cmake_external_project_from_vendored_source_tarball(TAR
+    PREPARE_DIRECTORIES ${CMAKE_BINARY_DIR}/ExternalLibraries/tar-1.35/p
+    EXTERNAL_PROJECT_OPTIONS
         PREFIX              ${CMAKE_BINARY_DIR}/tar
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/ExternalLibraries/tar-1.35
         INSTALL_DIR         ${CMAKE_BINARY_DIR}/tar/install
@@ -292,8 +271,6 @@ ExternalProject_Add(TAR
         BUILD_COMMAND       /bin/sh -c "cd \"${tar_dest}\" && ${TAR_MAKE_ENTIRE} CFLAGS=\"${TAR_C_FLAGS}\" LDFLAGS=\"${TAR_LD_FLAGS}\""
         INSTALL_COMMAND     /bin/sh -c "cd \"${tar_dest}\" && ${MAKE_EXECUTABLE} install ${TAR_MAKE_INSTALL_ADDITIONAL_FLAGS} && STRIP=${CMAKE_STRIP} ${CMAKE_SOURCE_DIR}/script/strip.sh \"<INSTALL_DIR>/bin/tar\""
         TEST_COMMAND        <INSTALL_DIR>/bin/tar --version
-        INACTIVITY_TIMEOUT  15
-        CONFIGURE_HANDLED_BY_BUILD ON
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/bin/tar
 )
 
@@ -301,8 +278,17 @@ ExternalProject_Add(TAR
 if ("${CCDB_FUCKAROUND_BUILD}" STREQUAL "True")
     set(MAXMIND_MAKE_ENTIRE "${MAKE_EXECUTABLE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" ${MAXMIND_MAKE_ADDITIONAL_FLAGS} CFLAGS=-fPIC CXXFLAGS=-fPIC")
     message(STATUS "MAXMIND: ${MAXMIND_MAKE_ENTIRE}")
-    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb/p)
-    ExternalProject_Add(MAXMIND
+    add_cmake_external_project_from_vendored_source_tarball(MAXMIND
+        PREPARE_DIRECTORIES ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb/p
+
+        EXPORT_DIRECTORY_VARIABLES MAXMIND
+        MAKE_DIRECTORIES "<INSTALL_DIR>/include" "<INSTALL_DIR>/lib"
+        IMPORTED_LIBRARIES
+            maxmind::libmaxminddb "<INSTALL_DIR>/lib/libmaxminddb.a"
+        BUNDLE_TARGET maxmind::libmaxmind
+        BUNDLE_LIBRARIES maxmind::libmaxminddb
+        GLOBAL_INCLUDE_DIRECTORIES "<INSTALL_DIR>/include"
+        EXTERNAL_PROJECT_OPTIONS
             PREFIX              ${CMAKE_BINARY_DIR}/libmaxminddb
             SOURCE_DIR          ${CMAKE_SOURCE_DIR}/ExternalLibraries/libmaxminddb-1.13.3
             INSTALL_DIR         ${CMAKE_BINARY_DIR}/libmaxminddb/install
@@ -317,32 +303,24 @@ if ("${CCDB_FUCKAROUND_BUILD}" STREQUAL "True")
             INSTALL_COMMAND     /bin/sh -c "cd ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb/ && ${MAKE_EXECUTABLE} install ${MAXMIND_MAKE_INSTALL_ADDITIONAL_FLAGS}"
             INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libmaxminddb.a
             TEST_COMMAND        ""
-            INACTIVITY_TIMEOUT  15
-            CONFIGURE_HANDLED_BY_BUILD ON
     )
 
-    ExternalProject_Get_Property(MAXMIND INSTALL_DIR)
-    set(MAXMIND_INCLUDE_DIR "${INSTALL_DIR}/include")
-    set(MAXMIND_LIB_DIR     "${INSTALL_DIR}/lib")
-    file(MAKE_DIRECTORY "${MAXMIND_INCLUDE_DIR}" "${MAXMIND_LIB_DIR}")
-
-    # Export to CMake
-    add_library(maxmind::libmaxminddb STATIC IMPORTED GLOBAL)
-    set_target_properties(maxmind::libmaxminddb PROPERTIES
-            IMPORTED_LOCATION               "${MAXMIND_LIB_DIR}/libmaxminddb.a"
-            INTERFACE_INCLUDE_DIRECTORIES   "${MAXMIND_INCLUDE_DIR}"
-    )
-
-    add_library(maxmind::libmaxmind INTERFACE IMPORTED GLOBAL)
-    target_link_libraries(maxmind::libmaxmind INTERFACE maxmind::libmaxminddb)
-    include_directories("${MAXMIND_INCLUDE_DIR}")
 endif()
 
 # libunwind
 set(LIBUNWIND_MAKE_ENTIRE "${MAKE_EXECUTABLE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" ${LIBUNWIND_MAKE_ADDITIONAL_FLAGS}")
 set(LIBUNWIND_SRC_DEST ${CMAKE_CURRENT_BINARY_DIR}/libunwind/src)
 message(STATUS "LIBUNWIND: ${LIBUNWIND_MAKE_ENTIRE}")
-ExternalProject_Add(LIBUNWIND
+add_cmake_external_project_from_vendored_source_tarball(LIBUNWIND
+    EXPORT_DIRECTORY_VARIABLES LIBUNWIND
+    MAKE_DIRECTORIES "<INSTALL_DIR>/include" "<INSTALL_DIR>/lib"
+    IMPORTED_LIBRARIES
+        libunwind::libunwind_main "<INSTALL_DIR>/lib/libunwind.a"
+        libunwind::libunwind_generic "<INSTALL_DIR>/lib/libunwind-generic.a"
+    BUNDLE_TARGET libunwind::libunwind
+    BUNDLE_LIBRARIES libunwind::libunwind_generic libunwind::libunwind_main
+    GLOBAL_INCLUDE_DIRECTORIES "<INSTALL_DIR>/include"
+    EXTERNAL_PROJECT_OPTIONS
         PREFIX              ${CMAKE_CURRENT_BINARY_DIR}/libunwind
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/ExternalLibraries/libunwind-1.8.3
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/libunwind/install
@@ -351,36 +329,7 @@ ExternalProject_Add(LIBUNWIND
         INSTALL_COMMAND     /bin/sh -c "cd ${LIBUNWIND_SRC_DEST} && ${MAKE_EXECUTABLE} install ${LIBUNWIND_MAKE_INSTALL_ADDITIONAL_FLAGS}"
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libunwind.a <INSTALL_DIR>/lib/libunwind-generic.a <INSTALL_DIR>/lib/libunwind-ptrace.a <INSTALL_DIR>/lib/libunwind-setjmp.a <INSTALL_DIR>/lib/libunwind-coredump.a
         TEST_COMMAND        ""
-        INACTIVITY_TIMEOUT  15
-        CONFIGURE_HANDLED_BY_BUILD ON
 )
-
-ExternalProject_Get_Property(LIBUNWIND INSTALL_DIR)
-set(LIBUNWIND_INCLUDE_DIR "${INSTALL_DIR}/include")
-set(LIBUNWIND_LIB_DIR     "${INSTALL_DIR}/lib")
-file(MAKE_DIRECTORY "${LIBUNWIND_INCLUDE_DIR}" "${LIBUNWIND_LIB_DIR}")
-
-# Export to CMake
-add_library(libunwind::libunwind_main STATIC IMPORTED GLOBAL)
-set_target_properties(libunwind::libunwind_main PROPERTIES
-        IMPORTED_LOCATION             "${LIBUNWIND_LIB_DIR}/libunwind.a"
-        INTERFACE_INCLUDE_DIRECTORIES "${LIBUNWIND_INCLUDE_DIR}"
-)
-
-add_library(libunwind::libunwind_generic STATIC IMPORTED GLOBAL)
-set_target_properties(libunwind::libunwind_generic PROPERTIES
-        IMPORTED_LOCATION               "${LIBUNWIND_LIB_DIR}/libunwind-generic.a"
-        INTERFACE_INCLUDE_DIRECTORIES   "${LIBUNWIND_INCLUDE_DIR}"
-)
-
-# Bundle target consumers can link to
-add_library(libunwind::libunwind INTERFACE IMPORTED GLOBAL)
-target_link_libraries(libunwind::libunwind INTERFACE
-        libunwind::libunwind_generic
-        libunwind::libunwind_main
-)
-
-include_directories("${LIBUNWIND_INCLUDE_DIR}")
 
 set(CACHES_BUILD_TEST OFF)
 add_subdirectory(caches-0.1.1)
