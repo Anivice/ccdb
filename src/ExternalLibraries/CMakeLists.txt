@@ -125,7 +125,7 @@ add_cmake_external_project_from_vendored_source_tarball(OPENSSL
         INSTALL_DIR         ${CMAKE_BINARY_DIR}/openssl/install
         CONFIGURE_COMMAND   /bin/sh -c
                                 "export PERL5LIB=\"${CMAKE_BINARY_DIR}/perl/install/lib/5.42.0/\" PATH=\"${CMAKE_BINARY_DIR}/perl/install/bin:$PATH\" && \
-                                <SOURCE_DIR>/Configure ${OPENSSL_TARGET} no-shared no-docs no-tests --prefix=<INSTALL_DIR> --openssldir=\"<INSTALL_DIR>/ssl\" ${OPENSSL_CONFIGURE_ADDITIONAL_FLAGS}"
+                                <SOURCE_DIR>/Configure ${OPENSSL_TARGET} no-shared no-docs no-tests no-apps --prefix=<INSTALL_DIR> --openssldir=\"<INSTALL_DIR>/ssl\" ${OPENSSL_CONFIGURE_ADDITIONAL_FLAGS}"
         BUILD_COMMAND       /bin/sh -c "${OPENSSL_MAKE_ENTIRE}"
         INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${OPENSSL_MAKE_INSTALL_ADDITIONAL_FLAGS}
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/${OPENSSL_LIBP}/libcrypto.a  <INSTALL_DIR>/${OPENSSL_LIBP}/libssl.a
