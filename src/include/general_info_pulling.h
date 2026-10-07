@@ -186,13 +186,16 @@ private:
 
     mihomo backend_client;
     std::atomic_bool keep_pull_continuous_updates { false };
+#ifdef __CCDB_ENABLE_LOCAL_MULTICASTING__
     std::atomic_bool alive { true };
     std::jthread ccdb_multicast_watcher;
+#endif //__CCDB_ENABLE_LOCAL_MULTICASTING__
     std::deque < std::vector < std::string > > logs;
     std::mutex logs_mutex;
     std::mutex continuous_updates_mtx_;
     ccdb::utils::thread_group continuous_update_workers_;
 
+#ifdef __CCDB_ENABLE_LOCAL_MULTICASTING__
     // UDP multicast synchronization protocol v1.
     enum class packet_type_t : std::uint8_t {
         discover = 1,
@@ -301,7 +304,7 @@ private:
     void regenerate_node_identity();
     [[nodiscard]] std::unordered_set<std::uint64_t> snapshot_peer_ids();
     [[nodiscard]] std::uint64_t next_message_id();
-
+#endif //__CCDB_ENABLE_LOCAL_MULTICASTING__
     std::mutex proxy_list_mtx;
     tsl::hopscotch_map < std::string /* group name */, std::pair < std::vector < std::string > /* proxies */, std::string /* current */ > > proxy_groups;
     std::unordered_map < std::string /* proxy name */, std::atomic_int /* latency in ms */ > proxy_latency;
@@ -335,11 +338,13 @@ public:
     ~general_info_pulling();
     const mihomo & backend_client_ref = backend_client;
 
+#ifdef __CCDB_ENABLE_LOCAL_MULTICASTING__
 private:
     void notify_all(const notifications_t & msg);
     void sendNotification(const nlohmann::json & json);
     void receiveNotification(std::vector<uint8_t> &);
     std::string receiveNotification();
+#endif //__CCDB_ENABLE_LOCAL_MULTICASTING__
 
 protected:
     // need continuous updates
@@ -348,9 +353,11 @@ protected:
     void update_from_logs(const std::string& info);
     void update_from_memory(const std::string& info);
 
+#ifdef __CCDB_ENABLE_LOCAL_MULTICASTING__
     void switch_loglevel(const nlohmann::json &);
     void generic_messages(const nlohmann::json &);
     void log_synchronization_notification(const nlohmann::json &);
+#endif //__CCDB_ENABLE_LOCAL_MULTICASTING__
 
     std::function<std::vector < std::vector < std::string > >()> get_buffered_logs;
 public:
@@ -387,13 +394,14 @@ public:
     std::atomic < uint64_t > current_memory_in_use_by_mihomo = 0;
     // std::atomic < uint64_t > current_memory_limit_by_mihomo = 0;
     void get_memory_pprof(const std::string & name, std::vector < char > & profiles);
-
+#ifdef __CCDB_ENABLE_LOCAL_MULTICASTING__
     enum message_type_t : int {
         UNKNOWN = 0,
 
         GENERIC_MESSAGE_HELLO = 100, SWITCH_LOG_LEVEL, LOG_CONTENT_SYNC
     };
     void broadcast(message_type_t, const std::string & content);
+#endif //__CCDB_ENABLE_LOCAL_MULTICASTING__
 };
 
 #endif //SRC_GENERAL_INFO_PULLING_H

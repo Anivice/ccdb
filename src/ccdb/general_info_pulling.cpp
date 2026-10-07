@@ -50,6 +50,8 @@
 #include "httplib.h"
 #include "DNSOverHTTPS.h"
 
+#ifdef __CCDB_ENABLE_LOCAL_MULTICASTING__
+
 static constexpr const auto * MULTICAST_GROUP = "239.255.0.1";
 static constexpr std::uint16_t PORT = 49361;
 
@@ -1053,10 +1055,13 @@ void general_info_pulling::notify_all(const notifications_t& msg)
     }
 }
 
+#endif //__CCDB_ENABLE_LOCAL_MULTICASTING__
+
 general_info_pulling::general_info_pulling(const std::string& url, const std::string& token,
     const std::function<std::vector < std::vector < std::string > >()> & get_buffered_logs_):
 backend_client(url, token), get_buffered_logs(get_buffered_logs_)
 {
+#ifdef __CCDB_ENABLE_LOCAL_MULTICASTING__
     load_or_create_client_keys();
     const auto CCDB_SYNC_ADDRESS_BIND_TO = ccdb::utils::getenv("CCDB_SYNC_ADDRESS_BIND_TO");
 
@@ -1156,12 +1161,16 @@ backend_client(url, token), get_buffered_logs(get_buffered_logs_)
             }
         }
     });
+
+#endif //__CCDB_ENABLE_LOCAL_MULTICASTING__
 }
 
 general_info_pulling::~general_info_pulling()
 {
+#ifdef __CCDB_ENABLE_LOCAL_MULTICASTING__
     alive.store(false, std::memory_order_release);
     if (ccdb_multicast_watcher.joinable()) ccdb_multicast_watcher.join();
+#endif //__CCDB_ENABLE_LOCAL_MULTICASTING__
     stop_continuous_updates();
 }
 
@@ -1176,7 +1185,9 @@ void general_info_pulling::update_from_traffic(const std::string& info)
     }
 }
 
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
 static const auto TIMEOUT_RESOLVED = ccdb::utils::getenv("CCDB_RESOLVED_TIMEOUT");
+#endif // __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
 
 void general_info_pulling::update_from_connections(const std::string& info)
 {
@@ -1379,6 +1390,7 @@ void general_info_pulling::update_from_memory(const std::string& info)
     } catch (...) { }
 }
 
+#ifdef __CCDB_ENABLE_LOCAL_MULTICASTING__
 const char * client_hello = "New CCDB client joined the network.";
 const char * switch_log_level = "Switch loglevel";
 const char * log_content_sync = "log synchronization notification";
@@ -1508,6 +1520,7 @@ void general_info_pulling::log_synchronization_notification(const nlohmann::json
     }
 #endif
 }
+#endif //__CCDB_ENABLE_LOCAL_MULTICASTING__
 
 void general_info_pulling::pull_continuous_updates()
 {
@@ -1611,15 +1624,22 @@ void general_info_pulling::stop_continuous_updates()
     std::unique_lock lifecycle_lock(continuous_updates_mtx_);
     if (!keep_pull_continuous_updates.load()) return;
 
+#ifdef __CCDB_ENABLE_LOCAL_MULTICASTING__
     if (node_id_.load() != 0) {
         (void)send_multicast_packet(packet_type_t::bye);
     }
+#endif
 
     keep_pull_continuous_updates.store(false, std::memory_order_release);
     backend_client.abort();
+#ifdef __CCDB_ENABLE_LOCAL_MULTICASTING__
     pending_cv_.notify_all();
+#endif //__CCDB_ENABLE_LOCAL_MULTICASTING__
 
     continuous_update_workers_.stop_and_clear();
+
+#ifdef __CCDB_ENABLE_LOCAL_MULTICASTING__
+
     close_protocol_sockets();
 
     {
@@ -1634,12 +1654,17 @@ void general_info_pulling::stop_continuous_updates()
         std::lock_guard lock(dedup_mtx_);
         recent_messages_.clear();
     }
+#endif //__CCDB_ENABLE_LOCAL_MULTICASTING__
 }
 
 void general_info_pulling::start_continuous_updates()
 {
     std::unique_lock lifecycle_lock(continuous_updates_mtx_);
-    if (!alive.load(std::memory_order_acquire) || keep_pull_continuous_updates.exchange(true)) return;
+    if (
+#ifdef __CCDB_ENABLE_LOCAL_MULTICASTING__
+        !alive.load(std::memory_order_acquire) ||
+#endif
+        keep_pull_continuous_updates.exchange(true)) return;
 
     backend_client.resume();
     continuous_update_workers_.emplace_back([this]
@@ -1653,6 +1678,7 @@ void general_info_pulling::start_continuous_updates()
         }
     });
 
+#ifdef __CCDB_ENABLE_LOCAL_MULTICASTING__
     regenerate_node_identity();
     message_counter_.store(random_nonzero_u64());
 
@@ -1682,6 +1708,7 @@ void general_info_pulling::start_continuous_updates()
     });
 
     (void)send_multicast_packet(packet_type_t::hello);
+#endif //__CCDB_ENABLE_LOCAL_MULTICASTING__
 }
 
 void general_info_pulling::update_proxy_list()
@@ -1964,6 +1991,8 @@ std::string general_info_pulling::get_version() const
     return ret;
 }
 
+#ifdef __CCDB_ENABLE_LOCAL_MULTICASTING__
+
 void general_info_pulling::sendNotification(const std::vector<uint8_t> & data)
 {
     uint64_t pack_num = data.size() / sizeof(notifications_t::body) + (data.size() % sizeof(notifications_t::body) == 0 ? 0 : 1);
@@ -2101,3 +2130,5 @@ void general_info_pulling::broadcast(const message_type_t type, const std::strin
 
     sendNotification(json);
 }
+
+#endif //__CCDB_ENABLE_LOCAL_MULTICASTING__

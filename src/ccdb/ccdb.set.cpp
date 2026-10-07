@@ -122,7 +122,9 @@ void ccdb::ccdb::set_log_level(const std::vector<std::string> &command_vector)
         if (execute_and_no_interactive) throw std::runtime_error("");
     }
 
+#ifdef __CCDB_ENABLE_LOCAL_MULTICASTING__
     backend_instance.broadcast(general_info_pulling::SWITCH_LOG_LEVEL, command_vector[2]);
+#endif //__CCDB_ENABLE_LOCAL_MULTICASTING__
     backend_instance.stop_continuous_updates();
     backend_instance.start_continuous_updates();
 }

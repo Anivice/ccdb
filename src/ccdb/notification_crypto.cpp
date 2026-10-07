@@ -1,3 +1,4 @@
+#ifdef __CCDB_ENABLE_LOCAL_MULTICASTING__
 // Encrypted CCDB notification envelopes. Public keys are one-line base64 SPKI DER.
 #include "general_info_pulling.h"
 #include <openssl/evp.h>
@@ -278,3 +279,4 @@ nlohmann::json general_info_pulling::decrypt_notification(const nlohmann::json& 
     }
     return result;
 }
+#endif //__CCDB_ENABLE_LOCAL_MULTICASTING__

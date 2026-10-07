@@ -6,7 +6,9 @@
 #include "print.h"
 #include "httplib.h"
 #include "absl/base/macros.h"
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
 #include "maxminddb.h"
+#endif //__YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
 #include "caches/cache.hpp"
 
 #define CCDB_VERSION_TO_TEXT(x) #x
@@ -49,7 +51,11 @@ version_string_::operator std::string()
 {
     if (version.empty()) {
         version = ccdb::utils::sprint("C++ Clash Dashboard Version ", CCDB_VERSION,
-        " (commit ", GIT_HASH, ", built on ", __DATE__, ")\n") + version_suffix + " MaxMind: " + MMDB_lib_version() + "\n";
+        " (commit ", GIT_HASH, ", built on ", __DATE__, ")\n") + version_suffix
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
+        + " MaxMind: " + MMDB_lib_version()
+#endif //__YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
+        + "\n";
         auto [fd_stdout, fd_stderr, status] = ccdb::utils::tar({ "/proc/self/exe", "--version" }, "");
         while (!fd_stdout.empty() && fd_stdout.back() == '\n') fd_stdout.pop_back();
         if (status == 0) version += "     tar:\n --- " + ccdb::utils::replace_all(fd_stdout, "\n", "\n --- ") + "\n";

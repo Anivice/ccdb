@@ -182,9 +182,13 @@ target_compile_definitions(ccdb PRIVATE CCDB_VERSION="${CCDB_VERSION}" CPPHTTPLI
 target_link_libraries(ccdb PRIVATE
         AddiHelp langJSON commandReadline LICENSE Zterminfotar tar.exe ccdbrc default_color_scheme_txt
         openssl::openssl libpsl::libpsl icu4c::icu4c
-        re2::re2 maxmind::libmaxmind
+        re2::re2
 )
-add_dependencies(ccdb READLINE OPENSSL compress LIBPSL MAXMIND LIBUNWIND)
+add_dependencies(ccdb READLINE OPENSSL compress LIBPSL LIBUNWIND)
+if ("${CCDB_FUCKAROUND_BUILD}" STREQUAL "True")
+    add_dependencies(ccdb MAXMIND)
+    target_link_libraries(ccdb PRIVATE maxmind::libmaxmind)
+endif ()
 target_compile_options(ccdb PRIVATE -fno-omit-frame-pointer -g3 -gdwarf-4 -fstack-protector-all)
 
 find_program(GIT_EXEC NAMES git REQUIRED)
@@ -366,6 +370,6 @@ if ("${CCDB_APPIMAGE_BUILD}" STREQUAL "True")
 endif ()
 
 if ("${CCDB_FUCKAROUND_BUILD}" STREQUAL "True")
-    target_compile_definitions(ccdb PRIVATE __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__=1)
+    target_compile_definitions(ccdb PRIVATE __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__=1 __CCDB_ENABLE_LOCAL_MULTICASTING__=1)
     message(WARNING "You have enabled fuck around features, better not find out")
 endif ()
