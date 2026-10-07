@@ -11,6 +11,12 @@ endif ()
 message(STATUS "CCDB Version is ${CCDB_VERSION}")
 set(CMAKE_CXX_STANDARD 26)
 
+if ("${CMAKE_BUILD_STATIC}" STREQUAL "True" AND NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+    message(STATUS "Not debug, static")
+    add_compile_options(-O3 -flto -fdevirtualize-at-ltrans -fno-omit-frame-pointer -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2)
+    add_link_options(-flto -fdevirtualize-at-ltrans -O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2)
+endif ()
+
 # readline only supports Makefile
 find_program(MAKE_EXECUTABLE NAMES make gmake REQUIRED)
 find_program(RECONFIGURE_EXECUTABLE NAMES autoreconf REQUIRED) # REQUIRED BY TAR

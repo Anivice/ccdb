@@ -309,6 +309,12 @@ namespace sim
 
     NumPack_t simulation_rainbow(const Num x)
     {
+        if (utils::g_ccdb_32bit_platform) return {
+            .R = 255,
+            .G = 255,
+            .B = 255
+        };
+
         static bool init_cache_ = false;
         constexpr uint64_t NumSize = sizeof(Num);
         constexpr uint64_t NumPackSize = sizeof(NumPack_t);

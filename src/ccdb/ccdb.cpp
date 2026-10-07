@@ -814,7 +814,7 @@ void ccdb::ccdb::init()
     kbd_shortcut_helper("HighlightDown", "^[[1;5B");
     alias_helper();
 
-    if (ccdb_config)
+    if (!g_ccdb_32bit_platform && ccdb_config)
     {
         if (ccdb_config->config.contains("ColorScheme"))
         {

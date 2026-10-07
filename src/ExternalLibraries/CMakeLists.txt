@@ -109,8 +109,14 @@ if ("${OPENSSL_LIBP}" STREQUAL "")
     set(OPENSSL_LIBP lib64)
 endif ()
 
+set(flags_global "CFLAGS=-fPIC CXXFLAGS=-fPIC")
+if ("${CMAKE_BUILD_STATIC}" STREQUAL "True")
+    set(flags_global
+            "CFLAGS=\"-O3 -flto -fdevirtualize-at-ltrans -fno-omit-frame-pointer -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2\" CXXFLAGS=\"-O3 -flto -fdevirtualize-at-ltrans -fno-omit-frame-pointer -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2\" LDFLAGS=\"-flto -fdevirtualize-at-ltrans -O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2\"")
+endif ()
+
 # OpenSSL
-set(OPENSSL_MAKE_ENTIRE "${MAKE_EXECUTABLE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" ${OPENSSL_MAKE_ADDITIONAL_FLAGS}")
+set(OPENSSL_MAKE_ENTIRE "${MAKE_EXECUTABLE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" ${flags_global} ${OPENSSL_MAKE_ADDITIONAL_FLAGS}")
 message(STATUS "OpenSSL: ${OPENSSL_MAKE_ENTIRE}")
 add_cmake_external_project_from_vendored_source_tarball(OPENSSL
     MAKE_DIRECTORIES "${CMAKE_BINARY_DIR}/openssl/install/include" "${CMAKE_BINARY_DIR}/openssl/install/lib64/"
@@ -160,8 +166,7 @@ add_cmake_external_project_from_vendored_source_tarball(ICU
                                 "rm -rf <SOURCE_DIR> && \
                                 cp -r ${CMAKE_SOURCE_DIR}/ExternalLibraries/icu4c-78.3/ <SOURCE_DIR> && \
                                 cd <SOURCE_DIR> && \
-                                export CXXFLAGS='-fPIC -std=c++17' CFLAGS='-fPIC -std=c11' && \
-                                source/runConfigureICU Linux/gcc --prefix=<INSTALL_DIR> --disable-shared --enable-static --disable-tests --disable-samples ${ICU_CONFIG_ADDITIONAL_FLAGS}"
+                                env ${flags_global} source/runConfigureICU Linux/gcc --prefix=<INSTALL_DIR> --disable-shared --enable-static --disable-tests --disable-samples ${ICU_CONFIG_ADDITIONAL_FLAGS}"
         BUILD_COMMAND       /bin/sh -c "cd <SOURCE_DIR> && ${ICU_MAKE_ENTIRE}"
         INSTALL_COMMAND     /bin/sh -c "cd <SOURCE_DIR> && ${MAKE_EXECUTABLE} install ${ICU_MAKE_INSTALL_ADDITIONAL_FLAGS}"
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libicudata.a <INSTALL_DIR>/lib/libicui18n.a <INSTALL_DIR>/lib/libicutest.a <INSTALL_DIR>/lib/libicutu.a <INSTALL_DIR>/lib/libicuuc.a
@@ -190,7 +195,7 @@ add_cmake_external_project_from_vendored_source_tarball(LIBPSL
                                     autoreconf -f && \
                                     export LIBS=-lstdc++ PKG_CONFIG_PATH=\"${ICU_PKGCONFIG_DIR}:$ENV{PKG_CONFIG_PATH}\" && \
                                     ${PSL_SRC_DEST}/configure --prefix=<INSTALL_DIR> --enable-runtime=libicu --disable-shared --enable-static ${LIBPSL_CONFIGURE_ADDITIONAL_FLAGS}"
-        BUILD_COMMAND       /bin/sh -c "cd ${PSL_SRC_DEST} && ${LIBPSL_MAKE_ENTIRE} CC=\"${MAKE_CC_EXEC}\" CFLAGS=-fPIC CXXFLAGS=-fPIC CXX=\"${MAKE_CXX_EXEC}\""
+        BUILD_COMMAND       /bin/sh -c "cd ${PSL_SRC_DEST} && ${LIBPSL_MAKE_ENTIRE} CC=\"${MAKE_CC_EXEC}\" ${flags_global} CXX=\"${MAKE_CXX_EXEC}\""
         INSTALL_COMMAND     /bin/sh -c "cd ${PSL_SRC_DEST} && ${MAKE_EXECUTABLE} install ${LIBPSL_MAKE_INSTALL_ADDITIONAL_FLAGS}"
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libpsl.a
         TEST_COMMAND        ""
@@ -214,7 +219,7 @@ add_cmake_external_project_from_vendored_source_tarball(NCURSES
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/ExternalLibraries/ncurses-6.6
         INSTALL_DIR         ${CMAKE_BINARY_DIR}/ncurses/install
         CONFIGURE_COMMAND   <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --without-shared --without-tests --without-cxx-binding ${NCURSES_CONFIGURE_ADDITIONAL_FLAGS}
-        BUILD_COMMAND       /bin/sh -c "${NCURSES_MAKE_ENTIRE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" CFLAGS=-fPIC CXXFLAGS=-fPIC"
+        BUILD_COMMAND       /bin/sh -c "${NCURSES_MAKE_ENTIRE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" ${flags_global}"
         INSTALL_COMMAND     ${MAKE_EXECUTABLE} install ${NCURSES_MAKE_INSTALL_ADDITIONAL_FLAGS}
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libncursesw.a
         TEST_COMMAND        ""
@@ -222,7 +227,7 @@ add_cmake_external_project_from_vendored_source_tarball(NCURSES
 
 # Readline
 
-set(READLINE_MAKE_ENTIRE "${MAKE_EXECUTABLE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" ${READLINE_MAKE_ADDITIONAL_FLAGS} CFLAGS=-fPIC CXXFLAGS=-fPIC")
+set(READLINE_MAKE_ENTIRE "${MAKE_EXECUTABLE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" ${READLINE_MAKE_ADDITIONAL_FLAGS} ${flags_global}")
 message(STATUS "READLINE: ${READLINE_MAKE_ENTIRE}")
 add_cmake_external_project_from_vendored_source_tarball(READLINE
     EXPORT_DIRECTORY_VARIABLES READLINE
@@ -281,7 +286,7 @@ add_cmake_external_project_from_vendored_source_tarball(TAR
 
 # libmaxmind GeoIP Database
 if ("${CCDB_FUCKAROUND_BUILD}" STREQUAL "True")
-    set(MAXMIND_MAKE_ENTIRE "${MAKE_EXECUTABLE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" ${MAXMIND_MAKE_ADDITIONAL_FLAGS} CFLAGS=-fPIC CXXFLAGS=-fPIC")
+    set(MAXMIND_MAKE_ENTIRE "${MAKE_EXECUTABLE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" ${MAXMIND_MAKE_ADDITIONAL_FLAGS} ${flags_global}")
     message(STATUS "MAXMIND: ${MAXMIND_MAKE_ENTIRE}")
     add_cmake_external_project_from_vendored_source_tarball(MAXMIND
         PREPARE_DIRECTORIES ${CMAKE_BINARY_DIR}/ExternalLibraries/libmaxminddb/p
@@ -330,7 +335,7 @@ add_cmake_external_project_from_vendored_source_tarball(LIBUNWIND
         SOURCE_DIR          ${CMAKE_SOURCE_DIR}/ExternalLibraries/libunwind-1.8.3
         INSTALL_DIR         ${CMAKE_CURRENT_BINARY_DIR}/libunwind/install
         CONFIGURE_COMMAND   /bin/sh -c "cp -r <SOURCE_DIR>/* ${LIBUNWIND_SRC_DEST} && cd ${LIBUNWIND_SRC_DEST} && CPPFLAGS='-I${ZLIB_INSTALL_DIR}/include' LDFLAGS='-L${ZLIB_INSTALL_DIR}/lib' ${LIBUNWIND_SRC_DEST}/configure --prefix=<INSTALL_DIR> --disable-tests --disable-shared --enable-static --disable-cxx-exceptions --disable-minidebuginfo ${LIBUNWIND_CONFIGURE_ADDITIONAL_FLAGS}"
-        BUILD_COMMAND       /bin/sh -c "cd ${LIBUNWIND_SRC_DEST} && ${LIBUNWIND_MAKE_ENTIRE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" CFLAGS=-fPIC CXXFLAGS=-fPIC"
+        BUILD_COMMAND       /bin/sh -c "cd ${LIBUNWIND_SRC_DEST} && ${LIBUNWIND_MAKE_ENTIRE} CC=\"${MAKE_CC_EXEC}\" CXX=\"${MAKE_CXX_EXEC}\" ${flags_global}"
         INSTALL_COMMAND     /bin/sh -c "cd ${LIBUNWIND_SRC_DEST} && ${MAKE_EXECUTABLE} install ${LIBUNWIND_MAKE_INSTALL_ADDITIONAL_FLAGS}"
         INSTALL_BYPRODUCTS  <INSTALL_DIR>/lib/libunwind.a <INSTALL_DIR>/lib/libunwind-generic.a <INSTALL_DIR>/lib/libunwind-ptrace.a <INSTALL_DIR>/lib/libunwind-setjmp.a <INSTALL_DIR>/lib/libunwind-coredump.a
         TEST_COMMAND        ""

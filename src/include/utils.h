@@ -80,6 +80,8 @@ extern char * const * environ;
 /// Utilities
 namespace ccdb::utils
 {
+    constexpr bool g_ccdb_32bit_platform = sizeof(void*) == sizeof(uint32_t);
+
     /// Small RAII owner for related worker threads.
     ///
     /// std::jthread gives every worker a stop-state when the callable accepts
