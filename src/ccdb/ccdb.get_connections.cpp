@@ -185,8 +185,10 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 {
                         "hide", [&](ArgsCopyScope, CommandVectorType cmd)->std::string
                                     {
-                                        if (cmd.size() == 2)
+                                        if (cmd.size() == 2) {
                                             hide_col(cmd[1], do_col_hide);
+                                            return {};
+                                        }
 
                                         return sprint("Unknown command");
                                     },
@@ -251,6 +253,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                                     {
                                         return sprint("Failed to parse filter pattern: ", e.what());
                                     }
+
+                                    return { };
                                 }
 
                                 return sprint("Invalid filter command");
@@ -284,6 +288,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                                     catch (const std::exception& e) {
                                         return sprint("Invalid sort: ", e.what());
                                     }
+
+                                    return { };
                                 }
 
                                 return sprint("Invalid sort command");
