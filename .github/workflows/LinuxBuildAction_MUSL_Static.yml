@@ -118,7 +118,7 @@ jobs:
         run: |
           files=(
             "build_${ARCH}/ccdb"
-            "build_${ARCH}/ccdb.debuginfo"
+            "build_${ARCH}/ccdb.debug_info"
           )
           
           if gh release view "${GIT_TAG}" >/dev/null 2>&1; then
