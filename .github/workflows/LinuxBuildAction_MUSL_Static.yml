@@ -21,7 +21,7 @@ jobs:
       matrix:
         arch:
           - x86_64
-          - i686
+          - i586
           - aarch64
           - armv7hf
 

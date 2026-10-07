@@ -105,5 +105,5 @@ pushd "$PWD"
 cd "$BUILD_DIR"
 env PATH="$MUSL_SYSROOT"/bin/:"$PATH" make CFLAGS="$CMAKE_CFLAGS" CXXFLAGS="$CMAKE_CFLAGS" -j"$THREADS"
 cp ccdb ccdb.debug_info
-env PATH="$MUSL_SYSROOT"/bin/:"$PATH" "$STRIP" ccdb
+env PATH="$MUSL_SYSROOT"/bin/:"$PATH" "$STRIP" -g -S -d --strip-debug --strip-unneeded ccdb
 popd
