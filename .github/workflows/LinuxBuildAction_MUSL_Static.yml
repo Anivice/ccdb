@@ -1,4 +1,4 @@
-name: Linux Automatic Static Nightly Build aarch64
+name: Linux Automatic Static Nightly Build
 
 on:
   workflow_dispatch:
@@ -13,9 +13,21 @@ permissions:
 
 jobs:
   build-and-test:
+    name: Build ${{ matrix.arch }}
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - x86_64
+          - i386
+          - aarch64
+          - armv7hf
+
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      ARCH: ${{ matrix.arch }}
 
     steps:
       - name: Check out repository
@@ -30,31 +42,50 @@ jobs:
             build-essential \
             software-properties-common \
             apt-transport-https \
-            cmake make musl qemu-user qemu-user-static binfmt-support xxd git gettext
+            cmake \
+            make \
+            musl \
+            qemu-user \
+            qemu-user-static \
+            binfmt-support \
+            xxd \
+            git \
+            gettext
+          
           sudo update-binfmts --enable qemu-arm
           sudo update-binfmts --enable qemu-aarch64
-          git clone https://github.com/Anivice/ccdb-toolchains toolchains --depth=1
+          
+          git clone \
+            https://github.com/Anivice/ccdb-toolchains \
+            toolchains \
+            --depth=1
 
       - name: Configure and Build
         run: |
-          export arch=aarch64 ./src/configure.sh $arch build_$arch $PWD/toolchains/toolchains 2>&1 | tee log.txt
-          
+          ./src/configure.sh \
+            "$ARCH" \
+            "build_$ARCH" \
+            "$PWD/toolchains/toolchains" \
+            "$(nproc)" \
+            2>&1 | tee "log_$ARCH.txt"
+
       - name: Upload log artifact
         if: ${{ always() }}
         uses: actions/upload-artifact@v6
         with:
-          name: build-log
-          path: log.txt
+          name: build-log-${{ matrix.arch }}
+          path: log_${{ matrix.arch }}.txt
 
       - name: Open an Issue on Test Failure
         if: ${{ always() && failure() && github.event_name != 'pull_request' }}
         run: |
           gh issue create \
-            --title "CCDB Linux Build Failed" \
+            --title "CCDB Linux Build Failed: ${ARCH}" \
             --body "$(cat <<EOF
           # One or more steps have failed!
-
-          **Log artifact:** \`build-log\` (download it from the workflow run page)
+          
+          **Architecture:** \`${ARCH}\`
+          **Log artifact:** \`build-log-${ARCH}\` (download it from the workflow run page)
           **Workflow run:** ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
           EOF
           )"
@@ -66,11 +97,11 @@ jobs:
         run: |
           TAG=$(git describe --tags --exact-match 2>/dev/null || true)
           SHORT=$(git rev-parse --short=8 HEAD)
-
+          
           if [ -n "$TAG" ]; then
-            echo "GIT_TAG=$TAG" >> "$GITHUB_ENV"
+            echo "GIT_TAG=${TAG}_${ARCH}_static" >> "$GITHUB_ENV"
           else
-            echo "GIT_TAG=ccdb.NightlyBuild_aarch64_static.$SHORT" >> "$GITHUB_ENV"
+            echo "GIT_TAG=ccdb.NightlyBuild_${ARCH}_static.${SHORT}" >> "$GITHUB_ENV"
           fi
 
       - name: Create and push tag
@@ -86,10 +117,10 @@ jobs:
         shell: bash
         run: |
           files=(
-            build_aarch64/ccdb
-            build_aarch64/ccdb.debuginfo
+            "build_${ARCH}/ccdb"
+            "build_${ARCH}/ccdb.debuginfo"
           )
-
+          
           if gh release view "${GIT_TAG}" >/dev/null 2>&1; then
             gh release upload "${GIT_TAG}" "${files[@]}" --clobber
           else
