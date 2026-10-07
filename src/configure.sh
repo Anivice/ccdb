@@ -58,7 +58,7 @@ if ! [ -e "$BUILD_DIR"/icu-native_STAMP ]; then
     export CXXFLAGS='-fPIC -std=c++17' CFLAGS='-fPIC -std=c11' CC="gcc" CXX="g++" && \
     if command -v ccache >/dev/null; then CC="$(command -v ccache) gcc" CXX="$(command -v ccache) g++"; export CC CXX; fi && \
     echo "CC=$CC, CXX=$CXX" && \
-    source/configure --prefix="$BUILD_DIR"/icu-native/ --disable-shared --enable-static --disable-tests --disable-samples && \
+    source/configure --prefix="$(realpath "$BUILD_DIR")"/icu-native/ --disable-shared --enable-static --disable-tests --disable-samples && \
     make -j$THREADS && touch "$BUILD_DIR"/icu-native_STAMP || exit 1
 fi
 
