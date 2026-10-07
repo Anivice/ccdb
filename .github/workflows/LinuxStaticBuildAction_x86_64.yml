@@ -1,0 +1,4 @@
+name: LinuxStaticBuildAction_x86_64.yml
+on:
+
+jobs:
