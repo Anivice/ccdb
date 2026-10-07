@@ -135,8 +135,7 @@ set(RE2_INSTALL OFF CACHE BOOL "Disable re2 installation" FORCE)
 add_subdirectory(ExternalLibraries/abseil-cpp-20260526.0)
 add_subdirectory(ExternalLibraries/re2-2025-11-05)
 
-# CCDB
-add_library(ccdb SHARED
+set(CCDB_SRC_FILES
         misc/Readline.cpp               include/Readline.h
         misc/color.cpp                  include/colors.h
         misc/utils.cpp                  include/utils.h
@@ -177,6 +176,15 @@ add_library(ccdb SHARED
         ccdb/ccdb.proxyView.cpp
         misc/utils.bin.cpp
 )
+
+# CCDB
+if ("${CMAKE_BUILD_STATIC}" STREQUAL "True")
+    add_executable(ccdb ${CCDB_SRC_FILES})
+    target_compile_definitions(ccdb PRIVATE __STATIC_MUSL__=1 APPIMAGE_BUILD=1)
+else ()
+    add_library(ccdb SHARED ${CCDB_SRC_FILES})
+endif ()
+
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
 target_compile_definitions(ccdb PRIVATE CCDB_VERSION="${CCDB_VERSION}" CPPHTTPLIB_OPENSSL_SUPPORT)
 target_link_libraries(ccdb PRIVATE
@@ -292,84 +300,85 @@ if(CCDB_VERSION MATCHES [[^[0-9]+\.[0-9]+\.[0-9]+-rc[0-9]+$]])
     target_compile_definitions(ccdb PRIVATE RELEASE_CANDIDATE_PRE_RELEASE_BUILD=1)
 endif()
 
-find_program(OBJDUMP_EXEC NAMES objdump REQUIRED)
-find_program(SORT_EXEC NAMES sort REQUIRED)
-add_custom_command(
-        OUTPUT ${CMAKE_BINARY_DIR}/ccdb.debug_info.txt
-        COMMAND /bin/sh -c "${OBJDUMP_EXEC} -Tt ${CMAKE_BINARY_DIR}/libccdb.so | grep '\.text' | awk '{print $1, $NF}' | sort | uniq | grep -E '^[0-9|a-f|A-F]+' > ${CMAKE_BINARY_DIR}/ccdb.debug_info.txt"
-        COMMENT "Generating object tracer..."
-        DEPENDS ccdb
-        VERBATIM
-)
-
-generate_from_resource_file(textDebugInfo
-        "${CMAKE_BINARY_DIR}/ccdb.debug_info.txt"
-        ccdb.debug_info.c
-        ccdb.debug_info.h
-        debugInfo false)
-
-add_custom_command(
-        OUTPUT ${CMAKE_BINARY_DIR}/main.c
-        COMMAND echo "extern int main_(int, char**); int main(int argc, char**argv) { return main_(argc, argv); }" > ${CMAKE_BINARY_DIR}/main.c
-        VERBATIM
-)
-
-add_executable(ccdb.exe ${CMAKE_BINARY_DIR}/main.c)
-target_link_libraries(ccdb.exe PRIVATE ccdb textDebugInfo)
-
-target_compile_options(ccdb.exe PRIVATE -O3 -flto -fuse-linker-plugin -fdevirtualize-at-ltrans -fno-omit-frame-pointer -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2 -fno-rtti -fvisibility=hidden -fwhole-program)
-target_link_options(ccdb.exe PRIVATE -flto -fuse-linker-plugin -fdevirtualize-at-ltrans -O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2 -fwhole-program)
-
-
-find_program(PATCHELF_EXEC NAMES patchelf REQUIRED)
-find_program(STRIP_EXEC NAMES strip REQUIRED)
-find_program(FILE_EXEC NAMES file REQUIRED)
-add_custom_target(copy_ccdb ALL
-        COMMAND cp ccdb.exe ccdb
-        COMMAND ${PATCHELF_EXEC} --set-rpath $ORIGIN ccdb
-        COMMAND ${PATCHELF_EXEC} --add-rpath $ORIGIN/lib ccdb
-        COMMAND ${PATCHELF_EXEC} --add-rpath /usr/lib ccdb
-        COMMAND ${PATCHELF_EXEC} --add-rpath /lib ccdb
-	COMMAND /bin/sh -c "file ccdb | sed -E 's/.*interpreter[[:space:]]([^,]+),.*/\\1/g' > interpreter.txt"
-        COMMAND /bin/sh -c "cp $(cat interpreter.txt) ${CMAKE_BINARY_DIR}/"
-        COMMAND /bin/sh -c "strip -g -S -d --strip-debug --strip-unneeded ${CMAKE_BINARY_DIR}/$(basename $(cat interpreter.txt))"
-        COMMAND /bin/sh -c "ldd ccdb | grep -Ev 'libccdb.so|linux-vdso.so' | grep '=>' | sed -E \"$(cat ${CMAKE_SOURCE_DIR}/script/rule.txt)\" > libs.txt"
-        COMMAND /bin/sh -c "rm -rf libs && mkdir -p libs && for file in $(cat libs.txt); do cp $file libs/; done"
-        DEPENDS ccdb.exe ccdb
-        BYPRODUCTS ccdb interpreter.txt libs.txt
-        VERBATIM
-)
-add_dependencies(copy_ccdb ccdb.exe ccdb)
-
-if ("${CCDB_APPIMAGE_BUILD}" STREQUAL "True")
-    message(STATUS "Enabled CCDB_APPIMAGE_BUILD")
-    target_compile_definitions(ccdb PRIVATE APPIMAGE_BUILD=1)
-    set(ARCHNAME "")
-    if (CMAKE_SYSTEM_PROCESSOR MATCHES "(x86_64|AMD64|amd64)")
-        set(ARCHNAME "x86_64")
-    elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
-        set(ARCHNAME "aarch64")
-    endif ()
-    message(STATUS "Arch determined to be ${ARCHNAME} from ${CMAKE_SYSTEM_PROCESSOR}")
-    add_custom_target(static_ccdb ALL
-            COMMAND rm -rf CCDB.AppDir/
-            COMMAND /bin/sh -c "if ! [ -e appimagetool.finish ]; then curl -L https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${ARCHNAME}.AppImage -o appimagetool && chmod +x appimagetool && touch appimagetool.finish; fi"
-            COMMAND mkdir -p CCDB.AppDir/
-            COMMAND cp ${CMAKE_SOURCE_DIR}/script/ccdb.desktop CCDB.AppDir/
-            COMMAND cp ${CMAKE_SOURCE_DIR}/resources/ccdb.svg CCDB.AppDir/
-            COMMAND mv libs CCDB.AppDir/
-            COMMAND cp ccdb CCDB.AppDir/
-            COMMAND cp libccdb.so CCDB.AppDir/libs/ && strip -g -S -d --strip-debug --strip-unneeded CCDB.AppDir/libs/libccdb.so
-            COMMAND /bin/sh -c "cp $(basename $(cat interpreter.txt)) CCDB.AppDir/"
-            COMMAND /bin/sh -c "cat ${CMAKE_SOURCE_DIR}/script/AppRun | sed s/INTERPRETER/$(basename $(cat interpreter.txt))/g > CCDB.AppDir/AppRun"
-            COMMAND chmod +x CCDB.AppDir/AppRun
-            COMMAND ./appimagetool CCDB.AppDir
-            DEPENDS copy_ccdb
+if (NOT "${CMAKE_BUILD_STATIC}" STREQUAL "True")
+    find_program(OBJDUMP_EXEC NAMES objdump REQUIRED)
+    find_program(SORT_EXEC NAMES sort REQUIRED)
+    add_custom_command(
+            OUTPUT ${CMAKE_BINARY_DIR}/ccdb.debug_info.txt
+            COMMAND /bin/sh -c "${OBJDUMP_EXEC} -Tt ${CMAKE_BINARY_DIR}/libccdb.so | grep '\.text' | awk '{print $1, $NF}' | sort | uniq | grep -E '^[0-9|a-f|A-F]+' > ${CMAKE_BINARY_DIR}/ccdb.debug_info.txt"
+            COMMENT "Generating object tracer..."
+            DEPENDS ccdb
             VERBATIM
     )
-endif ()
 
-if ("${CCDB_FUCKAROUND_BUILD}" STREQUAL "True")
-    target_compile_definitions(ccdb PRIVATE __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__=1 __CCDB_ENABLE_LOCAL_MULTICASTING__=1)
-    message(WARNING "You have enabled fuck around features, better not find out")
+    generate_from_resource_file(textDebugInfo
+            "${CMAKE_BINARY_DIR}/ccdb.debug_info.txt"
+            ccdb.debug_info.c
+            ccdb.debug_info.h
+            debugInfo false)
+
+    add_custom_command(
+            OUTPUT ${CMAKE_BINARY_DIR}/main.c
+            COMMAND echo "extern int main_(int, char**); int main(int argc, char**argv) { return main_(argc, argv); }" > ${CMAKE_BINARY_DIR}/main.c
+            VERBATIM
+    )
+
+    add_executable(ccdb.exe ${CMAKE_BINARY_DIR}/main.c)
+    target_link_libraries(ccdb.exe PRIVATE ccdb textDebugInfo)
+
+    target_compile_options(ccdb.exe PRIVATE -O3 -flto -fuse-linker-plugin -fdevirtualize-at-ltrans -fno-omit-frame-pointer -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2 -fno-rtti -fvisibility=hidden -fwhole-program)
+    target_link_options(ccdb.exe PRIVATE -flto -fuse-linker-plugin -fdevirtualize-at-ltrans -O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2 -fwhole-program)
+
+    find_program(PATCHELF_EXEC NAMES patchelf REQUIRED)
+    find_program(STRIP_EXEC NAMES strip REQUIRED)
+    find_program(FILE_EXEC NAMES file REQUIRED)
+    add_custom_target(copy_ccdb ALL
+            COMMAND cp ccdb.exe ccdb
+            COMMAND ${PATCHELF_EXEC} --set-rpath $ORIGIN ccdb
+            COMMAND ${PATCHELF_EXEC} --add-rpath $ORIGIN/lib ccdb
+            COMMAND ${PATCHELF_EXEC} --add-rpath /usr/lib ccdb
+            COMMAND ${PATCHELF_EXEC} --add-rpath /lib ccdb
+        COMMAND /bin/sh -c "file ccdb | sed -E 's/.*interpreter[[:space:]]([^,]+),.*/\\1/g' > interpreter.txt"
+            COMMAND /bin/sh -c "cp $(cat interpreter.txt) ${CMAKE_BINARY_DIR}/"
+            COMMAND /bin/sh -c "strip -g -S -d --strip-debug --strip-unneeded ${CMAKE_BINARY_DIR}/$(basename $(cat interpreter.txt))"
+            COMMAND /bin/sh -c "ldd ccdb | grep -Ev 'libccdb.so|linux-vdso.so' | grep '=>' | sed -E \"$(cat ${CMAKE_SOURCE_DIR}/script/rule.txt)\" > libs.txt"
+            COMMAND /bin/sh -c "rm -rf libs && mkdir -p libs && for file in $(cat libs.txt); do cp $file libs/; done"
+            DEPENDS ccdb.exe ccdb
+            BYPRODUCTS ccdb interpreter.txt libs.txt
+            VERBATIM
+    )
+    add_dependencies(copy_ccdb ccdb.exe ccdb)
+
+    if ("${CCDB_APPIMAGE_BUILD}" STREQUAL "True")
+        message(STATUS "Enabled CCDB_APPIMAGE_BUILD")
+        target_compile_definitions(ccdb PRIVATE APPIMAGE_BUILD=1)
+        set(ARCHNAME "")
+        if (CMAKE_SYSTEM_PROCESSOR MATCHES "(x86_64|AMD64|amd64)")
+            set(ARCHNAME "x86_64")
+        elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
+            set(ARCHNAME "aarch64")
+        endif ()
+        message(STATUS "Arch determined to be ${ARCHNAME} from ${CMAKE_SYSTEM_PROCESSOR}")
+        add_custom_target(static_ccdb ALL
+                COMMAND rm -rf CCDB.AppDir/
+                COMMAND /bin/sh -c "if ! [ -e appimagetool.finish ]; then curl -L https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${ARCHNAME}.AppImage -o appimagetool && chmod +x appimagetool && touch appimagetool.finish; fi"
+                COMMAND mkdir -p CCDB.AppDir/
+                COMMAND cp ${CMAKE_SOURCE_DIR}/script/ccdb.desktop CCDB.AppDir/
+                COMMAND cp ${CMAKE_SOURCE_DIR}/resources/ccdb.svg CCDB.AppDir/
+                COMMAND mv libs CCDB.AppDir/
+                COMMAND cp ccdb CCDB.AppDir/
+                COMMAND cp libccdb.so CCDB.AppDir/libs/ && strip -g -S -d --strip-debug --strip-unneeded CCDB.AppDir/libs/libccdb.so
+                COMMAND /bin/sh -c "cp $(basename $(cat interpreter.txt)) CCDB.AppDir/"
+                COMMAND /bin/sh -c "cat ${CMAKE_SOURCE_DIR}/script/AppRun | sed s/INTERPRETER/$(basename $(cat interpreter.txt))/g > CCDB.AppDir/AppRun"
+                COMMAND chmod +x CCDB.AppDir/AppRun
+                COMMAND ./appimagetool CCDB.AppDir
+                DEPENDS copy_ccdb
+                VERBATIM
+        )
+    endif ()
+
+    if ("${CCDB_FUCKAROUND_BUILD}" STREQUAL "True")
+        target_compile_definitions(ccdb PRIVATE __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__=1 __CCDB_ENABLE_LOCAL_MULTICASTING__=1)
+        message(WARNING "You have enabled fuck around features, better not find out")
+    endif ()
 endif ()

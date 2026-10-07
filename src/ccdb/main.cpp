@@ -428,9 +428,18 @@ namespace
     }
 }
 
+#ifndef __STATIC_MUSL__
 extern "C"
 __attribute__((visibility("default")))
-int main_(int argc, char ** argv)
+#endif
+
+int
+#ifndef __STATIC_MUSL__
+main_
+#else
+main
+#endif
+    (int argc, char ** argv)
 {
     if (const auto dest = utils::getenv("HOME") + "/.ccdbrc"; !std::filesystem::exists(dest)) {
         if (std::ofstream ofile(dest, std::ios::trunc); ofile.good()) {

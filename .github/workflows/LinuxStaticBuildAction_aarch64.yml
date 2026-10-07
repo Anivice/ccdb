@@ -33,7 +33,7 @@ jobs:
             cmake make musl qemu-user qemu-user-static binfmt-support xxd git gettext
           sudo update-binfmts --enable qemu-arm
           sudo update-binfmts --enable qemu-aarch64
-          git clone https://github.com/Anivice/ccdb-toolchains toolchains
+          git clone https://github.com/Anivice/ccdb-toolchains toolchains --depth=1
 
       - name: Configure and Build
         run: |
