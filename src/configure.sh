@@ -52,14 +52,14 @@ esac
 mkdir -p "$BUILD_DIR"/
 
 if ! [ -e "$BUILD_DIR"/icu-native_STAMP ]; then
-  rm -rf "$BUILD_DIR"/icu-native && rm -f "$BUILD_DIR"/icu-native_STAMP && \
+  pushd "$PWD" && rm -rf "$BUILD_DIR"/icu-native && rm -f "$BUILD_DIR"/icu-native_STAMP && \
     cp -r "$script_dir"/ExternalLibraries/icu4c-78.3/ "$BUILD_DIR"/icu-native && \
     cd "$BUILD_DIR"/icu-native && \
     export CXXFLAGS='-fPIC -std=c++17' CFLAGS='-fPIC -std=c11' CC="gcc" CXX="g++" && \
     if command -v ccache >/dev/null; then CC="$(command -v ccache) gcc" CXX="$(command -v ccache) g++"; export CC CXX; fi && \
     echo "CC=$CC, CXX=$CXX" && \
     source/configure --prefix="$(realpath "$BUILD_DIR")"/icu-native/ --disable-shared --enable-static --disable-tests --disable-samples && \
-    make -j$THREADS && touch "$BUILD_DIR"/icu-native_STAMP || exit 1
+    make -j$THREADS && popd && touch "$BUILD_DIR"/icu-native_STAMP || exit 1
 fi
 
 CMAKE_CFLAGS="-O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -D_FORTIFY_SOURCE=2 -fwhole-program -flto"
