@@ -474,11 +474,16 @@ main
 #endif
     (int argc, char ** argv)
 {
-    if (const auto dest = utils::getenv("HOME") + "/.ccdbrc"; !std::filesystem::exists(dest)) {
-        if (std::ofstream ofile(dest, std::ios::trunc); ofile.good()) {
-            const auto result = utils::decompress({default_color_scheme, default_color_scheme + default_color_scheme_len});
-            ofile.write(reinterpret_cast<const char*>(result.data()), static_cast<std::streamsize>(result.size()));
-            ofile.close();
+    if constexpr (!utils::g_ccdb_32bit_platform)
+    {
+        if (const auto dest = utils::getenv("HOME") + "/.ccdbrc";
+            !std::filesystem::exists(dest))
+        {
+            if (std::ofstream ofile(dest, std::ios::trunc); ofile.good()) {
+                const auto result = utils::decompress({default_color_scheme, default_color_scheme + default_color_scheme_len});
+                ofile.write(reinterpret_cast<const char*>(result.data()), static_cast<std::streamsize>(result.size()));
+                ofile.close();
+            }
         }
     }
 
@@ -560,11 +565,11 @@ main
         {
             if (const auto scheme = parsed.at("use-color-scheme"); scheme == "legacy") {
                 ccdb::color::USE_OLD_COLOR_SCHEME = true;
-            } else if (scheme == "distinct") {
+            } else if (!utils::g_ccdb_32bit_platform && scheme == "distinct") {
                 sim::color_scheme = sim::RAINBOW_DISTINCT;
-            } else if (scheme == "continuous") {
+            } else if (!utils::g_ccdb_32bit_platform && scheme == "continuous") {
                 sim::color_scheme = sim::RAINBOW_CONTINUOUS;
-            } else {
+            } else if constexpr (!utils::g_ccdb_32bit_platform) {
                 sim::color_scheme = sim::CUSTOMIZED;
                 sim::customized_color_command_calc = scheme;
             }
