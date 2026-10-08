@@ -193,7 +193,7 @@ set(CCDB_SRC_FILES
 # CCDB
 if ("${CMAKE_BUILD_STATIC}" STREQUAL "True")
     add_executable(ccdb ${CCDB_SRC_FILES})
-    target_compile_definitions(ccdb PRIVATE __STATIC_MUSL__=1 APPIMAGE_BUILD=1)
+    target_compile_definitions(ccdb PRIVATE __STATIC_MUSL__=1)
     if (NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
         target_compile_options(ccdb PRIVATE -fwhole-program)
         target_link_options(ccdb PRIVATE -fwhole-program)

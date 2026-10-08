@@ -13,6 +13,10 @@ static constexpr const char * getBuild()
     return "x86_64";
 #elif defined(__aarch64__) || defined(_M_ARM64)
     return "aarch64";
+#elif defined(__i386__) || defined(_M_IX86)
+    return "i586";
+#elif (defined(__ARM_ARCH_7A__) || defined(__ARM_ARCH_7__)) && defined(__ARM_PCS_VFP)
+    return "armv7hf";
 #else
     return "UNKNOWN";
 #endif
@@ -232,11 +236,30 @@ namespace ccdb
 #endif
         }
 
-        constexpr const auto * remote_url_prefix =
-            strcmp_constexpr(ArchName, "aarch64") == 0 ?
-            "https://github.com/Anivice/ccdb/releases/download/ccdb.NightlyBuild.aarch64." :
-            "https://github.com/Anivice/ccdb/releases/download/ccdb.NightlyBuild.";
+        const char * remote_url_prefix = nullptr;
+        if constexpr (strcmp_constexpr(ArchName, "aarch64") == 0) {
+#ifdef __STATIC_MUSL__
+            remote_url_prefix = "https://github.com/Anivice/ccdb/releases/download/ccdb.NightlyBuild_aarch64_static.";
+#else
+            remote_url_prefix = "https://github.com/Anivice/ccdb/releases/download/ccdb.NightlyBuild.aarch64.";
+#endif
+        } else if constexpr (strcmp_constexpr(ArchName, "x86_64") == 0) {
+#ifdef __STATIC_MUSL__
+            remote_url_prefix = "https://github.com/Anivice/ccdb/releases/download/ccdb.NightlyBuild_x86_64_static.";
+#else
+            remote_url_prefix = "https://github.com/Anivice/ccdb/releases/download/ccdb.NightlyBuild.";
+#endif
+        } else if constexpr (strcmp_constexpr(ArchName, "i586") == 0) {
+#ifdef __STATIC_MUSL__
+            remote_url_prefix = "https://github.com/Anivice/ccdb/releases/download/ccdb.NightlyBuild_i586_static.";
+#endif //__STATIC_MUSL__
+        } else if constexpr (strcmp_constexpr(ArchName, "armv7hf") == 0) {
+#ifdef __STATIC_MUSL__
+            remote_url_prefix = "https://github.com/Anivice/ccdb/releases/download/ccdb.NightlyBuild_armv7hf_static.";
+#endif //__STATIC_MUSL__
+        }
 
+        if (!remote_url_prefix) throw std::runtime_error("ENOSYS");
         const auto url_dest = remote_url_prefix + hash.substr(0, 8) + "/" + dest_name;
         httplib::Result res = get_from_url(url_dest, {}, timeout, true);
         if (!res) {

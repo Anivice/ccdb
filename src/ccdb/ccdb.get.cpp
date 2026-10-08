@@ -425,11 +425,12 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
         }
 
         const auto destination_location = std::string(buff);
+#ifndef __STATIC_MUSL__
         const auto it = std::ranges::find_if(init_crash_report.flatObjectRuntimeTable,
         [](const auto & obj)->bool {
             return (std::string(obj.name).find("libccdb.so") != std::string::npos);
         });
-
+#endif //__STATIC_MUSL__
 #ifndef __DEBUG__
         if (!detach_execute
         (
@@ -439,9 +440,13 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
                 try
                 {
                     const auto ccdb_container = get_content("ccdb", 120);
+#ifndef __STATIC_MUSL__
                     const auto libccdb_so = get_content("libccdb.so", 120);
+#endif //__STATIC_MUSL__
                     rewrite(destination_location, ccdb_container);
+#ifndef __STATIC_MUSL__
                     rewrite(it->name, libccdb_so);
+#endif //__STATIC_MUSL__
                     print("Upgraded self. Please relaunch CCDB to complete the update.\n");
 #ifndef __DEBUG__
                     return true;
@@ -450,11 +455,9 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
                     print<is_error>(e.what(), "\n");
 #ifndef __DEBUG__
                     return false;
-#else //__DEBUG__
-                    return;
 #endif //__DEBUG__
-                }
 #ifndef __DEBUG__
+                }
             },
         [](const int)->bool
         {
@@ -463,10 +466,10 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
         {
 #endif //__DEBUG__
             recover(destination_location);
+#ifndef __STATIC_MUSL__
             recover(it->name);
-#ifndef __DEBUG__
+#endif //__STATIC_MUSL__
         }
-#endif //__DEBUG__
     }
 #endif //APPIMAGE_BUILD
     else {
