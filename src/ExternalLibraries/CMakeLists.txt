@@ -127,7 +127,7 @@ add_cmake_external_project_from_vendored_source_tarball(OPENSSL
     BUNDLE_LIBRARIES openssl::libssl openssl::libcrypto
     EXTERNAL_PROJECT_OPTIONS
         PREFIX              ${CMAKE_BINARY_DIR}/openssl
-        SOURCE_DIR          ${CMAKE_SOURCE_DIR}/ExternalLibraries/openssl-4.0.2
+        SOURCE_DIR          ${CMAKE_SOURCE_DIR}/ExternalLibraries/openssl-4.0.3
         INSTALL_DIR         ${CMAKE_BINARY_DIR}/openssl/install
         CONFIGURE_COMMAND   /bin/sh -c
                                 "export PERL5LIB=\"${CMAKE_BINARY_DIR}/perl/install/lib/5.42.0/\" PATH=\"${CMAKE_BINARY_DIR}/perl/install/bin:$PATH\" && \
