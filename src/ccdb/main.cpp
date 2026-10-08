@@ -488,8 +488,8 @@ main
     }
     else {
         utils::print<utils::is_error>("You are using a 32bit platform. "
-            "32bit platform is generally not supported. "
-            "BUGs are expected, and availafunctions are reduced.\n");
+            "32bit platforms are generally not supported. "
+            "BUGs are expected, and available functions are reduced.\n");
     }
 
     try
