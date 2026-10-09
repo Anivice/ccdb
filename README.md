@@ -32,10 +32,10 @@ CCDB depends on the following open-source libraries:
  - [GNU Readline 8.3](https://ftp.gnu.org/gnu/readline/) (Embedded)
  - [GNU Ncurses 6.6](https://ftp.gnu.org/gnu/ncurses/) (Embedded)
  - [TSL Hopscotch-Hashing Map v2.4.0](https://github.com/Tessil/hopscotch-map) (Embedded)
- - [UTF8-CPP 4.2.0](https://github.com/nemtrif/utfcpp) (Embedded)
+ - [UTF8-CPP 4.2.1](https://github.com/nemtrif/utfcpp) (Embedded)
  - [JSON for Modern C++ 3.12.0 <commit/35705d79d878db5ca1a282ec0f8243a80010d24e>](https://github.com/nlohmann/json) (Embedded)
  - [Perl 5.42.0](https://www.perl.org/) (Not embedded, required by OpenSSL)
- - [OpenSSL 4.0.2](https://github.com/openssl/openssl) (Embedded)
+ - [OpenSSL 4.0.3](https://github.com/openssl/openssl) (Embedded)
  - [GNU Tar 1.35](https://www.gnu.org/software/tar) (Embedded)
  - [XXD, from VIM <commit/24bf0b60e901b11a37d877cd5947849c18e1a602>](https://github.com/vim/vim/) (Not embedded, required by the build system)
  - [libpsl, 0.23.3](https://github.com/rockdaboot/libpsl/) (Embedded)
@@ -45,9 +45,10 @@ CCDB depends on the following open-source libraries:
  - [CImg 4.0.3](https://www.cimg.eu/) (Embedded)
  - [libtiv - Original Copyright © 2017-2023, Stefan Haustein, Aaron Liu. Heavily Modified by Anivice](https://github.com/stefanhaustein/TerminalImageViewer) (Embedded)
  - [Abseil - C++ Common Libraries 20260526.0](https://github.com/abseil/abseil-cpp/) (Embedded, required by RE2)
- - [RE2, a regular expression library 2025-11-05](https://github.com/google/re2) (Embedded)
+ - [RE2, a regular expression library 2025-11-05 <commit/2da0056814cf180480a19f5cf811e7e1c054bf6d>](https://github.com/google/re2) (Embedded)
  - [C library for the MaxMind DB file format Releases 1.13.3](https://github.com/maxmind/libmaxminddb) (Embedded)
  - [C++ Cache implementation v0.1.1](https://github.com/vpetrigo/caches) (Embedded)
+ - [ICU, International Components for Unicode 78.3](https://github.com/unicode-org/icu) (Embedded)
 
 ## Usage
 

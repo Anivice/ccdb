@@ -183,151 +183,191 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         },
         {
                 {
-                        "hide", [&](ArgsCopyScope, CommandVectorType cmd)->std::string
-                                    {
-                                        if (cmd.size() == 2) {
-                                            hide_col(cmd[1], do_col_hide);
-                                            return {};
-                                        }
-
-                                        return sprint("Unknown command");
-                                    },
-                    },
-                {
-                    "closeAll",     [this](ArgsCopyScope, CommandVectorType)->std::string
-                                    {
-                                        if (!backend_instance.close_all_connections())
-                                        {
-                                            return sprint("Failed to close all connections");
-                                        }
-                                        return {};
-                                    },
-                },
-                {
-                    "closeOnScreen", [this, &show_only_closed_connection_view](ArgsCopyScope conns, CommandVectorType)->std::string
-                                    {
-                                        if (show_only_closed_connection_view) return {}; // silent drop
-                                        std::stringstream ss;
-                                        std::for_each(conns.first, conns.second,[&](const auto & conn)
-                                        {
-                                            if (!backend_instance.close_connection(conn.connection_data.metadata.connectionID)) {
-                                                ss << sprint("Failed to close connection", conn.connection_data.host, " ");
-                                            }
-                                        });
-
-                                        return ss.str();
-                                    }
-                },
-                {
-                    "filterReverse", [this](ArgsCopyScope, CommandVectorType)->std::string
-                                    {
-                                        reverse_filter_list = !reverse_filter_list;
-                                        return sprint("Filter reversed, current mode: ", reverse_filter_list ? "reverse" : "normal");
-                                    },
-                },
-                {
-                    "clearFilters", [this](ArgsCopyScope, CommandVectorType)->std::string { clear_filter(); return {}; },
-                },
-                {
-                    "reverseChainParser", [&](ArgsCopyScope, CommandVectorType)->std::string
-                                    {
-                                        if (show_only_closed_connection_view) return {}; // silent drop
-                                        backend_instance.parse_chains = !backend_instance.parse_chains;
-                                        connection_frame.clear();
-                                        return {};
-                                    },
-                },
-                {
-                    "filter", [this](ArgsCopyScope, CommandVectorType vec)->std::string
-                            {
-                                if (vec.size() == 3)
-                                {
-                                    try
-                                    {
-                                        const auto filter_id = convertToNumber<uint64_t>(vec[1]);
-                                        if (filter_id >= get_conn_titles.size()) throw std::invalid_argument(sprint("Invalid filter ID"));
-                                        std::regex r(vec[2]);
-                                        filter_patterns[filter_id] = vec[2];
-                                    }
-                                    catch (const std::exception & e)
-                                    {
-                                        return sprint("Failed to parse filter pattern: ", e.what());
-                                    }
-
-                                    return { };
-                                }
-
-                                return sprint("Invalid filter command");
-                            },
-                },
-                {
-                    "pause", [&](ArgsCopyScope, CommandVectorType)->std::string
-                                {
-                                    pause_update = true;
-                                    return sprint("Update paused");
-                                }
-                },
-                {
-                    "resume", [&](ArgsCopyScope, CommandVectorType)->std::string
-                                {
-                                    pause_update = false;
-                                    return sprint("Update resumed");
-                                }
-                },
-                {
-                    "sort", [&](ArgsCopyScope, CommandVectorType vec)->std::string
-                            {
-                                if (vec.size() == 2)
-                                {
-                                    try
-                                    {
-                                        const auto sort_id = convertToNumber<uint64_t>(vec[1]);
-                                        if (sort_id >= get_conn_titles.size()) throw std::invalid_argument(sprint("Invalid sort ID"));
-                                        sort_by = static_cast<int>(sort_id);
-                                    }
-                                    catch (const std::exception& e) {
-                                        return sprint("Invalid sort: ", e.what());
-                                    }
-
-                                    return { };
-                                }
-
-                                return sprint("Invalid sort command");
-                            }
-                },
-                {
-                    "sortReverse", [&](ArgsCopyScope, CommandVectorType)->std::string { sort_reverse = !sort_reverse; return {}; }
-                },
-                {
-                    "switchView", [&](ArgsCopyScope, CommandVectorType)->std::string {
-                        show_only_closed_connection_view = !show_only_closed_connection_view;
-                        return sprint(show_only_closed_connection_view ? "Closed connection view" : "Continuous connection view");
-                    }
-                },
-                {
-                    "setClosedConnectionBufferSpace", [&](ArgsCopyScope, CommandVectorType vec)->std::string
-                    {
-                        if (vec.size() == 2)
+                    "hide",
+                        [&](ArgsCopyScope, CommandVectorType cmd, const session_compliment_data_t *)->std::string
                         {
-                            try
-                            {
-                                closed_connection_view_max_size = convertToNumber<int>(vec[1]);
-                                if (closed_connection_view_max_size <= 0)
-                                    closed_connection_view_max_size = 128;
-                                return sprint("Size set to ", closed_connection_view_max_size);
+                            if (cmd.size() == 2) {
+                                hide_col(cmd[1], do_col_hide);
+                                return {};
                             }
-                            catch (const std::exception& e) {
-                                return sprint("Invalid arguments: ", e.what());
-                            }
-                        }
 
-                        return sprint("Invalid command");
-                    }
+                            return sprint("Unknown command");
+                        },
+                },
+                {
+                    "closeAll",
+                        [this](ArgsCopyScope, CommandVectorType, const session_compliment_data_t *)->std::string
+                        {
+                            if (!backend_instance.close_all_connections())
+                            {
+                                return sprint("Failed to close all connections");
+                            }
+                            return {};
+                        },
+                },
+                {
+                    "closeOnScreen",
+                        [this, &show_only_closed_connection_view](ArgsCopyScope conns, CommandVectorType, const session_compliment_data_t *)->std::string
+                        {
+                            if (show_only_closed_connection_view) return {}; // silent drop
+                            std::stringstream ss;
+                            std::for_each(conns.first, conns.second,[&](const auto & conn) {
+                                if (!backend_instance.close_connection(conn.connection_data.metadata.connectionID)) {
+                                    ss << sprint("Failed to close connection", conn.connection_data.host, " ");
+                                }
+                            });
+
+                            return ss.str();
+                        }
+                },
+                {
+                    "filterReverse",
+                        [this](ArgsCopyScope, CommandVectorType, const session_compliment_data_t *)->std::string
+                        {
+                            reverse_filter_list = !reverse_filter_list;
+                            return sprint("Filter reversed, current mode: ", reverse_filter_list ? "reverse" : "normal");
+                        },
+                },
+                {
+                    "clearFilters",
+                        [this](ArgsCopyScope, CommandVectorType, const session_compliment_data_t *)->std::string
+                        {
+                            clear_filter(); return {};
+                        },
+                },
+                {
+                    "reverseChainParser",
+                        [&](ArgsCopyScope, CommandVectorType, const session_compliment_data_t *)->std::string
+                        {
+                            if (show_only_closed_connection_view) return {}; // silent drop
+                            backend_instance.parse_chains = !backend_instance.parse_chains;
+                            connection_frame.clear();
+                            return {};
+                        },
+                },
+                {
+                    "filter",
+                        [this](ArgsCopyScope, CommandVectorType vec, const session_compliment_data_t *)->std::string
+                        {
+                            if (vec.size() == 3)
+                            {
+                                try
+                                {
+                                    const auto filter_id = convertToNumber<uint64_t>(vec[1]);
+                                    if (filter_id >= get_conn_titles.size()) throw std::invalid_argument(sprint("Invalid filter ID"));
+                                    std::regex r(vec[2]);
+                                    filter_patterns[filter_id] = vec[2];
+                                }
+                                catch (const std::exception & e) {
+                                    return sprint("Failed to parse filter pattern: ", e.what());
+                                }
+
+                                return { };
+                            }
+
+                            return sprint("Invalid filter command");
+                        },
+                },
+                {
+                    "pause",
+                        [&](ArgsCopyScope, CommandVectorType, const session_compliment_data_t *)->std::string
+                        {
+                            pause_update = true;
+                            return sprint("Update paused");
+                        }
+                },
+                {
+                    "resume",
+                        [&](ArgsCopyScope, CommandVectorType, const session_compliment_data_t *)->std::string
+                        {
+                            pause_update = false;
+                            return sprint("Update resumed");
+                        }
+                },
+                {
+                    "sort",
+                        [&](ArgsCopyScope, CommandVectorType vec, const session_compliment_data_t *)->std::string
+                        {
+                            if (vec.size() == 2)
+                            {
+                                try
+                                {
+                                    const auto sort_id = convertToNumber<uint64_t>(vec[1]);
+                                    if (sort_id >= get_conn_titles.size()) throw std::invalid_argument(sprint("Invalid sort ID"));
+                                    sort_by = static_cast<int>(sort_id);
+                                }
+                                catch (const std::exception& e) {
+                                    return sprint("Invalid sort: ", e.what());
+                                }
+
+                                return { };
+                            }
+
+                            return sprint("Invalid sort command");
+                        }
+                },
+                {
+                    "sortReverse",
+                        [&](ArgsCopyScope, CommandVectorType, const session_compliment_data_t *)->std::string
+                        {
+                            sort_reverse = !sort_reverse; return {};
+                        }
+                },
+                {
+                    "switchView",
+                        [&](ArgsCopyScope, CommandVectorType, const session_compliment_data_t *)->std::string
+                        {
+                            show_only_closed_connection_view = !show_only_closed_connection_view;
+                            return sprint(show_only_closed_connection_view ? "Closed connection view" : "Continuous connection view");
+                        }
+                },
+                {
+                    "move",
+                        [&](ArgsCopyScope, CommandVectorType cmd, const session_compliment_data_t * data_)->std::string
+                        {
+                            try {
+                                if (cmd.size() == 3)
+                                {
+                                    if (cmd[1] == "vertical") {
+                                        *data_->skip_lines_ += convertToNumber<int>(cmd[2]);
+                                    } else if (cmd[1] == "horizontal") {
+                                        *data_->leading_spaces_ += convertToNumber<int>(cmd[2]);
+                                    } else {
+                                        return sprint("Unknown command");
+                                    }
+                                }
+                            } catch (const std::exception& e) {
+                                return e.what();
+                            }
+
+                            return { };
+                        }
+                },
+                {
+                    "setClosedConnectionBufferSpace",
+                        [&](ArgsCopyScope, CommandVectorType vec, const session_compliment_data_t *)->std::string
+                        {
+                            if (vec.size() == 2)
+                            {
+                                try
+                                {
+                                    closed_connection_view_max_size = convertToNumber<int>(vec[1]);
+                                    if (closed_connection_view_max_size <= 0) closed_connection_view_max_size = 128;
+                                    return sprint("Size set to ", closed_connection_view_max_size);
+                                }
+                                catch (const std::exception& e) {
+                                    return sprint("Invalid arguments: ", e.what());
+                                }
+                            }
+
+                            return sprint("Invalid command");
+                        }
                 }
             },
             {
                 {"filter", {{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"}}},
                 {"sort", {{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"}}},
+                {"move", {{"vertical", "horizontal"}}}
             },
         [&](const session_compliment_data_t * data_)->ScopeType
         {

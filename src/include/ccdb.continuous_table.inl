@@ -653,7 +653,8 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
                         {
                             if (const auto cmd = CommandMap.find(vec.front());cmd != CommandMap.end())
                             {
-                                if (const auto msg = cmd->second(content, vec); !msg.empty()) show_info(msg, "INFO");
+                                if (const auto msg = cmd->second(content, vec, &compliment_data); !msg.empty())
+                                    show_info(msg, "INFO");
                                 command_executed = true;
                             } else {
                                 show_info(sprint("Unknown command"), "ERROR");

@@ -145,8 +145,8 @@ add_dependencies(tar.exe TAR)
 
 add_compile_options(-fPIC)
 set(RE2_INSTALL OFF CACHE BOOL "Disable re2 installation" FORCE)
-add_subdirectory(ExternalLibraries/abseil-cpp-20260526.0)
-add_subdirectory(ExternalLibraries/re2-2025-11-05)
+add_subdirectory(ExternalLibraries/abseil-cpp-20260817.0)
+add_subdirectory(ExternalLibraries/re2-2da0056814cf180480a19f5cf811e7e1c054bf6d)
 
 set(CCDB_SRC_FILES
         misc/Readline.cpp               include/Readline.h

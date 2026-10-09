@@ -452,11 +452,6 @@ namespace ccdb
         const std::string history_file_loc = utils::getenv("HOME") + "/.cache/ccdb/ccdb_history";
 
         using CommandVectorType = const std::vector<std::string> &;
-
-        template < typename ContainerType, typename ScopeType >
-        using CommandType = tsl::hopscotch_map < std::string, std::function<std::string(const ScopeType &, CommandVectorType)>>;
-        using CommandAutoCompleteType = tsl::hopscotch_map < std::string, std::vector<std::vector<std::string>>>;
-        using SearchMatches = std::vector < std::pair < std::string /* checksum */, bool /* if match ? */ > >;
         struct session_compliment_data_t
         {
             std::atomic_int * leading_spaces_;
@@ -466,6 +461,11 @@ namespace ccdb
             std::atomic_int * sort_by_from_watcher;
             bool skip_frame;
         };
+        template < typename ContainerType, typename ScopeType >
+        using CommandType = tsl::hopscotch_map < std::string, std::function<std::string(const ScopeType &,
+            CommandVectorType, const session_compliment_data_t *)>>;
+        using CommandAutoCompleteType = tsl::hopscotch_map < std::string, std::vector<std::vector<std::string>>>;
+        using SearchMatches = std::vector < std::pair < std::string /* checksum */, bool /* if match ? */ > >;
 
         template < typename ContainerType, typename ConstantIteratorType, typename ScopeType >
         requires (std::is_same_v<ScopeType, std::pair<ConstantIteratorType, ConstantIteratorType>> && Iterator<ConstantIteratorType>)
