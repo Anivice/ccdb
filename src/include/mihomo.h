@@ -91,6 +91,10 @@ public:
             if constexpr (std::is_invocable_v<Method, decltype(http_cli), Args..., func_progress>) {
                 res = std::invoke(method, http_cli, std::forward<Args>(args)..., none);
             } else {
+                static_assert(false,
+                    "COMPILE BUG: YOU SHOULD NOT BE ABLE TO REACH HERE\n"
+                    "IF SO, THE COMPILER FAILED TO DEDUCE ARGUMENTS CORRECTLY, OR YOU SET WRONG RULES\n"
+                    "CHECK YOUR RULES AGAIN");
                 throw std::logic_error("Compile BUG"); // YOU SHOULD NOT BE ABLE TO REACH HERE
                 // IF SO, THE COMPILER FAILED TO DEDUCE ARGUMENTS CORRECTLY, OR YOU SET WRONG RULES
                 // CHECK YOUR RULES AGAIN
