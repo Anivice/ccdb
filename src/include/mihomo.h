@@ -24,7 +24,7 @@
 
 #include <functional>
 #include <stdexcept>
-#include <thread>
+#include <type_traits>
 #include <stop_token>
 #include <utility>
 #include <vector>
@@ -35,6 +35,7 @@
 class general_info_pulling;
 
 constexpr int timeout_on_backend_ops_in_seconds = 60;
+static_assert(std::is_same_v<httplib::UploadProgress, httplib::DownloadProgress>, "HTTPLIB API MISMATCH");
 
 class mihomo
 {
@@ -53,119 +54,99 @@ public:
     [[nodiscard]] bool change_proxy(const std::string & group_name, const std::string & proxy_name) const;
     void abort() noexcept { info_streaming_pulling_.store(false, std::memory_order_release); }
     void resume() noexcept { info_streaming_pulling_.store(true, std::memory_order_release); }
-    void get_info_no_instance(const std::string & endpoint_name, const std::function < void(const std::string&) > & method) const;
     [[nodiscard]] bool change_config(const std::string& json) const;
     [[nodiscard]] bool change_proxy_mode(const std::string & mode) const { return change_config( R"({"mode": ")" + mode +  "\"}"); }
     [[nodiscard]] bool close_all_connections() const;
     [[nodiscard]] bool close_connection(const std::string & id) const;
-    void generic_post(const std::string & path, const std::function < void(int, const std::string&) > & method) const;
-    void generic_put(const std::string & path, const std::function < void(int, const std::string&) > & method) const;
 
-    template < typename InstanceType >
-    void get_info(const std::string & endpoint_name, InstanceType* instance, void (InstanceType::*method)(const std::string&))
+    using UploadMethod_path_body_ct_prgrs = httplib::Result (httplib::Client::*)
+        (const std::string &path, const std::string &body, const std::string &content_type, httplib::UploadProgress);
+    using DownloadMethod_path_prgrs = httplib::Result (httplib::Client::*)(const std::string &path, httplib::DownloadProgress);
+    using Method_pathOnly = httplib::Result (httplib::Client::*)(const std::string &path);
+
+    template <bool ProgressSupplyCheck = true, typename Method, typename... Args>
+    httplib::Result generic_request(Method method, httplib::Headers headers, Args&&... args) const
     {
-        try {
-            get_info_no_instance(endpoint_name, [&](std::string buff) { (instance->*method)(buff); });
-        } catch (const std::exception& e) {
-            throw std::runtime_error(e.what());
+        auto ref_tuple = std::forward_as_tuple(args...);
+        using LastType = std::tuple_element_t<sizeof...(Args) - 1, std::tuple<Args...>>;
+        const std::any last_arg = std::get<sizeof...(Args) - 1>(ref_tuple);
+
+        httplib::Client http_cli(backend_address_);
+        ccdb::utils::set_ssl_automatically(http_cli, backend_address_);
+        http_cli.set_decompress(false);
+        http_cli.set_read_timeout(timeout_on_backend_ops_in_seconds, 0);
+        if (!token_.empty()) {
+            headers.emplace("Authorization", "Bearer " + token_);
+            http_cli.set_default_headers(headers);
         }
+
+        httplib::Result res;
+        if constexpr (!ProgressSupplyCheck ||
+            std::is_same_v<LastType, httplib::UploadProgress> || std::is_same_v<LastType, httplib::DownloadProgress>)
+        {
+            res = std::invoke(method, http_cli, std::forward<Args>(args)...); // supplied progress
+        } else { // no progress, add nullptr
+            using func_progress = httplib::UploadProgress;
+            func_progress none = nullptr;
+            if constexpr (std::is_invocable_v<Method, decltype(http_cli), Args..., func_progress>) {
+                res = std::invoke(method, http_cli, std::forward<Args>(args)..., none);
+            } else {
+                throw std::logic_error("Compile BUG"); // YOU SHOULD NOT BE ABLE TO REACH HERE
+                // IF SO, THE COMPILER FAILED TO DEDUCE ARGUMENTS CORRECTLY, OR YOU SET WRONG RULES
+                // CHECK YOUR RULES AGAIN
+            }
+        }
+
+        if (!res) {
+            throw std::runtime_error(httplib::to_string(res.error()));
+        }
+
+        return res;
     }
 
-    template < typename InstanceType >
+    template <typename InstanceType>
     void get_stream_info(
-        const std::string & endpoint_name,
+        const std::string& endpoint_name,
         const std::stop_token stop_token,
         InstanceType* instance,
-        void (InstanceType::*method)(const std::string&))
+        void (InstanceType::*method)(const std::string&)
+    )
     {
-        std::jthread request_thread;
-        try
+        std::string buffer;
+
+        const auto keep_running = [&]() noexcept {
+            return !stop_token.stop_requested()
+                && info_streaming_pulling_.load(std::memory_order_acquire);
+        };
+
+        httplib::ContentReceiver puller = [&](const char* data, const size_t len) -> bool
         {
-            std::atomic_bool is_running(false);
-            httplib::Client http_cli(backend_address_);
-            ccdb::utils::set_ssl_automatically(http_cli, backend_address_);
-            http_cli.set_decompress(false);
-            http_cli.set_read_timeout(timeout_on_backend_ops_in_seconds, 0);
+            if (!keep_running()) return false;
 
-            const auto keep_running = [&]() noexcept
+            buffer.append(data, len);
+            auto pos = buffer.find('\n');
+            while (pos != std::string::npos)
             {
-                return !stop_token.stop_requested()
-                    && info_streaming_pulling_.load(std::memory_order_acquire);
-            };
+                std::string line = buffer.substr(0, pos);
+                buffer.erase(0, pos + 1);
 
-            auto worker = [&]()->void
-            {
-                if (is_running.exchange(true, std::memory_order_acq_rel)) return;
-
-                try
-                {
-                    std::string buffer;
-                    std::string first_line;
-                    ccdb::utils::thread_group handlers;
-
-                    auto puller = [&](const char *data, const size_t len)
-                    {
-                        if (!keep_running()) return false;
-
-                        buffer.append(data, len);
-                        if (const auto pos = buffer.find('\n'); pos != std::string::npos)
-                        {
-                            first_line = buffer.substr(0, pos);
-                            buffer = buffer.substr(pos + 1);
-                            handlers.emplace_back([&, line = std::move(first_line)]() mutable {
-                                (instance->*method)(line);
-                            });
-
-                            if (handlers.size() > 32) // oversized pool cleanup
-                            {
-                                handlers.clear();
-                            }
-                        }
-
-                        return keep_running();
-                    };
-
-                    const httplib::Headers headers = {
-                        {"Authorization", "Bearer " + token_},
-                    };
-
-                    if (!token_.empty()) {
-                        http_cli.Get("/" + endpoint_name, headers, puller);
-                    } else {
-                        http_cli.Get("/" + endpoint_name, puller);
-                    }
-
-                    handlers.join_all();
-                }
-                catch (...)
-                {
-                    is_running.store(false, std::memory_order_release);
-                    throw;
-                }
-
-                is_running.store(false, std::memory_order_release);
-            };
-
-            while (keep_running())
-            {
-                if (!is_running.load(std::memory_order_acquire))
-                {
-                    if (request_thread.joinable()) request_thread.join();
-                    request_thread = std::jthread([&] {
-                        try { worker(); } catch (...) { }
-                    });
-                }
-
-                std::this_thread::sleep_for(std::chrono::milliseconds(100l));
+                (instance->*method)(line);
+                pos = buffer.find('\n');
             }
 
-            http_cli.stop();
-            if (request_thread.joinable()) request_thread.join();
+            return keep_running();
+        };
 
-        } catch (std::exception &) {
-            if (request_thread.joinable()) request_thread.join();
-            throw;
-        }
+        using GetMethod = httplib::Result (httplib::Client::*)(
+            const std::string&,
+            httplib::ContentReceiver,
+            httplib::DownloadProgress progress
+        );
+
+        generic_request((GetMethod)&httplib::Client::Get, {},
+            "/" + endpoint_name,
+            puller
+        );
     }
 
     friend class general_info_pulling;

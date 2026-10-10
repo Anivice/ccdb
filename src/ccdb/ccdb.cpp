@@ -920,6 +920,21 @@ void ccdb::ccdb::init()
         upgrade(command_vector); return true;
     });
 
+    commandMatches.emplace_back("gc", [this](const auto &) {
+        print(backend_instance.generic_put("/debug/gc"), "\n");
+        return true;
+    });
+
+    commandMatches.emplace_back(R"(storage (store|retrieve|delete) [\w]+)", [this](const auto &v) {
+        storage(v);
+        return true;
+    });
+
+    commandMatches.emplace_back("changeRuleAffinity", [this](const auto & v) {
+        changeRuleAffinity(v);
+        return true;
+   });
+
     commandMatches.emplace_back("restart", [this](const auto &)
     {
         const auto result = backend_instance.generic_post("/restart");
@@ -934,6 +949,7 @@ void ccdb::ccdb::init()
     commandMatches.emplace_back("flush", [this](const auto &)
     {
         print(backend_instance.generic_post("/cache/fakeip/flush"), "\n");
+        print(backend_instance.generic_post("/cache/dns/flush"), "\n");
         return true;
     });
 

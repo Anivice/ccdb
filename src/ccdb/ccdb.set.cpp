@@ -261,59 +261,61 @@ void ccdb::ccdb::reload(const std::vector<std::string> & cmd) const
           -H 'Content-Type: application/json' \
           -d '{"path":"","payload":""}'
      */
-    httplib::Client poster(backend_instance.backend_client_ref.backend_address);
-    set_ssl_automatically(poster, backend_instance.backend_client_ref.backend_address);
-    poster.set_decompress(false);
-    poster.set_read_timeout(timeout_on_backend_ops_in_seconds, 0);
-    httplib::Headers headers;
-    if (!backend_instance.backend_client_ref.token.empty()) headers.emplace("Authorization", "Bearer " + backend_instance.backend_client_ref.token);
     const nlohmann::json body = {
         {"path", cmd.size() == 2 ? cmd[1] : ""},
         {"payload", ""}
     };
 
-    if (httplib::Result result = poster.Put("/configs?force=true", headers, body.dump(), "application/json");
-        !result)
-    {
-        print<is_error>("Failed to reload config\n");
-    } else if (result->status < 200 || result->status >= 300) {
-        print<is_error>("Failed to reload config: HTTP ", result->status, ": ", result->body, "\n");
-    }
+    backend_instance.backend_client_ref.generic_request((mihomo::UploadMethod_path_body_ct_prgrs)&httplib::Client::Put, {},
+        "/configs?force=true", body.dump(), "application/json");
 }
 
-static void xxd(const std::vector<uint8_t> & data)
+void ccdb::ccdb::changeRuleAffinity(const std::vector<std::string> &)
 {
-    for (uint64_t i = 0; i < data.size();)
+}
+
+void ccdb::ccdb::storage(const std::vector<std::string> & cmd)
+{
+    if (cmd.size() == 3)
     {
-        if (i != 0) std::cout << std::endl;
-        std::cout << std::setw(16) << std::setfill('0') << std::hex << i << " ";
-
-        constexpr uint64_t line_size = 16;
-        constexpr uint64_t group_size = line_size / 2;
-        static_assert((line_size & 0x01) == 0, "Must be even");
-        const auto len = std::min(data.size() - i, line_size);
-
-        // hex
-        for (uint64_t j = 0; j < len; j++)
+        if (cmd[1] == "store")
         {
-            if (j == group_size || j == line_size) std::cout << " ";
-            std::cout << std::hex << static_cast<int>(data[i + j]);
-        }
+            std::string body;
+            char buff [512] { };
+            while (std::cin.read(buff, 512)) {
+                body.append(buff, std::cin.gcount());
+            }
 
-        // ascii
-        for (uint64_t j = 0; j < len; j++)
-        {
-            if (j == group_size) std::cout << " ";
-            if (std::isprint(data[i + j])) {
-                std::cout << static_cast<char>(data[i + j]);
-            } else {
-                std::cout << '.';
+            const nlohmann::json json = {
+                {"data", body}
+            };
+
+            try {
+                backend_instance.backend_client_ref.generic_request((mihomo::UploadMethod_path_body_ct_prgrs)&httplib::Client::Put, {},
+                    "/storage/" + cmd[2], json.dump(), "application/json"
+                );
+            } catch (std::exception & e) {
+                print<is_error>(e.what(), "\n");
             }
         }
+        else if (cmd[2] == "retrieve")
+        {
+            const auto content = backend_instance.generic_get("/storage/" + cmd[2]);
+            try {
+                const nlohmann::json json = nlohmann::json::parse(content);
+                if (json.contains("data") && json["data"].is_string()) {
+                    const std::string data = json["data"];
+                    std::cout.write(data.c_str(), static_cast<std::streamsize>(data.size()));
+                    return;
+                }
+            } catch (std::exception &) { }
 
-        i += len;
+            std::cout.write(content.c_str(), static_cast<std::streamsize>(content.size()));
+        }
+        else if (cmd[2] == "delete") {
+            print(backend_instance.generic_delete("/storage/" + cmd[2]));
+        }
     }
 
-    std::cout << std::endl;
+    print<is_error>("Invalid command");
 }
-

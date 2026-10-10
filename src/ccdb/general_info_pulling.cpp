@@ -1562,10 +1562,7 @@ void general_info_pulling::pull_continuous_updates()
     // /connections puller
     make_thread([&](const std::stop_token)
     {
-        backend_client.get_info("connections",
-                    this,
-                    &general_info_pulling::update_from_connections);
-        std::this_thread::sleep_for(std::chrono::milliseconds(500l));
+        update_from_connections(generic_get("/connections"));
     }, "/connections");
 
     // /logs puller
@@ -1714,55 +1711,53 @@ void general_info_pulling::start_continuous_updates()
 void general_info_pulling::update_proxy_list()
 {
     const std::vector<std::string> ignored_proxies = { "COMPATIBLE", "PASS", "REJECT", "REJECT-DROP", "PASS-RULE" };
-    backend_client.get_info_no_instance("proxies", [&](const std::string& proxies)
+    const std::string proxies = generic_get("/proxies");
+    try
     {
-        try
+        std::lock_guard lock(proxy_list_mtx);
+        proxy_groups.clear();
+        proxy_latency.clear();
+        proxy_list.clear();
+
+        for (const json data = json::parse(proxies);
+            const auto & proxy : data["proxies"])
         {
-            std::lock_guard lock(proxy_list_mtx);
-            proxy_groups.clear();
-            proxy_latency.clear();
-            proxy_list.clear();
-
-            for (const json data = json::parse(proxies);
-                const auto & proxy : data["proxies"])
-            {
-                std::string string_name(proxy["name"]);
-                if (std::ranges::find(ignored_proxies, string_name) != ignored_proxies.end()) {
-                    // skip ignored words
-                    continue;
-                }
-
-                if (proxy.contains("history") && !proxy["history"].empty() && proxy["history"].front().contains("delay")) {
-                    const auto latency = proxy["history"].back()["delay"].get<int>();
-                    proxy_latency[string_name] = (latency > 0 ? latency : -1); // 0 means not valid
-                } else {
-                    proxy_latency[string_name] = -1;
-                }
-
-                std::vector < std::string > group_members;
-                if (proxy.contains("all"))
-                {
-                    for (const auto & element : proxy["all"]) {
-                        group_members.push_back(element);
-                    }
-                } else {
-                    proxy_info_t p_info = {
-                        .type = proxy["type"],
-                        .udp = proxy["udp"],
-                    };
-                    proxy_list.emplace(string_name, p_info);
-                    continue; // not a group
-                }
-
-                // balancers doesn't have a fixed endpoint, thus lacking "now" in its JSON
-                proxy_groups[string_name] = { group_members, proxy.contains("now") ? proxy["now"] : "" };
+            std::string string_name(proxy["name"]);
+            if (std::ranges::find(ignored_proxies, string_name) != ignored_proxies.end()) {
+                // skip ignored words
+                continue;
             }
+
+            if (proxy.contains("history") && !proxy["history"].empty() && proxy["history"].front().contains("delay")) {
+                const auto latency = proxy["history"].back()["delay"].get<int>();
+                proxy_latency[string_name] = (latency > 0 ? latency : -1); // 0 means not valid
+            } else {
+                proxy_latency[string_name] = -1;
+            }
+
+            std::vector < std::string > group_members;
+            if (proxy.contains("all"))
+            {
+                for (const auto & element : proxy["all"]) {
+                    group_members.push_back(element);
+                }
+            } else {
+                proxy_info_t p_info = {
+                    .type = proxy["type"],
+                    .udp = proxy["udp"],
+                };
+                proxy_list.emplace(string_name, p_info);
+                continue; // not a group
+            }
+
+            // balancers doesn't have a fixed endpoint, thus lacking "now" in its JSON
+            proxy_groups[string_name] = { group_members, proxy.contains("now") ? proxy["now"] : "" };
         }
-        catch (const std::exception & e)
-        {
-            ccdb::utils::print<ccdb::utils::is_error>("Cannot update proxy list: ", e.what(), "\n");
-        }
-    });
+    }
+    catch (const std::exception & e)
+    {
+        ccdb::utils::print<ccdb::utils::is_error>("Cannot update proxy list: ", e.what(), "\n");
+    }
 }
 
 void general_info_pulling::latency_test(const std::string & url)
@@ -1804,17 +1799,12 @@ void general_info_pulling::latency_test(const std::string & url)
             ccdb::utils::replace_all(proxy_, " ", "%20");
             try
             {
-                backend_client.get_info_no_instance("proxies/" + proxy_ + "/delay?url=" + url_ +"&timeout=15000",
-                    [&ptr_, &proxy_bk](const std::string& result)
-                    {
-                        if (const json data = json::parse(result);
-                            data.contains("delay"))
-                        {
-                            *ptr_ = data.at("delay");
-                        } else {
-                            ccdb::utils::print<ccdb::utils::is_error>("Cannot get latency on ", proxy_bk, ": ", std::string(data["message"]), "\n");
-                        }
-                    });
+                const std::string& result = generic_get("proxies/" + proxy_ + "/delay?url=" + url_ +"&timeout=15000");
+                if (const json data = json::parse(result);data.contains("delay")) {
+                    *ptr_ = data.at("delay");
+                } else {
+                    ccdb::utils::print<ccdb::utils::is_error>("Cannot get latency on ", proxy_bk, ": ", std::string(data["message"]), "\n");
+                }
             } catch (std::exception & e) {
                 ccdb::utils::print<ccdb::utils::is_error>("Cannot get latency on ", proxy_bk, ": ", e.what(), "\n");
                 *ptr_ = -1;
@@ -1854,18 +1844,16 @@ bool general_info_pulling::change_proxy_using_backend(const std::string & group_
 std::string general_info_pulling::get_current_mode() const
 {
     std::string result = "[ERROR]";
-    backend_client.get_info_no_instance("configs", [&](const std::string& configs)
+    try
     {
-        try
-        {
-            json data = json::parse(configs);
-            result = data["mode"];
-        }
-        catch (const std::exception & e)
-        {
-            ccdb::utils::print<ccdb::utils::is_error>("Cannot get mode: ", e.what(), "\n");
-        }
-    });
+        const std::string configs = generic_get("/configs");
+        json data = json::parse(configs);
+        result = data["mode"];
+    }
+    catch (const std::exception & e)
+    {
+        ccdb::utils::print<ccdb::utils::is_error>("Cannot get mode: ", e.what(), "\n");
+    }
 
     return result;
 }
@@ -1924,21 +1912,14 @@ void general_info_pulling::get_memory_pprof(const std::string& name, std::vector
 
 std::string general_info_pulling::get_config() const
 {
-    std::string ret;
-    backend_client.get_info_no_instance("configs", [&](const std::string & r){ ret = r; });
-    return ret;
+    return generic_get("/configs");
 }
 
 std::string general_info_pulling::get_proxy_metadata(const std::string& proxy_name) const
 {
-    std::string ret;
-    backend_client.get_info_no_instance("proxies", [&ret](const std::string & info)
-    {
-        ret = info;
-    });
-
     try
     {
+        const std::string ret = generic_get("/proxies");
         const auto proxies = nlohmann::json::parse(ret);
         return proxies["proxies"][proxy_name].dump(4);
     }
@@ -1950,45 +1931,37 @@ std::string general_info_pulling::get_proxy_metadata(const std::string& proxy_na
 
 std::string general_info_pulling::get_rules() const
 {
-    std::string ret;
-    backend_client.get_info_no_instance("rules", [&](const std::string & r){ ret = r; });
-    return ret;
+    return generic_get("/rules");
 }
 
 std::string general_info_pulling::get_providerRules() const
 {
-    std::string ret;
-    backend_client.get_info_no_instance("providers/rules", [&](const std::string & r){ ret = r; });
-    return ret;
+    return generic_get("/providers/rules");
 }
 
 std::string general_info_pulling::generic_post(const std::string & tail) const
 {
-    std::string ret;
-    backend_client.generic_post(tail, [&](const int status, const std::string & r)
-    {
-        if (!(status >= 200 && status < 300)) throw std::runtime_error(std::to_string(status) + ": " + r);
-        ret = r;
-    });
-    return ret;
+    return backend_client.generic_request<false>((mihomo::Method_pathOnly)&httplib::Client::Post, {}, tail)->body;
 }
 
 std::string general_info_pulling::generic_put(const std::string & tail) const
 {
-    std::string ret;
-    backend_client.generic_put(tail, [&](const int status, const std::string & r)
-    {
-        if (!(status >= 200 && status < 300)) throw std::runtime_error(std::to_string(status) + ": " + r);
-        ret = r;
-    });
-    return ret;
+    return backend_client.generic_request<false>((mihomo::Method_pathOnly)&httplib::Client::Put, {}, tail)->body;
+}
+
+std::string general_info_pulling::generic_get(const std::string &tail) const
+{
+    return backend_client.generic_request((mihomo::DownloadMethod_path_prgrs)&httplib::Client::Get, {}, tail)->body;
+}
+
+std::string general_info_pulling::generic_delete(const std::string &tail) const
+{
+    return backend_client.generic_request((mihomo::DownloadMethod_path_prgrs)&httplib::Client::Delete, {}, tail)->body;
 }
 
 std::string general_info_pulling::get_version() const
 {
-    std::string ret;
-    backend_client.get_info_no_instance("version", [&](const std::string & r){ ret = r; });
-    return ret;
+    return generic_get("/version");
 }
 
 #ifdef __CCDB_ENABLE_LOCAL_MULTICASTING__

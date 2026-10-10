@@ -375,6 +375,8 @@ public:
     [[nodiscard]] std::string get_providerRules() const;
     [[nodiscard]] std::string generic_post(const std::string & tail) const;
     [[nodiscard]] std::string generic_put(const std::string & tail) const;
+    [[nodiscard]] std::string generic_get(const std::string & tail) const;
+    [[nodiscard]] std::string generic_delete(const std::string & tail) const;
     [[nodiscard]] std::string get_version() const;
     [[nodiscard]] std::string get_current_mode() const;
 

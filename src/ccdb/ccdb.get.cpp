@@ -379,7 +379,7 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
     if (command_vector[1] == "geo")  {
         std::string result;
         try {
-            print(backend_instance.generic_post("/upgrade/geo"), "\n");
+            print(backend_instance.generic_post("/upgrade/geo"));
         } catch (std::exception & e) {
             print(e.what(), "\n");
         }

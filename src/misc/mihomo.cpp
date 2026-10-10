@@ -24,93 +24,15 @@
 
 bool mihomo::change_proxy(const std::string & group_name, const std::string & proxy_name) const
 {
-    httplib::Client http_cli(backend_address_);
-    ccdb::utils::set_ssl_automatically(http_cli, backend_address_);
-    http_cli.set_decompress(false);
-    http_cli.set_read_timeout(timeout_on_backend_ops_in_seconds, 0);
-    const httplib::Headers headers = {
-        {"Authorization", "Bearer " + token_},
-    };
-
     const nlohmann::json body = { {"name", proxy_name} };
-    httplib::Result res;
-
-    if (!token_.empty()) {
-        res = http_cli.Put("/proxies/" + group_name, headers, body.dump(), "application/json");
-    } else {
-        res = http_cli.Put("/proxies/" + group_name, body.dump(), "application/json");
-    }
-
-    if (!res) {
-        ccdb::utils::print<ccdb::utils::is_error>("Request failed: ", httplib::to_string(res.error()), "\n");
-        return false;
-    }
-
-    if (res->status == 204) {
-        return true;
-    }
-
-    return false;
-}
-
-void mihomo::get_info_no_instance(const std::string & endpoint_name, const std::function < void(const std::string&) > & method) const
-{
-    httplib::Client http_cli(backend_address_);
-    ccdb::utils::set_ssl_automatically(http_cli, backend_address_);
-    http_cli.set_decompress(false);
-    http_cli.set_read_timeout(timeout_on_backend_ops_in_seconds, 0);
-    const httplib::Headers headers = {
-        {"Authorization", "Bearer " + token_},
-    };
-
-    std::string buffer;
-    httplib::Result res;
-    auto resp = [&](const char *data, const size_t len)
-    {
-        buffer.append(data, len);
-        return true;
-    };
-
-    if (!token_.empty()) {
-        res = http_cli.Get("/" + endpoint_name, headers, resp);
-    } else {
-        res = http_cli.Get("/" + endpoint_name, resp);
-    }
-
-    if (!res) {
-        throw std::runtime_error(httplib::to_string(res.error()));
-    }
-
-    method(buffer);
+    return generic_request((UploadMethod_path_body_ct_prgrs)&httplib::Client::Put, {},
+        "/proxies/" + group_name, body.dump(), "application/json");
 }
 
 bool mihomo::change_config(const std::string& json) const
 {
-    httplib::Client http_cli(backend_address_);
-    ccdb::utils::set_ssl_automatically(http_cli, backend_address_);
-    http_cli.set_decompress(false);
-    http_cli.set_read_timeout(timeout_on_backend_ops_in_seconds, 0);
-    const httplib::Headers headers = {
-        {"Authorization", "Bearer " + token_},
-    };
-
-    httplib::Result res;
-    if (!token_.empty()) {
-        res = http_cli.Patch("/configs", headers, json, "application/json");
-    } else {
-        res = http_cli.Patch("/configs", json, "application/json");
-    }
-
-    if (!res) {
-        ccdb::utils::print<ccdb::utils::is_error>("Request failed: ", httplib::to_string(res.error()), "\n");
-        return false;
-    }
-
-    if (res->status == 204) {
-        return true;
-    }
-
-    return false;
+    return generic_request((UploadMethod_path_body_ct_prgrs)&httplib::Client::Patch, {},
+        "/configs", json, "application/json");
 }
 
 bool mihomo::close_all_connections() const {
@@ -119,82 +41,6 @@ bool mihomo::close_all_connections() const {
 
 bool mihomo::close_connection(const std::string &id) const
 {
-    httplib::Client http_cli(backend_address_);
-    ccdb::utils::set_ssl_automatically(http_cli, backend_address_);
-    http_cli.set_decompress(false);
-    http_cli.set_read_timeout(timeout_on_backend_ops_in_seconds, 0);
-    const httplib::Headers headers = {
-        {"Authorization", "Bearer " + token_},
-    };
-
-    std::string path;
-    if (!id.empty()) {
-        path = "/" + id;
-    }
-
-    httplib::Result res;
-    if (!token_.empty()) {
-        res = http_cli.Delete("/connections" + path, headers);
-    } else {
-        res = http_cli.Delete("/connections" + path);
-    }
-
-    if (!res) {
-        ccdb::utils::print<ccdb::utils::is_error>("Request failed: ", httplib::to_string(res.error()), "\n");
-        return false;
-    }
-
-    if (res->status == 204) {
-        return true;
-    }
-
-    return false;
-}
-
-void mihomo::generic_post(const std::string & path, const std::function < void(int, const std::string&) > & method) const
-{
-    httplib::Client http_cli(backend_address_);
-    ccdb::utils::set_ssl_automatically(http_cli, backend_address_);
-    http_cli.set_decompress(false);
-    http_cli.set_read_timeout(timeout_on_backend_ops_in_seconds, 0);
-    const httplib::Headers headers = {
-        {"Authorization", "Bearer " + token_},
-    };
-
-    httplib::Result res;
-    if (!token_.empty()) {
-        res = http_cli.Post(path, headers);
-    } else {
-        res = http_cli.Post(path);
-    }
-
-    if (!res) {
-        ccdb::utils::print<ccdb::utils::is_error>("Request failed: ", httplib::to_string(res.error()), "\n");
-    } else {
-        method(res->status, res->body);
-    }
-}
-
-void mihomo::generic_put(const std::string& path, const std::function<void(int, const std::string&)>& method) const
-{
-    httplib::Client http_cli(backend_address_);
-    ccdb::utils::set_ssl_automatically(http_cli, backend_address_);
-    http_cli.set_decompress(false);
-    http_cli.set_read_timeout(timeout_on_backend_ops_in_seconds, 0);
-    const httplib::Headers headers = {
-        {"Authorization", "Bearer " + token_},
-    };
-
-    httplib::Result res;
-    if (!token_.empty()) {
-        res = http_cli.Put(path, headers);
-    } else {
-        res = http_cli.Put(path);
-    }
-
-    if (!res) {
-        ccdb::utils::print<ccdb::utils::is_error>("Request failed: ", httplib::to_string(res.error()), "\n");
-    } else {
-        method(res->status, res->body);
-    }
+    return generic_request((DownloadMethod_path_prgrs)&httplib::Client::Delete, {},
+        "/connections" + (id.empty() ? "" : "/" + id));
 }
