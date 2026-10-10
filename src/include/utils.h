@@ -476,6 +476,11 @@ namespace ccdb::utils
         static uint64_t reverse_bytes(uint64_t x);
     };
 
+    namespace base64 {
+        std::string base64_encode(std::string_view input);
+        std::string base64_decode(std::string_view input);
+    }
+
     /// Unpack string from embedded compressed string from xxd
     std::string unpack_string(const unsigned char str[], unsigned int len);
 

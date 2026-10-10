@@ -33,7 +33,7 @@
 #include "ncursesw/ncurses.h"
 #include "utils.h"
 #include "dump.h"
-#include "openssl/sha.h"
+#include "openssl/evp.h"
 
 #ifndef __NR_memfd_create
 # if defined(__x86_64__)
@@ -193,4 +193,90 @@ std::string ccdb::utils::CRC64::bin2hex(const std::string &str)
 {
     const std::vector < char > vec(str.begin(), str.end());
     return bin2hex(vec);
+}
+
+std::string ccdb::utils::base64::base64_encode(const std::string_view input)
+{
+    constexpr std::size_t block_size = 3 * 4096;
+    std::array<unsigned char, 4 * (block_size / 3) + 1> buffer{};
+    std::string result;
+
+    for (std::size_t pos = 0; pos < input.size();) {
+        const std::size_t size =
+            std::min(block_size, input.size() - pos);
+
+        const int written = EVP_EncodeBlock(
+            buffer.data(),
+            reinterpret_cast<const unsigned char*>(input.data() + pos),
+            static_cast<int>(size)
+        );
+
+        if (written < 0)
+            throw std::runtime_error("Base64 encoding failed");
+
+        result.append(
+            reinterpret_cast<const char*>(buffer.data()),
+            written
+        );
+        pos += size;
+    }
+
+    return result;
+}
+
+std::string ccdb::utils::base64::base64_decode(const std::string_view input)
+{
+    if (input.size() % 4 != 0)
+        throw std::invalid_argument("Invalid Base64 length");
+
+    const std::size_t padding =
+        (!input.empty() && input.back() == '=') +
+        (input.size() >= 2 && input[input.size() - 2] == '=');
+
+    // Validate alphabet and padding placement.
+    for (std::size_t i = 0; i < input.size(); ++i) {
+        const auto c = static_cast<unsigned char>(input[i]);
+
+        const bool alphabet =
+            (c >= 'A' && c <= 'Z') ||
+            (c >= 'a' && c <= 'z') ||
+            (c >= '0' && c <= '9') ||
+            c == '+' || c == '/';
+
+        if (i < input.size() - padding ? !alphabet : c != '=')
+            throw std::invalid_argument(
+                "Invalid Base64 character or padding"
+            );
+    }
+
+    constexpr std::size_t block_size = 4 * 4096;
+    std::array<unsigned char, 3 * (block_size / 4)> buffer{};
+    std::string result;
+
+    for (std::size_t pos = 0; pos < input.size();) {
+        const std::size_t size =
+            std::min(block_size, input.size() - pos);
+
+        const int written = EVP_DecodeBlock(
+            buffer.data(),
+            reinterpret_cast<const unsigned char*>(input.data() + pos),
+            static_cast<int>(size)
+        );
+
+        if (written < 0)
+            throw std::invalid_argument("Invalid Base64 encoding");
+
+        // EVP_DecodeBlock includes padded bytes in its return value.
+        const std::size_t actual =
+            static_cast<std::size_t>(written) -
+            ((pos + size == input.size()) ? padding : 0);
+
+        result.append(
+            reinterpret_cast<const char*>(buffer.data()),
+            actual
+        );
+        pos += size;
+    }
+
+    return result;
 }

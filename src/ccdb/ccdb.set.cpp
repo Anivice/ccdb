@@ -22,6 +22,7 @@
 #include "ccdb.h"
 #include "utils.h"
 #include "print.h"
+#include "absl/strings/internal/str_format/extension.h"
 
 // --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;
@@ -282,12 +283,14 @@ void ccdb::ccdb::storage(const std::vector<std::string> & cmd)
         {
             std::string body;
             char buff [512] { };
-            while (std::cin.read(buff, 512)) {
-                body.append(buff, std::cin.gcount());
+            ssize_t n = 0;
+            while ((n = read(STDIN_FILENO, buff, sizeof(buff) - 1)) > 0) {
+                body.append(buff, n);
             }
 
+            const auto b64 = base64::base64_encode(body);
             const nlohmann::json json = {
-                {"data", body}
+                {"data", b64}
             };
 
             try {
@@ -297,23 +300,28 @@ void ccdb::ccdb::storage(const std::vector<std::string> & cmd)
             } catch (std::exception & e) {
                 print<is_error>(e.what(), "\n");
             }
+
+            return;
         }
-        else if (cmd[2] == "retrieve")
+        else if (cmd[1] == "retrieve")
         {
             const auto content = backend_instance.generic_get("/storage/" + cmd[2]);
             try {
-                const nlohmann::json json = nlohmann::json::parse(content);
-                if (json.contains("data") && json["data"].is_string()) {
-                    const std::string data = json["data"];
+                if (const nlohmann::json json = nlohmann::json::parse(content);
+                    json.contains("data") && json["data"].is_string())
+                {
+                    const std::string data = base64::base64_decode(json["data"].get<std::string>());
                     std::cout.write(data.c_str(), static_cast<std::streamsize>(data.size()));
                     return;
                 }
             } catch (std::exception &) { }
 
             std::cout.write(content.c_str(), static_cast<std::streamsize>(content.size()));
+            return;
         }
-        else if (cmd[2] == "delete") {
+        else if (cmd[1] == "delete") {
             print(backend_instance.generic_delete("/storage/" + cmd[2]));
+            return;
         }
     }
 
