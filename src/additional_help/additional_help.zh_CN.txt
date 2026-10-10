@@ -104,27 +104,21 @@ SHOW_INPUT_TRACE: 设置为`true`可把交互按键的原始序列及编码序�
     :sort COLUMN               按数字列索引排序。
     :sortReverse               反转当前排序顺序。
     :switchView                切换到关闭连接页面。
-    :setClosedConnectionBufferSpace 设置关闭连接缓存大小。默认128个条目。
+    :setClosedConnectionBufferSpace  设置关闭连接缓存大小。默认128个条目。
+    :move vertical/horizontal (-)INT 横向或纵向移动 INT 个字符。INT 可以为负数。
 
   连接列为：0 主机、1 进程、2 已下载、3 已上传、4 下载速度、5 上传速度、6 规则、7 时间、
   8 源IP、9 目标IP、10 类型、11 代理链。列0、1、6、8、9、10、11实现了过滤。
   在普通过滤模式下，只要一行匹配任意活动过滤器，该行就会被排除。
 
+`get rules`操作:
+    k: 启用或禁用选中的代理规则。
+       :disableAllMissedRules       禁用所有未匹配过的规则。
+       :enableAllRules              启用所有规则。
+       :toggleHideAllDisabledRules  隐藏或显示禁用的规则。
+
 `get log`操作:
-                     p: 在暂停和继续拉取日志之间切换。最新日志显示在顶部。
+    p: 在暂停和继续拉取日志之间切换。最新日志显示在顶部。
 
 `nload`操作:
     q / Q、Ctrl+C: 退出监视器。
-
-附加信息：
-
-CCDB 在首次启动时会在 `~/.config/ccdb/` 中创建一个 RSA-4096 密钥对。要信任另一个客户端的通知，
-请将其解码后的 `client_public_key` 的 SHA-256 哈希值添加到 `~/.config/ccdb/acceptable_clients` 中，
-每行一个哈希值：
-    base64 -d < ~/.config/ccdb/client_public_key | sha256sum
-复制该输出前 64 个十六进制字符。空格和 `#` 会结束该条目，因此哈希值后面可以带注释。空行会被忽略。
-对于双向通信，每个客户端都必须包含对方的哈希值。
-
-UDP hello 会通告公钥。消息使用新的 AES-256-GCM 密钥，该密钥会分别针对每个受信任对等方用
-RSA-OAEP/SHA-256 封装，并由发送方用 RSA-PSS/SHA-256 签名。加密信封包括发送方密钥、接收方密钥封装、密文、
-nonce、tag、时间戳和签名。接收方在处理任何命令或日志同步之前，会检查其允许列表和签名。参与主机的时钟应在两分钟内一致。

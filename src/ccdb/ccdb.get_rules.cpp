@@ -33,6 +33,7 @@ void ccdb::ccdb::get_rules()
 {
     try
     {
+        bool hide_disabled_rules = false;
         const std::string disabled_rule_color = color::color24(128,128,128,32,32,32);
         auto refresh_rules = [&](std::vector<std::vector<std::string>> & table_vals,
             OverrideColorType & line_color_overrides)
@@ -50,8 +51,10 @@ void ccdb::ccdb::get_rules()
                     const bool disabled = rule["extra"]["disabled"];
                     const int hitCount = rule["extra"]["hitCount"];
                     const int missCount = rule["extra"]["missCount"];
-                    if (disabled) {
+                    if (disabled && !hide_disabled_rules) {
                         line_color_overrides.emplace(index, disabled_rule_color);
+                    } else if (disabled) {
+                        continue;
                     }
                     table_vals.emplace_back(std::vector<std::string>{
                         std::to_string(index), type, payload, proxy, (!disabled ? "Enabled" : "Disabled"),
@@ -116,7 +119,16 @@ void ccdb::ccdb::get_rules()
                             now = std::chrono::steady_clock::now() - std::chrono::seconds(10);
                             return {};
                         },
-                    },
+                },
+                {
+                    "toggleHideAllDisabledRules",
+                        [&](ArgsCopyScope, CommandVectorType, const session_compliment_data_t *)->std::string
+                        {
+                            hide_disabled_rules = !hide_disabled_rules;
+                            now = std::chrono::steady_clock::now() - std::chrono::seconds(10);
+                            return {};
+                        },
+                },
             }, {},
             [&](const session_compliment_data_t *)->ScopeType
             {

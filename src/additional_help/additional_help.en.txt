@@ -116,31 +116,22 @@ Interactive Table Controls (`get connections` and `get log`):
     :sort COLUMN               Sort by a numeric column index.
     :sortReverse               Reverse the current sort order.
     :switchView                Switch to closed connections view.
-    :setClosedConnectionBufferSpace Set the buffer space holding closed connections. Default is 128.
+    :setClosedConnectionBufferSpace     Set the buffer space holding closed connections. Default is 128.
+    :move vertical/horizontal (-)INT    Move INT number of character spaces vertically or horizontally. INT can be negative.
 
   Connection columns are: 0 Host, 1 Process, 2 Downloaded, 3 Uploaded, 4 Download speed, 5 Upload speed,
   6 Rule, 7 Time, 8 Source IP, 9 Destination IP, 10 Type, and 11 Chains. Filters are implemented for columns
   0, 1, 6, 8, 9, 10, and 11. In normal filter mode, a row matching any active filter is excluded.
 
+
+`get rules` Controls:
+    k: Enable/disable of the selected rule.
+       :disableAllMissedRules       Disable all rules with 0 hit.
+       :enableAllRules              Enable all rules.
+       :toggleHideAllDisabledRules  Hide or unhide disabled rules from the list.
+
 `get log` Controls:
-                 p: Toggle log fetching between paused and running. Newest entries are shown at the top.
+    p: Toggle log fetching between paused and running. Newest entries are shown at the top.
 
 `nload` Controls:
     q / Q, Ctrl+C: Leave the watcher.
-
-Additional Info:
-
-CCDB creates an RSA-4096 key pair in `~/.config/ccdb/` on first start. To trust
-another client's notifications, add the SHA-256 hash of its decoded `client_public_key`
-to `~/.config/ccdb/acceptable_clients`, one hash per line:
-    base64 -d < ~/.config/ccdb/client_public_key | sha256sum
-Copy the first 64 hexadecimal characters of that output. Spaces and `#` end
-the entry, so a hash may have a trailing comment. Blank lines are ignored.
-For two-way communication, each client must include the other's hash.
-
-The UDP hello advertises the public key. Messages use a fresh AES-256-GCM key,
-wrapped with RSA-OAEP/SHA-256 separately for each trusted peer and signed with
-RSA-PSS/SHA-256 by the sender. The encrypted envelope includes the sender key,
-recipient key wraps, ciphertext, nonce, tag, timestamp, and signature. A receiver
-checks its allowlist and the signature before processing any command or log sync.
-The clocks of participating hosts should agree within two minutes.
