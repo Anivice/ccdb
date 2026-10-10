@@ -182,6 +182,7 @@ set(CCDB_SRC_FILES
         ccdb/notification_crypto.cpp
         ccdb/ccdb.print_table.cpp       include/ccdb.h
         ccdb/ccdb.continuous_table.cpp
+        ccdb/ccdb.get_rules.cpp
 
         versions.cpp                    include/versions.h
         ccdb/libmaxmind.cpp             include/libmaxmind.h

@@ -930,7 +930,7 @@ void ccdb::ccdb::init()
         return true;
     });
 
-    commandMatches.emplace_back("changeRuleAffinity", [this](const auto & v) {
+    commandMatches.emplace_back(R"(setRuleAffinity(?:\s+\d+(?:\-\d+)?,(?:enable|disable))+)", [this](const auto & v) {
         changeRuleAffinity(v);
         return true;
    });

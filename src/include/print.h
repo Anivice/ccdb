@@ -28,6 +28,7 @@
 #include <atomic>
 #include <type_traits>
 #include "utils.h"
+#include "httplib.h"
 
 namespace ccdb::utils
 {
@@ -70,6 +71,10 @@ namespace ccdb::utils
     template < MsgValueType T >
     void _sprint(const T& val, std::ostream & oss) {
         oss << val;
+    }
+
+    inline void _sprint(const httplib::Result& val, std::ostream & oss) {
+        oss << val->status << ": " << val->body;
     }
 
     template < MsgValueType... Args >

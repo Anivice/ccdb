@@ -142,7 +142,7 @@
     < proxyView (%cmd.readline.d/proxyView.json%): [NONE] >,
     < gc (Perform garbage collection for backend): [NONE] >,
     < storage (Backend storage): store (store data), retrieve (retrieve data), delete (delete data) >, # 1> store #name
-    < changeRuleAffinity (Enable or disable a rule): [NONE] >, # changeRuleAffinity 1,enable 2,disable 4-10,disable
+    < setRuleAffinity (Enable or disable a rule): [NONE] >, # changeRuleAffinity 1,enable 2,disable 4-10,disable
 }
 
 # $ ssh me@localhost

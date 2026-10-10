@@ -271,8 +271,82 @@ void ccdb::ccdb::reload(const std::vector<std::string> & cmd) const
         "/configs?force=true", body.dump(), "application/json");
 }
 
-void ccdb::ccdb::changeRuleAffinity(const std::vector<std::string> &)
+static tsl::hopscotch_map<int, bool> affinity(const std::vector<std::string> & cmd)
 {
+    tsl::hopscotch_map<int, bool> ret;
+
+    // 1,enable 2,disable 4-10,disable
+    for (decltype(cmd.size()) i = 1; i < cmd.size(); i++)
+    {
+        const auto separation = cmd[i].find_first_of(',');
+        if (separation == std::string::npos) {
+            print<is_error>("Ignored `", cmd[i], "`\n");
+            continue;
+        }
+
+        const auto index = cmd[i].substr(0, separation);
+        auto expression = cmd[i].substr(separation + 1);
+        std::ranges::transform(expression, expression.begin(),
+        [](const unsigned char c) {
+            return static_cast<char>(std::toupper(c));
+        });
+
+        constexpr char enable[] = "ENABLE";
+        constexpr char disable[] = "DISABLE";
+
+        bool enabled = true;
+        bool disabled = true;
+        for (decltype(expression.size()) j = 0; j < expression.size(); j++)
+        {
+            if (j < strlen(enable)) {
+                enabled = enabled && (expression[j] == enable[j]);
+            }
+
+            if (j < strlen(disable)) {
+                disabled = disable && (expression[j] == disable[j]);
+            }
+        }
+
+        enabled = enabled && strlen(enable) <= expression.size();
+        disabled = disable && strlen(disable) <= expression.size();
+
+        if (enabled ^ disabled) // enabled and disabled, one is true one is false
+        {
+            try {
+                if (const auto sep_i = index.find('-');
+                    sep_i != std::string::npos)
+                {
+                    const auto index_begin = convertToNumber<unsigned int>(index.substr(0, sep_i));
+                    const auto index_end = convertToNumber<unsigned int>(index.substr(sep_i + 1));
+                    for (unsigned int k = index_begin; k <= index_end; k++) {
+                        ret.emplace(k, enabled);
+                    }
+                } else {
+                    const auto num_index = convertToNumber<unsigned int>(index);
+                    ret.emplace(num_index, enabled);
+                }
+            } catch (std::exception & e) {
+                print<is_error>("Ignored: `", cmd[i], ": ", e.what(), "\n");
+            }
+        }
+    }
+
+    return ret;
+}
+
+void ccdb::ccdb::changeRuleAffinity(const std::vector<std::string> & cmd)
+{
+    const auto affinity_list = affinity(cmd);
+    nlohmann::json json = json::parse("{}");
+    for (const auto & [index, enabled] : affinity_list) {
+        json.emplace(std::pair<std::string, bool>{std::to_string(index), !enabled});
+    }
+    const auto json_dump = json.dump();
+    if (const auto res = backend_instance.backend_client_ref.generic_request((mihomo::UploadMethod_path_body_ct_prgrs)&httplib::Client::Patch, {},
+        "/rules/disable", json_dump, "application/json"); !res || res->status != 204)
+    {
+        print<is_error>("Change affinity failed\n");
+    }
 }
 
 void ccdb::ccdb::storage(const std::vector<std::string> & cmd)
