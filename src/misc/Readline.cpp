@@ -532,37 +532,99 @@ namespace Readline
         return nullptr;
     }
 
-    static int argument_index(const char *buffer, const int start)
+    static int argument_index(const char* buffer, int start)
     {
-        auto isspace = [](const int c)->bool {
-            return ::isspace(c) || c == '\t';
+        if (!buffer) return 1;
+
+        const size_t len = std::strlen(buffer);
+        const size_t pos = std::min(
+            len, static_cast<size_t>(std::max(0, start))
+        );
+
+        auto is_operator = [](char c) {
+            return std::strchr("><|&;()", c) != nullptr;
         };
 
-        if (buffer == nullptr) return 1;
-
-        const int len = static_cast<int>(strlen(buffer));
-
-        int s = start;
-        if (s < 0) s = 0;
-        if (s > len) s = len;
-
-        int arg = 1;
-
-        if (len == 0) return arg;
-
-        const int end = (s < len) ? s : (len - 1);
-
-        for (int i = 1; i <= end; ++i)
+        auto operator_length = [&](const size_t i) -> size_t
         {
-            const auto cur  = static_cast<unsigned char>(buffer[i]);
-            const auto prev = static_cast<unsigned char>(buffer[i - 1]);
+            constexpr std::string_view ops[] = {
+                "<<-", ";;&", "&>>",
+                "&&", "||", ">>", "<<",
+                "|&", ">&", "<&", "<>",
+                ">|", "&>", ";;", ";&"
+            };
 
-            if (isspace(cur) && !isspace(prev)) {
-                arg++;
+            const std::string_view remaining(buffer + i, len - i);
+            for (const auto & op : ops)
+                if (remaining.starts_with(op))
+                    return op.size();
+
+            return 1;
+        };
+
+        size_t i = 0;
+        int arg = 0;
+
+        while (i < len)
+        {
+            while (i < len && std::isspace(static_cast<unsigned char>(buffer[i]))) ++i;
+            if (i == len) break;
+
+            const size_t begin = i;
+            const bool op = is_operator(buffer[i]);
+
+            if (op) {
+                i += operator_length(i);
+            } else {
+                char quote = 0;
+                bool escaped = false;
+
+                while (i < len)
+                {
+                    const char c = buffer[i];
+
+                    if (escaped) {
+                        escaped = false;
+                        ++i;
+                        continue;
+                    }
+
+                    if (c == '\\' && quote != '\'') {
+                        escaped = true;
+                        ++i;
+                        continue;
+                    }
+
+                    if (quote) {
+                        if (c == quote) quote = 0;
+                        ++i;
+                        continue;
+                    }
+
+                    if (c == '\'' || c == '"') {
+                        quote = c;
+                        ++i;
+                        continue;
+                    }
+
+                    if (std::isspace(static_cast<unsigned char>(c)) ||
+                        is_operator(c))
+                        break;
+
+                    ++i;
+                }
             }
+
+            ++arg;
+
+            if (pos <= begin || pos < i)
+                return arg;
+
+            if (pos == i && i == len && !op)
+                return arg;
         }
 
-        return arg;
+        return arg + 1;
     }
 
     SpecialArgumentCandidates SpecialArgumentCandidatesGenerator = nullptr;
@@ -572,6 +634,7 @@ namespace Readline
     static std::vector < std::string > active_arg_buffer;
     static int active_arg_index = 0;
     tsl::hopscotch_map < std::string /* command */, std::string /* help msg */ > g_extra_help_map;
+    static bool NO_HIGHLIGHTER_LINE_COLOR_CODE = ccdb::utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") == "true";
 
     void colored_display_hook(char **matches, const int num_matches, int max_length)
     {
@@ -585,7 +648,7 @@ namespace Readline
             {
                 std::stringstream ss;
                 std::string no_color = "\033[0m";
-                if (ccdb::utils::getenv("NO_HIGHLIGHTER_LINE_COLOR_CODE") == "true") {
+                if (NO_HIGHLIGHTER_LINE_COLOR_CODE) {
                     no_color = "";
                 } else {
                     ss << "\033[04;05;07m";
@@ -696,21 +759,7 @@ namespace Readline
         while (!this_arg.empty() && this_arg.back() == ' ') this_arg.pop_back(); // remove tailing spaces
         while (!this_arg.empty() && this_arg.front() == ' ') this_arg.erase(this_arg.begin()); // remove leading spaces
         const int arg_index = argument_index(rl_line_buffer, start) - 1;
-        std::vector < std::string > args;
-        {
-            std::string arg;
-            std::ranges::for_each(this_arg, [&](const char c) {
-                if (c != ' ') {
-                    arg += c;
-                } else {
-                    if (!arg.empty()) args.emplace_back(arg);
-                    arg.clear();
-                }
-            });
-
-            if (!arg.empty()) args.emplace_back(arg);
-        }
-
+        const std::vector < std::string > args = ccdb::utils::split_via_history(this_arg, " \t\n>|");
         active_arg_buffer = args;
         active_arg_index = arg_index;
 
@@ -746,13 +795,16 @@ namespace Readline
 
         try
         {
-            if (arg_index == 0) {
+            if (arg_index == 0)
+            {
                 args_completion_list.clear();
                 auto verbs = command_template_tree.find_sub_commands({});
                 // replace alias
                 std::vector<std::string> pending_for_removal;
-                std::ranges::for_each(verbs, [&](const auto & arg) {
-                    if (SpecialArgumentCandidatesGenerator) {
+                std::ranges::for_each(verbs, [&](const auto & arg)
+                {
+                    if (SpecialArgumentCandidatesGenerator)
+                    {
                         const auto additional = SpecialArgumentCandidatesGenerator({ }, arg, arg_index);
                         if (!arg.empty() && arg.front() == '[') {
                             pending_for_removal.push_back(arg);
@@ -772,7 +824,22 @@ namespace Readline
             }
             else
             {
-                if (const auto sub_commands = command_template_tree.find_sub_commands(lookup);
+                /// remove '|' and '>' specials
+                /// arg_index is pointing at the filler position already, so
+                if (!lookup.empty() && (lookup.back() == ">" || lookup.back() == "|"))
+                {  // preceding one has '>' or '|', asking to fill the position after '>' or '|'
+                    args_completion_list.clear();
+                    if (lookup.back() == ">") {
+                        special_handler("[PWD...]", arg_index);
+                        rl_attempted_completion_over = 1;
+                        return matches;
+                    }
+
+                    special_handler("[SHELLCOMMAND]", arg_index);
+                    rl_attempted_completion_over = 1;
+                    return matches;
+                }
+                else if (const auto sub_commands = command_template_tree.find_sub_commands(lookup);
                     can_find_special_args(sub_commands))
                 {
                     args_completion_list.clear();

@@ -921,7 +921,7 @@ void ccdb::ccdb::init()
     });
 
     commandMatches.emplace_back("gc", [this](const auto &) {
-        print(backend_instance.generic_put("/debug/gc"), "\n");
+        print(backend_instance.generic_put("/debug/gc"));
         return true;
     });
 
@@ -948,8 +948,8 @@ void ccdb::ccdb::init()
 
     commandMatches.emplace_back("flush", [this](const auto &)
     {
-        print(backend_instance.generic_post("/cache/fakeip/flush"), "\n");
-        print(backend_instance.generic_post("/cache/dns/flush"), "\n");
+        print("Flush fake-ip...",   backend_instance.generic_post("/cache/fakeip/flush"), "done.\n");
+        print("Flush DNS cache...", backend_instance.generic_post("/cache/dns/flush"),    "done.\n");
         return true;
     });
 
