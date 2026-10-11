@@ -241,14 +241,16 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
         {
             int sig = 0;
             while (sig >= 0) {
-                if (sig = watcher_.wait(); sig == SIGINT) finished.push(2);
+                if (sig = watcher_.wait(); sig == SIGINT)
+                    finished.push(2);
             }
         });
 
-        if (const auto finish_sig = finished.wait(); finish_sig == 2) {
-            while (finished.wait()) {
-                kill(pid, SIGINT);
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        if (const auto finish_sig = finished.wait(); finish_sig == 2)
+        {
+            kill(pid, SIGKILL);
+            while (finished.wait_for(100)) {
+                kill(pid, SIGKILL);
             }
         }
 
