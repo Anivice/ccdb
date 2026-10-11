@@ -185,10 +185,8 @@ ccdb::utils::cmd_status ccdb::utils::exec_command_(
     };
 
     try {
-        std::string in = input;
-        if (in.empty() || in.back() != '\n') in.push_back('\n');
-        const char *in_ptr = in.data();
-        auto remaining  = static_cast<ssize_t>(in.size());
+        const char *in_ptr = input.data();
+        auto remaining  = static_cast<ssize_t>(input.size());
 
         bool stdin_closed = false;
         bool stdout_closed = false;
