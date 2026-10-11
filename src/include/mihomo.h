@@ -141,16 +141,22 @@ public:
             return keep_running();
         };
 
-        using GetMethod = httplib::Result (httplib::Client::*)(
-            const std::string&,
-            httplib::ContentReceiver,
-            httplib::DownloadProgress progress
-        );
 
-        generic_request((GetMethod)&httplib::Client::Get, {},
-            "/" + endpoint_name,
-            puller
-        );
+        httplib::Client http_cli(backend_address_);
+        ccdb::utils::set_ssl_automatically(http_cli, backend_address_);
+        http_cli.set_decompress(false);
+        http_cli.set_read_timeout(1, 0);
+        if (!token_.empty())
+        {
+            const httplib::Headers headers = {
+                {"Authorization", "Bearer " + token_}
+            };
+            http_cli.set_default_headers(headers);
+        }
+
+        while (keep_running()) {
+            http_cli.Get("/" + endpoint_name, puller);
+        }
     }
 
     friend class general_info_pulling;
