@@ -121,10 +121,33 @@ ccdb::signal_watcher_::signal_watcher_()
     worker_threads.emplace_back(&signal_watcher_::sigint_watcher, this);
     worker_threads.emplace_back([this]
     {
+        auto now = std::chrono::steady_clock::now();
+        int successive_sigint = 0;
         while (sigint_watcher_running)
         {
             if (const int sig = SignalWatcher.wait(); sig != -1)
             {
+                const auto cur = std::chrono::steady_clock::now();
+                if (cur - now < std::chrono::milliseconds(50)) {
+                    successive_sigint++;
+                } else {
+                    successive_sigint = 0;
+                }
+
+                now = cur;
+
+                if (successive_sigint > 5) { // requesting immediate quit
+                    print<is_error>("You fired rapid SIGINT, assuming you want to quit immediately.\n", flush);
+#                   ifdef ENABLE_CRASH_CATCHER
+                    if (init_crash_report.crash_log_destination_literal &&
+                        std::filesystem::exists(init_crash_report.crash_log_destination_literal))
+                    {
+                        std::filesystem::remove(init_crash_report.crash_log_destination_literal); // delete crash tailing
+                    }
+#                   endif
+                    _Exit(EXIT_SUCCESS); // immediately quit
+                }
+
                 std::lock_guard lock(watcher_mutex);
                 std::ranges::for_each(watchers, [&](auto * nt_) {
                     nt_->push(sig);

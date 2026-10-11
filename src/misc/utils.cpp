@@ -25,7 +25,6 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
-#include <utility>
 #include <string>
 #include <regex>
 #include <fcntl.h>
@@ -56,27 +55,6 @@
 if (!(x)) {         \
     std::cout << __FILE__ ":" STR(__LINE__) ": Assertion " #x " Failed!\n"; \
     _exit(EXIT_FAILURE); \
-}
-
-std::pair < const int, const int > ccdb::utils::get_screen_row_col() noexcept
-{
-    static std::atomic_bool is_terminal = isatty(STDOUT_FILENO);
-    struct stat st{};
-    if (fstat(STDOUT_FILENO, &st) == -1) {
-        return {-1, -1};
-    }
-
-    if (is_terminal)
-    {
-        winsize w{};
-        if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) != 0 || (w.ws_col | w.ws_row) == 0) {
-            return {-1, -1};;
-        }
-
-        return {w.ws_row, w.ws_col};
-    }
-
-    return {-1, -1};;
 }
 
 bool ccdb::utils::is_less_available()
