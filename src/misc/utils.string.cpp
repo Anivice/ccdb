@@ -511,6 +511,9 @@ std::string ccdb::utils::strip_color(std::string str_)
 
 void ccdb::utils::set_progress_bar(const progress_bar_state_t state, const int percentages)
 {
+#ifdef __STATIC_MUSL__
+    return;
+#endif //__STATIC_MUSL__
     std::stringstream ss;
     ss << "\033]9;4;" << state << ";" << percentages << "\033\\";
     const std::string & str = ss.str();

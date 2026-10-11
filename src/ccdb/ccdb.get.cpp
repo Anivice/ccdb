@@ -409,9 +409,9 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
 #endif //__DEBUG__
                 try
                 {
-                    const auto ccdb_container = get_content("ccdb", 120);
+                    const auto ccdb_container = get_content("ccdb", 60 * 30);
 #ifndef __STATIC_MUSL__
-                    const auto libccdb_so = get_content("libccdb.so", 120);
+                    const auto libccdb_so = get_content("libccdb.so", 60 * 30);
 #endif //__STATIC_MUSL__
                     rewrite(destination_location, ccdb_container);
 #ifndef __STATIC_MUSL__
