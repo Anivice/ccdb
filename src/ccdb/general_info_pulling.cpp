@@ -1799,7 +1799,7 @@ void general_info_pulling::latency_test(const std::string & url)
             ccdb::utils::replace_all(proxy_, " ", "%20");
             try
             {
-                const std::string& result = generic_get("proxies/" + proxy_ + "/delay?url=" + url_ +"&timeout=15000");
+                const std::string& result = generic_get("/proxies/" + proxy_ + "/delay?url=" + url_ +"&timeout=15000");
                 if (const json data = json::parse(result);data.contains("delay")) {
                     *ptr_ = data.at("delay");
                 } else {
