@@ -318,11 +318,12 @@ namespace ccdb::utils
     /// @param cmd Command
     /// @param args Command args
     /// @param input Provided stdin of the subprocess
+    /// @param child_interactive
     /// @return Command status
-    cmd_status exec_command_(const std::string &cmd, const std::vector<std::string> &args, const std::string &input);
-
-    cmd_status exec_command_2(const std::string &cmd,
-        const std::vector<std::string> &args, const std::string &input);
+    cmd_status exec_command_(
+        const std::string &cmd,
+        const std::vector<std::string> &args,
+        const std::string &input, bool child_interactive);
 
     // Concept for a single type that behaves like a string
     template<typename T> concept StringLike = std::convertible_to < T, std::string >;
@@ -339,7 +340,7 @@ namespace ccdb::utils
     cmd_status exec_command(const std::string& cmd, const std::string &input, Strings&&... args)
     {
         const std::vector < std::string > vec { std::forward<Strings>(args)... };
-        return exec_command_(cmd, vec, input);
+        return exec_command_(cmd, vec, input, false);
     }
 
     /// execute commands for pager specific programs
@@ -351,7 +352,7 @@ namespace ccdb::utils
     cmd_status exec_command2(const std::string& cmd, const std::string &input, Strings&&... args)
     {
         const std::vector < std::string > vec { std::forward<Strings>(args)... };
-        return exec_command_2(cmd, vec, input);
+        return exec_command_(cmd, vec, input, true);
     }
 
     /// Check if pager is invokable

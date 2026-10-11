@@ -1941,22 +1941,30 @@ std::string general_info_pulling::get_providerRules() const
 
 std::string general_info_pulling::generic_post(const std::string & tail) const
 {
-    return backend_client.generic_request<false>((mihomo::Method_pathOnly)&httplib::Client::Post, {}, tail)->body;
+    const auto res = backend_client.generic_request<false>((mihomo::Method_pathOnly)&httplib::Client::Post, {}, tail);
+    if (res->status == 204) return res->body;
+    throw std::runtime_error(std::to_string(res->status) + ": " + res->body);
 }
 
 std::string general_info_pulling::generic_put(const std::string & tail) const
 {
-    return backend_client.generic_request<false>((mihomo::Method_pathOnly)&httplib::Client::Put, {}, tail)->body;
+    const auto res = backend_client.generic_request<false>((mihomo::Method_pathOnly)&httplib::Client::Put, {}, tail);
+    if (res->status == 204) return res->body;
+    throw std::runtime_error(std::to_string(res->status) + ": " + res->body);
 }
 
 std::string general_info_pulling::generic_get(const std::string &tail) const
 {
-    return backend_client.generic_request((mihomo::DownloadMethod_path_prgrs)&httplib::Client::Get, {}, tail)->body;
+    const auto res = backend_client.generic_request((mihomo::DownloadMethod_path_prgrs)&httplib::Client::Get, {}, tail);
+    if (res->status == 200) return res->body;
+    throw std::runtime_error(std::to_string(res->status) + ": " + res->body);
 }
 
 std::string general_info_pulling::generic_delete(const std::string &tail) const
 {
-    return backend_client.generic_request((mihomo::DownloadMethod_path_prgrs)&httplib::Client::Delete, {}, tail)->body;
+    const auto res = backend_client.generic_request((mihomo::DownloadMethod_path_prgrs)&httplib::Client::Delete, {}, tail);
+    if (res->status == 204) return res->body;
+    throw std::runtime_error(std::to_string(res->status) + ": " + res->body);
 }
 
 std::string general_info_pulling::get_version() const

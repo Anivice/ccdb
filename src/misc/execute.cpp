@@ -52,57 +52,120 @@ namespace
 #define CHILD_WRITE_FD   ( pipes[PARENT_READ_PIPE][WRITE_FD]  )
 #define CHILD_ERR_FD     ( pipes[PARENT_ERR_PIPE][WRITE_FD]   )
 
-
-
-ccdb::utils::cmd_status ccdb::utils::exec_command_2(
+ccdb::utils::cmd_status ccdb::utils::exec_command_(
     const std::string &cmd,
     const std::vector<std::string> &args,
-    const std::string &input)
+    const std::string &input, bool child_interactive)
 {
-    cmd_status status{"", "", 1};   // fail by default
-    int pipes[3][2];                // stdin, stdout, stderr
+    cmd_status status{"", "", 1};
+    int pipes[3][2];
+    const int pipe_count = child_interactive ? 3 : 1;
 
-    // Create all three pipes
-    for (auto & i : pipes) {
-        if (pipe(i) == -1) {
-            status.fd_stderr = std::strerror(errno);
+    // Preserve the original number of pipes and each mode's error text.
+    for (int i = 0; i < pipe_count; ++i) {
+        if (pipe(pipes[i]) == -1) {
+            if (child_interactive)
+                status.fd_stderr = std::strerror(errno);
+            else
+                status.fd_stderr += get_errno_message("pipe() failed: ");
             return status;
         }
     }
 
-    pid_t pid = fork();
+    const pid_t pid = fork();
     if (pid < 0) {
-        status.fd_stderr = std::strerror(errno);
-        for (auto &p : pipes) { close(p[0]); close(p[1]); }
+        if (child_interactive)
+            status.fd_stderr = std::strerror(errno);
+        else
+            status.fd_stderr += get_errno_message("fork() failed: ");
+
+        for (int i = 0; i < pipe_count; ++i) {
+            close(pipes[i][0]);
+            close(pipes[i][1]);
+        }
         return status;
     }
 
     if (pid == 0) {
-        // ---- Child ----
-        dup2(pipes[0][0], STDIN_FILENO);
-        dup2(pipes[1][1], STDOUT_FILENO);
-        dup2(pipes[2][1], STDERR_FILENO);
-        for (auto &p : pipes) { close(p[0]); close(p[1]); }
+        if (child_interactive) {
+            // Original exec_command_2(): unchecked dup2() calls.
+            dup2(pipes[0][0], STDIN_FILENO);
+            dup2(pipes[1][1], STDOUT_FILENO);
+            dup2(pipes[2][1], STDERR_FILENO);
+            for (int i = 0; i < pipe_count; ++i) {
+                close(pipes[i][0]);
+                close(pipes[i][1]);
+            }
+        } else {
+            // Original exec_command_(): checked stdin dup2().
+            if (dup2(pipes[0][0], STDIN_FILENO) == -1) {
+                perror("dup2(stdin)");
+                _exit(EXIT_FAILURE);
+            }
+            close(pipes[0][0]);
+            close(pipes[0][1]);
+        }
 
-        std::vector<char*> argv;
-        argv.push_back(const_cast<char*>(cmd.c_str()));
-        for (auto &a : args) argv.push_back(const_cast<char*>(a.c_str()));
+        std::vector<char *> argv;
+        argv.push_back(const_cast<char *>(cmd.c_str()));
+        for (const auto &arg : args)
+            argv.push_back(const_cast<char *>(arg.c_str()));
         argv.push_back(nullptr);
         execv(cmd.c_str(), argv.data());
         perror("execv");
-        _exit(127);
+        _exit(child_interactive ? 127 : EXIT_FAILURE);
     }
 
-    // ---- Parent ----
-    close(pipes[0][0]);  // child stdin read end
-    close(pipes[1][1]);  // child stdout write end
-    close(pipes[2][1]);  // child stderr write end
+    // Both original implementations close the child's stdin read end.
+    close(pipes[0][0]);
 
-    int fd_stdin  = pipes[0][1];   // write to child
-    int fd_stdout = pipes[1][0];   // read from child
-    int fd_stderr = pipes[2][0];   // read from child
+    if (!child_interactive) {
+        // Original exec_command_(): exact input; stdout/stderr are inherited.
+        const char *buf = input.c_str();
+        const auto bytes_to_write = static_cast<ssize_t>(input.size());
+        ssize_t total_written = 0;
+        while (total_written < bytes_to_write)
+        {
+            const ssize_t written = write(pipes[0][1], buf + total_written,
+                                          bytes_to_write - total_written);
+            if (written == -1) {
+                if (errno == EINTR) {
+                    continue;
+                }
+                status.fd_stderr += get_errno_message("write() to child stdin failed: ");
+                break;
+            }
+            total_written += written;
+        }
+        close(pipes[0][1]);
 
-    // Guard: always wait for child on scope exit
+        int wstatus;
+        if (waitpid(pid, &wstatus, 0) == -1) {
+            status.fd_stderr += get_errno_message("waitpid() failed: ");
+            return status;
+        }
+        if (WIFEXITED(wstatus)) {
+            status.exit_status = WEXITSTATUS(wstatus);
+        } else if (WIFSIGNALED(wstatus)) {
+            std::ostringstream oss;
+            oss << "Child terminated by signal " << WTERMSIG(wstatus) << "\n";
+            status.fd_stderr += oss.str();
+            status.exit_status = 1;
+        } else {
+            status.fd_stderr += "Child process ended abnormally.\n";
+            status.exit_status = 1;
+        }
+        return status;
+    }
+
+    // Original exec_command_2(): capture stdout/stderr; poll stdin/stdout/stderr.
+    close(pipes[1][1]);
+    close(pipes[2][1]);
+
+    int fd_stdin  = pipes[0][1];
+    int fd_stdout = pipes[1][0];
+    int fd_stderr = pipes[2][0];
+
     auto wait_child = [&]() {
         if (pid > 0) {
             int wstatus;
@@ -121,10 +184,7 @@ ccdb::utils::cmd_status ccdb::utils::exec_command_2(
         }
     };
 
-    // Ensure wait_child() runs even on early returns
-    // (in production use a proper RAII wrapper)
     try {
-        // Prepare input, add newline if missing
         std::string in = input;
         if (in.empty() || in.back() != '\n') in.push_back('\n');
         const char *in_ptr = in.data();
@@ -156,7 +216,7 @@ ccdb::utils::cmd_status ccdb::utils::exec_command_2(
 
             for (auto &p : fds) {
                 if (p.revents & (POLLERR | POLLHUP | POLLNVAL)) {
-                    // pipe error or hangup – close and stop monitoring
+                    // Keep the original priority over POLLIN/POLLOUT.
                     close(p.fd);
                     if (p.fd == fd_stdin)  stdin_closed = true;
                     if (p.fd == fd_stdout) stdout_closed = true;
@@ -219,92 +279,6 @@ ccdb::utils::cmd_status ccdb::utils::exec_command_2(
     } catch (...) {
         wait_child();
         throw;
-    }
-
-    return status;
-}
-
-ccdb::utils::cmd_status ccdb::utils::exec_command_(
-    const std::string &cmd,
-    const std::vector<std::string> &args,
-    const std::string &input)
-{
-    cmd_status status = {"", "", 1};
-
-    int stdin_pipe[2];
-    if (pipe(stdin_pipe) == -1) {
-        status.fd_stderr += get_errno_message("pipe() failed: ");
-        return status;
-    }
-
-    const pid_t pid = fork();
-    if (pid < 0) {
-        status.fd_stderr += get_errno_message("fork() failed: ");
-        close(stdin_pipe[0]);
-        close(stdin_pipe[1]);
-        return status;
-    }
-
-    if (pid == 0)
-    {
-        // Child process.
-        if (dup2(stdin_pipe[0], STDIN_FILENO) == -1) {
-            perror("dup2(stdin)");
-            _exit(EXIT_FAILURE);
-        }
-        close(stdin_pipe[0]);
-        close(stdin_pipe[1]);
-
-        std::vector<char *> argv;
-        argv.push_back(const_cast<char *>(cmd.c_str()));
-        for (const auto &arg : args) {
-            argv.push_back(const_cast<char *>(arg.c_str()));
-        }
-        argv.push_back(nullptr);
-        execv(cmd.c_str(), argv.data());
-        perror("execv");
-        _exit(EXIT_FAILURE);
-    }
-
-    // Parent process.
-    close(stdin_pipe[0]);
-    std::string to_write = input;
-    if (to_write.empty() || to_write.back() != '\n') {
-        to_write.push_back('\n');
-    }
-    const char *buf = to_write.c_str();
-    const auto bytes_to_write = static_cast<ssize_t>(to_write.size());
-    ssize_t total_written = 0;
-    while (total_written < bytes_to_write)
-    {
-        const ssize_t written = write(stdin_pipe[1], buf + total_written,
-                                bytes_to_write - total_written);
-        if (written == -1) {
-            if (errno == EINTR) {
-                continue;
-            }
-            status.fd_stderr += get_errno_message("write() to child stdin failed: ");
-            break;
-        }
-        total_written += written;
-    }
-    close(stdin_pipe[1]);
-
-    int wstatus;
-    if (waitpid(pid, &wstatus, 0) == -1) {
-        status.fd_stderr += get_errno_message("waitpid() failed: ");
-        return status;
-    }
-    if (WIFEXITED(wstatus)) {
-        status.exit_status = WEXITSTATUS(wstatus);
-    } else if (WIFSIGNALED(wstatus)) {
-        std::ostringstream oss;
-        oss << "Child terminated by signal " << WTERMSIG(wstatus) << "\n";
-        status.fd_stderr += oss.str();
-        status.exit_status = 1;
-    } else {
-        status.fd_stderr += "Child process ended abnormally.\n";
-        status.exit_status = 1;
     }
 
     return status;

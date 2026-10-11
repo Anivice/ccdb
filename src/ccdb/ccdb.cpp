@@ -67,7 +67,6 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
     int pipes[NUM_PIPES][2];
     std::vector < std::string > ccdb_vector;
     std::stringstream command_ss;
-
     {
         std::vector < std::string > shell_vector;
         bool switch_to_shell = false;
@@ -84,7 +83,6 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
                 shell_vector.push_back(c);
             }
         });
-
 
         std::ranges::for_each(shell_vector, [&](const std::string &c) {
             command_ss << c << " ";
@@ -143,14 +141,13 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
         }
 
         // Build argv for execv
-        std::atomic_bool sigint_caught_ = false;
-        std::atomic_bool finished = false;
+        NotificationType<int> finished;
         less.clear();
         jq.clear();
 
         std::thread T0([&] {
             (void)handler(ccdb_vector);
-            finished = true;
+            finished.push(1);
         });
 
         auto watcher_ = watcher.make_status_watcher();
@@ -158,23 +155,17 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
         {
             int sig = 0;
             while (sig >= 0) {
-                if (sig = watcher_.wait(); sig == SIGINT) sigint_caught_ = true;
+                if (sig = watcher_.wait(); sig == SIGINT) finished.push(1);;
             }
         });
 
-        while (!finished && !sigint_caught_) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        }
-
-        watcher_.stop();
-        if (finished && T0.joinable()) T0.join(); // WTF
-        if (T1.joinable()) T1.join();
+        finished.wait();
         _exit(EXIT_SUCCESS);
     }
     else
     {
         cmd_status status = {"", "", 1};
-        std::atomic_bool finished = false;
+        NotificationType<int> finished;
         std::thread T0([&]
         {
             // Parent process
@@ -242,39 +233,30 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
                 }
             }
 
-            finished = true;
+            finished.push(1);
         });
 
         auto watcher_ = watcher.make_status_watcher();
-        std::atomic_bool sigint_caught_ = false;
         std::thread T1([&]
         {
             int sig = 0;
             while (sig >= 0) {
-                if (sig = watcher_.wait(); sig == SIGINT) sigint_caught_ = true;
+                if (sig = watcher_.wait(); sig == SIGINT) finished.push(2);
             }
         });
 
-        while (!finished && !sigint_caught_) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        }
-
-        if (sigint_caught_) {
-            kill(pid, SIGINT);
-        }
-
-        while (!finished)
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            if (sigint_caught_) {
-                print<is_error>("Killing child ", pid, "\n");
-                kill(pid, SIGKILL);
+        if (const auto finish_sig = finished.wait(); finish_sig == 2) {
+            while (finished.wait()) {
+                kill(pid, SIGINT);
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
         }
 
         if (T0.joinable()) T0.join();
         watcher_.stop(); if (T1.joinable()) T1.join();
-        if (status.fd_stderr.empty()) {
+
+        if (status.exit_status == 0)
+        {
             if (mode == 1) {
                 exec_command("/bin/sh", status.fd_stdout, "-c", command_ss.str());
             } else {
@@ -285,7 +267,7 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
                     return;
                 }
 
-                out.write(status.fd_stdout.c_str(), status.fd_stdout.size());
+                out.write(status.fd_stdout.c_str(), static_cast<std::streamsize>(status.fd_stdout.size()));
                 out.close();
             }
         } else {
@@ -995,14 +977,18 @@ void ccdb::ccdb::init()
     commandMatches.emplace_back("get memory pprof (allocs|block|cmdline|goroutine|heap|mutex|profile|symbol|threadcreate|trace)",
     [this](const auto & vec)
     {
-        // if (!experimental_features) throw std::logic_error("CCDB_ENABLE_EXPERIMENTAL_FEATURES not enabled");
         std::vector < char > dump;
         backend_instance.get_memory_pprof(vec.back(), dump);
         std::cout.write(dump.data(), static_cast<std::streamsize>(dump.size()));
         constexpr char endl[] = "¶\n";
-        if (!dump.empty() && dump.back() != '\n' && isatty(fileno(stdout))) {
+        if (struct stat sb { };
+            !dump.empty() && dump.back() != '\n'
+            && isatty(fileno(stdout))
+            && fstat(STDOUT_FILENO, &sb) != -1
+            && !S_ISFIFO(sb.st_mode))
+        {
             std::cout << color::color(1,1,1);
-            std::cout.write(reinterpret_cast<const char*>(&endl), sizeof(endl) - 1);
+            std::cout.write(reinterpret_cast<const char*>(&endl), sizeof(endl));
             std::cout << color::no_color();
         }
         std::cout.flush();

@@ -267,8 +267,14 @@ void ccdb::ccdb::reload(const std::vector<std::string> & cmd) const
         {"payload", ""}
     };
 
-    backend_instance.backend_client_ref.generic_request((mihomo::UploadMethod_path_body_ct_prgrs)&httplib::Client::Put, {},
-        "/configs?force=true", body.dump(), "application/json");
+    if (const auto res = backend_instance.backend_client_ref.generic_request(
+        (mihomo::UploadMethod_path_body_ct_prgrs)&httplib::Client::Put, {},
+            "/configs?force=true", body.dump(), "application/json"); res->status != 204)
+    {
+        print<is_error>(res);
+    } else {
+        print(res);
+    }
 }
 
 static tsl::hopscotch_map<int, bool> affinity(const std::vector<std::string> & cmd)
@@ -347,6 +353,9 @@ void ccdb::ccdb::changeRuleAffinity(const std::vector<std::string> & cmd)
     {
         print<is_error>("Change affinity failed\n");
     }
+    else {
+        print(res);
+    }
 }
 
 void ccdb::ccdb::storage(const std::vector<std::string> & cmd)
@@ -368,9 +377,14 @@ void ccdb::ccdb::storage(const std::vector<std::string> & cmd)
             };
 
             try {
-                backend_instance.backend_client_ref.generic_request((mihomo::UploadMethod_path_body_ct_prgrs)&httplib::Client::Put, {},
-                    "/storage/" + cmd[2], json.dump(), "application/json"
-                );
+                if (const auto res = backend_instance.backend_client_ref.generic_request(
+                    (mihomo::UploadMethod_path_body_ct_prgrs)&httplib::Client::Put, {},
+                        "/storage/" + cmd[2], json.dump(), "application/json"); res->status != 204)
+                {
+                    print<is_error>(res);
+                } else {
+                    print(res);
+                }
             } catch (std::exception & e) {
                 print<is_error>(e.what(), "\n");
             }
@@ -393,8 +407,16 @@ void ccdb::ccdb::storage(const std::vector<std::string> & cmd)
             std::cout.write(content.c_str(), static_cast<std::streamsize>(content.size()));
             return;
         }
-        else if (cmd[1] == "delete") {
-            print(backend_instance.generic_delete("/storage/" + cmd[2]));
+        else if (cmd[1] == "delete")
+        {
+            if (const auto res = backend_instance.backend_client_ref.generic_request(
+                (mihomo::DownloadMethod_path_prgrs)&httplib::Client::Delete, {},
+                "/storage/" + cmd[2]); res->status != 204)
+            {
+                print<is_error>(res);
+            } else {
+                print(res);
+            }
             return;
         }
     }

@@ -73,8 +73,18 @@ namespace ccdb::utils
         oss << val;
     }
 
-    inline void _sprint(const httplib::Result& val, std::ostream & oss) {
-        oss << val->status << ": " << val->body;
+    inline void _sprint(const httplib::Result& val, std::ostream & oss)
+    {
+        oss << val->status;
+        bool endl = true;
+        if (!val->body.empty()) {
+            oss << ": " << val->body;
+            endl = val->body.back() != '\n';
+        }
+
+        if (endl) {
+            oss << "\n";
+        }
     }
 
     template < MsgValueType... Args >
