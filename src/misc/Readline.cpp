@@ -542,7 +542,7 @@ namespace Readline
         );
 
         auto is_operator = [](char c) {
-            return std::strchr("><|&;()", c) != nullptr;
+            return std::strchr("><|&;", c) != nullptr;
         };
 
         auto operator_length = [&](const size_t i) -> size_t
