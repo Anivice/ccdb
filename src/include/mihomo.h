@@ -111,7 +111,7 @@ public:
     template <typename InstanceType>
     void get_stream_info(
         const std::string& endpoint_name,
-        const std::stop_token stop_token,
+        const std::stop_token & stop_token,
         InstanceType* instance,
         void (InstanceType::*method)(const std::string&)
     )
@@ -123,7 +123,7 @@ public:
                 && info_streaming_pulling_.load(std::memory_order_acquire);
         };
 
-        httplib::ContentReceiver puller = [&](const char* data, const size_t len) -> bool
+        const httplib::ContentReceiver puller = [&](const char* data, const size_t len) -> bool
         {
             if (!keep_running()) return false;
 
@@ -145,7 +145,7 @@ public:
         httplib::Client http_cli(backend_address_);
         ccdb::utils::set_ssl_automatically(http_cli, backend_address_);
         http_cli.set_decompress(false);
-        http_cli.set_read_timeout(1, 0);
+        http_cli.set_read_timeout(3, 0);
         if (!token_.empty())
         {
             const httplib::Headers headers = {
@@ -155,7 +155,7 @@ public:
         }
 
         while (keep_running()) {
-            http_cli.Get("/" + endpoint_name, puller);
+            http_cli.Get(endpoint_name, puller);
         }
     }
 

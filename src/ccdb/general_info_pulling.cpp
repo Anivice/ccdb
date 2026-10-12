@@ -1553,7 +1553,7 @@ void general_info_pulling::pull_continuous_updates()
 
     make_thread([&](const std::stop_token stop_token)
     {
-        backend_client.get_stream_info("traffic",
+        backend_client.get_stream_info("/traffic",
                     stop_token,
                     this,
                     &general_info_pulling::update_from_traffic);
@@ -1570,7 +1570,7 @@ void general_info_pulling::pull_continuous_updates()
     {
         const auto configJSON = json::parse(get_config());
         puller_logLevel.set(std::string(configJSON["log-level"]));
-        backend_client.get_stream_info("logs?&level=" + puller_logLevel.get(),
+        backend_client.get_stream_info("/logs?&level=" + puller_logLevel.get(),
                                 stop_token,
                                 this,
                                 &general_info_pulling::update_from_logs);
@@ -1578,7 +1578,7 @@ void general_info_pulling::pull_continuous_updates()
 
     make_thread([&](const std::stop_token stop_token)
     {
-        backend_client.get_stream_info("memory",
+        backend_client.get_stream_info("/memory",
                     stop_token,
                     this,
                     &general_info_pulling::update_from_memory);
