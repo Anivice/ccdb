@@ -1563,6 +1563,7 @@ void general_info_pulling::pull_continuous_updates()
     make_thread([&](const std::stop_token)
     {
         update_from_connections(generic_get("/connections"));
+        std::this_thread::sleep_for(std::chrono::seconds(1));
     }, "/connections");
 
     // /logs puller
