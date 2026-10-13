@@ -128,7 +128,7 @@ ccdb::signal_watcher_::signal_watcher_()
             if (const int sig = SignalWatcher.wait(); sig != -1)
             {
                 const auto cur = std::chrono::steady_clock::now();
-                if (cur - now < std::chrono::milliseconds(50)) {
+                if (sig == SIGINT && cur - now < std::chrono::milliseconds(50)) {
                     successive_sigint++;
                 } else {
                     successive_sigint = 0;
