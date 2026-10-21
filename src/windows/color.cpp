@@ -31,7 +31,8 @@ namespace sim {
 const Num Begin = 0;
 const Num Span = 1;
 NumPack_t simulation_rainbow(Num x) {
-    x = std::clamp(x, Num(0), Num(1));
-    return {255*x, 220*(1-x), 80};
+    return { 255,255,255 };
+    //x = std::clamp(x, Num(0), Num(1));
+    //return {255*x, 220*(1-x), 80};
 }
 }
