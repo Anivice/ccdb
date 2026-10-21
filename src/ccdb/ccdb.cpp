@@ -1019,7 +1019,7 @@ void ccdb::ccdb::init()
         return true;
     });
 
-    commandMatches.emplace_back(R"(tlsWatchdog)", [this](const auto &command_vector) {
+    commandMatches.emplace_back(R"(tlsWatchdog(?: dryRun)?)", [this](const auto &command_vector) {
         tls_watchdog(command_vector); return true;
     });
 
