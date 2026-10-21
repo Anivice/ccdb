@@ -46,7 +46,7 @@ jobs:
             make \
             musl \
             qemu-user \
-            qemu-user-static \
+            qemu-user-binfmt \
             binfmt-support \
             xxd \
             git \
