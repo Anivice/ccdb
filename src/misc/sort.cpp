@@ -7,10 +7,13 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#ifndef __WINDOWS_MSVC_BUILD__
 #include "libpsl.h"
+#endif //__WINDOWS_MSVC_BUILD__
 
 namespace url_sort {
 
+#ifndef __WINDOWS_MSVC_BUILD__
 static std::optional<std::string> normalize_host_with_libpsl(std::string_view host) 
 {
     char* lower = nullptr;
@@ -24,6 +27,8 @@ static std::optional<std::string> normalize_host_with_libpsl(std::string_view ho
     psl_free_string(lower);
     return out;
 }
+#endif //__WINDOWS_MSVC_BUILD__
+
 
 struct ParsedHostPort {
     std::string host;        // normalized host
@@ -411,6 +416,7 @@ static std::optional<std::string> heuristic_registrable_domain(std::string_view 
     return out;
 }
 
+#ifndef __WINDOWS_MSVC_BUILD__
 static std::optional<std::string> registrable_domain_from_psl(std::string_view host) 
 {
     const psl_ctx_t* psl = psl_builtin();
@@ -430,6 +436,13 @@ static std::optional<std::string> registrable_domain_from_psl(std::string_view h
 
     return std::string(reg);
 }
+#else
+static std::optional<std::string> registrable_domain_from_psl(std::string_view host)
+{
+    return std::nullopt;
+}
+#endif //__WINDOWS_MSVC_BUILD__
+
 
 static SortKey make_sort_key(const std::string& original) 
 {

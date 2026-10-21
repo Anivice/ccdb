@@ -77,6 +77,14 @@ void ccdb::ccdb::get_rules()
         std::vector<std::vector<std::string>> table_vals;
         auto now = std::chrono::steady_clock::now() - std::chrono::seconds(10);
 
+        // -x/--execute: print one plain snapshot instead of entering the live view.
+        if (execute_and_no_interactive)
+        {
+            refresh_rules(table_vals, line_color_overrides);
+            simple_print_table(table_titles, table_vals);
+            return;
+        }
+
         using frame_t = std::vector<std::string>;
         using const_iterator = std::vector<frame_t>::const_iterator;
         using ScopeType = std::pair<const_iterator /* begin */, const_iterator /* end */>;

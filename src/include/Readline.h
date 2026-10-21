@@ -21,11 +21,14 @@
 
 #ifndef COMMANDTEMPLATETREE_H
 #define COMMANDTEMPLATETREE_H
+#include <csignal>
 #include <string>
 #include <vector>
 #include <memory>
 #include <functional>
+#ifndef __WINDOWS_MSVC_BUILD__
 #include <unistd.h>
+#endif //__WINDOWS_MSVC_BUILD__
 #include <cerrno>
 #include "ccdb.h"
 #include "utils.h"
@@ -187,6 +190,7 @@ namespace Readline
     template < CommandHandler handler, SpecialArgumentCandidatePointer spc_gen>
     void read_command(handler handler_, spc_gen spc_gen_, const std::string & prompt)
     {
+#ifndef __WINDOWS_MSVC_BUILD__
         // ccdb::utils::set_thread_name("readline");
         if (pipe(sig_pipe) == -1) {
             perror("pipe");
@@ -264,6 +268,12 @@ namespace Readline
 
         close(sig_pipe[0]);
         close(sig_pipe[1]);
+#else
+        g_cmd_handler = handler_;
+        SpecialArgumentCandidatesGenerator = spc_gen_;
+        ccdb::windows::read_commands(prompt);
+
+#endif //__WINDOWS_MSVC_BUILD__
     }
 } // Readline
 

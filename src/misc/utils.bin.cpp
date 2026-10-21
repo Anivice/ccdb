@@ -22,19 +22,93 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif //_GNU_SOURCE
+#ifdef __WINDOWS_MSVC_BUILD__
+#include "windows_platform.h"
+#include <bcrypt.h>
+#endif //__WINDOWS_MSVC_BUILD__
 #include <vector>
 #include <string>
 #include <regex>
 #include <fcntl.h>
+#ifndef __WINDOWS_MSVC_BUILD__
 #include <sys/syscall.h>
+#endif //__WINDOWS_MSVC_BUILD__
 #include <stdexcept>
 #include "lzw6.h"
 #include "json.hpp"
+#ifndef __WINDOWS_MSVC_BUILD__
 #include "ncursesw/ncurses.h"
+#endif //__WINDOWS_MSVC_BUILD__
 #include "utils.h"
 #include "dump.h"
+#ifndef __WINDOWS_MSVC_BUILD__
 #include "openssl/evp.h"
+#endif //__WINDOWS_MSVC_BUILD__
 
+#ifdef __WINDOWS_MSVC_BUILD__
+namespace
+{
+    constexpr char base64_table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+    int base64_encode_block(unsigned char * out, const unsigned char * in, int len)
+    {
+        int written = 0;
+        int i = 0;
+        for (; i + 2 < len; i += 3)
+        {
+            out[written++] = static_cast<unsigned char>(base64_table[(in[i] >> 2) & 0x3f]);
+            out[written++] = static_cast<unsigned char>(base64_table[((in[i] & 0x03) << 4) | ((in[i + 1] >> 4) & 0x0f)]);
+            out[written++] = static_cast<unsigned char>(base64_table[((in[i + 1] & 0x0f) << 2) | ((in[i + 2] >> 6) & 0x03)]);
+            out[written++] = static_cast<unsigned char>(base64_table[in[i + 2] & 0x3f]);
+        }
+
+        if (i < len)
+        {
+            out[written++] = static_cast<unsigned char>(base64_table[(in[i] >> 2) & 0x3f]);
+            if (i + 1 < len)
+            {
+                out[written++] = static_cast<unsigned char>(base64_table[((in[i] & 0x03) << 4) | ((in[i + 1] >> 4) & 0x0f)]);
+                out[written++] = static_cast<unsigned char>(base64_table[(in[i + 1] & 0x0f) << 2]);
+            }
+            else
+            {
+                out[written++] = static_cast<unsigned char>(base64_table[(in[i] & 0x03) << 4]);
+                out[written++] = '=';
+            }
+            out[written++] = '=';
+        }
+
+        return written;
+    }
+
+    int base64_decode_block(unsigned char * out, const unsigned char * in, int len)
+    {
+        auto value_of = [](unsigned char c) -> int
+        {
+            if (c >= 'A' && c <= 'Z') return c - 'A';
+            if (c >= 'a' && c <= 'z') return c - 'a' + 26;
+            if (c >= '0' && c <= '9') return c - '0' + 52;
+            if (c == '+') return 62;
+            if (c == '/') return 63;
+            return 0;
+        };
+
+        int written = 0;
+        for (int i = 0; i + 3 < len; i += 4)
+        {
+            const int a = value_of(in[i]), b = value_of(in[i + 1]);
+            const int c = value_of(in[i + 2]), d = value_of(in[i + 3]);
+            out[written++] = static_cast<unsigned char>((a << 2) | (b >> 4));
+            out[written++] = static_cast<unsigned char>(((b & 0x0f) << 4) | (c >> 2));
+            out[written++] = static_cast<unsigned char>(((c & 0x03) << 6) | d);
+        }
+
+        return written;
+    }
+}
+#endif //__WINDOWS_MSVC_BUILD__
+
+#ifndef __WINDOWS_MSVC_BUILD__
 #ifndef __NR_memfd_create
 # if defined(__x86_64__)
 #  define __NR_memfd_create 319
@@ -47,6 +121,7 @@
 # endif
 #endif
 
+#endif //__WINDOWS_MSVC_BUILD__
 #define STRX(x) #x
 #define STR(x) JSON_STRX(x)
 #define CASSERT(x)  \
@@ -55,6 +130,7 @@ if (!(x)) {         \
     _exit(EXIT_FAILURE); \
 }
 
+#ifndef __WINDOWS_MSVC_BUILD__
 std::string ccdb::utils::sha256sum(const char *data, const size_t len)
 {
     EVP_MD_CTX *ctx = EVP_MD_CTX_new();
@@ -71,6 +147,20 @@ std::string ccdb::utils::sha256sum(const char *data, const size_t len)
 
     return ss.str();
 }
+#else
+std::string ccdb::utils::sha256sum(const char *data, const size_t len)
+{
+    if (len > ULONG_MAX) throw std::length_error("SHA256 input too large");
+    unsigned char digest[32];
+    if (BCryptHash(BCRYPT_SHA256_ALG_HANDLE, nullptr, 0,
+        reinterpret_cast<PUCHAR>(const_cast<char*>(data)), static_cast<ULONG>(len), digest, sizeof(digest)) < 0)
+        throw std::runtime_error("SHA256 failed");
+    std::ostringstream out;
+    for (auto byte : digest) out << std::hex << std::setw(2) << std::setfill('0') << unsigned(byte);
+    return out.str();
+}
+#endif //__WINDOWS_MSVC_BUILD__
+
 
 std::vector<uint8_t> ccdb::utils::compress(const std::vector<uint8_t>& data)
 {
@@ -205,7 +295,11 @@ std::string ccdb::utils::base64::base64_encode(const std::string_view input)
         const std::size_t size =
             std::min(block_size, input.size() - pos);
 
+#ifdef __WINDOWS_MSVC_BUILD__
+        const int written = base64_encode_block(
+#else
         const int written = EVP_EncodeBlock(
+#endif //__WINDOWS_MSVC_BUILD__
             buffer.data(),
             reinterpret_cast<const unsigned char*>(input.data() + pos),
             static_cast<int>(size)
@@ -257,7 +351,11 @@ std::string ccdb::utils::base64::base64_decode(const std::string_view input)
         const std::size_t size =
             std::min(block_size, input.size() - pos);
 
+#ifdef __WINDOWS_MSVC_BUILD__
+        const int written = base64_decode_block(
+#else
         const int written = EVP_DecodeBlock(
+#endif //__WINDOWS_MSVC_BUILD__
             buffer.data(),
             reinterpret_cast<const unsigned char*>(input.data() + pos),
             static_cast<int>(size)

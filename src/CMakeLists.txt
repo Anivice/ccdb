@@ -9,6 +9,11 @@ else ()
 endif ()
 
 message(STATUS "CCDB Version is ${CCDB_VERSION}")
+if(MSVC)
+    include(cmake/Windows.cmake)
+    return()
+endif()
+
 set(CMAKE_CXX_STANDARD 26)
 
 if ("${CMAKE_BUILD_STATIC}" STREQUAL "True" AND NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
@@ -16,6 +21,12 @@ if ("${CMAKE_BUILD_STATIC}" STREQUAL "True" AND NOT "${CMAKE_BUILD_TYPE}" STREQU
     add_compile_options(-O3 -flto -fdevirtualize-at-ltrans -fno-omit-frame-pointer -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2)
     add_link_options(-flto -fdevirtualize-at-ltrans -O3 -ffast-math -fstrict-aliasing -fdata-sections -ffunction-sections -Wl,--gc-sections -D_FORTIFY_SOURCE=2)
 endif ()
+
+if(WIN32)
+    message(STATUS "Configuring for Windows")
+    set(WINDOWS_MSVC_BUILD True)
+    add_compile_definitions(__WINDOWS_MSVC_BUILD__=1 __STATIC_MUSL__=1)
+endif()
 
 # readline only supports Makefile
 find_program(MAKE_EXECUTABLE NAMES make gmake REQUIRED)

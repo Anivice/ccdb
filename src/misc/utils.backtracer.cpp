@@ -1,3 +1,4 @@
+#ifndef __WINDOWS_MSVC_BUILD__
 #include <pstl/glue_execution_defs.h>
 
 #include "utils.h"
@@ -501,3 +502,5 @@ namespace ccdb
 }
 
 #endif //ENABLE_CRASH_CATCHER
+
+#endif //__WINDOWS_MSVC_BUILD__

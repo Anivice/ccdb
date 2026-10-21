@@ -32,7 +32,7 @@ namespace
     struct connection_frame_t
     {
         general_info_pulling::connection_t connection_data;
-        std::chrono::high_resolution_clock::time_point time_of_the_closure;
+        std::chrono::system_clock::time_point time_of_the_closure;
         bool connection_is_closed = false;
     };
 }
@@ -419,7 +419,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             {
                 before = now;
                 sorted_already = false; // sort all after an update
-                const auto cur_time = std::chrono::high_resolution_clock::now();
+                const auto cur_time = std::chrono::system_clock::now();
                 for (auto it = connection_frame.begin(); it != connection_frame.end(); ++it)
                 {
                     if (auto & c_ = it.value(); !c_.connection_is_closed) {
@@ -580,7 +580,9 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     append_msg("   ");
                     append_msg(sprint("Frontend memory usage: ") + value_to_size(cur_mem_size()));
                     append_msg("   ");
+#ifndef __WINDOWS_MSVC_BUILD__
                     append_msg(update_subinfo(subinfo_ball, subinfo_worker));
+#endif //__WINDOWS_MSVC_BUILD__
                     buffer = {ss.str()};
                 }
             break;
@@ -608,12 +610,17 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         {
             if (matched_connection)
             {
+#ifndef __WINDOWS_MSVC_BUILD__
                 if (!jq.empty()) {
                     exec_command("/bin/sh", matched_connection->connection_data.metadata.raw_json,
                         "-c", jq + (color::is_no_color() ? "" : " --color-output") + " | " + less);
                 } else {
                     exec_command("/bin/sh", matched_connection->connection_data.metadata.raw_json, "-c", less);
                 }
+#else
+                pager(json::parse(matched_connection->connection_data.metadata.raw_json).dump(2));
+
+#endif //__WINDOWS_MSVC_BUILD__
             }
         },
         [this, &show_only_closed_connection_view](const connection_frame_t * matched_connection)

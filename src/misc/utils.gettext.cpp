@@ -1,3 +1,4 @@
+#ifndef __WINDOWS_MSVC_BUILD__
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif //_GNU_SOURCE
@@ -189,3 +190,5 @@ std::string ccdb::utils::get_text(const std::string &text)
     converted.emplace_cache(text, text);
     return text;
 }
+
+#endif //__WINDOWS_MSVC_BUILD__

@@ -24,12 +24,18 @@
 #include <utility>
 #include <cmath>
 #include <string>
+#ifndef __WINDOWS_MSVC_BUILD__
 #include "additional_help.h"
+#endif //__WINDOWS_MSVC_BUILD__
 #include "Readline.h"
 #include "print.h"
+#ifndef __WINDOWS_MSVC_BUILD__
 #include "ncursesw/ncurses.h"
+#endif //__WINDOWS_MSVC_BUILD__
 #include "ccdb.h"
+#ifndef __WINDOWS_MSVC_BUILD__
 #include "versions.h"
+#endif //__WINDOWS_MSVC_BUILD__
 
 // --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;
@@ -46,6 +52,7 @@ void ccdb::ccdb::update_providers()
     g_proxy_list = groups;
 }
 
+#ifndef __WINDOWS_MSVC_BUILD__
 void ccdb::ccdb::pager(const std::string &str, const bool override_less_check, bool use_pager)
 {
     if (!override_less_check) {
@@ -67,6 +74,13 @@ void ccdb::ccdb::pager(const std::string &str, const bool override_less_check, b
         std::cout << str << std::flush;
     }
 }
+#else
+void ccdb::ccdb::pager(const std::string &str, const bool override_less_check, bool use_pager)
+{
+    std::cout << str << std::flush;
+}
+#endif //__WINDOWS_MSVC_BUILD__
+
 
 bool ccdb::ccdb::is_connection_valid(const general_info_pulling::connection_t &conn)
 {
@@ -111,12 +125,14 @@ bool ccdb::ccdb::is_connection_valid(const general_info_pulling::connection_t &c
 void ccdb::ccdb::interactive_verification() const
 {
     if (execute_and_no_interactive) {
+        print<is_error>("This command requires an interactive terminal.\n");
         exit(1);
     }
 }
 
 static std::string g_help_additional;
 
+#ifndef __WINDOWS_MSVC_BUILD__
 void ccdb::ccdb::help()
 {
     const auto str = Readline::command_template_tree.get_help();
@@ -151,7 +167,15 @@ void ccdb::ccdb::help()
     // pager(oss.str());
     std::cout << oss.str() << std::flush;
 }
+#else
+void ccdb::ccdb::help()
+{
+    std::cout << Readline::command_template_tree.get_help() << std::endl;
+}
+#endif //__WINDOWS_MSVC_BUILD__
 
+
+#ifndef __WINDOWS_MSVC_BUILD__
 static int read_proc_exe(const pid_t pid, char *buf, size_t buflen)
 {
     char linkpath[64] { };
@@ -192,6 +216,10 @@ void ccdb::ccdb::reset_terminal_mode_forcefully()
     }
 }
 
+#else
+void ccdb::ccdb::reset_terminal_mode_forcefully() { windows::reset_terminal(); }
+
+#endif //__WINDOWS_MSVC_BUILD__
 void ccdb::ccdb::display(ccdb_atomic_t< frame_data_t > & frame, const std::atomic_bool* running)
 {
     setup_term setup_term;

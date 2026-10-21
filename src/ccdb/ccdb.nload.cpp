@@ -27,8 +27,12 @@
 #include <string>
 #include "ccdb.h"
 #include "print.h"
+#ifndef __WINDOWS_MSVC_BUILD__
 #include "absl/strings/str_format.h"
+#endif //__WINDOWS_MSVC_BUILD__
+#ifndef __WINDOWS_MSVC_BUILD__
 #include "ncursesw/ncurses.h"
+#endif //__WINDOWS_MSVC_BUILD__
 
 // --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;
@@ -583,7 +587,11 @@ void ccdb::ccdb::nload(
                 });
             }
 
+#ifndef __WINDOWS_MSVC_BUILD__
             const auto subinfo = update_subinfo(subinfo_ball, subinfo_worker);
+#else
+            const std::string subinfo;
+#endif //__WINDOWS_MSVC_BUILD__
             const auto msg = sprint("* P: On this page, O: Overall", ", ", "-: Direct, x: Proxied", ", ",
                 "Backend memory usage: ", value_to_size(backend_instance.current_memory_in_use_by_mihomo.load(std::memory_order_relaxed)), ", "
                 "Frontend memory usage: ", value_to_size(cur_mem_size()),

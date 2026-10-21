@@ -24,7 +24,9 @@
 #include <cmath>
 #include <string>
 #include "print.h"
+#ifndef __WINDOWS_MSVC_BUILD__
 #include "ncursesw/ncurses.h"
+#endif //__WINDOWS_MSVC_BUILD__
 #include "ccdb.h"
 
 // --------------------------------------------- CCDB --------------------------------------------- //
@@ -748,10 +750,10 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
             ssa << skip_lines << "/" << current_line_index << "/" << sz << "/"
                 << std::fixed << std::setprecision(2)
                 << (sz == 0 ? 1 : static_cast<double>(current_line_index) / static_cast<double>(sz)) * 100 << "%"
-                << locked_info.locked_1
+                << (locked_info.locked_1 ? locked_info.locked_1 : "")
                 << "/" << leading_offset << "/" << max_leading_offset << "/"
                 << (max_leading_offset == 0 ? 1 : static_cast<double>(leading_offset) / static_cast<double>(max_leading_offset)) * 100 << "%"
-                << locked_info.locked_2;
+                << (locked_info.locked_2 ? locked_info.locked_2 : "");
             const std::string ssa_str = ssa.str();
             if (message_box_width_) *message_box_width_ = static_cast<int>(ssa_str.size());
 

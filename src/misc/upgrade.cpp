@@ -1,3 +1,4 @@
+#ifndef __WINDOWS_MSVC_BUILD__
 #ifndef APPIMAGE_BUILD
 #include "httplib.h"
 #include "utils.h"
@@ -274,3 +275,4 @@ namespace ccdb
     }
 }
 #endif // APPIMAGE_BUILD
+#endif //__WINDOWS_MSVC_BUILD__

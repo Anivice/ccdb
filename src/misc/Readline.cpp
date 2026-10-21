@@ -19,6 +19,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 
+#include <fstream>
 #include <sstream>
 #include <cstring>
 #include <algorithm>
@@ -932,12 +933,15 @@ namespace Readline
     std::string last_line;
     std::function<bool(const std::vector < std::string > &)> g_cmd_handler;
 
+#ifndef __WINDOWS_MSVC_BUILD__
     void set_nonblock(const int fd)
     {
         if (const int flags = fcntl(fd, F_GETFL, 0); flags >= 0) {
             (void)fcntl(fd, F_SETFL, flags | O_NONBLOCK);
         }
     }
+#endif //__WINDOWS_MSVC_BUILD__
+
 
     void clear_read_cache()
     {
@@ -947,6 +951,7 @@ namespace Readline
         rl_redisplay();
     }
 
+#ifndef __WINDOWS_MSVC_BUILD__
     void handle_sigint_event()
     {
         char buf[64];
@@ -958,7 +963,16 @@ namespace Readline
         clear_read_cache();
         tcflush(STDOUT_FILENO, TCIFLUSH);
     }
+#else
+    void handle_sigint_event()
+{
+        std::cout << "^C\n";
+        clear_read_cache();
+}
+#endif //__WINDOWS_MSVC_BUILD__
 
+
+#ifndef __WINDOWS_MSVC_BUILD__
     std::string blocked_read_file(const std::string& filename)
     {
         std::string ret;
@@ -993,9 +1007,18 @@ namespace Readline
 
         return ret;
     }
+#else
+    std::string blocked_read_file(const std::string& filename)
+{
+        std::ifstream file(std::filesystem::u8path(filename), std::ios::binary);
+        return { std::istreambuf_iterator<char>(file), {} };
+}
+#endif //__WINDOWS_MSVC_BUILD__
+
 
     const char * history_file = nullptr;
 
+#ifndef __WINDOWS_MSVC_BUILD__
     void blocked_append_file(const std::string & filename, const char * buffer, const uint64_t buffer_length)
     {
         if (const int fd = open(filename.c_str(), O_RDWR); fd > 0)
@@ -1026,6 +1049,17 @@ namespace Readline
             (void)fcntl(fd, F_SETLK, &fl);
         }();
     }
+#else
+    void blocked_append_file(const std::string & filename, const char * buffer, const uint64_t buffer_length)
+{
+        const auto path = std::filesystem::u8path(filename);
+        if (path.has_parent_path()) std::filesystem::create_directories(path.parent_path());
+        std::ofstream file(path, std::ios::binary | std::ios::app);
+        if (!file || !file.write(buffer, static_cast<std::streamsize>(buffer_length)))
+            throw std::runtime_error("Cannot save command history");
+}
+#endif //__WINDOWS_MSVC_BUILD__
+
 
     void on_line(char * line)
     {
@@ -1036,7 +1070,7 @@ namespace Readline
                 return;
             }
 
-            if (*line == '\0') return; // empty line
+            if (*line == '\0') { free(line); return; } // empty line
 
             std::string cmd(line);
             free(line);

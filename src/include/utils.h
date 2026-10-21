@@ -22,16 +22,28 @@
 #ifndef CFS_UTILS_H
 #define CFS_UTILS_H
 
+#ifdef __WINDOWS_MSVC_BUILD__
+#include "windows_platform.h"
+#endif //__WINDOWS_MSVC_BUILD__
 #include <string>
+#include <optional>
+#include <deque>
+#include <condition_variable>
 #include <cstdlib>
 #include <cstdint>
 #include <vector>
 #include <atomic>
 #include <functional>
 #include <regex>
+#ifndef __WINDOWS_MSVC_BUILD__
 #include <termios.h>
+#endif //__WINDOWS_MSVC_BUILD__
+#ifndef __WINDOWS_MSVC_BUILD__
 #include <sys/wait.h>
+#endif //__WINDOWS_MSVC_BUILD__
+#ifndef __WINDOWS_MSVC_BUILD__
 #include <poll.h>
+#endif //__WINDOWS_MSVC_BUILD__
 #include <limits>
 #include <type_traits>
 #include <utility>
@@ -40,10 +52,18 @@
 #include "utf8.h"
 #include "colors.h"
 #include "httplib.h"
+#ifndef __WINDOWS_MSVC_BUILD__
 #include "caches/cache.hpp"
+#endif //__WINDOWS_MSVC_BUILD__
+#ifndef __WINDOWS_MSVC_BUILD__
 #include "caches/lru_cache_policy.hpp"
+#endif //__WINDOWS_MSVC_BUILD__
+#ifndef __WINDOWS_MSVC_BUILD__
 #include "caches/fifo_cache_policy.hpp"
+#endif //__WINDOWS_MSVC_BUILD__
+#ifndef __WINDOWS_MSVC_BUILD__
 #include "caches/lfu_cache_policy.hpp"
+#endif //__WINDOWS_MSVC_BUILD__
 #include "tsl/hopscotch_map.h"
 
 #ifdef __DEBUG__
@@ -428,9 +448,13 @@ namespace ccdb::utils
     {
     private:
         static constexpr char clear_[] = { 0x1b, 0x5b, 0x48, 0x1b, 0x5b, 0x32, 0x4a, 0x1b, 0x5b, 0x33, 0x4a, 0x00 };
+#ifndef __WINDOWS_MSVC_BUILD__
         termios old_tio { }; // old TIO backup
         termios new_tio { }; // new TIO backup
         int old_flags = 0; // old flag backup
+#else
+        DWORD old_input_mode = 0, old_output_mode = 0;
+#endif //__WINDOWS_MSVC_BUILD__
         bool terminal_mode_changed = false; // is term mode changed by ccdb?
 
     public:
@@ -533,6 +557,7 @@ namespace ccdb::utils
 
     std::string strip_color(std::string str_);
 
+#ifndef __WINDOWS_MSVC_BUILD__
     template <
         typename Key,
         typename Value,
@@ -594,6 +619,26 @@ namespace ccdb::utils
         }
     };
 
+#else
+    template<typename Key, typename Value, unsigned long max_size = 4096>
+    class cache_w_freq_table_t {
+        std::unordered_map<Key, Value> values_;
+        std::mutex mutex_;
+    public:
+        std::optional<Value> get_cache(const Key& key) {
+            std::lock_guard lock(mutex_);
+            auto it = values_.find(key);
+            if (it == values_.end()) return std::nullopt;
+            return it->second;
+        }
+        void emplace_cache(const Key& key, const Value& value) {
+            std::lock_guard lock(mutex_);
+            if (values_.size() >= max_size) values_.clear();
+            values_.insert_or_assign(key, value);
+        }
+    };
+
+#endif //__WINDOWS_MSVC_BUILD__
     enum progress_bar_state_t : int { CLEAR_PROGRESS_BAR = 0, SET_PROGRESS = 1,
         /* unused */ ERROR_STATE = 2, UNDEFINED_BEHAVIOR = 3, WARNING_OR_PAUSED = 4 };
     void set_progress_bar(progress_bar_state_t, int percentages /* 0 - 100 */);

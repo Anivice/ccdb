@@ -1,0 +1,8 @@
+# Save as %USERPROFILE%/.ccdbrc
+[Global]
+RefreshIntervalMS = 500
+logSize = 1000
+[Alias]
+connections = get connections
+logs = get log
+rules = get rules

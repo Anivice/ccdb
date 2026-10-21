@@ -1,9 +1,13 @@
+#ifndef __WINDOWS_MSVC_BUILD__
 #include "absl/strings/str_format.h"
+#endif //__WINDOWS_MSVC_BUILD__
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif //_GNU_SOURCE
 #include <sys/stat.h>
+#ifndef __WINDOWS_MSVC_BUILD__
 #include <unistd.h>
+#endif //__WINDOWS_MSVC_BUILD__
 #include <vector>
 #include <string>
 #include <sstream>
@@ -14,17 +18,24 @@
 #include <fcntl.h>
 #include <cstdio>
 #include <cstdlib>
+#ifndef __WINDOWS_MSVC_BUILD__
 #include <sys/syscall.h>
+#endif //__WINDOWS_MSVC_BUILD__
 #include <stdexcept>
 #include "json.hpp"
+#ifndef __WINDOWS_MSVC_BUILD__
 #include "ncursesw/ncurses.h"
+#endif //__WINDOWS_MSVC_BUILD__
+#ifndef __WINDOWS_MSVC_BUILD__
 #include "ncursesw/term.h"
+#endif //__WINDOWS_MSVC_BUILD__
 #include "tsl/hopscotch_map.h"
 #include "readline/history.h"
 #include "utils.h"
 #include "dump.h"
 #include "sort.h"
 
+#ifndef __WINDOWS_MSVC_BUILD__
 #ifndef __NR_memfd_create
 # if defined(__x86_64__)
 #  define __NR_memfd_create 319
@@ -37,6 +48,7 @@
 # endif
 #endif
 
+#endif //__WINDOWS_MSVC_BUILD__
 #define STRX(x) #x
 #define STR(x) JSON_STRX(x)
 #define CASSERT(x)  \
@@ -106,6 +118,7 @@ bool ccdb::utils::parse_proxy(const std::string& url, std::string& host, int & p
     return true;
 }
 
+#ifndef __WINDOWS_MSVC_BUILD__
 void ccdb::utils::set_ssl_automatically(httplib::Client & client, const std::string & url)
 {
     std::string scheme;
@@ -142,6 +155,15 @@ void ccdb::utils::set_ssl_automatically(httplib::Client & client, const std::str
         });
     }
 }
+#else
+void ccdb::utils::set_ssl_automatically(httplib::Client & client, const std::string & url)
+{
+    (void)client;
+    if (!url.starts_with("http://"))
+        throw std::invalid_argument("Windows build supports HTTP only (OpenSSL disabled)");
+}
+#endif //__WINDOWS_MSVC_BUILD__
+
 
 std::string ccdb::utils::unpack_string(const unsigned char str[], const unsigned int len)
 {
@@ -155,7 +177,15 @@ std::string ccdb::utils::unpack_string(const unsigned char str[], const unsigned
 
 std::string ccdb::utils::getenv(const std::string& name) noexcept
 {
+#ifndef __WINDOWS_MSVC_BUILD__
     const auto var = secure_getenv(name.c_str());
+#else
+    const auto var = std::getenv(name.c_str());
+    if (!var && name == "HOME") {
+        const auto profile = std::getenv("USERPROFILE");
+        return profile ? profile : "";
+    }
+#endif //__WINDOWS_MSVC_BUILD__
     if (var == nullptr) {
         return "";
     }
@@ -165,7 +195,11 @@ std::string ccdb::utils::getenv(const std::string& name) noexcept
 
 void ccdb::utils::setenv(const std::string &name, const std::string &value) noexcept
 {
+#ifndef __WINDOWS_MSVC_BUILD__
     ::setenv(name.c_str(), value.c_str(), 1);
+#else
+    _putenv_s(name.c_str(), value.c_str());
+#endif //__WINDOWS_MSVC_BUILD__
 }
 
 std::vector<std::string> ccdb::utils::splitString(const std::string& s, const char delim)
@@ -438,12 +472,14 @@ int ccdb::utils::UnicodeDisplayWidth::get_char_width(const char32_t c)
         return 2; // Flags are typically 2 cells
     }
 
+#ifndef __WINDOWS_MSVC_BUILD__
     const auto wc = static_cast<wchar_t>(c);
 
     if (const int w = wcwidth(wc); w >= 0) {
         return w;
     }
 
+#endif //__WINDOWS_MSVC_BUILD__
     return fallback_char_width(c);
 }
 
@@ -509,6 +545,7 @@ std::string ccdb::utils::strip_color(std::string str_)
     });
 }
 
+#ifndef __WINDOWS_MSVC_BUILD__
 void ccdb::utils::set_progress_bar(const progress_bar_state_t state, const int percentages)
 {
 #ifdef __STATIC_MUSL__
@@ -540,6 +577,14 @@ void ccdb::utils::set_progress_bar(const progress_bar_state_t state, const int p
         close(fd);
     }
 }
+#else
+void ccdb::utils::set_progress_bar(const progress_bar_state_t state, const int percentages)
+{
+    if (ccdb::windows::interactive())
+        std::cout << "\x1b]9;4;" << static_cast<int>(state) << ';' << percentages << "\x1b\\" << std::flush;
+}
+#endif //__WINDOWS_MSVC_BUILD__
+
 
 static void encode_dump94(input_stream_t & in, output_stream_t & out)
 {

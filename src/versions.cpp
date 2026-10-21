@@ -1,3 +1,4 @@
+#ifndef __WINDOWS_MSVC_BUILD__
 #include "versions.h"
 #include "openssl/opensslv.h"
 #include "ncursesw/curses.h"
@@ -63,3 +64,5 @@ version_string_::operator std::string()
 
     return version;
 }
+
+#endif //__WINDOWS_MSVC_BUILD__

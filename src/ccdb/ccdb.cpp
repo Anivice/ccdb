@@ -19,7 +19,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 
+#ifndef __WINDOWS_MSVC_BUILD__
 #include <sys/wait.h>
+#endif //__WINDOWS_MSVC_BUILD__
 #include <algorithm>
 #include <chrono>
 #include <csignal>
@@ -31,6 +33,9 @@
 #include "Readline.h"
 #include "ccdb.h"
 #include "utils.h"
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 /* Since pipes are unidirectional, we need three pipes:
    1. Parent writes to child's stdin
@@ -62,6 +67,7 @@
 // --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;
 
+#ifndef __WINDOWS_MSVC_BUILD__
 void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vector, int mode)
 {
     int pipes[NUM_PIPES][2];
@@ -278,7 +284,6 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
     }
 }
 
-namespace fs = std::filesystem;
 static bool is_executable(const fs::path& p)
 {
     std::error_code ec;
@@ -292,6 +297,7 @@ static bool is_executable(const fs::path& p)
     return (perms & (fs_perms::owner_exec | fs_perms::group_exec | fs_perms::others_exec)) != fs_perms::none;
 }
 
+#endif //__WINDOWS_MSVC_BUILD__
 bool ::ccdb::ccdb::commandProcessor(const std::vector<std::string> & command_vector_)
 {
     try {
@@ -311,6 +317,7 @@ bool ::ccdb::ccdb::commandProcessor(const std::vector<std::string> & command_vec
             command_vector = replacement;
         }
 
+#ifndef __WINDOWS_MSVC_BUILD__
         if (command_vector.front() == "$" && command_vector.size() >= 2)
         {
             std::stringstream command_ss;
@@ -336,6 +343,7 @@ bool ::ccdb::ccdb::commandProcessor(const std::vector<std::string> & command_vec
             return true;
         }
 
+#endif //__WINDOWS_MSVC_BUILD__
         // format command
         std::stringstream command_ss;
         for (const auto & command : command_vector) command_ss << command << " ";
@@ -420,6 +428,7 @@ namespace
         return indexes_in_path;
     }
 
+#ifndef __WINDOWS_MSVC_BUILD__
     std::vector<std::pair<std::string, std::string>> list_all_envs()
     {
         std::vector<std::pair<std::string, std::string>> envs;
@@ -532,6 +541,7 @@ namespace
         }
     }
 
+#endif //__WINDOWS_MSVC_BUILD__
     std::vector<std::string> ALIAS_ARGUMENT(const std::vector<std::string> & args, const int arg_index,
         const tsl::hopscotch_map < std::string, std::string > & alias_list)
     {
@@ -599,6 +609,7 @@ std::vector<std::string> ccdb::ccdb::commandAutoCompletion(const std::vector<std
             return escape({endpoints.begin(), endpoints.end()});
         }
 
+#ifndef __WINDOWS_MSVC_BUILD__
         if (special_filler == "[SHELLCOMMAND]")
         {
             shellCommandCompletion(listed_all_commands_in_path);
@@ -609,6 +620,7 @@ std::vector<std::string> ccdb::ccdb::commandAutoCompletion(const std::vector<std
             return pwd(args, arg_index);
         }
 
+#endif //__WINDOWS_MSVC_BUILD__
         if (special_filler == "[ALIAS]") {
             const auto aliases= alias_list | std::views::keys;
             return { aliases.begin(), aliases.end() };
@@ -628,7 +640,7 @@ void ccdb::ccdb::init()
 {
     namespace fs = std::filesystem;
     if (const auto config = fs::path(utils::getenv("HOME")) / ".ccdbrc"; fs::exists(config)) {
-        ccdb_config = std::make_unique<configuration>(config);
+        ccdb_config = std::make_unique<configuration>(config.string());
     }
 
     auto flag_helper = [&](const std::string & flag_definition, auto & val)
@@ -753,21 +765,23 @@ void ccdb::ccdb::init()
     string_helper("clash::sslCert", CCDB_POSSIBLE_SSL_CERTIFICATE, [](const std::string & path)
     {
         if (fs::exists(path)) {
-            ::setenv("CCDB_POSSIBLE_SSL_CERTIFICATE", path.c_str(), 1);
+            utils::setenv("CCDB_POSSIBLE_SSL_CERTIFICATE", path);
             return true;
         }
 
         return false;
     });
 
+#ifndef __WINDOWS_MSVC_BUILD__
     string_helper("clash::metricPullerCommand", external_puller_command);
     string_helper("Global::BannerScript", banner_command);
 
     int_helper("clash::metricPullerCommandTimeOut", external_puller_command_time_out_ms);
 
+#endif //__WINDOWS_MSVC_BUILD__
     bool sslVerify = true;
     flag_helper("clash::sslVerify", sslVerify);
-    if (!sslVerify) ::setenv("DISABLE_SUBLINK_SERVER_CERTIFICATE_VERIFICATION", "true", 1);
+    if (!sslVerify) utils::setenv("DISABLE_SUBLINK_SERVER_CERTIFICATE_VERIFICATION", "true");
 
     backend_instance.mihomo_output_log_location.set(log_loc);
 
@@ -798,6 +812,7 @@ void ccdb::ccdb::init()
     kbd_shortcut_helper("HighlightDown", "^[[1;5B");
     alias_helper();
 
+#ifndef __WINDOWS_MSVC_BUILD__
     if (!g_ccdb_32bit_platform && ccdb_config)
     {
         if (ccdb_config->config.contains("ColorScheme"))
@@ -855,6 +870,7 @@ void ccdb::ccdb::init()
         }
     }
 
+#endif //__WINDOWS_MSVC_BUILD__
     backend_instance.start_continuous_updates();
     get_vecGroupProxy(false);
 
@@ -877,7 +893,7 @@ void ccdb::ccdb::init()
     commandMatches.emplace_back("exportColorScheme", [](const auto &) { color::export_color_scheme(); return true; });
 #endif
 
-    commandMatches.emplace_back(R"(get connections(?: hide [\d|,-]+)?)", [this](const auto &command_vector) { get_connections(command_vector); return true; });
+    commandMatches.emplace_back(R"(get connections?(?: hide [\d|,-]+)?)", [this](const auto &command_vector) { get_connections(command_vector); return true; });
     commandMatches.emplace_back("get latency", [this](const auto &) { get_latency(); return true; });
     commandMatches.emplace_back("get log", [this](const auto &) { get_log(); return true; });
     commandMatches.emplace_back("get mode", [this](const auto &) { std::cout << backend_instance.get_current_mode() << std::endl; return true; });
@@ -889,7 +905,9 @@ void ccdb::ccdb::init()
         return true;
     });
     commandMatches.emplace_back("get filter", [this](const auto &) { get_filter(); return true; });
+#ifndef __WINDOWS_MSVC_BUILD__
     commandMatches.emplace_back("get subinfo", [this](const auto &) { get_subinfo(); return true; });
+#endif //__WINDOWS_MSVC_BUILD__
     commandMatches.emplace_back("get filter_reverse", [this](const auto &) { get_filter_reverse(); return true; });
     commandMatches.emplace_back("get sort_reverse", [this](const auto &) { get_sort_reverse(); return true; });
     commandMatches.emplace_back("get sort_by", [this](const auto &) { get_sort_by(); return true; });
@@ -983,11 +1001,15 @@ void ccdb::ccdb::init()
         backend_instance.get_memory_pprof(vec.back(), dump);
         std::cout.write(dump.data(), static_cast<std::streamsize>(dump.size()));
         constexpr char endl[] = "¶\n";
+#ifndef __WINDOWS_MSVC_BUILD__
         if (struct stat sb { };
             !dump.empty() && dump.back() != '\n'
             && isatty(fileno(stdout))
             && fstat(STDOUT_FILENO, &sb) != -1
             && !S_ISFIFO(sb.st_mode))
+#else
+        if (!dump.empty() && dump.back() != '\n' && _isatty(_fileno(stdout)))
+#endif //__WINDOWS_MSVC_BUILD__
         {
             std::cout << color::color(1,1,1);
             std::cout.write(reinterpret_cast<const char*>(&endl), sizeof(endl));
@@ -1038,6 +1060,7 @@ ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::stri
     backend_instance.g_how = qry;
     try
     {
+#ifndef __WINDOWS_MSVC_BUILD__
         const auto terminal_name = get_terminal_emulator_name();
         if (utils::getenv("NO_0xFE0F_EXPAND_EMOJI").empty())
         {
@@ -1080,6 +1103,7 @@ ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::stri
             }
         }
 
+#endif //__WINDOWS_MSVC_BUILD__
         init();
         if (const auto dir = utils::getenv("HOME") + "/.cache/ccdb/";
             !std::filesystem::exists(dir))
@@ -1093,9 +1117,14 @@ ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::stri
         Readline::history_file = history_file_loc.c_str();
         if (!std::filesystem::exists(history_file_loc))
         {
+#ifndef __WINDOWS_MSVC_BUILD__
             if (open(history_file_loc.c_str(), O_CREAT | O_TRUNC | O_WRONLY | O_CLOEXEC, 0600) == -1) {
                 Readline::history_file = nullptr;
             }
+#else
+            std::ofstream history(std::filesystem::u8path(history_file_loc), std::ios::app);
+            if (!history) Readline::history_file = nullptr;
+#endif //__WINDOWS_MSVC_BUILD__
         }
 
         Readline::read_command(handler, auto_completion, "ccdb> ");
@@ -1134,7 +1163,8 @@ ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::stri
         jq.clear();
         (void)handler(cmd);
     }
-    catch (std::exception &) {
+    catch (std::exception & e) {
+        if (*e.what()) print<is_error>(e.what(), "\n");
         exit(1);
     }
     catch (...)

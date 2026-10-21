@@ -127,6 +127,7 @@ void ccdb::ccdb::get_latency()
     backend_instance.update_proxy_list(); // update the proxy first
     std::vector < std::pair<std::string, int >> list_unordered;
 
+#ifndef __WINDOWS_MSVC_BUILD__
     const auto result = detach_execute([&](const int fd)->bool
     {
         backend_instance.latency_test(latency_url);
@@ -186,6 +187,13 @@ void ccdb::ccdb::get_latency()
         return;
     }
 
+#else
+    backend_instance.latency_test(latency_url);
+    for (const auto& [proxy, latency] : backend_instance.get_proxies_and_latencies_as_pair().second)
+        list_unordered.emplace_back(proxy, latency);
+
+
+#endif //__WINDOWS_MSVC_BUILD__
     const std::vector<std::string> titles_lat = { sprint("Latency"), sprint("Proxy") };
     std::vector<std::vector<std::string>> table_vals;
     std::vector<std::string> table_line;
@@ -299,6 +307,7 @@ void ccdb::ccdb::get_providerRules()
     }
 }
 
+#ifndef __WINDOWS_MSVC_BUILD__
 namespace
 {
     void rewrite(const std::string & result, const std::vector<char> & vec)
@@ -343,6 +352,7 @@ namespace
     }
 }
 
+#endif //__WINDOWS_MSVC_BUILD__
 void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
 {
     // upgrade [...]
@@ -386,6 +396,7 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
             print<is_error>("Failed to upgrade: ", e.what(), "\n");
         }
     }
+#ifndef __WINDOWS_MSVC_BUILD__
 #ifndef APPIMAGE_BUILD
     else if (command_vector[1] == "self")
     {
@@ -442,6 +453,7 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
         }
     }
 #endif //APPIMAGE_BUILD
+#endif //__WINDOWS_MSVC_BUILD__
     else {
         print<is_error>("Unknown command `", command_vector[1], "`\n");
         if (execute_and_no_interactive) throw std::runtime_error("");
@@ -578,6 +590,7 @@ void ccdb::ccdb::get_filter()
     });
 }
 
+#ifndef __WINDOWS_MSVC_BUILD__
 void ccdb::ccdb::get_subinfo()
 {
     auto get_info = [&]
@@ -720,13 +733,18 @@ void ccdb::ccdb::get_subinfo()
     watcher.watcher_clear_disable = false;
 }
 
+#endif //__WINDOWS_MSVC_BUILD__
 void ccdb::ccdb::get_config() const
 {
+#ifndef __WINDOWS_MSVC_BUILD__
     if (!jq.empty()) {
         exec_command("/bin/sh", backend_instance.get_config(), "-c", jq + (color::is_no_color() ? "" : " --color-output") + " | " + less);
     } else {
         std::cout << backend_instance.get_config() << std::endl;
     }
+#else
+    std::cout << json::parse(backend_instance.get_config()).dump(2) << std::endl;
+#endif //__WINDOWS_MSVC_BUILD__
 }
 
 void ccdb::ccdb::get_log_size() const {

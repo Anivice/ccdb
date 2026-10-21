@@ -1,3 +1,4 @@
+#ifndef __WINDOWS_MSVC_BUILD__
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif //_GNU_SOURCE
@@ -486,3 +487,5 @@ void ccdb::utils::setup_term::move_home() const
         std::cout << clear_ << std::flush;
     }
 }
+
+#endif //__WINDOWS_MSVC_BUILD__

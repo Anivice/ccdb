@@ -1,3 +1,4 @@
+#ifndef __WINDOWS_MSVC_BUILD__
 #ifndef CCDB_DETACH_EXECUTE_INL_
 #define CCDB_DETACH_EXECUTE_INL_
 
@@ -60,3 +61,4 @@ template <typename... ArgsForFetcherChild, typename... ArgsForFetcherParent, typ
     return status == 0;
 }
 #endif
+#endif //__WINDOWS_MSVC_BUILD__

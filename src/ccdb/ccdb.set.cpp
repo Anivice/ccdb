@@ -22,7 +22,9 @@
 #include "ccdb.h"
 #include "utils.h"
 #include "print.h"
+#ifndef __WINDOWS_MSVC_BUILD__
 #include "absl/strings/internal/str_format/extension.h"
+#endif //__WINDOWS_MSVC_BUILD__
 
 // --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;
@@ -235,7 +237,13 @@ void ccdb::ccdb::apply() const
         std::string json;
         char buff [512] { };
         ssize_t r = 0;
-        while ((r = read(STDIN_FILENO, buff, sizeof(buff) - 1)) > 0)
+        while ((r = 
+#ifndef __WINDOWS_MSVC_BUILD__
+            read(STDIN_FILENO, buff, sizeof(buff) - 1)
+#else
+            _read(STDIN_FILENO, buff, sizeof(buff) - 1)
+#endif //__WINDOWS_MSVC_BUILD__
+) > 0)
         {
             buff[r] = '\0';
             json += buff;
@@ -367,7 +375,13 @@ void ccdb::ccdb::storage(const std::vector<std::string> & cmd)
             std::string body;
             char buff [512] { };
             ssize_t n = 0;
-            while ((n = read(STDIN_FILENO, buff, sizeof(buff) - 1)) > 0) {
+            while ((n = 
+#ifndef __WINDOWS_MSVC_BUILD__
+            read(STDIN_FILENO, buff, sizeof(buff) - 1)
+#else
+            _read(STDIN_FILENO, buff, sizeof(buff) - 1)
+#endif //__WINDOWS_MSVC_BUILD__
+) > 0) {
                 body.append(buff, n);
             }
 

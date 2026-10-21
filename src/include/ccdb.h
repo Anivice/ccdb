@@ -33,8 +33,12 @@
 #include "general_info_pulling.h"
 #include "tsl/hopscotch_map.h"
 #include "utils.h"
+#ifndef __WINDOWS_MSVC_BUILD__
 #include "re2/re2.h"
+#endif //__WINDOWS_MSVC_BUILD__
+#ifndef __WINDOWS_MSVC_BUILD__
 #include "re2/set.h"
+#endif //__WINDOWS_MSVC_BUILD__
 
 namespace ccdb
 {
@@ -97,6 +101,7 @@ namespace ccdb
         } locked_info;
     };
 
+#ifndef __WINDOWS_MSVC_BUILD__
     template <
         typename... ArgsForFetcherChild, typename... ArgsForFetcherParent,
         typename ChildFunc = std::function<bool(int, ArgsForFetcherChild...)>,
@@ -107,6 +112,7 @@ namespace ccdb
         const ParentFunc & parent_func, ArgsForFetcherParent... args_for_fetcher_parent,
         int timeout_ms);
 
+#endif //__WINDOWS_MSVC_BUILD__
     template <typename T> concept Iterator = std::input_iterator<T>;
     class auto_print_t;
     extern std::atomic<int> g_pid;
@@ -177,6 +183,7 @@ namespace ccdb
 
         template<typename T> using function_return_type_t = function_return_type<T>::type;
 
+#ifndef __WINDOWS_MSVC_BUILD__
         template <typename handler_t, typename returnType = function_return_type_t<handler_t> >
         class RegexDispatcher
         {
@@ -208,6 +215,25 @@ namespace ccdb
             std::vector<handler_t> handlers_;
         };
 
+#else
+        template<typename handler_t, typename returnType = function_return_type_t<handler_t>>
+        class RegexDispatcher {
+            std::vector<std::pair<std::regex, handler_t>> handlers_;
+        public:
+            bool add(const std::string& pattern, handler_t handler) {
+                handlers_.emplace_back(std::regex(pattern), std::move(handler));
+                return true;
+            }
+            bool compile() { return true; }
+            template<typename... Args>
+            returnType dispatch(const std::string& input, const Args&... args) {
+                for (const auto& [pattern, handler] : handlers_)
+                    if (std::regex_match(input, pattern)) return handler(args...);
+                throw std::invalid_argument("Command not found");
+            }
+        };
+
+#endif //__WINDOWS_MSVC_BUILD__
         // const bool experimental_features = utils::getenv("CCDB_ENABLE_EXPERIMENTAL_FEATURES") == "true";
         general_info_pulling backend_instance; // backend instance
 
@@ -494,7 +520,9 @@ namespace ccdb
     };
 
 #include "ccdb.continuous_table.inl"
+#ifndef __WINDOWS_MSVC_BUILD__
 #include "detach_execute.inl"
+#endif //__WINDOWS_MSVC_BUILD__
 }
 
 #endif //CCDB_H

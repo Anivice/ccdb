@@ -1,3 +1,4 @@
+#ifndef __WINDOWS_MSVC_BUILD__
 #ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
 #include <cstring>
 #include <stdexcept>
@@ -60,3 +61,4 @@ maxmindDB::~maxmindDB()
 }
 
 #endif // __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
+#endif //__WINDOWS_MSVC_BUILD__

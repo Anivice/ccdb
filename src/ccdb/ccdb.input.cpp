@@ -27,7 +27,9 @@
 #include <cmath>
 #include <string>
 #include "Readline.h"
+#ifndef __WINDOWS_MSVC_BUILD__
 #include "ncursesw/ncurses.h"
+#endif //__WINDOWS_MSVC_BUILD__
 #include "ccdb.h"
 
 // --------------------------------------------- CCDB --------------------------------------------- //
@@ -90,9 +92,20 @@ void ccdb::signal_watcher_::sigint_watcher()
 {
     while (sigint_watcher_running)
     {
+#ifdef __WINDOWS_MSVC_BUILD__
+        if (windows::take_interrupt()) sysint_pressed = true;
+        static int last_rows = -1, last_cols = -1;
+        const auto [rows_now, cols_now] = get_screen_row_col();
+        if (rows_now != last_rows || cols_now != last_cols) {
+            window_size_change = true;
+            last_rows = rows_now;
+            last_cols = cols_now;
+        }
+#endif //__WINDOWS_MSVC_BUILD__
         if (sysint_pressed)
         {
             sysint_pressed = false;
+#ifndef __WINDOWS_MSVC_BUILD__
             constexpr unsigned char ch = 0x03;
             if (!watcher_clear_disable && Readline::sig_pipe[1] != -1) {
                 (void)write(Readline::sig_pipe[1], &ch, 1);
@@ -100,6 +113,7 @@ void ccdb::signal_watcher_::sigint_watcher()
 
             if (g_pid != -1) (void)kill(g_pid, SIGKILL);
 
+#endif //__WINDOWS_MSVC_BUILD__
             SignalWatcher.push(SIGINT);
         }
 
@@ -116,8 +130,10 @@ void ccdb::signal_watcher_::sigint_watcher()
 ccdb::signal_watcher_::signal_watcher_()
 {
     std::signal(SIGINT, sigint_handler);
+#ifndef __WINDOWS_MSVC_BUILD__
     std::signal(SIGWINCH, window_size_change_handler);
     std::signal(SIGPIPE, SIG_IGN);
+#endif //__WINDOWS_MSVC_BUILD__
     worker_threads.emplace_back(&signal_watcher_::sigint_watcher, this);
     worker_threads.emplace_back([this]
     {
@@ -169,6 +185,7 @@ ccdb::signal_watcher_::~signal_watcher_()
 }
 
 [[nodiscard]]
+#ifndef __WINDOWS_MSVC_BUILD__
 static ssize_t read_with_timeout(const int fd, void *buf, const size_t count, const int timeout_ms)
 {
     pollfd fds { };
@@ -192,6 +209,14 @@ static ssize_t read_with_timeout(const int fd, void *buf, const size_t count, co
 
     return -1;  // should not happen
 }
+#else
+static ssize_t read_with_timeout(const int fd, void *buf, const size_t count, const int timeout_ms)
+{
+    (void)fd;
+    return ccdb::windows::read_input(buf, count, timeout_ms);
+}
+#endif //__WINDOWS_MSVC_BUILD__
+
 
 void ccdb::ccdb::generic_input_watcher(const std::string &name, std::atomic_bool *running) const
 {

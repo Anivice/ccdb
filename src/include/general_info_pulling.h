@@ -44,8 +44,12 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#ifndef __WINDOWS_MSVC_BUILD__
 #include <netinet/in.h>
+#endif //__WINDOWS_MSVC_BUILD__
+#ifndef __WINDOWS_MSVC_BUILD__
 #include <openssl/evp.h>
+#endif //__WINDOWS_MSVC_BUILD__
 #include "libmaxmind.h"
 #include "utils.h"
 #include "mihomo.h"

@@ -54,6 +54,7 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
 
     auto get_frame = [&]->std::pair<int, std::string>
     {
+#ifndef __WINDOWS_MSVC_BUILD__
         if (banner_command.empty()) return {0, ""};
         if (const auto & [fs_stdout, fd_stderr, status] =
             exec_command2("/bin/sh", "", "-c", banner_command); !status)
@@ -65,6 +66,7 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
             } catch (...) { }
         }
 
+#endif //__WINDOWS_MSVC_BUILD__
         return {0, ""};
     };
 

@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <ctime>
 #include <limits>
+#include <numeric>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -81,7 +82,11 @@ std::string format_time_rfc3339_local(const std::chrono::system_clock::time_poin
 
     std::tm tm{};
 
+#ifndef __WINDOWS_MSVC_BUILD__
     if (localtime_r(&t, &tm) == nullptr) {
+#else
+    if (localtime_s(&tm, &t) != 0) {
+#endif //__WINDOWS_MSVC_BUILD__
         throw std::runtime_error(
             "localtime_r failed while formatting RFC 3339 time");
     }
