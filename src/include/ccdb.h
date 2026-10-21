@@ -420,7 +420,7 @@ namespace ccdb
 #endif //__YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
         void changeRuleAffinity(const std::vector<std::string> &);
         void storage(const std::vector<std::string> &);
-
+        void tls_watchdog(const std::vector<std::string> &);
         bool commandProcessor(const std::vector<std::string> & command_vector_);
         std::vector<std::string> commandAutoCompletion(const std::vector<std::string> &, const std::string &, int arg_index);
 

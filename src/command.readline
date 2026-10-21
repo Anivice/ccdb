@@ -143,6 +143,8 @@
     < gc (Perform garbage collection for backend): [NONE] >,
     < storage (Backend storage): store (store data), retrieve (retrieve data), delete (delete data) >, # 1> store #name
     < setRuleAffinity (Enable or disable a rule): [NONE] >, # changeRuleAffinity 1,enable 2,disable 4-10,disable
+    < tlsWatchdog (Watch TSL Certificates, and abort connections for TSL connections not independently verifiable):
+        dryRun (Do not kill connections) >,
 }
 
 # $ ssh me@localhost

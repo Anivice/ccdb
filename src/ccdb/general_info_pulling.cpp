@@ -1576,10 +1576,12 @@ void general_info_pulling::pull_continuous_updates()
     }, "/traffic");
 
     // /connections puller
-    make_thread([&](const std::stop_token)
+    make_thread([&](const std::stop_token stop_token)
     {
-        update_from_connections(generic_get("/connections"));
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        backend_client.get_stream_info("/connections?interval=100",
+            stop_token,
+            this,
+            &general_info_pulling::update_from_connections);
     }, "/connections");
 
     // /logs puller

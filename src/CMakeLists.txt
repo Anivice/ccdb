@@ -187,6 +187,7 @@ set(CCDB_SRC_FILES
         ccdb/ccdb.get.cpp
         ccdb/ccdb.get_connections.cpp
         ccdb/ccdb.get_log.cpp
+        ccdb/ccdb.tls_watchdog.cpp
         ccdb/ccdb.set.cpp
         ccdb/ccdb.nload.cpp
         ccdb/general_info_pulling.cpp   include/general_info_pulling.h
