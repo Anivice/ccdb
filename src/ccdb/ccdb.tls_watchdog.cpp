@@ -20,7 +20,7 @@
 //
 
 #ifndef __WINDOWS_MSVC_BUILD__
-
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
 #include <regex>
 #include "print.h"
 #include "ccdb.h"
@@ -191,10 +191,10 @@ void ccdb::ccdb::tls_watchdog(const std::vector<std::string> & cmd)
 
     std::atomic_bool finished(false);
     auto watcher_ = watcher.make_status_watcher();
-    std::mutex mutex;
-    tsl::hopscotch_map < std::string /* domain */, info_t > local_cache;
-    utils::thread_group children;
-    children.emplace_back([&]
+    // std::mutex mutex;
+    utils::cache_w_freq_table_t < std::string /* domain */, info_t > local_cache;
+    std::vector<std::thread> children;
+    auto T0 = std::thread([&]
     {
         int sig = 0;
         while (sig >= 0) {
@@ -239,7 +239,8 @@ void ccdb::ccdb::tls_watchdog(const std::vector<std::string> & cmd)
         for (const auto connection_frame = backend_instance.get_active_connections();
             const auto & connection_ : connection_frame)
         {
-            children.emplace_back([&mutex, &local_cache, &certification_path, &cmd, this]
+            if (finished) break;
+            children.emplace_back([&local_cache, &certification_path, &cmd, this]
                 (general_info_pulling::connection_t connection)
             {
                 auto ip_or_domain = connection.host;
@@ -247,22 +248,20 @@ void ccdb::ccdb::tls_watchdog(const std::vector<std::string> & cmd)
                 const auto port = connection.host.substr(connection.host.find_last_of(':') + 1);
                 if (const auto type = classify_address(ip_or_domain);
                     (type == AddressType::Domain && port == "443" || port == "8443")
-                    && connection.networkType.find("tcp") != std::string::npos)
-                {
+                    && connection.networkType.find("tcp") != std::string::npos) {
                     const auto now = std::chrono::system_clock::now();
 
                     {
-                        std::lock_guard<std::mutex> lock(mutex);
-                        if (const auto it = local_cache.find(connection.host); it != local_cache.end())
+                        if (const auto it = local_cache.get_cache(connection.host); it)
                         {
-                            if (const auto endpoint = it->second.destination_ip_map.find(connection.destination);
-                                endpoint != it->second.destination_ip_map.end())
+                            if (const auto endpoint = it->destination_ip_map.find(connection.destination);
+                                endpoint != it->destination_ip_map.end())
                             {
-                                if (now - it->second.last_valid_time < std::chrono::seconds(60 * 10))
+                                if (now - it->last_valid_time < std::chrono::seconds(60 * 10))
                                 {
                                     if (endpoint->second == Verdict::VALID) return;
-                                    if (endpoint->second == Verdict::INCONCLUSIVE && it->second.error_count > 10) return;
-                                    if (endpoint->second == Verdict::INVALID_CERTIFICATE && it->second.error_count > 5) {
+                                    if (endpoint->second == Verdict::INCONCLUSIVE && it->error_count > 10) return;
+                                    if (endpoint->second == Verdict::INVALID_CERTIFICATE && it->error_count > 5) {
                                         if (cmd.size() == 2 && cmd[1] == "dryRun") utils::print("Killing ", connection.host, "\n");
                                         else if (!backend_instance.close_connection(connection.metadata.connectionID))
                                             utils::print<utils::is_error>("Killing ", connection.host, " failed\n");
@@ -287,21 +286,24 @@ void ccdb::ccdb::tls_watchdog(const std::vector<std::string> & cmd)
                         ip_or_domain,
                         utils::convertToNumber<int>(port));
 
-                    {
-                        std::lock_guard<std::mutex> lock(mutex);
-                        auto & c_ = local_cache[connection.host];
-                        c_.last_valid_time = now;
-                        c_.destination_ip_map[connection.destination] = result.verdict;
-                        if (Verdict::VALID != result.verdict) {
-                            ++c_.error_count;
-                        }
-
-                        if (result.verify_code == 62) // hostname SNI mismatch
-                        {
-                            c_.destination_ip_map[connection.destination] = Verdict::INCONCLUSIVE;
-                            // SNI match is not a proof of certificate failure
-                        }
+                    info_t c_ { };
+                    if (const auto it = local_cache.get_cache(connection.host); it) {
+                        c_ = *it;
                     }
+                    c_.last_valid_time = now;
+                    c_.destination_ip_map[connection.destination] = result.verdict;
+                    if (Verdict::VALID != result.verdict) {
+                        ++c_.error_count;
+                    }
+
+                    if (result.verify_code == X509_V_ERR_HOSTNAME_MISMATCH
+                        || result.verify_code == X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN) // hostname SNI mismatch
+                    {
+                        c_.destination_ip_map[connection.destination] = Verdict::INCONCLUSIVE;
+                        // SNI match is not a proof of certificate failure
+                    }
+
+                    local_cache.emplace_cache(connection.host, c_);
 
                     switch (result.verdict)
                     {
@@ -320,9 +322,17 @@ void ccdb::ccdb::tls_watchdog(const std::vector<std::string> & cmd)
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        if (children.size() > 256) {
+            std::ranges::for_each(children, [](auto & T) {
+                if (T.joinable()) T.join();
+            });
+            children.clear();
+        }
     }
 
-    children.stop_and_join();
+    if (T0.joinable()) T0.join();
+    std::ranges::for_each(children, [](auto & T) { if (T.joinable()) T.join(); });
 }
 
+#endif //__YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
 #endif //__WINDOWS_MSVC_BUILD__

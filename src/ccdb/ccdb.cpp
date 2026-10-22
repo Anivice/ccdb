@@ -1019,9 +1019,11 @@ void ccdb::ccdb::init()
         return true;
     });
 
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
     commandMatches.emplace_back(R"(tlsWatchdog(?: dryRun)?)", [this](const auto &command_vector) {
         tls_watchdog(command_vector); return true;
     });
+#endif //__YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
 
 #ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
     commandMatches.emplace_back("proxyView", [this](const auto &) {
