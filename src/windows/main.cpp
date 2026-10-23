@@ -50,7 +50,7 @@ int main(int argc, char** argv)
             static_cast<mihomo::DownloadMethod_path_prgrs>(&httplib::Client::Get), {}, "/");
         if (response->status != 200 || !nlohmann::json::parse(response->body).contains("hello"))
             throw std::runtime_error("Controller handshake failed (HTTP " + std::to_string(response->status) + ").");
-        if (!quiet) std::cout << "CCDB " CCDB_VERSION " connected to " << backend << '\n';
+        if (!quiet) std::cerr << "CCDB " CCDB_VERSION " connected to " << backend << '\n';
         if (execute) {
             ccdb::ccdb app(backend, token, latency_url, utils::split_via_history(command));
         } else {

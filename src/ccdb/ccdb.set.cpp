@@ -23,7 +23,9 @@
 #include "utils.h"
 #include "print.h"
 #ifndef __WINDOWS_MSVC_BUILD__
-#include "absl/strings/internal/str_format/extension.h"
+# include "absl/strings/internal/str_format/extension.h"
+#else
+# include <Windows.h>
 #endif //__WINDOWS_MSVC_BUILD__
 
 // --------------------------------------------- CCDB --------------------------------------------- //
@@ -243,7 +245,7 @@ void ccdb::ccdb::apply() const
 #else
             _read(STDIN_FILENO, buff, sizeof(buff) - 1)
 #endif //__WINDOWS_MSVC_BUILD__
-) > 0)
+        ) > 0)
         {
             buff[r] = '\0';
             json += buff;
@@ -372,6 +374,19 @@ void ccdb::ccdb::storage(const std::vector<std::string> & cmd)
     {
         if (cmd[1] == "store")
         {
+#ifdef __WINDOWS_MSVC_BUILD__
+            (void)_setmode(_fileno(stdin), _O_BINARY);
+            HANDLE h = GetStdHandle(STD_INPUT_HANDLE);
+            DWORD mode, backup{};
+            bool inited = false;
+
+            if (GetConsoleMode(h, &mode)) {
+                inited = true;
+                backup = mode;
+                mode &= ~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT);
+                SetConsoleMode(h, mode);
+            }
+#endif //__WINDOWS_MSVC_BUILD__
             std::string body;
             char buff [512] { };
             ssize_t n = 0;
@@ -381,9 +396,15 @@ void ccdb::ccdb::storage(const std::vector<std::string> & cmd)
 #else
             _read(STDIN_FILENO, buff, sizeof(buff) - 1)
 #endif //__WINDOWS_MSVC_BUILD__
-) > 0) {
+            ) > 0) {
                 body.append(buff, n);
             }
+
+#ifdef __WINDOWS_MSVC_BUILD__
+            //utils::print<utils::is_error>(utils::sha256sum(body), "\n");
+            (void)_setmode(_fileno(stdin), _O_TEXT);
+            if (inited) SetConsoleMode(h, backup);
+#endif //__WINDOWS_MSVC_BUILD__
 
             const auto b64 = base64::base64_encode(body);
             const nlohmann::json json = {
@@ -413,7 +434,14 @@ void ccdb::ccdb::storage(const std::vector<std::string> & cmd)
                     json.contains("data") && json["data"].is_string())
                 {
                     const std::string data = base64::base64_decode(json["data"].get<std::string>());
+#ifndef __WINDOWS_MSVC_BUILD__
                     std::cout.write(data.c_str(), static_cast<std::streamsize>(data.size()));
+#else
+                    //utils::print<utils::is_error>(utils::sha256sum(data), "\n");
+                    (void)_setmode(_fileno(stdout), _O_BINARY);
+                    (void)_write(STDOUT_FILENO, data.data(), data.size());
+                    (void)_setmode(_fileno(stdout), _O_TEXT);
+#endif //__WINDOWS_MSVC_BUILD__
                     return;
                 }
             } catch (std::exception &) { }
