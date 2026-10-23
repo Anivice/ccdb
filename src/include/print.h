@@ -86,8 +86,10 @@ namespace ccdb::utils
     void _sprint(const Container<T>& container, std::ostream & oss)
     {
         oss << "[";
+        const auto Ssize = container.size();
+        std::remove_const_t < decltype(Ssize) > i = 0;
         for (const auto & v : container) {
-            oss << v << ", ";
+            oss << v << (++i < Ssize ? ", " : "");
         }
         oss << "]";
     }
