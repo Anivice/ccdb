@@ -759,8 +759,9 @@ void ccdb::ccdb::get_sort_reverse() const {
     utils::print(sort_reverse ? "on" : "off", "\n");
 }
 
-void ccdb::ccdb::get_sort_by() const {
-    utils::print(sort_by, "\n");
+void ccdb::ccdb::get_sort_by() {
+    const auto vec = sort_by.get();
+    utils::print(vec, "\n");
 }
 
 void ccdb::ccdb::map_proxy_chain()

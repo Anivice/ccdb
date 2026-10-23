@@ -741,9 +741,12 @@ void ccdb::ccdb::init()
     flag_helper("Global::ReverseMouse", reverse_mouse);
     if (utils::getenv("REVERSE_MOUSE") == "true") reverse_mouse = true;
     else if (utils::getenv("REVERSE_MOUSE") == "false") reverse_mouse = false;
-    int_helper("Global::SortBy", sort_by, [&](const int64_t val) {
+    int sort_by_int = -1;
+    int_helper("Global::SortBy", sort_by_int, [&](const int64_t val) {
         return (0 <= val && val < get_conn_titles.size());
     });
+    if (sort_by_int != -1) sort_by.set({sort_by_int});
+    else sort_by.set({ 4, 2, 5, 3, 0, 11, 8, 7 });
 
     int_helper("Global::RefreshIntervalMS", screen_refresh_interval_in_ms);
     int_helper("Global::logSize", max_log_size, [](const auto size)->bool {
@@ -960,7 +963,7 @@ void ccdb::ccdb::init()
     commandMatches.emplace_back(R"(set chain_parser (on|off))", [this](const auto &command_vector) { set_chain_parser(command_vector); return true; });
     commandMatches.emplace_back(R"(set allowlan (on|off))", [this](const auto &command_vector) { set_allowlan(command_vector); return true; });
     commandMatches.emplace_back(R"(set loglevel (silent|debug|info|warning|error))", [this](const auto &command_vector) { set_log_level(command_vector); return true; });
-    commandMatches.emplace_back(R"(set sort_by [\d]+)", [this](const auto &command_vector) { set_sort_by(command_vector); return true; });
+    commandMatches.emplace_back(R"(set sort_by (1(?:0|1)?|(\d))(?:(\/(1(?:0|1)?|(\d)))+)?)", [this](const auto &command_vector) { set_sort_by(command_vector); return true; });
     commandMatches.emplace_back(R"(set sort_reverse (on|off))", [this](const auto &command_vector) { set_sort_reverse(command_vector); return true; });
     commandMatches.emplace_back(R"(set filter_reverse (on|off))", [this](const auto &command_vector) { set_filter_reverse(command_vector); return true; });
     commandMatches.emplace_back(R"(set filter [\d]+ .*)", [this](const auto &command_vector) { set_filter(command_vector); return true; });

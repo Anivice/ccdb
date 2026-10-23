@@ -29,6 +29,7 @@
 #include <type_traits>
 #include "utils.h"
 #include "httplib.h"
+#include "absl/container/internal/layout.h"
 
 namespace ccdb::utils
 {
@@ -73,6 +74,24 @@ namespace ccdb::utils
         oss << val;
     }
 
+    template < MsgValueType T1, MsgValueType T2 >
+    void _sprint(const std::pair<T1, T2> & val, std::ostream & oss)
+    {
+        oss << "[" << val.first << ": " << val.second << "]";
+    }
+
+    template <MsgValueType T, template <typename...> class Container>
+    requires (std::ranges::common_range<const Container<T>>
+        && !std::is_same_v<std::string, Container<T>> && !std::is_same_v<std::string_view, Container<T>>)
+    void _sprint(const Container<T>& container, std::ostream & oss)
+    {
+        oss << "[";
+        for (const auto & v : container) {
+            oss << v << ", ";
+        }
+        oss << "]";
+    }
+
     inline void _sprint(const httplib::Result& val, std::ostream & oss)
     {
         oss << val->status;
@@ -87,16 +106,12 @@ namespace ccdb::utils
         }
     }
 
-    template < MsgValueType... Args >
-    std::string sprint(const Args &...args)
-    {
-        std::ostringstream oss;
-        (_sprint(args, oss), ...);
-        return oss.str();
-    }
-
     inline struct flush_t {} flush;
     template < typename T > concept StdIOMsgType = MsgValueType<T> || std::is_same_v<T, flush_t>;
+    template <class Container>
+    concept PrintableContainer =
+        std::ranges::input_range<const Container> &&
+        StdIOMsgType<std::ranges::range_value_t<const Container>>;
 
     template < typename T >
     void _print(const T & val, std::ostream & oss)
@@ -105,10 +120,22 @@ namespace ccdb::utils
             _sprint(val, oss);
         } else if constexpr (std::is_same_v<T, flush_t>) {
             oss << std::flush;
+        } else {
+            _sprint(val, oss);
         }
     }
 
-    template < MessageType MsgType = is_normal, StdIOMsgType... Args >
+    template <class... Args>
+    requires ((StdIOMsgType<Args> || PrintableContainer<Args>) && ...)
+    std::string sprint(const Args &...args)
+    {
+        std::ostringstream oss;
+        (_sprint(args, oss), ...);
+        return oss.str();
+    }
+
+    template <MessageType MsgType = is_normal, class... Args>
+    requires ((StdIOMsgType<Args> || PrintableContainer<Args>) && ...)
     void print(const Args &...args)
     {
         if constexpr (std::is_same_v<MsgType, is_error>) {

@@ -137,14 +137,17 @@ void ccdb::ccdb::set_log_level(const std::vector<std::string> &command_vector)
 void ccdb::ccdb::set_sort_by(const std::vector<std::string> &command_vector)
 {
     try {
-        sort_by = convertToNumber<int>(command_vector[2]);
-        if (sort_by < 0 || sort_by > 11)
-        {
-            sort_by = 4; // download speed
-            throw std::invalid_argument("Invalid sort_by value");
+        std::istringstream iss(command_vector[2]);
+        std::string num;
+        std::vector<int> sort_by_tmp;
+        while (std::getline(iss, num, '/')) {
+            const auto num_ = convertToNumber<int>(num);
+            if (num_ < 0 || num_ > 11) throw std::invalid_argument("Invalid sort_by value");
+            sort_by_tmp.emplace_back(num_);
         }
-    } catch (...) {
-        print<is_error>("Invalid number `", command_vector[2], "`\n");
+        sort_by.set(sort_by_tmp);
+    } catch (std::exception & e) {
+        print<is_error>("Invalid number `", command_vector[2], "`: ", e.what(), "\n");
     }
 }
 

@@ -253,7 +253,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     std::vector < std::string > title_this_session;
     bool pause_update = false;
 
-    int sort_by_local = sort_by;
+    std::vector<int> sort_by_local;
     bool reverse_sort_local = sort_reverse;
     using ScopeType = std::pair<std::vector<connection_frame_t>::const_iterator, std::vector<connection_frame_t>::const_iterator>;
     using ArgsCopyScope = const ScopeType &;
@@ -264,6 +264,100 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     int closed_connection_view_max_size = 128;
     int last_mouse_scrolling_vex = 0;
     auto unstable_timepoint = std::chrono::system_clock::now() - std::chrono::seconds(2);
+
+    auto sort = [](std::vector<connection_frame_t> & connections, const std::vector<int> & sort_by_final)
+    {
+        std::ranges::sort(connections,
+        [&](const connection_frame_t& a_, const connection_frame_t& b_)
+        {
+            const auto& a = a_.connection_data;
+            const auto& b = b_.connection_data;
+
+            const auto compare = [](const auto& x, const auto& y) -> int {
+                if (x > y) return 1;
+                if (y > x) return -1;
+                return 0;
+            };
+
+            const auto compare_src = [&](const std::string& x,
+                                         const std::string& y) -> int
+            {
+                const auto split = [](const std::string_view s)->std::string_view
+                {
+                    const auto pos = s.rfind(':');
+                    return s.substr(0, pos);
+                };
+
+                return compare(split(x), split(y));
+            };
+
+            // Lazy construction, only needed for host comparisons.
+            const auto compare_host = [&]() -> int {
+                return compare(
+                    host_compare_t(a.host),
+                    host_compare_t(b.host)
+                );
+            };
+
+            for (const int key : sort_by_final)
+            {
+                int result = 0;
+
+                switch (key) {
+                case 0:
+                        result = compare_host();
+                        break;
+                    case 1:
+                        result = compare(a.processName, b.processName);
+                        break;
+                    case 2:
+                        result = compare(a.totalDownloadedBytes, b.totalDownloadedBytes);
+                        break;
+                    case 3:
+                        result = compare(a.totalUploadedBytes, b.totalUploadedBytes);
+                        break;
+                    case 4:
+                        result = compare(a.downloadSpeed, b.downloadSpeed);
+                        break;
+                    case 5:
+                        result = compare(a.uploadSpeed, b.uploadSpeed);
+                        break;
+                    case 6:
+                        result = compare(a.ruleName, b.ruleName);
+                        break;
+                    case 7:
+                        result = compare(
+                            a.timeElapsedSinceConnectionEstablished,
+                            b.timeElapsedSinceConnectionEstablished
+                        );
+                        break;
+                    case 8:
+                        result = compare_src(a.src, b.src);
+                        break;
+                    case 9:
+                        result = compare(a.destination, b.destination);
+                        break;
+                    case 10:
+                        result = compare(a.networkType, b.networkType);
+                        break;
+                    case 11:
+                        result = compare(a.chainName, b.chainName);
+                        break;
+                    default:
+                        result = compare(
+                            a.downloadSpeed + a.uploadSpeed,
+                            b.downloadSpeed + b.uploadSpeed
+                        );
+                        break;
+                    }
+
+                    if (result != 0)
+                        return result > 0;
+                }
+
+                return compare_host() > 0;
+        });
+    };
 
     continuous_table <connection_frame_t, std::vector<connection_frame_t>::const_iterator, ScopeType >
     (
@@ -387,7 +481,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                                 {
                                     const auto sort_id = convertToNumber<uint64_t>(vec[1]);
                                     if (sort_id >= get_conn_titles.size()) throw std::invalid_argument(sprint("Invalid sort ID"));
-                                    sort_by = static_cast<int>(sort_id);
+                                    sort_by.set({static_cast<int>(sort_id)});
                                 }
                                 catch (const std::exception& e) {
                                     return sprint("Invalid sort: ", e.what());
@@ -483,19 +577,37 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
             unstable_timepoint = now;
 
+            std::vector<int> sort_by_global = sort_by.get();
+            if (sort_by_global.empty()) {
+                sort_by_global = {0, 4, 5, 2, 3, 11};
+                sort_by.set(sort_by_global);
+            }
+
             // final sort value
-            int sort_by_final { };
+            std::vector<int> sort_by_final;
             if (*data_->sort_by_from_watcher == -1) {
-                sort_by_final = sort_by;
+                sort_by_final = sort_by_global;
             }
             else
             {
-                if (sort_by == *data_->sort_by_from_watcher) {
+                if (sort_by_global.size() == 1 && sort_by_global.front() == *data_->sort_by_from_watcher) {
                     sort_reverse = !sort_reverse;
-                    sort_by_final = sort_by;
+                    sort_by_final = sort_by_global;
+                } else if (sort_by_global.size() <= 1 /* && sort_by_global.front() != *data_->sort_by_from_watcher */) {
+                    sort_by.set({data_->sort_by_from_watcher->load()});
+                    sort_by_final = { *data_->sort_by_from_watcher };
                 } else {
-                    sort_by = data_->sort_by_from_watcher->load();
-                    sort_by_final = *data_->sort_by_from_watcher;
+                    // multi sort chain, swap the first sort qualification
+                    if (sort_by_global.front() != *data_->sort_by_from_watcher) {
+                        sort_by_global.erase(sort_by_global.begin());
+                        sort_by_global.insert(sort_by_global.begin(), *data_->sort_by_from_watcher);
+                        // update global sort chain
+                        sort_by.set(sort_by_global);
+                        sort_by_final = sort_by_global;
+                    } else {
+                        sort_reverse = !sort_reverse;
+                        sort_by_final = sort_by_global;
+                    }
                 }
 
                 *data_->sort_by_from_watcher = -1;
@@ -506,8 +618,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             sort_by = sort_by_final;
 
             // set existing ones as all closed
-            if (const auto now = std::chrono::system_clock::now();
-                std::chrono::duration_cast<std::chrono::milliseconds>(now - before).count() > 500 && !pause_update)
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - before).count() > 500 && !pause_update)
             {
                 before = now;
                 sorted_already = false; // sort all after an update
@@ -597,51 +708,9 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 #endif
             }
 
-            if (!sorted_already && (!pause_update || (pause_update && (sort_by_local != sort_by || reverse_sort_local != sort_reverse))))
+            if (!sorted_already && (!pause_update || (pause_update && (sort_by_local != sort_by_global || reverse_sort_local != sort_reverse))))
             {
-                std::ranges::sort(connections_filtered,
-                    [&](const connection_frame_t & a_, const connection_frame_t & b_)
-                    {
-                        const auto & a = a_.connection_data;
-                        const auto & b = b_.connection_data;
-                        const host_compare_t aH(a.host), bH(b.host);
-                        const auto a_traffic = a.downloadSpeed + a.uploadSpeed;
-                        const auto b_traffic = b.uploadSpeed + b.downloadSpeed;
-                        switch (sort_by_final)
-                        {
-                        case 0:
-                            return aH > bH;
-                        case 1:
-                            return std::tie(a.processName, aH) > std::tie(b.processName, bH);
-                        case 2:
-                            return std::tie(a.totalDownloadedBytes, aH) > std::tie(b.totalDownloadedBytes, bH);
-                        case 3:
-                            return std::tie(a.totalUploadedBytes, aH) > std::tie(b.totalUploadedBytes, bH);
-                        case 5:
-                            return std::tie(a.uploadSpeed, aH) > std::tie(b.uploadSpeed, bH);
-                        case 6:
-                            return std::tie(a.ruleName, aH) > std::tie(b.ruleName, bH);
-                        case 7:
-                            return std::tie(a.timeElapsedSinceConnectionEstablished, aH) > std::tie(b.timeElapsedSinceConnectionEstablished, bH);
-                        case 8: {
-                            const std::string a_src = a.src.substr(0, a.src.find_last_of(':'));
-                            const std::string b_src = b.src.substr(0, b.src.find_last_of(':'));
-                            const std::string a_port = a.src.substr(a.src.find_last_of(':'));
-                            const std::string b_port = b.src.substr(b.src.find_last_of(':'));
-                            return std::tie(a_src, aH, a_port) > std::tie(b_src, bH, b_port);
-                        }
-                        case 9:
-                            return std::tie(a.destination, aH) > std::tie(b.destination, bH);
-                        case 10:
-                            return std::tie(a.networkType, aH) > std::tie(b.networkType, bH);
-                        case 11:
-                            return std::tie(a.chainName, aH) > std::tie(b.chainName, bH);
-                        case 4:
-                            return std::tie(a.downloadSpeed, aH) > std::tie(b.downloadSpeed, bH);
-                        default:
-                            return std::tie(a_traffic, aH) > std::tie(b_traffic, bH);
-                        }
-                    });
+                sort(connections_filtered, sort_by_final);
                 sorted_already = true; // skip sort if no updates
                 pad_host(connections_filtered);
                 pad_src(connections_filtered);
@@ -649,7 +718,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 if (sort_reverse)
                 {
                     std::ranges::reverse(connections_filtered);
-                    sort_by_local = sort_by;
+                    sort_by_local = sort_by_global;
                     reverse_sort_local = sort_reverse;
                 }
             }
@@ -671,6 +740,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     append_msg(sprint("Backend memory usage: ") + value_to_size(backend_instance.current_memory_in_use_by_mihomo.load(std::memory_order_relaxed)));
                     append_msg("   ");
                     append_msg(sprint("Frontend memory usage: ") + value_to_size(cur_mem_size()));
+                    append_msg("   ");
+                    append_msg("Sort chain: " + sprint(sort_by_local));
                     append_msg("   ");
 #ifndef __WINDOWS_MSVC_BUILD__
                     append_msg(update_subinfo(subinfo_ball, subinfo_worker));
@@ -749,7 +820,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                         break;
                 }
 
-                if (index_title == sort_by_local) {
+                if (!sort_by_local.empty() && index_title == sort_by_local.front()) {
                     title_this_session.back() += (sort_reverse ? " + " : " - ");
                 }
 
@@ -785,7 +856,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         },
         [&](session_compliment_data_t *)
         {
-            sort_by_local = sort_by;
+            sort_by_local = sort_by.get();
             reverse_sort_local = sort_reverse;
         }
     );
