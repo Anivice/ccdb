@@ -29,7 +29,6 @@
 #include <type_traits>
 #include "utils.h"
 #include "httplib.h"
-#include "absl/container/internal/layout.h"
 
 namespace ccdb::utils
 {
