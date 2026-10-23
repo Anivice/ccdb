@@ -65,6 +65,9 @@
 #include "caches/lfu_cache_policy.hpp"
 #endif //__WINDOWS_MSVC_BUILD__
 #include "tsl/hopscotch_map.h"
+#ifndef __WINDOWS_MSVC_BUILD__
+# include <sys/mman.h>
+#endif
 
 #ifdef __DEBUG__
 # include <meta>

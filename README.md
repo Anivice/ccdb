@@ -2,6 +2,10 @@
 
 [![CI](https://github.com/Anivice/ccdb/actions/workflows/LinuxBuildAction.yml/badge.svg?branch=main)](https://github.com/Anivice/ccdb/actions/workflows/LinuxStaticBuildAction.yml)
 [![CI](https://github.com/Anivice/ccdb/actions/workflows/LinuxBuildActionAARCH64.yml/badge.svg?branch=main)](https://github.com/Anivice/ccdb/actions/workflows/LinuxStaticBuildAction.yml)
+[![CI](https://github.com/Anivice/ccdb/actions/workflows/LinuxBuildAction_AppImage.yml/badge.svg?branch=main)](https://github.com/Anivice/ccdb/actions/workflows/LinuxStaticBuildAction_AppImage.yml)
+[![CI](https://github.com/Anivice/ccdb/actions/workflows/LinuxBuildActionAARCH64_AppImage.yml/badge.svg?branch=main)](https://github.com/Anivice/ccdb/actions/workflows/LinuxStaticBuildActionAARCH64_AppImage.yml)
+[![CI](https://github.com/Anivice/ccdb/actions/workflows/LinuxBuildAction_MUSL_Static.yml/badge.svg?branch=main)](https://github.com/Anivice/ccdb/actions/workflows/LinuxStaticBuildAction_MUSL_Static.yml)
+[![CI](https://github.com/Anivice/ccdb/actions/workflows/WindowsBuildAction.yml/badge.svg?branch=main)](https://github.com/Anivice/ccdb/actions/workflows/WindowsBuildAction.yml)
 
 > [!WARNING]
 > ***CCDB HAS POOR CHINESE LANGUAGE SUPPORT***
@@ -28,7 +32,7 @@ A lightweight terminal dashboard for Clash/Mihomo, written in C++.
 CCDB targets low-resource environments (for example, embedded devices) and users who want a low-overhead dashboard.
 
 CCDB depends on the following open-source libraries:
- - [CPP-HTTPLIB v0.60.0](https://github.com/yhirose/cpp-httplib) (Embedded)
+ - [CPP-HTTPLIB v0.63.0](https://github.com/yhirose/cpp-httplib) (Embedded)
  - [GNU Readline 8.3](https://ftp.gnu.org/gnu/readline/) (Embedded)
  - [GNU Ncurses 6.6](https://ftp.gnu.org/gnu/ncurses/) (Embedded)
  - [TSL Hopscotch-Hashing Map v2.4.0](https://github.com/Tessil/hopscotch-map) (Embedded)
@@ -49,6 +53,143 @@ CCDB depends on the following open-source libraries:
  - [C library for the MaxMind DB file format Releases 1.13.3](https://github.com/maxmind/libmaxminddb) (Embedded)
  - [C++ Cache implementation v0.1.1](https://github.com/vpetrigo/caches) (Embedded)
  - [ICU, International Components for Unicode 78.3](https://github.com/unicode-org/icu) (Embedded)
+
+### Direct Downloads:
+
+#### Linux
+
+##### 1. Define get function.
+
+```bash
+# Bash:
+ccdb_get() {
+    local prefix="$1" asset="$2" output="${3:-$2}"
+    local page json line tag sha
+
+    for ((page=1; ;page++)); do
+        json=$(curl -fsSL \
+          "https://api.github.com/repos/Anivice/ccdb/releases?per_page=100&page=$page") || return 1
+
+        [[ "$json" == "[]" ]] && break
+
+        while IFS= read -r line; do
+            [[ $line =~ \"tag_name\"[[:space:]]*:[[:space:]]*\"([^\"]+)\" ]] || continue
+
+            tag="${BASH_REMATCH[1]}"
+            [[ "$tag" == "$prefix".* ]] || continue
+
+            sha="${tag#"$prefix".}"
+            [[ "$sha" =~ ^[0-9a-f]{8}$ ]] || continue
+
+            if curl -fLSs --retry 3 \
+                -o "$output" \
+                "https://github.com/Anivice/ccdb/releases/download/$tag/$asset"; then
+                printf 'Downloaded %s (%s)\n' "$output" "$tag"
+                return 0
+            fi
+        done <<< "$json"
+    done
+
+    printf 'No matching release asset: %s / %s\n' "$prefix" "$asset" >&2
+    return 1
+}
+```
+
+##### 2. Get assets.
+
+ - Linux x86_64, musl-static:  
+```bash
+ccdb_get ccdb.NightlyBuild_x86_64_static ccdb
+```
+ - Linux i586, musl-static:  
+```bash
+ccdb_get ccdb.NightlyBuild_i586_static ccdb
+```
+ - Linux ARMv7 hard-float, musl-static:  
+```bash
+ccdb_get ccdb.NightlyBuild_armv7hf_static ccdb
+```
+ - Linux AArch64, musl-static:  
+```bash
+ccdb_get ccdb.NightlyBuild_aarch64_static ccdb
+```
+ - Linux x86_64, dynamically linked:  
+```bash
+ccdb_get ccdb.NightlyBuild ccdb && ccdb_get ccdb.NightlyBuild libccdb.so
+```
+ - Linux AArch64, dynamically linked:  
+```bash
+ccdb_get ccdb.NightlyBuild.aarch64 ccdb && ccdb_get ccdb.NightlyBuild.aarch64 libccdb.so
+```
+ - Linux x86_64, AppImage:  
+```bash
+ccdb_get ccdb.NightlyBuild.AppImage ccdb ccdb.AppImage
+```
+ - Linux AArch64, AppImage:  
+```bash
+ccdb_get ccdb.NightlyBuild.AppImage.aarch64 ccdb ccdb.AppImage
+```
+
+#### Windows
+
+```powershell
+function Get-CCDB {
+    param(
+        [string]$Prefix,
+        [string]$Asset = "ccdb.exe",
+        [string]$Output = $Asset
+    )
+
+    $pattern = '^' + [regex]::Escape($Prefix) + '\.[0-9a-f]{8}$'
+
+    for ($page = 1; ; $page++) {
+        $uri = "https://api.github.com/repos/Anivice/ccdb/releases?per_page=100&page=$page"
+
+        $json = (& curl.exe -fsSL $uri) -join "`n"
+        if ($LASTEXITCODE -ne 0) {
+            throw "GitHub API request failed."
+        }
+
+        if ($json.Trim() -eq '[]') { break }
+
+        foreach ($release in ($json | ConvertFrom-Json)) {
+            if ($release.draft -or -not $release.prerelease) {
+                continue
+            }
+
+            if ($release.tag_name -cnotmatch $pattern) {
+                continue
+            }
+
+            $item = $release.assets |
+                Where-Object {
+                    $_.name -ceq $Asset -and
+                    $_.state -eq "uploaded"
+                } |
+                Select-Object -First 1
+
+            if ($null -eq $item) { continue }
+
+            & curl.exe -fL --retry 3 `
+                -o $Output `
+                $item.browser_download_url
+
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "Downloaded $Output ($($release.tag_name))"
+                return
+            }
+        }
+    }
+
+    throw "No matching release asset: $Prefix / $Asset"
+}
+```
+
+##### 2. Get assets.
+
+```powershell
+Get-CCDB ccdb.NightlyBuild.windows.x64 ccdb.exe
+```
 
 ## Usage
 
