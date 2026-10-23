@@ -97,14 +97,38 @@ ccdb_get() {
 
 ##### 2. Get assets.
 
- - Linux x86_64, musl-static: `ccdb_get ccdb.NightlyBuild_x86_64_static ccdb`
- - Linux i586, musl-static: `ccdb_get ccdb.NightlyBuild_i586_static ccdb`
- - Linux ARMv7 hard-float, musl-static: `ccdb_get ccdb.NightlyBuild_armv7hf_static ccdb`
- - Linux AArch64, musl-static: `ccdb_get ccdb.NightlyBuild_aarch64_static ccdb`
- - Linux x86_64, dynamically linked: `ccdb_get ccdb.NightlyBuild ccdb && ccdb_get ccdb.NightlyBuild libccdb.so`
- - Linux AArch64, dynamically linked: `ccdb_get ccdb.NightlyBuild.aarch64 ccdb && ccdb_get ccdb.NightlyBuild.aarch64 libccdb.so`
- - Linux x86_64, AppImage: `ccdb_get ccdb.NightlyBuild.AppImage ccdb ccdb.AppImage`
- - Linux AArch64, AppImage: `ccdb_get ccdb.NightlyBuild.AppImage.aarch64 ccdb ccdb.AppImage`
+ - Linux x86_64, musl-static:  
+```bash
+ccdb_get ccdb.NightlyBuild_x86_64_static ccdb
+```
+ - Linux i586, musl-static:  
+```bash
+ccdb_get ccdb.NightlyBuild_i586_static ccdb
+```
+ - Linux ARMv7 hard-float, musl-static:  
+```bash
+ccdb_get ccdb.NightlyBuild_armv7hf_static ccdb
+```
+ - Linux AArch64, musl-static:  
+```bash
+ccdb_get ccdb.NightlyBuild_aarch64_static ccdb
+```
+ - Linux x86_64, dynamically linked:  
+```bash
+ccdb_get ccdb.NightlyBuild ccdb && ccdb_get ccdb.NightlyBuild libccdb.so
+```
+ - Linux AArch64, dynamically linked:  
+```bash
+ccdb_get ccdb.NightlyBuild.aarch64 ccdb && ccdb_get ccdb.NightlyBuild.aarch64 libccdb.so
+```
+ - Linux x86_64, AppImage:  
+```bash
+ccdb_get ccdb.NightlyBuild.AppImage ccdb ccdb.AppImage
+```
+ - Linux AArch64, AppImage:  
+```bash
+ccdb_get ccdb.NightlyBuild.AppImage.aarch64 ccdb ccdb.AppImage
+```
 
 #### Windows
 
