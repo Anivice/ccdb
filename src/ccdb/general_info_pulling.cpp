@@ -1578,10 +1578,23 @@ void general_info_pulling::pull_continuous_updates()
     // /connections puller
     make_thread([&](const std::stop_token stop_token)
     {
-        backend_client.get_stream_info("/connections?interval=100",
-            stop_token,
-            this,
-            &general_info_pulling::update_from_connections);
+        const auto keep_running = [&]() noexcept {
+            return !stop_token.stop_requested();
+        };
+
+        while (keep_running()) {
+            const auto before = std::chrono::steady_clock::now();
+            try {
+                update_from_connections(generic_get("/connections"));
+            } catch (const std::exception& e) {
+                nlohmann::json json = {
+                         { "type", "ERROR" },
+                         {"payload", e.what() }
+                     };
+                update_from_logs(json.dump());
+            }
+            std::this_thread::sleep_until(before + std::chrono::milliseconds(500));
+        }
     }, "/connections");
 
     // /logs puller

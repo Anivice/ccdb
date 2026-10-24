@@ -117,9 +117,7 @@ namespace ccdb::utils
     template < typename T >
     void _print(const T & val, std::ostream & oss)
     {
-        if constexpr (MsgValueType<T>) {
-            _sprint(val, oss);
-        } else if constexpr (std::is_same_v<T, flush_t>) {
+        if constexpr (std::is_same_v<T, flush_t>) {
             oss << std::flush;
         } else {
             _sprint(val, oss);
