@@ -45,9 +45,7 @@ void ccdb::ccdb::nload(
 {
     std::atomic_bool window_size_change = false;
     uint64_t frame_index = 0;
-    ccdb_atomic_t<frame_data_t> frame_data;
-    frame_data.set({});
-
+    NotificationType < frame_data_t > frame_data;
     std::thread Display([&] {
        display(frame_data, running);
    });
@@ -710,7 +708,7 @@ void ccdb::ccdb::nload(
         }
 
         /// repaint:
-        frame_data.set({
+        frame_data.push({
             .frame_index = ++frame_index,
             .frame = screen_str_frame.str(),
             .clear = false,
@@ -723,7 +721,7 @@ void ccdb::ccdb::nload(
             {
                 info_space_size_before = info_space_size;
                 conn_list_size_before = conn_list_size;
-                frame_data.set({
+                frame_data.push({
                     .frame_index = ++frame_index,
                     .clear = true,
                 });
@@ -743,6 +741,7 @@ void ccdb::ccdb::nload(
     if (input_watcher.joinable()) input_watcher.join();
     subinfo_worker.join();
     local_workers.join_all();
+    frame_data.push({.frame_index = ++frame_index, .pause = true});
     if (Display.joinable()) Display.join();
 }
 

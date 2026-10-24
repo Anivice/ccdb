@@ -314,13 +314,13 @@ namespace ccdb
 
         struct frame_data_t
         {
-            uint64_t frame_index;
+            uint64_t frame_index = 0;
             std::string frame;
-            bool clear;
-            bool pause;
+            bool clear = false;
+            bool pause = false;
         };
 
-        static void display(ccdb_atomic_t < frame_data_t > & frame, const std::atomic_bool * running);
+        static void display(NotificationType < frame_data_t > & frame, const std::atomic_bool * running);
 
         /// show info using pager
         /// @param str content to be shown

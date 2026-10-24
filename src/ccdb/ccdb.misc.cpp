@@ -220,30 +220,17 @@ void ccdb::ccdb::reset_terminal_mode_forcefully()
 void ccdb::ccdb::reset_terminal_mode_forcefully() { windows::reset_terminal(); }
 
 #endif //__WINDOWS_MSVC_BUILD__
-void ccdb::ccdb::display(ccdb_atomic_t< frame_data_t > & frame, const std::atomic_bool* running)
+
+void ccdb::ccdb::display(NotificationType < frame_data_t > & frame, const std::atomic_bool* running)
 {
     setup_term setup_term;
     uint64_t current_frame_index = -1;
-    std::string frame_;
     while (*running)
     {
-        const auto now = std::chrono::steady_clock::now();
-        bool clear;
-        uint64_t frame_index;
-        bool skip;
-        frame.get([&](const frame_data_t & v_)
+        if (const auto frame_data = frame.wait_for(500);
+            frame_data && !frame_data->pause && frame_data->frame_index != current_frame_index)
         {
-            if (skip = current_frame_index == v_.frame_index || v_.pause; !skip)
-            {
-                clear = v_.clear;
-                frame_ = v_.frame;
-                frame_index = v_.frame_index;
-            }
-        });
-
-        if (!skip)
-        {
-            if (clear && frame_index != current_frame_index) // updated frame
+            if (frame_data->clear) // updated frame
             {
                 std::cout << setup_term.clear << std::flush;
                 std::cout << "\033[H\033[2J\033[3J" << std::flush;
@@ -251,13 +238,11 @@ void ccdb::ccdb::display(ccdb_atomic_t< frame_data_t > & frame, const std::atomi
             else
             {
                 setup_term.move_home();
-                std::cout << frame_ << std::flush;
+                std::cout << frame_data->frame << std::flush;
                 setup_term.ed_clear();
             }
 
-            current_frame_index = frame_index;
+            current_frame_index = frame_data->frame_index;
         }
-
-        std::this_thread::sleep_until(now + std::chrono::microseconds(1000000 / 60));
     }
 }

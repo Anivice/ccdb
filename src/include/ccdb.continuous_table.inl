@@ -93,8 +93,7 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
     int tab_arg_index = -1;
     int64_t vector_size_last_time = -1;
     uint64_t frame_index = 0;
-    ccdb_atomic_t<frame_data_t> frame_data;
-    frame_data.set({});
+    NotificationType < frame_data_t > frame_data;
     print_table_context_t::width_context_t width_context;
     int skip_lines_before = current_skip_lines_;
     auto watcher_ = watcher.make_status_watcher();
@@ -143,7 +142,7 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
                 }
                 else
                 {
-                    frame_data.set({
+                    frame_data.push({
                         .frame_index = ++frame_index,
                         .frame = too_small
                     });
@@ -519,7 +518,7 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
                 }
 
                 pause_input_watcher = true;
-                frame_data.set({ .pause = true });
+                frame_data.push({ .pause = true });
                 PressKey_P(matched);
                 pause_input_watcher = false;
             }
@@ -642,7 +641,7 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
                     cursor_position_prev = -1;
                     in_tab_suggestion = -1;
                     tab_suggestion_requested = 0;
-                    frame_data.set({
+                    frame_data.push({
                         .frame_index = ++frame_index,
                         .clear = true,
                     });
@@ -731,7 +730,7 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
 
             if (const bool i_dont_print = skip_due_to_shrink; !i_dont_print)
             {
-                frame_data.set({
+                frame_data.push({
                     .frame_index = ++frame_index,
                     .frame = frame_string,
                     .clear = false
@@ -784,7 +783,7 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
                     if (window_size_change || (ENABLE_CLEAR_ON_SHRINK && skip_due_to_shrink
                             && contentSize <= static_cast<std::size_t>(window_frame_size)))
                     {
-                        frame_data.set({
+                        frame_data.push({
                             .frame_index = ++frame_index,
                             .clear = true,
                         });
@@ -837,6 +836,7 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
 
     running = false;
     watcher_.stop();
+    frame_data.push({.frame_index = ++frame_index, .pause = true});
     print("\n\n", "Wait...\n", "Press Ctrl+C (^C) to end immediately.\n");
     child_workers.join_all();
 }
