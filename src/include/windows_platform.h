@@ -39,5 +39,6 @@ namespace ccdb::windows {
     bool take_interrupt();
     void read_commands(const std::string& prompt);
     void reset_terminal();
+    void terminal_write(std::string_view data);
 }
 #endif //__WINDOWS_MSVC_BUILD__

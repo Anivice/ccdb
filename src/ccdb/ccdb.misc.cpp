@@ -221,6 +221,10 @@ void ccdb::ccdb::reset_terminal_mode_forcefully() { windows::reset_terminal(); }
 
 #endif //__WINDOWS_MSVC_BUILD__
 
+#ifdef __WINDOWS_MSVC_BUILD__
+# include "windows_platform.h"
+#endif //__WINDOWS_MSVC_BUILD__
+
 void ccdb::ccdb::display(NotificationType < frame_data_t > & frame, const std::atomic_bool* running)
 {
     setup_term setup_term;
@@ -232,13 +236,22 @@ void ccdb::ccdb::display(NotificationType < frame_data_t > & frame, const std::a
         {
             if (frame_data->clear) // updated frame
             {
+#ifdef __WINDOWS_MSVC_BUILD__
+                ::ccdb::windows::terminal_write(setup_term.clear);
+                ::ccdb::windows::terminal_write("\033[H\033[2J\033[3J");
+#else //__WINDOWS_MSVC_BUILD__
                 std::cout << setup_term.clear << std::flush;
                 std::cout << "\033[H\033[2J\033[3J" << std::flush;
+#endif //__WINDOWS_MSVC_BUILD__
             }
             else
             {
                 setup_term.move_home();
+#ifdef __WINDOWS_MSVC_BUILD__
+                ::ccdb::windows::terminal_write(frame_data->frame);
+#else //__WINDOWS_MSVC_BUILD__
                 std::cout << frame_data->frame << std::flush;
+#endif //__WINDOWS_MSVC_BUILD__
                 setup_term.ed_clear();
             }
 
