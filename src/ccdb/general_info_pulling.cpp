@@ -1320,8 +1320,10 @@ void general_info_pulling::update_from_connections(const std::string& info)
                 const auto duration_in_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
                 const auto uploaded_during_pull = conn.totalUploadedBytes - previous->second.totalUploadedBytes;
                 const auto download_during_pull = conn.totalDownloadedBytes - previous->second.totalDownloadedBytes;
-                const auto uploaded_bytes_per_second = static_cast<long>(static_cast<double>(uploaded_during_pull) / (static_cast<double>(duration_in_milliseconds) / 1000));
-                const auto downloaded_bytes_per_second = static_cast<long>(static_cast<double>(download_during_pull) / (static_cast<double>(duration_in_milliseconds) / 1000));
+                const auto uploaded_bytes_per_second = duration_in_milliseconds == 0 ? 0 : 
+                    static_cast<long>(static_cast<double>(uploaded_during_pull) / (static_cast<double>(duration_in_milliseconds) / 1000));
+                const auto downloaded_bytes_per_second = duration_in_milliseconds == 0 ? 0 : 
+                    static_cast<long>(static_cast<double>(download_during_pull) / (static_cast<double>(duration_in_milliseconds) / 1000));
 
                 conn.uploadSpeed = uploaded_bytes_per_second;
                 conn.downloadSpeed = downloaded_bytes_per_second;

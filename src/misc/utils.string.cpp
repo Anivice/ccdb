@@ -541,7 +541,6 @@ std::string ccdb::utils::strip_color(std::string str_)
     });
 }
 
-#ifndef __WINDOWS_MSVC_BUILD__
 void ccdb::utils::set_progress_bar(const progress_bar_state_t state, const int percentages, const std::string & ETA)
 {
 #ifdef __STATIC_MUSL__
@@ -550,10 +549,13 @@ void ccdb::utils::set_progress_bar(const progress_bar_state_t state, const int p
     std::stringstream ss;
     ss << "\033]9;4;" << state << ";" << percentages << "\033\\";
     const std::string & str = ss.str();
+#ifndef __WINDOWS_MSVC_BUILD__
     if (const int fd = open("/dev/stdout", O_WRONLY); fd > 0)
     {
         (void)write(fd, str.c_str(), str.length());
-
+#else //__WINDOWS_MSVC_BUILD__
+        ccdb::windows::terminal_write(str);
+#endif //__WINDOWS_MSVC_BUILD__
         if (state == SET_PROGRESS)
         {
             const auto col_size = get_col_size();
@@ -566,20 +568,18 @@ void ccdb::utils::set_progress_bar(const progress_bar_state_t state, const int p
                 std::stringstream ss3;
                 ss3 << "\r" << "[" << std::string(p, '=') << std::string(l, ' ') << str_p;
                 const auto str3 = ss3.str();
+#ifndef __WINDOWS_MSVC_BUILD__
                 (void)write(fd, str3.c_str(), str3.length());
+#else //__WINDOWS_MSVC_BUILD__
+                ccdb::windows::terminal_write(str3);
+#endif //__WINDOWS_MSVC_BUILD__
             }
         }
-
+#ifndef __WINDOWS_MSVC_BUILD__
         close(fd);
     }
-}
-#else
-void ccdb::utils::set_progress_bar(const progress_bar_state_t state, const int percentages, const std::string &)
-{
-    if (ccdb::windows::interactive())
-        std::cout << "\x1b]9;4;" << static_cast<int>(state) << ';' << percentages << "\x1b\\" << std::flush;
-}
 #endif //__WINDOWS_MSVC_BUILD__
+}
 
 
 static void encode_dump94(input_stream_t & in, output_stream_t & out)

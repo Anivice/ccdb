@@ -19,6 +19,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 
+static constexpr int max_closed_connection_count = 4096;
+
 #include <algorithm>
 #include <chrono>
 #include <utility>
@@ -261,7 +263,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
     auto before = std::chrono::system_clock::now() - std::chrono::seconds(2);
     std::vector < std::vector < std::string > > table_vals;
     bool show_only_closed_connection_view = false;
-    int closed_connection_view_max_size = 128;
+    int closed_connection_view_max_size = max_closed_connection_count;
     int last_mouse_scrolling_vex = 0;
     auto unstable_timepoint = std::chrono::system_clock::now() - std::chrono::seconds(2);
 
@@ -539,7 +541,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                                 try
                                 {
                                     closed_connection_view_max_size = convertToNumber<int>(vec[1]);
-                                    if (closed_connection_view_max_size <= 0) closed_connection_view_max_size = 128;
+                                    if (closed_connection_view_max_size <= 0) closed_connection_view_max_size = max_closed_connection_count;
                                     return sprint("Size set to ", closed_connection_view_max_size);
                                 }
                                 catch (const std::exception& e) {
