@@ -578,7 +578,7 @@ void ccdb::utils::set_progress_bar(const progress_bar_state_t state, const int p
     }
 }
 #else
-void ccdb::utils::set_progress_bar(const progress_bar_state_t state, const int percentages)
+void ccdb::utils::set_progress_bar(const progress_bar_state_t state, const int percentages, const std::string &)
 {
     if (ccdb::windows::interactive())
         std::cout << "\x1b]9;4;" << static_cast<int>(state) << ';' << percentages << "\x1b\\" << std::flush;
