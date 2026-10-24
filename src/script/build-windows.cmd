@@ -2,7 +2,7 @@
 setlocal
 set "CCDB_CONFIG=%~1"
 if not defined CCDB_CONFIG set "CCDB_CONFIG=Debug"
-if /I not "%CCDB_CONFIG%"=="Debug" if /I not "%CCDB_CONFIG%"=="Release" exit /b 2
+if /I not "%CCDB_CONFIG%"=="Debug" if /I not "%CCDB_CONFIG%"=="Release" if /I not "%CCDB_CONFIG%"=="RelWithDebInfo" exit /b 2
 for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "CCDB_VS=%%i"
 if not defined CCDB_VS (
     echo Cannot find Visual Studio C++ tools.
