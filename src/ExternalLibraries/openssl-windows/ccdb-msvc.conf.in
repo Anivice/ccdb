@@ -1,0 +1,9 @@
+# Local build configuration only; upstream sources are unmodified.
+# Override upstream's static /MT default to match CMAKE_MSVC_RUNTIME_LIBRARY.
+# /Zl is upstream's static-library convention (no default CRT library records).
+my %targets = (
+    "CCDB-VC-WIN64A" => {
+        inherit_from => [ "VC-WIN64A" ],
+        lib_cflags => "/Zi /Fdossl_static.pdb /Zl @crt_flag@",
+    },
+);

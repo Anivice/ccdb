@@ -4,6 +4,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 add_subdirectory(ExternalLibraries/readline-win32)
 
+# Dependency availability only; CCDB's SSL feature guards remain unchanged.
+option(CCDB_WINDOWS_OPENSSL "Build native OpenSSL 4.0.3 and its C++ smoke test" OFF)
+if(CCDB_WINDOWS_OPENSSL)
+    enable_testing()
+    add_subdirectory(ExternalLibraries/openssl-windows)
+endif()
+
 add_executable(ccdb_embed compile_utils/embed.cpp)
 target_include_directories(ccdb_embed PRIVATE include)
 target_compile_options(ccdb_embed PRIVATE /utf-8 /EHsc)

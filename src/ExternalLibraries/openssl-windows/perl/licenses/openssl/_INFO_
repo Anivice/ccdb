@@ -1,0 +1,4 @@
+Package: openssl-3.6.1
+Sources: https://www.openssl.org/source/openssl-3.6.1.tar.gz
+Patch: openssl-3.6.1.diff
+Homepage: http://www.openssl.org/
