@@ -4,7 +4,11 @@
 #include "utils.h"
 #include "print.h"
 #include "json.hpp"
+#include <algorithm>
+#include <chrono>
+#include <exception>
 #include <string>
+#include <utility>
 #include <vector>
 
 //Get current architecture, detects nearly every architecture. Coded by Freak
@@ -50,23 +54,7 @@ namespace
         std::atomic_uint64_t * size,
         std::atomic_uint64_t * cur_size)
     {
-        try
-        {
-            if (httplib::Result res = client.Head(path, headers);
-                res && res->headers.find("Content-Length") != res->headers.end())
-            {
-                const auto overall_size = ccdb::utils::convertToNumber<uint64_t>(
-                    res->headers.find("Content-Length")->second);
-                content.reserve(overall_size);
-                *size = overall_size;
-                ccdb::utils::print("Content-Length: ", overall_size, "\n");
-            }
-        } catch (std::exception & e) {
-            ccdb::utils::print<ccdb::utils::is_error>("ERROR: ", e.what(), "\n");
-            return { };
-        }
-
-        return client.Get(path, headers,  [&](const httplib::Response& response)
+        auto result = client.Get(path, headers,  [&](const httplib::Response& response)
         {
             if (response.status == 206)
             {
@@ -74,16 +62,30 @@ namespace
                 const auto content_range = response.get_header_value("Content-Range");
                 const auto expected_prefix = "bytes " + std::to_string(content.size()) + "-";
 
-                if (content_range.rfind(expected_prefix, 0) != 0) {
+                if (content.empty() || content_range.rfind(expected_prefix, 0) != 0) {
                     ccdb::utils::print<ccdb::utils::is_error>("Unexpected Content-Range: ", content_range, '\n');
                     return false;
                 }
 
+                // An open-ended Range request must supply the rest of the file.
+                const auto slash = content_range.find('/', expected_prefix.size());
+                if (slash == std::string::npos) return false;
+                const auto end = ccdb::utils::convertToNumber<uint64_t>(
+                    std::string_view(content_range).substr(expected_prefix.size(), slash - expected_prefix.size()));
+                const auto total = ccdb::utils::convertToNumber<uint64_t>(
+                    std::string_view(content_range).substr(slash + 1));
+                if (total <= content.size() || end != total - 1) return false;
+                *size = total;
                 return true;
             }
 
-            if (response.status == 302) {
+            if (response.status == 200 || response.status == 302) {
+                // A server may ignore Range and send the complete file again.
                 content.clear();
+                *cur_size = 0;
+                *size = response.has_header("Content-Length")
+                    ? response.get_header_value_u64("Content-Length") : 0;
+                ccdb::utils::print("Content-Length: ", *size, "\n");
                 return true;
             }
 
@@ -92,21 +94,28 @@ namespace
         },
         [&](const char* data, const std::size_t length)
         {
-            *cur_size += length;
-            content.insert(content.end(), data, data + length);
+            content.append(data, length);
+            *cur_size = content.size();
             return true;
         });
+
+        if (result && result->status == 206 && content.size() != size->load()) {
+            throw std::runtime_error("Incomplete resumed download");
+        }
+        return result;
     }
 
     httplib::Result get_from_url(const std::string & url,
         const std::vector<std::pair<std::string, std::string>> & headers,
-        const int timeout, const bool resume = false)
+        const int timeout, const bool resume = false,
+        const int redirects_remaining = CPPHTTPLIB_REDIRECT_MAX_COUNT)
     {
         std::string scheme, host, path, proxy_host;
         if (!ccdb::utils::parse_url(url, scheme, host, path)) {
             throw std::invalid_argument("Invalid URL");
         }
 
+        if (path.empty()) path = "/";
         httplib::Client client(scheme + "://" + host);
         httplib::Headers header_for_httpLib;
         std::ranges::for_each(headers, [&](const header_type::value_type & pair) {
@@ -137,82 +146,88 @@ namespace
         }
 
         std::atomic_bool finished = false;
+        std::atomic_bool cancelled = false;
+        std::exception_ptr worker_error;
         std::atomic_uint64_t progress_in_bytes = 0;
         std::atomic_uint64_t overall_size = 0;
         std::string body;
         httplib::Result result;
         std::thread T([&]
         {
-            if (!resume) {
-                result = client.Get(path, header_for_httpLib);
-            }
-            else
+            try
             {
-                if (!body.empty()) {
-                    header_for_httpLib.emplace("Range", "bytes=" + std::to_string(body.size()) + "-");
+                if (!resume) {
+                    result = client.Get(path, header_for_httpLib);
                 }
+                else
+                {
+                    constexpr int max_attempts = 5;
+                    for (int attempt = 0; attempt < max_attempts && !cancelled; ++attempt)
+                    {
+                        header_for_httpLib.erase("Range");
+                        if (!body.empty()) {
+                            header_for_httpLib.emplace("Range", "bytes=" + std::to_string(body.size()) + "-");
+                        }
 
-                do {
-                    result = download(client, path, header_for_httpLib, body, &overall_size, &progress_in_bytes);
-                    if (!result) ccdb::utils::print<ccdb::utils::is_error>("Download failed, retrying...\n");
-                } while (!result);
+                        result = download(client, path, header_for_httpLib, body, &overall_size, &progress_in_bytes);
+                        if (result || cancelled || result.error() == httplib::Error::Canceled) break;
+                        if (attempt + 1 < max_attempts) {
+                            ccdb::utils::print<ccdb::utils::is_error>("Download failed: ",
+                                httplib::to_string(result.error()), ", retrying...\n");
+                        }
+                    }
 
-                result->body = body;
+                    if (result) result->body = std::move(body);
+                }
             }
-
+            catch (...) {
+                worker_error = std::current_exception();
+            }
             finished = true;
         });
 
         bool time_out = false;
         if (timeout > 0)
         {
-            for (int i = 0; i < timeout * 100; i++) {
-                if (finished) break;
-                ccdb::utils::set_progress_bar(ccdb::utils::SET_PROGRESS,
-                    overall_size == 0 ? 0 :
-                        static_cast<int>(
-                            std::round(static_cast<double>(progress_in_bytes) / static_cast<double>(overall_size) * 100)
-                        )
-                );
+            const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(timeout);
+            while (!finished)
+            {
+                if (std::chrono::steady_clock::now() >= deadline)
+                {
+                    cancelled = true;
+                    time_out = true;
+                    // Repeat until the worker exits: stop() can race with a request starting.
+                    client.stop();
+                }
+                else
+                {
+                    const auto total = overall_size.load();
+                    const auto current = progress_in_bytes.load();
+                    ccdb::utils::set_progress_bar(ccdb::utils::SET_PROGRESS,
+                        total == 0 ? 0 : static_cast<int>(std::min(100.0,
+                            std::round(static_cast<double>(current) / static_cast<double>(total) * 100))));
+                }
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
 
-            ccdb::utils::set_progress_bar(ccdb::utils::SET_PROGRESS, 100);
             ccdb::utils::set_progress_bar(ccdb::utils::CLEAR_PROGRESS_BAR, 0);
-
-            if (!finished)
-            {
-                client.stop();
-                time_out = true;
-            }
         }
 
-        if (T.joinable()) T.join();
+        T.join();
+        if (worker_error) std::rethrow_exception(worker_error);
 
         if (!result || time_out) {
             throw std::runtime_error((result ? std::to_string(result->status) + ": " : "") +
                 to_string(result.error()) + (time_out ? " <Timeout>" : ""));
         }
 
-        while (result->status == 302)
+        if (result->status == 302)
         {
-            if (std::string redir;
-                std::ranges::any_of(result->headers, [&](const std::pair < std::string, std::string > & pair)->bool
-                {
-                    if (pair.first == "location" || pair.first == "Location") {
-                        redir = pair.second;
-                        return true;
-                    }
-                    return false;
-                }))
-            {
-                ccdb::utils::print("Redirect to ", redir, '\n');
-                result = get_from_url(redir, headers, timeout, resume);
-            }
-            else
-            {
-                throw std::runtime_error(std::to_string(result->status) + ": " + to_string(result.error()));
-            }
+            const auto redir = result->get_header_value("Location");
+            if (redir.empty()) throw std::runtime_error("Redirect has no Location header");
+            if (redirects_remaining == 0) throw std::runtime_error("Too many redirects");
+            ccdb::utils::print("Redirect to ", redir, '\n');
+            return get_from_url(redir, headers, timeout, resume, redirects_remaining - 1);
         }
 
         return result;
@@ -221,7 +236,8 @@ namespace
     std::string get_latest_hash(const std::string & url, const int timeout)
     {
         const auto res = get_from_url(url, {}, timeout);
-        if (!res || res->status != 200) throw std::runtime_error(std::to_string(res->status) + ": " + to_string(res.error()));
+        if (!res) throw std::runtime_error(httplib::to_string(res.error()));
+        if (res->status != 200) throw std::runtime_error("Unexpected HTTP status: " + std::to_string(res->status));
         return res->body;
     }
 }
@@ -282,7 +298,7 @@ namespace ccdb
             throw std::runtime_error(ccdb::utils::sprint("Failed to pull: ", httplib::to_string(res.error())));
         }
 
-        if (res->status != 200) {
+        if (res->status != 200 && res->status != 206) {
             throw std::runtime_error(ccdb::utils::sprint("Failed to pull: ", std::to_string(res->status)));
         }
 
