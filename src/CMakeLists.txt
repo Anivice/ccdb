@@ -216,7 +216,13 @@ else ()
 endif ()
 
 target_include_directories(ccdb PRIVATE ./include ${READLINE_INCLUDE_DIR} ${CMAKE_BINARY_DIR})
-target_compile_definitions(ccdb PRIVATE CCDB_VERSION="${CCDB_VERSION}" CPPHTTPLIB_OPENSSL_SUPPORT)
+# GitHub release redirects can carry Content-Security-Policy headers above 8 KiB.
+# Keep this consistent across translation units using the header-only HTTP library.
+target_compile_definitions(ccdb PRIVATE
+        CCDB_VERSION="${CCDB_VERSION}"
+        CPPHTTPLIB_OPENSSL_SUPPORT
+        CPPHTTPLIB_HEADER_MAX_LENGTH=32768
+)
 target_link_libraries(ccdb PRIVATE
         AddiHelp langJSON commandReadline LICENSE Zterminfotar tar.exe ccdbrc default_color_scheme_txt
         openssl::openssl libpsl::libpsl icu4c::icu4c
