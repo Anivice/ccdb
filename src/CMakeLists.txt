@@ -10,6 +10,7 @@ endif ()
 
 message(STATUS "CCDB Version is ${CCDB_VERSION}")
 if(MSVC)
+    set(CCDB_WINDOWS_OPENSSL ON)
     include(cmake/Windows.cmake)
     return()
 endif()
@@ -25,7 +26,6 @@ endif ()
 if(WIN32)
     message(STATUS "Configuring for Windows")
     set(WINDOWS_MSVC_BUILD True)
-    add_compile_definitions(__WINDOWS_MSVC_BUILD__=1 __STATIC_MUSL__=1)
 endif()
 
 # readline only supports Makefile

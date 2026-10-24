@@ -32,7 +32,7 @@ add_executable(ccdb
     windows/main.cpp windows/platform.cpp windows/color.cpp
     misc/Readline.cpp misc/config.cpp misc/args.cpp misc/mihomo.cpp
     misc/utils.string.cpp misc/utils.time.cpp misc/utils.bin.cpp misc/sort.cpp
-    ccdb/ccdb.cpp ccdb/ccdb.misc.cpp ccdb/ccdb.input.cpp
+    ccdb/ccdb.cpp ccdb/ccdb.misc.cpp ccdb/ccdb.input.cpp misc/upgrade.cpp
     ccdb/ccdb.get.cpp ccdb/ccdb.set.cpp
     ccdb/ccdb.get_connections.cpp ccdb/ccdb.get_log.cpp ccdb/ccdb.get_rules.cpp
     ccdb/ccdb.nload.cpp ccdb/ccdb.print_table.cpp ccdb/ccdb.continuous_table.cpp
@@ -41,9 +41,36 @@ target_include_directories(ccdb PRIVATE include "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(ccdb PRIVATE
     __WINDOWS_MSVC_BUILD__=1 NOMINMAX WIN32_LEAN_AND_MEAN
     _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_WARNINGS
-    CCDB_VERSION="${CCDB_VERSION}")
+    CCDB_VERSION="${CCDB_VERSION}"
+    __WINDOWS_MSVC_BUILD__=1 
+    CPPHTTPLIB_OPENSSL_SUPPORT
+    CPPHTTPLIB_HEADER_MAX_LENGTH=32768
+)
 target_compile_options(ccdb PRIVATE /utf-8 /EHsc /bigobj /Zc:__cplusplus)
 target_link_libraries(ccdb PRIVATE ccdb_readline ws2_32 bcrypt psapi)
+if (CCDB_WINDOWS_OPENSSL)
+    if ("X${CMAKE_BUILD_TYPE}" STREQUAL "XDebug")
+        target_include_directories(ccdb PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/openssl-native/Debug/install/include")
+        message(STATUS "OpenSSL: ${CMAKE_CURRENT_BINARY_DIR}/openssl-native/Debug/install/include")
+    else ()
+        target_include_directories(ccdb PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/openssl-native/Release/install/include")
+        message(STATUS "OpenSSL: ${CMAKE_CURRENT_BINARY_DIR}/openssl-native/Release/install/include")
+    endif ()
+
+    target_link_libraries(ccdb PRIVATE openssl::libssl openssl::libcrypto)
+endif ()
+
+if("X${GIT_HASH}" STREQUAL "X")
+    execute_process(
+        COMMAND git -C "${CMAKE_SOURCE_DIR}/" rev-parse --short=8 HEAD
+        OUTPUT_VARIABLE GIT_HASH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    set(GIT_HASH "${GIT_HASH}" CACHE STRING "${GIT_HASH}")
+    message(STATUS "Git hash: ${GIT_HASH}")
+endif()
+
+target_compile_definitions(ccdb PRIVATE GIT_HASH="${GIT_HASH}")
 
 # CPU-specific code generation is opt-in: distributed binaries must continue to
 # run on baseline x64 CPUs. Apply the same settings to C Readline and C++ code.

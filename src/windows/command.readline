@@ -129,6 +129,7 @@
         < core (Upgrade core): release, alpha >,
         < geo (Upgrade geoip): [NONE] >,
         < providerRules (Upgrade provider rules) : [NONE] >,
+        < self (CCDB) : [NONE] >,
     >,
     < restart (Restart backend): [NONE] >,
     < flush (Flush fake-ip cache): [NONE] >,

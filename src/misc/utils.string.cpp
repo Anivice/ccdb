@@ -118,7 +118,6 @@ bool ccdb::utils::parse_proxy(const std::string& url, std::string& host, int & p
     return true;
 }
 
-#ifndef __WINDOWS_MSVC_BUILD__
 void ccdb::utils::set_ssl_automatically(httplib::Client & client, const std::string & url)
 {
     std::string scheme;
@@ -131,6 +130,7 @@ void ccdb::utils::set_ssl_automatically(httplib::Client & client, const std::str
     if (scheme == "https" && getenv("DISABLE_SERVER_CERTIFICATE_VERIFICATION") == "true") {
         client.enable_server_certificate_verification(false);
     } else {
+#ifndef __WINDOWS_MSVC_BUILD__
         std::vector ca_paths = {
             getenv("SSL_CERTIFICATE"),
             // possible system CA certificate locations
@@ -147,22 +147,18 @@ void ccdb::utils::set_ssl_automatically(httplib::Client & client, const std::str
             if (!ca_path.empty() && std::filesystem::exists(ca_path))
             {
                 client.set_ca_cert_path(ca_path);
+#endif //__WINDOWS_MSVC_BUILD__
                 client.enable_server_certificate_verification(true);
+#ifndef __WINDOWS_MSVC_BUILD__
                 return true;
             }
 
             return false;
         });
+#endif //__WINDOWS_MSVC_BUILD__
     }
 }
-#else
-void ccdb::utils::set_ssl_automatically(httplib::Client & client, const std::string & url)
-{
-    (void)client;
-    if (!url.starts_with("http://"))
-        throw std::invalid_argument("Windows build supports HTTP only (OpenSSL disabled)");
-}
-#endif //__WINDOWS_MSVC_BUILD__
+
 
 
 std::string ccdb::utils::unpack_string(const unsigned char str[], const unsigned int len)

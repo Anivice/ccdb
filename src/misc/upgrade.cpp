@@ -1,4 +1,3 @@
-#ifndef __WINDOWS_MSVC_BUILD__
 #ifndef APPIMAGE_BUILD
 #include "httplib.h"
 #include "utils.h"
@@ -401,7 +400,7 @@ namespace ccdb
             try {
                 content = get_latest_hash("https://api.github.com/repos/Anivice/ccdb/commits/HEAD", timeout);
             } catch (const std::exception & e) {
-                ccdb::utils::print<utils::is_error>(e.what(), ", retrying...\n");
+                ccdb::utils::print<utils::is_error>(e.what(), ": ", strerror(errno), " ", ", retrying...\n");
             }
         }
 
@@ -417,6 +416,7 @@ namespace ccdb
 #endif
         }
 
+#ifndef __WINDOWS_MSVC_BUILD__
         const char * remote_url_prefix = nullptr;
         if constexpr (strcmp_constexpr(ArchName, "aarch64") == 0) {
 #ifdef __STATIC_MUSL__
@@ -439,20 +439,30 @@ namespace ccdb
             remote_url_prefix = "https://github.com/Anivice/ccdb/releases/download/ccdb.NightlyBuild_armv7hf_static.";
 #endif //__STATIC_MUSL__
         }
+#else //__WINDOWS_MSVC_BUILD__
+        const char* remote_url_prefix = "https://github.com/Anivice/ccdb/releases/download/ccdb.NightlyBuild.windows.x64.";
+#endif //__WINDOWS_MSVC_BUILD__
 
         if (!remote_url_prefix) throw std::runtime_error("ENOSYS");
         const auto url_dest = remote_url_prefix + hash.substr(0, 8) + "/" + dest_name;
-        httplib::Result res = get_from_url(url_dest, {}, timeout, true);
-        if (!res) {
-            throw std::runtime_error(ccdb::utils::sprint("Failed to pull: ", httplib::to_string(res.error())));
-        }
+        try {
+            httplib::Result res = get_from_url(url_dest, {}, timeout, true);
 
-        if (res->status != 200 && res->status != 206) {
-            throw std::runtime_error(ccdb::utils::sprint("Failed to pull: ", std::to_string(res->status)));
-        }
+            if (!res) {
+                throw std::runtime_error(ccdb::utils::sprint("Failed to pull: ", httplib::to_string(res.error())));
+            }
 
-        return { res->body.begin(), res->body.end() };
+            if (res->status != 200 && res->status != 206) {
+                throw std::runtime_error(ccdb::utils::sprint("Failed to pull: ", std::to_string(res->status)));
+            }
+
+            return { res->body.begin(), res->body.end() };
+        }
+        catch (std::exception& e)
+        {
+            ::ccdb::utils::print(e.what(), "\n");
+            return { };
+        }
     }
 }
 #endif // APPIMAGE_BUILD
-#endif //__WINDOWS_MSVC_BUILD__

@@ -396,7 +396,13 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
             print<is_error>("Failed to upgrade: ", e.what(), "\n");
         }
     }
-#ifndef __WINDOWS_MSVC_BUILD__
+#ifdef __WINDOWS_MSVC_BUILD__
+    else if (command_vector[1] == "self")
+    {
+        const auto ccdb_container = get_content("ccdb.exe", 60 * 30);
+        print(ccdb_container.size(), "\n");
+    }
+#else
 #ifndef APPIMAGE_BUILD
     else if (command_vector[1] == "self")
     {
