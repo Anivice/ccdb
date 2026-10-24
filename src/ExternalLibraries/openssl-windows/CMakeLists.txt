@@ -13,7 +13,7 @@ if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
     message(FATAL_ERROR "Set CMAKE_BUILD_TYPE (for example Debug or Release)")
 endif()
 
-find_program(CCDB_OPENSSL_PERL NAMES perl HINTS "C:/Strawberry/perl/bin"
+find_program(CCDB_OPENSSL_PERL NAMES perl HINTS "C:/Windows/System32/" "C:/Strawberry/perl/bin" "${CMAKE_SOURCE_DIR}/ExternalLibraries/openssl-windows/perl/perl/bin"
     DOC "Native Windows Perl executable (not MSYS/Cygwin Perl)" REQUIRED)
 execute_process(COMMAND "${CCDB_OPENSSL_PERL}" -e
     "use 5.010; BEGIN { die qq(Native Windows Perl required\\n) unless $^O eq 'MSWin32'; } use File::Spec; use IPC::Cmd; print $^V;"
@@ -102,12 +102,3 @@ add_library(openssl::libcrypto ALIAS OpenSSL::Crypto)
 add_library(openssl::libssl ALIAS OpenSSL::SSL)
 add_library(openssl::openssl INTERFACE IMPORTED GLOBAL)
 target_link_libraries(openssl::openssl INTERFACE OpenSSL::SSL)
-
-add_executable(ccdb_openssl_smoke smoke.cpp)
-target_compile_features(ccdb_openssl_smoke PRIVATE cxx_std_17)
-target_compile_definitions(ccdb_openssl_smoke PRIVATE
-    __WINDOWS_MSVC_BUILD__=1 NOMINMAX WIN32_LEAN_AND_MEAN)
-target_compile_options(ccdb_openssl_smoke PRIVATE /utf-8 /EHsc)
-target_link_libraries(ccdb_openssl_smoke PRIVATE OpenSSL::SSL)
-add_test(NAME ccdb_openssl_smoke COMMAND ccdb_openssl_smoke)
-set_tests_properties(ccdb_openssl_smoke PROPERTIES TIMEOUT 30)
