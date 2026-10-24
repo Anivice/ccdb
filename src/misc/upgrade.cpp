@@ -191,6 +191,7 @@ namespace
         if (timeout > 0)
         {
             const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(timeout);
+            const auto begin = std::chrono::steady_clock::now();
             while (!finished)
             {
                 if (std::chrono::steady_clock::now() >= deadline)
@@ -206,7 +207,17 @@ namespace
                     const auto current = progress_in_bytes.load();
                     ccdb::utils::set_progress_bar(ccdb::utils::SET_PROGRESS,
                         total == 0 ? 0 : static_cast<int>(std::min(100.0,
-                            std::round(static_cast<double>(current) / static_cast<double>(total) * 100))));
+                            std::round(static_cast<double>(current) / static_cast<double>(total) * 100))),
+                            ccdb::utils::value_to_speed(static_cast<const uint64_t>(std::round(
+                                    static_cast<const double>(current) /
+                                    static_cast<const double>(
+                                        std::chrono::duration_cast<std::chrono::seconds>(
+                                            std::chrono::steady_clock::now() - begin
+                                        ).count()
+                                    )
+                                ))
+                            )
+                    );
                 }
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }

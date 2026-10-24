@@ -712,7 +712,7 @@ namespace ccdb::utils
 #endif //__WINDOWS_MSVC_BUILD__
     enum progress_bar_state_t : int { CLEAR_PROGRESS_BAR = 0, SET_PROGRESS = 1,
         /* unused */ ERROR_STATE = 2, UNDEFINED_BEHAVIOR = 3, WARNING_OR_PAUSED = 4 };
-    void set_progress_bar(progress_bar_state_t, int percentages /* 0 - 100 */);
+    void set_progress_bar(progress_bar_state_t, int percentages /* 0 - 100 */, const std::string & ETA = "");
     void exportBinary(const std::vector<uint8_t> &, std::basic_ostream<char> &);
     std::vector<uint8_t> importBinary(std::basic_istream<char> &);
     std::string generate_linear_handle(int content_total, int view_start, int view_end, int track_len);

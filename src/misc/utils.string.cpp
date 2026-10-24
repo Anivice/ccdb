@@ -546,7 +546,7 @@ std::string ccdb::utils::strip_color(std::string str_)
 }
 
 #ifndef __WINDOWS_MSVC_BUILD__
-void ccdb::utils::set_progress_bar(const progress_bar_state_t state, const int percentages)
+void ccdb::utils::set_progress_bar(const progress_bar_state_t state, const int percentages, const std::string & ETA)
 {
 #ifdef __STATIC_MUSL__
     return;
@@ -561,7 +561,7 @@ void ccdb::utils::set_progress_bar(const progress_bar_state_t state, const int p
         if (state == SET_PROGRESS)
         {
             const auto col_size = get_col_size();
-            std::stringstream ss2; ss2 << "] (" << percentages << "%)";
+            std::stringstream ss2; ss2 << "] (" << percentages << "%" << (ETA.empty() ? "" : " " + ETA) << ")";
             const auto str_p = ss2.str();
             if (const auto len = col_size - 1 - str_p.length(); len > 0)
             {
