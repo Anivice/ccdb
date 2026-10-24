@@ -69,10 +69,12 @@
 # include <sys/mman.h>
 #endif
 
-#ifdef __DEBUG__
+#if defined(__DEBUG__) || defined(CCDB_REFLECTION)
 # include <meta>
 # include <source_location>
-#define CCDB_REFLECTION true
+# ifndef CCDB_REFLECTION
+#   define CCDB_REFLECTION true
+# endif //CCDB_REFLECTION
 #endif //__DEBUG__
 
 #ifndef __attribute_deprecated__
@@ -149,9 +151,75 @@ namespace ccdb::utils
         thread_group & operator=(thread_group &&) noexcept = default;
         ~thread_group() = default;
 
-        template <typename Func, typename... Args>
-        std::jthread & emplace_back(Func && func, Args &&... args) {
-            return threads_.emplace_back(std::forward<Func>(func), std::forward<Args>(args)...);
+        template <typename Func, typename... Args
+        #ifdef CCDB_REFLECTION
+            , const auto scope = std::meta::access_context::current().scope()
+        #endif
+        >
+        std::jthread & emplace_back(Func && func, Args &&... args)
+        {
+            auto call = [
+                fn = std::forward<Func>(func),
+                stored_args = std::tuple<std::decay_t<Args>...>(
+                    std::forward<Args>(args)...
+                )
+        #ifdef CCDB_REFLECTION
+                , location = std::meta::source_location_of(scope)
+        #endif
+            ](std::stop_token stop) mutable
+            {
+        #if defined(CCDB_REFLECTION) && defined(__linux__)
+                if (location.line() != 0)
+                {
+                    std::string_view file(location.file_name());
+
+                    if (const auto pos = file.find_last_of("/\\");
+                        pos != std::string_view::npos)
+                    {
+                        file.remove_prefix(pos + 1);
+                    }
+
+                    std::string name(file);
+                    name += ":" + std::to_string(location.line());
+
+                    // Linux TASK_COMM_LEN = 16 including '\0'.
+                    if (name.size() > 15)
+                        name.erase(0, name.size() - 15);
+
+                    (void)pthread_setname_np(
+                        pthread_self(), name.c_str()
+                    );
+                }
+        #endif
+
+                std::apply(
+                    [&](auto &... values)
+                    {
+                        if constexpr (std::is_invocable_v<
+                            std::decay_t<Func>,
+                            std::stop_token,
+                            std::decay_t<Args>...
+                        >)
+                        {
+                            std::invoke(
+                                std::move(fn),
+                                stop,
+                                std::move(values)...
+                            );
+                        }
+                        else
+                        {
+                            std::invoke(
+                                std::move(fn),
+                                std::move(values)...
+                            );
+                        }
+                    },
+                    stored_args
+                );
+            };
+
+            return threads_.emplace_back(std::move(call));
         }
 
         void request_stop() noexcept
