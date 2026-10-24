@@ -205,21 +205,21 @@ namespace
                 {
                     const auto total = overall_size.load();
                     const auto current = progress_in_bytes.load();
+                    const auto duration = static_cast<const double>(
+                        std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now() - begin).count()
+                        );
                     ccdb::utils::set_progress_bar(ccdb::utils::SET_PROGRESS,
                         total == 0 ? 0 : static_cast<int>(std::min(100.0,
                             std::round(static_cast<double>(current) / static_cast<double>(total) * 100))),
-                            ccdb::utils::value_to_speed(static_cast<const uint64_t>(std::round(
-                                    static_cast<const double>(current) /
-                                    static_cast<const double>(
-                                        std::chrono::duration_cast<std::chrono::seconds>(
-                                            std::chrono::steady_clock::now() - begin
-                                        ).count()
-                                    )
-                                ))
+                            ccdb::utils::value_to_speed(duration > 0 ?
+                                static_cast<const uint64_t>(std::round(
+                                    static_cast<const double>(current) / duration * 1000
+                                )) : 0
                             )
                     );
                 }
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                std::this_thread::sleep_for(std::chrono::milliseconds(800));
             }
 
             ccdb::utils::set_progress_bar(ccdb::utils::CLEAR_PROGRESS_BAR, 0);
