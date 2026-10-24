@@ -85,7 +85,8 @@ namespace
                 *cur_size = 0;
                 *size = response.has_header("Content-Length")
                     ? response.get_header_value_u64("Content-Length") : 0;
-                ccdb::utils::print("Content-Length: ", *size, "\n");
+                if (response.has_header("Content-Length"))
+                    ccdb::utils::print("Content-Length: ", *size, "\n");
                 return true;
             }
 
