@@ -37,4 +37,17 @@ target_compile_definitions(ccdb PRIVATE
     CCDB_VERSION="${CCDB_VERSION}")
 target_compile_options(ccdb PRIVATE /utf-8 /EHsc /bigobj /Zc:__cplusplus)
 target_link_libraries(ccdb PRIVATE ccdb_readline ws2_32 bcrypt psapi)
+
+# Favor execution speed in Release, including across the Readline library
+# boundary. Keep /Ob3 after /O2, which otherwise selects /Ob2. Configuration
+# expressions also support Release in multi-configuration generators.
+foreach(target IN ITEMS ccdb ccdb_readline ccdb_embed)
+    target_compile_options(${target} PRIVATE
+        "$<$<CONFIG:Release>:/O2;/Ob3;/Ot;/Oi;/GL;/Gy;/Gw;/GF>")
+endforeach()
+foreach(target IN ITEMS ccdb ccdb_embed)
+    target_link_options(${target} PRIVATE
+        "$<$<CONFIG:Release>:/LTCG;/INCREMENTAL:NO;/OPT:REF;/OPT:ICF>")
+endforeach()
+
 install(TARGETS ccdb RUNTIME DESTINATION bin)
