@@ -7,7 +7,11 @@
 #include <algorithm>
 #include <chrono>
 #include <exception>
+#include <map>
+#include <memory>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -46,69 +50,221 @@ using header_type = std::vector < std::pair < std::string, std::string > >;
 
 namespace
 {
-    httplib::Result download(
+    constexpr uint64_t download_slice_size = 1024 * 1024;
+
+    httplib::Result download_slice(
         httplib::Client & client,
         const std::string & path,
-        const httplib::Headers & headers,
-        std::string & content,
-        std::atomic_uint64_t * size,
-        std::atomic_uint64_t * cur_size)
+        httplib::Headers headers,
+        const uint64_t offset,
+        const uint64_t total,
+        std::string & cache,
+        std::atomic_uint64_t & overall_size,
+        std::atomic_uint64_t & progress,
+        const std::atomic_bool & cancelled)
     {
-        auto result = client.Get(path, headers,  [&](const httplib::Response& response)
+        const auto end = total == 0 ? download_slice_size - 1
+            : offset + std::min(download_slice_size, total - offset) - 1;
+        headers.erase("Range");
+        headers.emplace("Range", "bytes=" + std::to_string(offset) + "-" + std::to_string(end));
+        cache.reserve(static_cast<std::size_t>(end - offset + 1));
+
+        constexpr int max_attempts = 5;
+        for (int attempt = 0; attempt < max_attempts && !cancelled; ++attempt)
         {
-            if (response.status == 206)
+            cache.clear();
+            uint64_t expected = 0;
+            int status = 0;
+            httplib::Result result;
+            try
             {
-                // Server accepted resume request.
-                const auto content_range = response.get_header_value("Content-Range");
-                const auto expected_prefix = "bytes " + std::to_string(content.size()) + "-";
-
-                if (content.empty() || content_range.rfind(expected_prefix, 0) != 0) {
-                    ccdb::utils::print<ccdb::utils::is_error>("Unexpected Content-Range: ", content_range, '\n');
-                    return false;
-                }
-
-                // An open-ended Range request must supply the rest of the file.
-                const auto slash = content_range.find('/', expected_prefix.size());
-                if (slash == std::string::npos) return false;
-                const auto end = ccdb::utils::convertToNumber<uint64_t>(
-                    std::string_view(content_range).substr(expected_prefix.size(), slash - expected_prefix.size()));
-                const auto total = ccdb::utils::convertToNumber<uint64_t>(
-                    std::string_view(content_range).substr(slash + 1));
-                if (total <= content.size() || end != total - 1) return false;
-                *size = total;
-                return true;
+                result = client.Get(path, headers, [&](const httplib::Response & response)
+                {
+                    if (cancelled) return false;
+                    status = response.status;
+                    const auto encoding = response.get_header_value("Content-Encoding");
+                    if (!encoding.empty() && encoding != "identity") {
+                        throw std::runtime_error("Unexpected Content-Encoding in download");
+                    }
+                    if (status == 206)
+                    {
+                        const auto range = response.get_header_value("Content-Range");
+                        const auto slash = range.find('/');
+                        if (slash == std::string::npos) throw std::runtime_error("Missing Content-Range total");
+                        const auto response_total = ccdb::utils::convertToNumber<uint64_t>(
+                            std::string_view(range).substr(slash + 1));
+                        if (response_total <= offset || (total != 0 && response_total != total)
+                            || response_total > cache.max_size()) {
+                            throw std::runtime_error("Unexpected download size");
+                        }
+                        const auto response_end = std::min(end, response_total - 1);
+                        if (range != "bytes " + std::to_string(offset) + "-"
+                            + std::to_string(response_end) + "/" + std::to_string(response_total)) {
+                            throw std::runtime_error("Unexpected Content-Range: " + range);
+                        }
+                        expected = response_end - offset + 1;
+                        if (response.has_header("Content-Length")
+                            && response.get_header_value_u64("Content-Length") != expected) {
+                            throw std::runtime_error("Unexpected slice Content-Length");
+                        }
+                        if (total == 0) overall_size = response_total;
+                        return true;
+                    }
+                    // Only the initial request may fall back to a full response or redirect.
+                    if (total == 0 && (status == 200 || status == 302)) {
+                        overall_size = response.has_header("Content-Length")
+                            ? response.get_header_value_u64("Content-Length") : 0;
+                        return true;
+                    }
+                    if (total == 0 && status == 416
+                        && response.get_header_value("Content-Range") == "bytes */0") {
+                        overall_size = 0;
+                        return true;
+                    }
+                    throw std::runtime_error("Unexpected download status: " + std::to_string(status));
+                }, [&](const char * data, const std::size_t length)
+                {
+                    if (cancelled) return false;
+                    if (status == 416) return true;
+                    if (status == 206 && length > expected - cache.size()) {
+                        throw std::runtime_error("Slice exceeds its requested range");
+                    }
+                    cache.append(data, length);
+                    progress.fetch_add(length, std::memory_order_relaxed);
+                    return true;
+                });
+                if (result && (status != 206 || cache.size() == expected)) return result;
+            }
+            catch (...) {
+                progress.fetch_sub(cache.size(), std::memory_order_relaxed);
+                cache.clear();
+                throw;
             }
 
-            if (response.status == 200 || response.status == 302) {
-                // A server may ignore Range and send the complete file again.
-                content.clear();
-                *cur_size = 0;
-                *size = response.has_header("Content-Length")
-                    ? response.get_header_value_u64("Content-Length") : 0;
-                if (response.has_header("Content-Length"))
-                    ccdb::utils::print("Content-Length: ", *size, "\n");
-                return true;
+            progress.fetch_sub(cache.size(), std::memory_order_relaxed);
+            cache.clear();
+            if (cancelled) break;
+            const auto error = result ? "Incomplete slice" : httplib::to_string(result.error());
+            if (attempt + 1 == max_attempts) {
+                throw std::runtime_error("Download failed at byte " + std::to_string(offset) + ": " + error);
             }
-
-            ccdb::utils::print<ccdb::utils::is_error>("Unexpected status: ", response.status, '\n');
-            return false;
-        },
-        [&](const char* data, const std::size_t length)
-        {
-            content.append(data, length);
-            *cur_size = content.size();
-            return true;
-        });
-
-        if (result && result->status == 206 && content.size() != size->load()) {
-            throw std::runtime_error("Incomplete resumed download");
+            ccdb::utils::print<ccdb::utils::is_error>("Download failed at byte ", offset,
+                ": ", error, ", retrying...\n");
         }
+        throw std::runtime_error("Download cancelled");
+    }
+
+    httplib::Result download_batch(
+        std::vector<std::unique_ptr<httplib::Client>> & clients,
+        const std::string & path,
+        httplib::Headers headers,
+        std::atomic_uint64_t & overall_size,
+        std::atomic_uint64_t & progress,
+        std::atomic_bool & cancelled)
+    {
+        headers.erase("Accept-Encoding");
+        headers.emplace("Accept-Encoding", "identity");
+        std::string first;
+        auto result = download_slice(*clients.front(), path, headers, 0, 0,
+            first, overall_size, progress, cancelled);
+        if (result->status != 206) {
+            if (result->status == 200 && result->has_header("Content-Length")) {
+                ccdb::utils::print("Content-Length: ", overall_size.load(), "\n");
+            }
+            if (result->status == 416) {
+                result->status = 200;
+                result->reason = "OK";
+                result->headers.erase("Content-Range");
+                result->headers.erase("Content-Length");
+                result->headers.emplace("Content-Length", "0");
+            }
+            result->body = std::move(first);
+            return result;
+        }
+
+        const auto total = overall_size.load();
+        ccdb::utils::print("Content-Length: ", total, "\n");
+        // If available, prevent slices from different versions being combined.
+        const auto etag = result->get_header_value("ETag");
+        const auto modified = result->get_header_value("Last-Modified");
+        headers.erase("If-Range");
+        if (!etag.empty() && !etag.starts_with("W/")) headers.emplace("If-Range", etag);
+        else if (!modified.empty()) headers.emplace("If-Range", modified);
+
+        std::map<uint64_t, std::string> slices;
+        slices.emplace(0, std::move(first));
+        std::mutex slices_mutex;
+        std::mutex error_mutex;
+        std::exception_ptr worker_error;
+        std::atomic_uint64_t next_offset = download_slice_size;
+        const auto remaining = (total - 1) / download_slice_size;
+        const auto worker_count = std::min<uint64_t>(clients.size(), remaining);
+        const auto worker = [&](const std::size_t index)
+        {
+            // Map nodes and payloads are allocated locally, never under the shared lock.
+            std::map<uint64_t, std::string> pending;
+            try
+            {
+                while (!cancelled)
+                {
+                    const auto offset = next_offset.fetch_add(download_slice_size, std::memory_order_relaxed);
+                    if (offset >= total) break;
+                    std::string cache;
+                    download_slice(*clients[index], path, headers, offset, total,
+                        cache, overall_size, progress, cancelled);
+                    pending.emplace(offset, std::move(cache));
+                    std::unique_lock lock(slices_mutex, std::try_to_lock);
+                    if (lock.owns_lock()) slices.merge(pending);
+                    // A busy map never prevents fetching the next slice.
+                }
+                if (!cancelled && !pending.empty()) {
+                    // This worker has finished all its network work before waiting here.
+                    std::lock_guard lock(slices_mutex);
+                    slices.merge(pending);
+                }
+            }
+            catch (...) {
+                std::lock_guard lock(error_mutex);
+                if (!worker_error) worker_error = std::current_exception();
+                cancelled = true;
+            }
+        };
+
+        {
+            std::vector<std::jthread> workers;
+            try {
+                for (std::size_t index = 1; index < worker_count; ++index) {
+                    workers.emplace_back(worker, index);
+                }
+                if (worker_count != 0) worker(0);
+            }
+            catch (...) {
+                cancelled = true;
+                throw; // jthread joins already-started workers before leaving this scope.
+            }
+        }
+        if (worker_error) std::rethrow_exception(worker_error);
+        if (cancelled) throw std::runtime_error("Download cancelled");
+
+        // Every worker is joined; concatenate in byte-offset order and release each cache.
+        result->body.reserve(static_cast<std::size_t>(total));
+        while (!slices.empty()) {
+            auto slice = slices.extract(slices.begin());
+            if (slice.key() != result->body.size()) throw std::runtime_error("Missing download slice");
+            result->body.append(slice.mapped());
+        }
+        if (result->body.size() != total) throw std::runtime_error("Incomplete download");
+        result->status = 200;
+        result->reason = "OK";
+        result->headers.erase("Content-Range");
+        result->headers.erase("Content-Length");
+        result->headers.emplace("Content-Length", std::to_string(total));
         return result;
     }
 
     httplib::Result get_from_url(const std::string & url,
         const std::vector<std::pair<std::string, std::string>> & headers,
-        const int timeout, const bool resume = false,
+        const int timeout, const bool batch_download = false,
         const int redirects_remaining = CPPHTTPLIB_REDIRECT_MAX_COUNT)
     {
         std::string scheme, host, path, proxy_host;
@@ -117,33 +273,40 @@ namespace
         }
 
         if (path.empty()) path = "/";
-        httplib::Client client(scheme + "://" + host);
         httplib::Headers header_for_httpLib;
         std::ranges::for_each(headers, [&](const header_type::value_type & pair) {
             header_for_httpLib.emplace(pair.first, pair.second);
         });
         header_for_httpLib.emplace(user_agent_key, user_agent);
 
-        if (timeout > 0) {
-            client.set_read_timeout(timeout, 0);
-            client.set_connection_timeout(timeout, 0);
-            client.set_write_timeout(timeout, 0);
-            client.set_keep_alive(true);
-        }
-
-        ccdb::utils::set_ssl_automatically(client, url);
-        if (const auto CCDB_POSSIBLE_SSL_CERTIFICATE = ccdb::utils::getenv("CCDB_POSSIBLE_SSL_CERTIFICATE");
-            !CCDB_POSSIBLE_SSL_CERTIFICATE.empty())
+        int proxy_port = 0;
+        const bool use_proxy = ccdb::utils::parse_proxy(
+            ccdb::utils::getenv(scheme + "_proxy"), proxy_host, proxy_port);
+        if (use_proxy) ccdb::utils::print("Using proxy ", proxy_host, ":", proxy_port, "\n");
+        const auto ca_certificate = ccdb::utils::getenv("CCDB_POSSIBLE_SSL_CERTIFICATE");
+        const auto client_count = batch_download
+            ? std::clamp(std::thread::hardware_concurrency(), 1u, 16u) : 1u;
+        // Each worker owns a client; sharing one would serialize requests inside httplib.
+        // Build the pool before starting so the monitor can safely stop every client.
+        std::vector<std::unique_ptr<httplib::Client>> clients;
+        clients.reserve(client_count);
+        for (unsigned int index = 0; index < client_count; ++index)
         {
-            client.set_ca_cert_path(CCDB_POSSIBLE_SSL_CERTIFICATE);
-            client.enable_server_certificate_verification(true);
-        }
-
-        if (int proxy_port = 0;
-            ccdb::utils::parse_proxy(ccdb::utils::getenv(scheme + "_proxy"), proxy_host, proxy_port))
-        {
-            ccdb::utils::print("Using proxy ", proxy_host, ":", proxy_port, "\n");
-            client.set_proxy(proxy_host, proxy_port);
+            auto client = std::make_unique<httplib::Client>(scheme + "://" + host);
+            if (timeout > 0) {
+                client->set_read_timeout(timeout, 0);
+                client->set_connection_timeout(timeout, 0);
+                client->set_write_timeout(timeout, 0);
+                client->set_keep_alive(true);
+            }
+            ccdb::utils::set_ssl_automatically(*client, url);
+            if (!ca_certificate.empty()) {
+                client->set_ca_cert_path(ca_certificate);
+                client->enable_server_certificate_verification(true);
+            }
+            if (use_proxy) client->set_proxy(proxy_host, proxy_port);
+            if (batch_download) client->set_decompress(false);
+            clients.push_back(std::move(client));
         }
 
         std::atomic_bool finished = false;
@@ -151,34 +314,18 @@ namespace
         std::exception_ptr worker_error;
         std::atomic_uint64_t progress_in_bytes = 0;
         std::atomic_uint64_t overall_size = 0;
-        std::string body;
         httplib::Result result;
+        const auto begin = std::chrono::steady_clock::now();
         std::thread T([&]
         {
             try
             {
-                if (!resume) {
-                    result = client.Get(path, header_for_httpLib);
+                if (!batch_download) {
+                    result = clients.front()->Get(path, header_for_httpLib);
                 }
-                else
-                {
-                    constexpr int max_attempts = 5;
-                    for (int attempt = 0; attempt < max_attempts && !cancelled; ++attempt)
-                    {
-                        header_for_httpLib.erase("Range");
-                        if (!body.empty()) {
-                            header_for_httpLib.emplace("Range", "bytes=" + std::to_string(body.size()) + "-");
-                        }
-
-                        result = download(client, path, header_for_httpLib, body, &overall_size, &progress_in_bytes);
-                        if (result || cancelled || result.error() == httplib::Error::Canceled) break;
-                        if (attempt + 1 < max_attempts) {
-                            ccdb::utils::print<ccdb::utils::is_error>("Download failed: ",
-                                httplib::to_string(result.error()), ", retrying...\n");
-                        }
-                    }
-
-                    if (result) result->body = std::move(body);
+                else {
+                    result = download_batch(clients, path, header_for_httpLib,
+                        overall_size, progress_in_bytes, cancelled);
                 }
             }
             catch (...) {
@@ -188,50 +335,40 @@ namespace
         });
 
         bool time_out = false;
-        if (timeout > 0)
+        const auto deadline = timeout > 0 ? begin + std::chrono::seconds(timeout)
+            : std::chrono::steady_clock::time_point::max();
+        auto next_progress = begin;
+        while (!finished)
         {
-            const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(timeout);
-            const auto begin = std::chrono::steady_clock::now();
-            while (!finished)
-            {
-                if (std::chrono::steady_clock::now() >= deadline)
-                {
-                    cancelled = true;
-                    time_out = true;
-                    // Repeat until the worker exits: stop() can race with a request starting.
-                    client.stop();
-                }
-                else
-                {
-                    const auto total = overall_size.load();
-                    const auto current = progress_in_bytes.load();
-                    const auto duration = static_cast<const double>(
-                        std::chrono::duration_cast<std::chrono::milliseconds>(
-                            std::chrono::steady_clock::now() - begin).count()
-                        );
-                    ccdb::utils::set_progress_bar(ccdb::utils::SET_PROGRESS,
-                        total == 0 ? 0 : static_cast<int>(std::min(100.0,
-                            std::round(static_cast<double>(current) / static_cast<double>(total) * 100))),
-                            ccdb::utils::value_to_speed(duration > 0 ?
-                                static_cast<const uint64_t>(std::round(
-                                    static_cast<const double>(current) / duration * 1000
-                                )) : 0
-                            )
-                    );
-                }
-                std::this_thread::sleep_for(std::chrono::milliseconds(800));
+            const auto now = std::chrono::steady_clock::now();
+            if (now >= deadline) {
+                cancelled = true;
+                time_out = true;
             }
-
-            ccdb::utils::set_progress_bar(ccdb::utils::CLEAR_PROGRESS_BAR, 0);
+            if (cancelled) {
+                // Repeat until all workers exit: stop() can race with a request starting.
+                for (const auto & client : clients) client->stop();
+            }
+            else if (timeout > 0 && now >= next_progress)
+            {
+                const auto total = overall_size.load();
+                const auto current = progress_in_bytes.load();
+                const auto duration = std::chrono::duration<double>(now - begin).count();
+                ccdb::utils::set_progress_bar(ccdb::utils::SET_PROGRESS,
+                    total == 0 ? 0 : static_cast<int>(std::min(100.0,
+                        std::round(static_cast<double>(current) / static_cast<double>(total) * 100))),
+                    ccdb::utils::value_to_speed(duration > 0
+                        ? static_cast<uint64_t>(std::round(static_cast<double>(current) / duration)) : 0));
+                next_progress = now + std::chrono::milliseconds(800);
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
-
         T.join();
+        if (timeout > 0) ccdb::utils::set_progress_bar(ccdb::utils::CLEAR_PROGRESS_BAR, 0);
+        if (time_out) throw std::runtime_error("Download timed out");
         if (worker_error) std::rethrow_exception(worker_error);
 
-        if (!result || time_out) {
-            throw std::runtime_error((result ? std::to_string(result->status) + ": " : "") +
-                to_string(result.error()) + (time_out ? " <Timeout>" : ""));
-        }
+        if (!result) throw std::runtime_error(httplib::to_string(result.error()));
 
         if (result->status == 302)
         {
@@ -239,7 +376,7 @@ namespace
             if (redir.empty()) throw std::runtime_error("Redirect has no Location header");
             if (redirects_remaining == 0) throw std::runtime_error("Too many redirects");
             ccdb::utils::print("Redirect to ", redir, '\n');
-            return get_from_url(redir, headers, timeout, resume, redirects_remaining - 1);
+            return get_from_url(redir, headers, timeout, batch_download, redirects_remaining - 1);
         }
 
         return result;
