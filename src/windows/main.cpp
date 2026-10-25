@@ -3,10 +3,15 @@
 #include "Readline.h"
 #include "LICENSE.h"
 #include "windows_platform.h"
+#include <stdlib.h>
 
 int main(int argc, char** argv)
 {
     try {
+        if (!SetEnvironmentVariable("CCDB_WINDOWS_EXECUTABLE_LOCATION", *argv)) {
+            throw std::runtime_error("Failed to invoke SetEnvironmentVariable");
+        }
+
         // Line-buffered diagnostics: an early failure must not lose its message.
         std::cout << std::unitbuf;
         ccdb::windows::console_session console;
@@ -43,8 +48,6 @@ int main(int argc, char** argv)
             } else throw std::invalid_argument("Unknown option: " + arg);
         }
         if (backend.empty()) throw std::invalid_argument("Specify the Mihomo controller with --url.");
-        if (!backend.starts_with("http://"))
-            throw std::invalid_argument("This Windows build supports HTTP controller URLs only.");
         mihomo client(backend, token);
         const auto response = client.generic_request(
             static_cast<mihomo::DownloadMethod_path_prgrs>(&httplib::Client::Get), {}, "/");

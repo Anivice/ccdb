@@ -28,6 +28,13 @@
 #include <numeric>
 #include <stdexcept>
 #include <csignal>
+#include <filesystem>
+#include <fstream>
+#include <stdexcept>
+#include <string>
+#include <system_error>
+#include <vector>
+
 #include "print.h"
 #include "pull_subinfo.h"
 #include "ccdb.h"
@@ -307,52 +314,106 @@ void ccdb::ccdb::get_providerRules()
     }
 }
 
-#ifndef __WINDOWS_MSVC_BUILD__
 namespace
 {
-    void rewrite(const std::string & result, const std::vector<char> & vec)
+    namespace fs = std::filesystem;
+
+    void rewrite(const std::string& result, const std::vector<char>& vec)
     {
-        if (rename(result.c_str(), (result + ".bak").c_str()) == -1) {
-            throw std::runtime_error("Failed to rename: " + std::string(std::strerror(errno)));
+        const fs::path target(result);
+        const fs::path backup = target.string() + ".bak";
+        const fs::path staged = target.string() + ".new";
+
+        // Do not overwrite an unresolved previous backup.
+        if (fs::exists(backup)) {
+            throw std::runtime_error(
+                "Previous backup still exists: " + backup.string()
+            );
         }
 
-        if (std::ofstream ofs((result + ".new").c_str(), std::ios::trunc); ofs)
-        {
-            ofs.write(vec.data(), static_cast<std::streamsize>(vec.size()));
-            ofs.close();
-            if (chmod((result + ".new").c_str(), 0755) == -1)
+        if (fs::exists(staged)) {
+            throw std::runtime_error(
+                "Previous staged update still exists: " + staged.string()
+            );
+        }
+
+        try {
+            // Stage the replacement before touching the original.
             {
-                unlink((result + ".new").c_str());
-                throw std::runtime_error("Failed to chmod: " + std::string(std::strerror(errno)));
+                std::ofstream ofs(staged, std::ios::binary | std::ios::trunc);
+                if (!ofs) {
+                    throw std::runtime_error("Failed to open: " + staged.string());
+                }
+
+                ofs.write(vec.data(), static_cast<std::streamsize>(vec.size()));
+                ofs.close();
+
+                if (!ofs) {
+                    throw std::runtime_error("Failed to write: " + staged.string());
+                }
             }
-        }
-        else
-        {
-            throw std::runtime_error("Failed to write: " + std::string(std::strerror(errno)));
-        }
 
-        if (rename((result + ".new").c_str(), result.c_str()) == -1)
-        {
-            rename((result + ".bak").c_str(), result.c_str());
-            throw std::runtime_error("Failed to rename: " + std::string(std::strerror(errno)));
-        }
+#ifndef __WINDOWS_MSVC_BUILD__
+            fs::permissions(
+                staged,
+                fs::perms::owner_all |
+                fs::perms::group_read | fs::perms::group_exec |
+                fs::perms::others_read | fs::perms::others_exec,
+                fs::perm_options::replace
+            );
+#endif
 
-        unlink((result + ".bak").c_str());
+            // Rename the running executable out of the way.
+            fs::rename(target, backup);
+
+            try {
+                // Install the staged executable.
+                fs::rename(staged, target);
+            }
+            catch (...) {
+                // Restore the original executable if installation fails.
+                std::error_code ec;
+                fs::rename(backup, target, ec);
+                throw;
+            }
+
+            // Windows may refuse to delete the still-running image.
+            // Leave the backup for cleanup after process termination.
+            std::error_code ec;
+            fs::remove(backup, ec);
+        }
+        catch (...) {
+            // Cleanup only the uncommitted staged file.
+            std::error_code ec;
+            fs::remove(staged, ec);
+            throw;
+        }
     }
 
-    void recover(const std::string & result)
+    void recover(const std::string& result)
     {
-        if (std::filesystem::exists(result + ".bak")) {
-            rename((result + ".bak").c_str(), result.c_str());
+        const fs::path target(result);
+        const fs::path backup = target.string() + ".bak";
+        const fs::path staged = target.string() + ".new";
+
+        // Restore the original only if the installation is missing.
+        if (fs::exists(backup)) {
+            if (!fs::exists(target)) {
+                fs::rename(backup, target);
+            }
+            else {
+                // Successful installation; backup may still be locked.
+                std::error_code ec;
+                fs::remove(backup, ec);
+            }
         }
 
-        if (std::filesystem::exists(result + ".new")) {
-            unlink((result + ".new").c_str());
-        }
+        // Remove any abandoned staging file.
+        std::error_code ec;
+        fs::remove(staged, ec);
     }
 }
 
-#endif //__WINDOWS_MSVC_BUILD__
 void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
 {
     // upgrade [...]
@@ -400,7 +461,17 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
     else if (command_vector[1] == "self")
     {
         const auto ccdb_container = get_content("ccdb.exe", 60 * 30);
-        print(ccdb_container.size(), "\n");
+        char buff[512]{};
+        ::GetEnvironmentVariable("CCDB_WINDOWS_EXECUTABLE_LOCATION", buff, sizeof(buff));
+        std::string destination_location(buff);
+
+        try {
+            rewrite(std::string(buff), ccdb_container);
+            print("Upgraded self. Please relaunch CCDB to complete the update.\n");
+        } catch (...) {
+            recover(destination_location);
+            print("Failed, revocer.\n");
+        }
     }
 #else
 #ifndef APPIMAGE_BUILD
