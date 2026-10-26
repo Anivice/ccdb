@@ -810,7 +810,7 @@ void ccdb::ccdb::get_subinfo()
 }
 
 #endif //__WINDOWS_MSVC_BUILD__
-void ccdb::ccdb::get_config() const
+void ccdb::ccdb::get_config()
 {
 #ifndef __WINDOWS_MSVC_BUILD__
     if (!jq.empty()) {
@@ -819,7 +819,7 @@ void ccdb::ccdb::get_config() const
         std::cout << backend_instance.get_config() << std::endl;
     }
 #else
-    std::cout << json::parse(backend_instance.get_config()).dump(2) << std::endl;
+    pager(color_json(backend_instance.get_config()));
 #endif //__WINDOWS_MSVC_BUILD__
 }
 

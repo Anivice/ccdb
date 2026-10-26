@@ -23,102 +23,9 @@ static constexpr int max_closed_connection_count = 4096;
 #include <algorithm>
 #include <chrono>
 #include <utility>
-#include <fstream>
 #include "print.h"
 #include "ccdb.h"
 #include "utils.h"
-
-#ifdef __WINDOWS_MSVC_BUILD__
-#include <windows.h>
-#include <iostream>
-#include <streambuf>
-#include <stdexcept>
-#include <system_error>
-
-class ConsoleInput final : private std::streambuf {
-    HANDLE handle_;
-    DWORD original_mode_{};
-    std::streambuf* original_buffer_{};
-    char character_{};
-
-    [[noreturn]] static void fail(const char* operation) {
-        throw std::system_error(
-            static_cast<int>(GetLastError()),
-            std::system_category(),
-            operation
-        );
-    }
-
-    int_type underflow() override {
-        if (gptr() < egptr())
-            return traits_type::to_int_type(*gptr());
-
-        DWORD count = 0;
-
-        // Read exactly one character, without CRT buffering.
-        if (!ReadConsoleA(
-            handle_, &character_, 1, &count, nullptr))
-            fail("ReadConsoleA");
-
-        if (count == 0)
-            return traits_type::eof();
-
-        setg(&character_, &character_, &character_ + 1);
-        return traits_type::to_int_type(character_);
-    }
-
-public:
-    ConsoleInput()
-        : handle_(GetStdHandle(STD_INPUT_HANDLE)) {
-
-        if (!handle_ || handle_ == INVALID_HANDLE_VALUE)
-            throw std::runtime_error("No console input handle");
-
-        if (!GetConsoleMode(handle_, &original_mode_))
-            fail("GetConsoleMode");
-
-        DWORD mode = original_mode_;
-        mode &= ~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT);
-
-        if (!SetConsoleMode(handle_, mode))
-            fail("SetConsoleMode");
-
-        if (!FlushConsoleInputBuffer(handle_)) {
-            DWORD error = GetLastError();
-            SetConsoleMode(handle_, original_mode_);
-            throw std::system_error(
-                static_cast<int>(error),
-                std::system_category(),
-                "FlushConsoleInputBuffer"
-            );
-        }
-
-        // Replace std::cin's input source.
-        original_buffer_ = std::cin.rdbuf(this);
-        std::cin.clear();
-    }
-
-    ConsoleInput(const ConsoleInput&) = delete;
-    ConsoleInput& operator=(const ConsoleInput&) = delete;
-
-    ~ConsoleInput() {
-        std::cin.rdbuf(original_buffer_);
-        std::cin.clear();
-        SetConsoleMode(handle_, original_mode_);
-    }
-
-    void discard_pending() {
-        // Discard the character cached by our streambuf.
-        setg(nullptr, nullptr, nullptr);
-
-        // Discard all queued Windows console input events.
-        if (!FlushConsoleInputBuffer(handle_))
-            fail("FlushConsoleInputBuffer");
-
-        std::cin.clear();
-    }
-};
-#endif //__WINDOWS_MSVC_BUILD__
 
 namespace
 {
@@ -782,10 +689,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                     exec_command("/bin/sh", matched_connection->connection_data.metadata.raw_json, "-c", less);
                 }
 #else
-                pager(json::parse(matched_connection->connection_data.metadata.raw_json).dump(2));
-                ConsoleInput input;
-                input.discard_pending();
-                std::cin.get();
+                pager(color_json(matched_connection->connection_data.metadata.raw_json));
 #endif //__WINDOWS_MSVC_BUILD__
             }
         },

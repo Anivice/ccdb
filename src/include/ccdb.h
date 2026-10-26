@@ -219,15 +219,15 @@ namespace ccdb
         class RegexDispatcher {
             std::vector<std::pair<std::regex, handler_t>> handlers_;
         public:
-            bool add(const std::string& pattern, handler_t handler) {
-                handlers_.emplace_back(std::regex(pattern), std::move(handler));
+            bool add(const std::string& pattern, handler_t handler_) {
+                handlers_.emplace_back(std::regex(pattern), std::move(handler_));
                 return true;
             }
             bool compile() { return true; }
             template<typename... Args>
             returnType dispatch(const std::string& input, const Args&... args) {
-                for (const auto& [pattern, handler] : handlers_)
-                    if (std::regex_match(input, pattern)) return handler(args...);
+                for (const auto& [pattern, handler_] : handlers_)
+                    if (std::regex_match(input, pattern)) return handler_(args...);
                 throw std::invalid_argument("Command not found");
             }
         };
@@ -395,8 +395,10 @@ namespace ccdb
         void set_filter(const std::vector<std::string> & command_vector);
         void clear_filter();
         void get_filter();
+#ifndef __WINDOWS_MSVC_BUILD__
         void get_subinfo();
-        void get_config() const;
+#endif //__WINDOWS_MSVC_BUILD__
+        void get_config();
         void get_log_size() const;
         void get_filter_reverse() const;
         void get_sort_reverse() const;
@@ -410,7 +412,9 @@ namespace ccdb
         void set_mixedport(int port); // Mihomo mixed proxy port,
         void set_log_size(const std::vector<std::string> & command_vector);
         void apply() const;
+#ifndef __WINDOWS_MSVC_BUILD__
         void fork_and_execute(const std::vector<std::string> &, int);
+#endif //__WINDOWS_MSVC_BUILD__
         void map_proxy_chain();
         void ccdbrc();
         void reload(const std::vector<std::string> &) const;
@@ -419,7 +423,9 @@ namespace ccdb
 #endif //__YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
         void changeRuleAffinity(const std::vector<std::string> &);
         void storage(const std::vector<std::string> &);
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
         void tls_watchdog(const std::vector<std::string> &);
+#endif //__YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
         bool commandProcessor(const std::vector<std::string> & command_vector_);
         std::vector<std::string> commandAutoCompletion(const std::vector<std::string> &, const std::string &, int arg_index);
 
@@ -453,6 +459,10 @@ namespace ccdb
 
         /// Input watcher that sets running flag when q is pressed, and changes
         void get_conn_input_watcher(const get_conn_input_watcher_context_t &);
+#ifdef __WINDOWS_MSVC_BUILD__
+        void inferior_less(const std::string &);
+        static std::string color_json(const std::string&);
+#endif //__WINDOWS_MSVC_BUILD__
 
         void init();
 
@@ -475,7 +485,9 @@ namespace ccdb
             }
         };
 
+#ifndef __WINDOWS_MSVC_BUILD__
         [[nodiscard]] std::string update_subinfo(atomic_subinfo_ball_t &, subinfo_worker_t &) const;
+#endif //__WINDOWS_MSVC_BUILD__
 
         const std::string history_file_loc = utils::getenv("HOME") + "/.cache/ccdb/ccdb_history";
 

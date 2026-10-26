@@ -1,12 +1,12 @@
 #ifndef __WINDOWS_MSVC_BUILD__
-#include "absl/strings/str_format.h"
+# include "absl/strings/str_format.h"
 #endif //__WINDOWS_MSVC_BUILD__
 #ifndef _GNU_SOURCE
-#define _GNU_SOURCE
+# define _GNU_SOURCE
 #endif //_GNU_SOURCE
 #include <sys/stat.h>
 #ifndef __WINDOWS_MSVC_BUILD__
-#include <unistd.h>
+# include <unistd.h>
 #endif //__WINDOWS_MSVC_BUILD__
 #include <vector>
 #include <string>
@@ -19,15 +19,15 @@
 #include <cstdio>
 #include <cstdlib>
 #ifndef __WINDOWS_MSVC_BUILD__
-#include <sys/syscall.h>
+# include <sys/syscall.h>
 #endif //__WINDOWS_MSVC_BUILD__
 #include <stdexcept>
 #include "json.hpp"
 #ifndef __WINDOWS_MSVC_BUILD__
-#include "ncursesw/ncurses.h"
+# include "ncursesw/ncurses.h"
 #endif //__WINDOWS_MSVC_BUILD__
 #ifndef __WINDOWS_MSVC_BUILD__
-#include "ncursesw/term.h"
+# include "ncursesw/term.h"
 #endif //__WINDOWS_MSVC_BUILD__
 #include "tsl/hopscotch_map.h"
 #include "readline/history.h"
@@ -440,7 +440,7 @@ int ccdb::utils::UnicodeDisplayWidth::get_width_utf32(const std::u32string &utf3
     return width;
 }
 
-bool ccdb::utils::NO_0xFE0F_EXPAND_EMOJI = ccdb::utils::getenv("NO_0xFE0F_EXPAND_EMOJI") == "true";
+bool ccdb::utils::NO_0xFE0F_EXPAND_EMOJI = ::ccdb::utils::getenv("NO_0xFE0F_EXPAND_EMOJI") == "true";
 
 int ccdb::utils::UnicodeDisplayWidth::get_char_width(const char32_t c)
 {
@@ -554,7 +554,7 @@ void ccdb::utils::set_progress_bar(const progress_bar_state_t state, const int p
     {
         (void)write(fd, str.c_str(), str.length());
 #else //__WINDOWS_MSVC_BUILD__
-        ccdb::windows::terminal_write(str);
+        windows::terminal_write(str);
 #endif //__WINDOWS_MSVC_BUILD__
         if (state == SET_PROGRESS)
         {
@@ -571,7 +571,7 @@ void ccdb::utils::set_progress_bar(const progress_bar_state_t state, const int p
 #ifndef __WINDOWS_MSVC_BUILD__
                 (void)write(fd, str3.c_str(), str3.length());
 #else //__WINDOWS_MSVC_BUILD__
-                ccdb::windows::terminal_write(str3);
+                windows::terminal_write(str3);
 #endif //__WINDOWS_MSVC_BUILD__
             }
         }
