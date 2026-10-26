@@ -86,6 +86,8 @@ Interactive Table Controls (`get connections` and `get log`):
               Enter: Apply the search, or execute a `:` command.
               Alt+E: Cancel the input and clear its contents.
  Left/Right, Home/End: Move the input cursor.
+            Up/Down: Browse submitted searches and commands in this table session. Down past the newest
+                     entry restores the unfinished input. Empty or cancelled input is not saved.
    Backspace/Delete: Delete text around the input cursor.
                 Tab: Complete or cycle `:` command names in `get connections`.
 

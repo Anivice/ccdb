@@ -30,6 +30,7 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
     std::atomic_bool conn_show_detail_ = false;
     std::atomic_int sort_by_from_watcher_ = -1;
     std::atomic_int tab_suggestion_requested = 0; // 0, no, 1, fill, 2, show possible candidates
+    std::atomic_bool reset_completion = false;
     std::atomic_int atm_focus_ = -1;
     std::atomic_bool pause_input_watcher = false;
     std::atomic_int cursor_position = 0;
@@ -112,7 +113,7 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
                                get_conn_input_watcher_context_t{&running, &leading_spaces_, &max_leading_spaces_, &current_skip_lines_, &max_skip_lines_,
                                &mouse_x_, &mouse_y_, &space_pressed_, &kill_connection_, &focus_to_highlight_, &conn_show_detail_, &sort_by_from_watcher_, &atm_focus_,
                                &pause_input_watcher, &show_search, &search_content_buffer, &cursor_position, &search_focus_move_,
-                               &tab_suggestion_requested});
+                               &tab_suggestion_requested, &reset_completion});
 
     auto show_info = [&](const String & msg, const String & level, int timeout = -1)
     {
@@ -124,6 +125,18 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
     int in_tab_suggestion = -1;
     std::vector < String > tab_suggestions;
     bool on_display = false; // if banner has msg
+    auto clear_completion = [&]
+    {
+        const auto first_non_suggestion = std::find_if(g_title_lines.begin(), g_title_lines.end(),
+            [](const auto & line) { return line.second.first <= 0; });
+        g_title_lines.erase(g_title_lines.begin(), first_non_suggestion);
+        tab_suggestions.clear();
+        tab_base_args.clear();
+        tab_arg_index = -1;
+        command_input_prev_cmd.clear();
+        cursor_position_prev = -1;
+        in_tab_suggestion = -1;
+    };
     ScopeType content;
     ContainerType focused_container;
 
@@ -525,6 +538,7 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
 
             /// commands and search
             bool command_executed = false;
+            if (reset_completion.exchange(false)) clear_completion();
             if (!search_content_buffer.get().empty())
             {
                 /// is a command
@@ -629,17 +643,9 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
                     !input_buffer_content.empty() && input_buffer_content.back() == '\n')
                 {
                     // remove suggestion display
-                    const auto first_non_suggestion = std::find_if(g_title_lines.begin(), g_title_lines.end(),
-                                                                   [](const auto & line) { return line.second.first <= 0; });
-                    g_title_lines.erase(g_title_lines.begin(), first_non_suggestion);
+                    clear_completion();
                     input_buffer_content.pop_back(); // pop '\n'
                     search_content_buffer.set({});
-                    tab_suggestions.clear();
-                    tab_base_args.clear();
-                    tab_arg_index = -1;
-                    command_input_prev_cmd.clear();
-                    cursor_position_prev = -1;
-                    in_tab_suggestion = -1;
                     tab_suggestion_requested = 0;
                     frame_data.push({
                         .frame_index = ++frame_index,

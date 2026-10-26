@@ -31,6 +31,7 @@
 #include "ncursesw/ncurses.h"
 #endif //__WINDOWS_MSVC_BUILD__
 #include "ccdb.h"
+#include "ccdb.input_history.h"
 
 // --------------------------------------------- CCDB --------------------------------------------- //
 using namespace ccdb::utils;
@@ -523,7 +524,8 @@ void ccdb::ccdb::get_conn_input_watcher(const get_conn_input_watcher_context_t &
         search_content_buffer,
         cursor_position,
         search_focus_move,
-        tab_suggestion_requested ] = context;
+        tab_suggestion_requested,
+        reset_completion ] = context;
 
     interactive_verification();
 
@@ -699,6 +701,7 @@ void ccdb::ccdb::get_conn_input_watcher(const get_conn_input_watcher_context_t &
     });
 
     LegacyInputSequence sequence;
+    InputHistory input_history;
     auto last_updated_time = std::chrono::steady_clock::now();
 
     auto expire_sequence = [&] {
@@ -736,6 +739,7 @@ void ccdb::ccdb::get_conn_input_watcher(const get_conn_input_watcher_context_t &
         // Preserve the original immediate one-byte commands.
         if (sequence.empty()) {
             if (*ch == '/' && show_search && !show_search->load()) {
+                input_history.begin();
                 *show_search = true;
                 *cursor_position = 0;
                 search_content_buffer->set({});
@@ -743,8 +747,10 @@ void ccdb::ccdb::get_conn_input_watcher(const get_conn_input_watcher_context_t &
             }
 
             if (*ch == '\n' && show_search && show_search->load()) {
+                const auto line = search_content_buffer->get();
+                input_history.submit(line);
                 *show_search = false;
-                search_content_buffer->set(search_content_buffer->get() + utf8_to_u32("\n"));
+                search_content_buffer->set(line + U"\n");
                 if (cursor_position) *cursor_position = -1;
                 continue;
             }
@@ -766,7 +772,7 @@ void ccdb::ccdb::get_conn_input_watcher(const get_conn_input_watcher_context_t &
         const std::string encoded = sequence.encoded();
 
         if (const bool search_mode = show_search && show_search->load(); search_mode) {
-            enum class SearchHead { None, Left, Exit, Right, Start, End };
+            enum class SearchHead { None, Left, Exit, Right, Start, End, Previous, Next };
             SearchHead head = SearchHead::None;
 
             {
@@ -784,6 +790,12 @@ void ccdb::ccdb::get_conn_input_watcher(const get_conn_input_watcher_context_t &
                     head = SearchHead::Start;
                 } else if (sequence.matches(keyboard_shortcut_map.at("ToEnd"))) {
                     head = SearchHead::End;
+                } else if (sequence.matches(keyboard_shortcut_map.at("MoveUp")) ||
+                           sequence.matches("^[[A") || sequence.matches("^[OA")) {
+                    head = SearchHead::Previous;
+                } else if (sequence.matches(keyboard_shortcut_map.at("MoveDown")) ||
+                           sequence.matches("^[[B") || sequence.matches("^[OB")) {
+                    head = SearchHead::Next;
                 }
             }
 
@@ -813,6 +825,20 @@ void ccdb::ccdb::get_conn_input_watcher(const get_conn_input_watcher_context_t &
                             *cursor_position = static_cast<int>(search_content_buffer->get().length());
                         }
                         break;
+                    case SearchHead::Previous:
+                    case SearchHead::Next:
+                    {
+                        auto line = search_content_buffer->get();
+                        const bool moved = head == SearchHead::Previous
+                            ? input_history.previous(line) : input_history.next(line);
+                        if (moved) {
+                            search_content_buffer->set(line);
+                            if (cursor_position) *cursor_position = static_cast<int>(line.size());
+                            if (tab_suggestion_requested) *tab_suggestion_requested = 0;
+                            if (reset_completion) *reset_completion = true;
+                        }
+                        break;
+                    }
                     case SearchHead::None:
                         break;
                 }

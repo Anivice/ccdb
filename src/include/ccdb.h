@@ -449,6 +449,7 @@ namespace ccdb
             std::atomic_int * cursor_position;
             std::atomic < search_move_t > * search_focus_move;
             std::atomic_int * tab_suggestion_requested;
+            std::atomic_bool * reset_completion;
         };
 
         /// Input watcher that sets running flag when q is pressed, and changes
