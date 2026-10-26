@@ -25,6 +25,38 @@ message(STATUS "OpenSSL build Perl: ${CCDB_OPENSSL_PERL} (${perl_version})")
 get_filename_component(compiler_dir "${CMAKE_C_COMPILER}" DIRECTORY)
 find_program(CCDB_OPENSSL_NMAKE NAMES nmake HINTS "${compiler_dir}" REQUIRED)
 
+# NMake cannot parallelize individual OpenSSL compile commands. The outer
+# CMake/Ninja --parallel setting does not reach this ExternalProject either.
+include(ProcessorCount)
+ProcessorCount(openssl_default_jobs)
+if(NOT openssl_default_jobs)
+    set(openssl_default_jobs 1)
+endif()
+if(DEFINED ENV{CMAKE_BUILD_PARALLEL_LEVEL} AND
+   NOT "$ENV{CMAKE_BUILD_PARALLEL_LEVEL}" STREQUAL "")
+    set(openssl_default_jobs "$ENV{CMAKE_BUILD_PARALLEL_LEVEL}")
+endif()
+set(CCDB_OPENSSL_JOBS "${openssl_default_jobs}" CACHE STRING
+    "Parallel OpenSSL build jobs (1 uses NMake; greater than 1 requires jom)")
+if(NOT CCDB_OPENSSL_JOBS MATCHES "^[1-9][0-9]*$")
+    message(FATAL_ERROR "CCDB_OPENSSL_JOBS must be a positive integer")
+endif()
+if(CCDB_OPENSSL_JOBS GREATER 1)
+    find_program(CCDB_OPENSSL_JOM NAMES jom
+        HINTS "${CMAKE_CURRENT_LIST_DIR}/tools/jom"
+        DOC "Native Windows jom executable for parallel OpenSSL builds")
+    if(NOT CCDB_OPENSSL_JOM)
+        message(FATAL_ERROR
+            "Parallel OpenSSL builds require Qt jom. Put jom.exe on PATH or set "
+            "CCDB_OPENSSL_JOM to its path (see ExternalLibraries/openssl-windows/README.md). "
+            "Set CCDB_OPENSSL_JOBS=1 to use serial NMake.")
+    endif()
+    set(openssl_build_command "${CCDB_OPENSSL_JOM}" /nologo -j "${CCDB_OPENSSL_JOBS}")
+else()
+    set(openssl_build_command "${CCDB_OPENSSL_NMAKE}" /nologo)
+endif()
+message(STATUS "OpenSSL build: ${openssl_build_command} (${CCDB_OPENSSL_JOBS} jobs)")
+
 set(openssl_source "${CMAKE_CURRENT_LIST_DIR}/../openssl-4.0.3")
 file(STRINGS "${openssl_source}/VERSION.dat" version_fields
     REGEX "^(MAJOR|MINOR|PATCH|PRE_RELEASE_TAG)=")
@@ -58,14 +90,14 @@ ExternalProject_Add(ccdb_openssl_build
         "-DRUNTIME=${openssl_runtime}"
         -P "${CMAKE_CURRENT_LIST_DIR}/configure.cmake"
     BUILD_COMMAND "${CMAKE_COMMAND}" -E chdir "${openssl_root}/$<CONFIG>/build"
-        "${CCDB_OPENSSL_NMAKE}" /nologo build_libs
+        ${openssl_build_command} build_libs
     BUILD_ALWAYS ON
     INSTALL_COMMAND "${CMAKE_COMMAND}" -E chdir "${openssl_root}/$<CONFIG>/build"
         "${CCDB_OPENSSL_NMAKE}" /nologo install_dev
     INSTALL_BYPRODUCTS "${openssl_install}/lib/libcrypto.lib" "${openssl_install}/lib/libssl.lib"
     LOG_CONFIGURE ON LOG_BUILD ON LOG_INSTALL ON LOG_OUTPUT_ON_FAILURE ON
 )
-# Let NMake track source/header changes even when ExternalProject stamps exist.
+# Let the native make tool track source/header changes even when stamps exist.
 # Configuration-specific directories prevent Debug/Release archive mixing.
 set_property(TARGET ccdb_openssl_build PROPERTY FOLDER Dependencies)
 ExternalProject_Add_StepDependencies(ccdb_openssl_build configure

@@ -9,7 +9,7 @@
 
 > [!WARNING]
 > ***CCDB HAS POOR CHINESE LANGUAGE SUPPORT***
->
+> 
 > The translation is incomplete and existing translations are a mess.
 > Texts lacking Chinese corresponding translations are shown in English.
 > Missing texts will be shown in `~/.cache/ccdb/MISSING-TRANSLATIONS.json` for ***Release Candidates***.
@@ -18,41 +18,42 @@ A lightweight terminal dashboard for Clash/Mihomo, written in C++.
 
 ![Nload](img/nload.png)
 
- - [Overview](#Overview)
- - [Usage](#usage)
- - Quick Start Examples:
-   * [Example 1: Switch Proxy in a Proxy Group](#example-1-switch-proxy-in-a-proxy-group)
-   * [Example 2: Map the Entire Proxy Chain](#example-2-map-the-entire-proxy-chain)
-   * [Example 3: Shell Parsing of `get config`](#Example-3-Shell-Parsing-of-get-config)
-   * [Example 4: Dump backend debug info](#Example-4-Dump-backend-debug-info)
- - [How to Build](#how-to-build)
+- [Overview](#Overview)
+- [Usage](#usage)
+- Quick Start Examples:
+  * [Example 1: Switch Proxy in a Proxy Group](#example-1-switch-proxy-in-a-proxy-group)
+  * [Example 2: Map the Entire Proxy Chain](#example-2-map-the-entire-proxy-chain)
+  * [Example 3: Shell Parsing of `get config`](#Example-3-Shell-Parsing-of-get-config)
+  * [Example 4: Dump backend debug info](#Example-4-Dump-backend-debug-info)
+- [How to Build](#how-to-build)
 
 ## Overview
 
 CCDB targets low-resource environments (for example, embedded devices) and users who want a low-overhead dashboard.
 
 CCDB depends on the following open-source libraries:
- - [CPP-HTTPLIB v0.63.0](https://github.com/yhirose/cpp-httplib) (Embedded)
- - [GNU Readline 8.3](https://ftp.gnu.org/gnu/readline/) (Embedded)
- - [GNU Ncurses 6.6](https://ftp.gnu.org/gnu/ncurses/) (Embedded)
- - [TSL Hopscotch-Hashing Map v2.4.0](https://github.com/Tessil/hopscotch-map) (Embedded)
- - [UTF8-CPP 4.2.1](https://github.com/nemtrif/utfcpp) (Embedded)
- - [JSON for Modern C++ 3.12.0 <commit/35705d79d878db5ca1a282ec0f8243a80010d24e>](https://github.com/nlohmann/json) (Embedded)
- - [Perl 5.42.0](https://www.perl.org/) (Not embedded, required by OpenSSL)
- - [OpenSSL 4.0.3](https://github.com/openssl/openssl) (Embedded)
- - [GNU Tar 1.35](https://www.gnu.org/software/tar) (Embedded)
- - [XXD, from VIM <commit/24bf0b60e901b11a37d877cd5947849c18e1a602>](https://github.com/vim/vim/) (Not embedded, required by the build system)
- - [libpsl, 0.23.3](https://github.com/rockdaboot/libpsl/) (Embedded)
- - [zlib 1.3.2](https://www.zlib.net/) (Embedded)
- - [libpng 1.6.58](https://www.libpng.org/pub/png/libpng.html) (Embedded)
- - [stb_image - v2.30 - public domain image loader](http://nothings.org/stb) (Embedded)
- - [CImg 4.0.3](https://www.cimg.eu/) (Embedded)
- - [libtiv - Original Copyright © 2017-2023, Stefan Haustein, Aaron Liu. Heavily Modified by Anivice](https://github.com/stefanhaustein/TerminalImageViewer) (Embedded)
- - [Abseil - C++ Common Libraries 20260526.0](https://github.com/abseil/abseil-cpp/) (Embedded, required by RE2)
- - [RE2, a regular expression library 2025-11-05 <commit/2da0056814cf180480a19f5cf811e7e1c054bf6d>](https://github.com/google/re2) (Embedded)
- - [C library for the MaxMind DB file format Releases 1.13.3](https://github.com/maxmind/libmaxminddb) (Embedded)
- - [C++ Cache implementation v0.1.1](https://github.com/vpetrigo/caches) (Embedded)
- - [ICU, International Components for Unicode 78.3](https://github.com/unicode-org/icu) (Embedded)
+
+- [CPP-HTTPLIB v0.63.0](https://github.com/yhirose/cpp-httplib) (Embedded)
+- [GNU Readline 8.3](https://ftp.gnu.org/gnu/readline/) (Embedded)
+- [GNU Ncurses 6.6](https://ftp.gnu.org/gnu/ncurses/) (Embedded)
+- [TSL Hopscotch-Hashing Map v2.4.0](https://github.com/Tessil/hopscotch-map) (Embedded)
+- [UTF8-CPP 4.2.1](https://github.com/nemtrif/utfcpp) (Embedded)
+- [JSON for Modern C++ 3.12.0 <commit/35705d79d878db5ca1a282ec0f8243a80010d24e>](https://github.com/nlohmann/json) (Embedded)
+- [Perl 5.42.0](https://www.perl.org/) (Not embedded, required by OpenSSL)
+- [OpenSSL 4.0.3](https://github.com/openssl/openssl) (Embedded)
+- [GNU Tar 1.35](https://www.gnu.org/software/tar) (Embedded)
+- [XXD, from VIM <commit/24bf0b60e901b11a37d877cd5947849c18e1a602>](https://github.com/vim/vim/) (Not embedded, required by the build system)
+- [libpsl, 0.23.3](https://github.com/rockdaboot/libpsl/) (Embedded)
+- [zlib 1.3.2](https://www.zlib.net/) (Embedded)
+- [libpng 1.6.58](https://www.libpng.org/pub/png/libpng.html) (Embedded)
+- [stb_image - v2.30 - public domain image loader](http://nothings.org/stb) (Embedded)
+- [CImg 4.0.3](https://www.cimg.eu/) (Embedded)
+- [libtiv - Original Copyright © 2017-2023, Stefan Haustein, Aaron Liu. Heavily Modified by Anivice](https://github.com/stefanhaustein/TerminalImageViewer) (Embedded)
+- [Abseil - C++ Common Libraries 20260526.0](https://github.com/abseil/abseil-cpp/) (Embedded, required by RE2)
+- [RE2, a regular expression library 2025-11-05 <commit/2da0056814cf180480a19f5cf811e7e1c054bf6d>](https://github.com/google/re2) (Embedded)
+- [C library for the MaxMind DB file format Releases 1.13.3](https://github.com/maxmind/libmaxminddb) (Embedded)
+- [C++ Cache implementation v0.1.1](https://github.com/vpetrigo/caches) (Embedded)
+- [ICU, International Components for Unicode 78.3](https://github.com/unicode-org/icu) (Embedded)
 
 ### Direct Downloads:
 
@@ -97,38 +98,46 @@ ccdb_get() {
 
 ##### 2. Get assets.
 
- - Linux x86_64, musl-static:  
-```bash
-ccdb_get ccdb.NightlyBuild_x86_64_static ccdb
-```
- - Linux i586, musl-static:  
-```bash
-ccdb_get ccdb.NightlyBuild_i586_static ccdb
-```
- - Linux ARMv7 hard-float, musl-static:  
-```bash
-ccdb_get ccdb.NightlyBuild_armv7hf_static ccdb
-```
- - Linux AArch64, musl-static:  
-```bash
-ccdb_get ccdb.NightlyBuild_aarch64_static ccdb
-```
- - Linux x86_64, dynamically linked:  
-```bash
-ccdb_get ccdb.NightlyBuild ccdb && ccdb_get ccdb.NightlyBuild libccdb.so
-```
- - Linux AArch64, dynamically linked:  
-```bash
-ccdb_get ccdb.NightlyBuild.aarch64 ccdb && ccdb_get ccdb.NightlyBuild.aarch64 libccdb.so
-```
- - Linux x86_64, AppImage:  
-```bash
-ccdb_get ccdb.NightlyBuild.AppImage ccdb ccdb.AppImage
-```
- - Linux AArch64, AppImage:  
-```bash
-ccdb_get ccdb.NightlyBuild.AppImage.aarch64 ccdb ccdb.AppImage
-```
+- Linux x86_64, musl-static:  
+  
+  ```bash
+  ccdb_get ccdb.NightlyBuild_x86_64_static ccdb
+  ```
+- Linux i586, musl-static:  
+  
+  ```bash
+  ccdb_get ccdb.NightlyBuild_i586_static ccdb
+  ```
+- Linux ARMv7 hard-float, musl-static:  
+  
+  ```bash
+  ccdb_get ccdb.NightlyBuild_armv7hf_static ccdb
+  ```
+- Linux AArch64, musl-static:  
+  
+  ```bash
+  ccdb_get ccdb.NightlyBuild_aarch64_static ccdb
+  ```
+- Linux x86_64, dynamically linked:  
+  
+  ```bash
+  ccdb_get ccdb.NightlyBuild ccdb && ccdb_get ccdb.NightlyBuild libccdb.so
+  ```
+- Linux AArch64, dynamically linked:  
+  
+  ```bash
+  ccdb_get ccdb.NightlyBuild.aarch64 ccdb && ccdb_get ccdb.NightlyBuild.aarch64 libccdb.so
+  ```
+- Linux x86_64, AppImage:  
+  
+  ```bash
+  ccdb_get ccdb.NightlyBuild.AppImage ccdb ccdb.AppImage
+  ```
+- Linux AArch64, AppImage:  
+  
+  ```bash
+  ccdb_get ccdb.NightlyBuild.AppImage.aarch64 ccdb ccdb.AppImage
+  ```
 
 #### Windows
 
@@ -220,7 +229,6 @@ To run a shell command, prefix it with `"$ "` (dollar sign + space/`$[WITH A SPA
 > 
 > Helper output: ![Helper output](img/helper3.png)
 
-
 ### Example 1: Switch Proxy in a Proxy Group
 
 #### Step 1
@@ -294,18 +302,19 @@ Here we dumped backend heap file to `/tmp/heap`.
 
 You need
 
-  * a complete C++ toolchain of either GCC or Clang that can process at least C++ 17 (GCC >= 13 would be fine)
-  * `cmake` and your build system of choice (either Unix Makefile [`make`] or Ninja [`ninja`]).
-  * `tar`, `sed`, and `grep`, the standard POSIX tools that should exist on all Linux systems by default.
-  * GNU's `automake`, required by `tar` package for `ccdb`
+* a complete C++ toolchain of either GCC or Clang that can process at least C++ 17 (GCC >= 13 would be fine)
+* `cmake` and your build system of choice (either Unix Makefile [`make`] or Ninja [`ninja`]).
+* `tar`, `sed`, and `grep`, the standard POSIX tools that should exist on all Linux systems by default.
+* GNU's `automake`, required by `tar` package for `ccdb`
 
 to build CCDB.
 
 All dependencies are embedded inside the source code. No additional installation required.
 
 #### CMake Settings
-  * `OPENSSL_TARGET`: Supported openssl target, if you are cross-compiling you need to specify a platform.
-  * `OPENSSL_LIBP`: Depending on the target, openssl can have its lib in `.../lib` or `.../lib64`, you can tell CMake this info by setting it to `lib` or `lib64`.
+
+* `OPENSSL_TARGET`: Supported openssl target, if you are cross-compiling you need to specify a platform.
+* `OPENSSL_LIBP`: Depending on the target, openssl can have its lib in `.../lib` or `.../lib64`, you can tell CMake this info by setting it to `lib` or `lib64`.
 
 #### Build
 
@@ -323,7 +332,9 @@ On x86_64, you can use the command
 
 to build locally.
 
-## Disclaimer
+## Disclaimers
+
+***THIS PROJECT INCORPORATES THE USE OF ARTIFICIAL INTELLIGENCE.***
 
 **This is free software; 
 There is *NO* warranty;
