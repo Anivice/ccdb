@@ -260,7 +260,7 @@ void ccdb::ccdb::display(NotificationType < frame_data_t > & frame, const std::a
 }
 
 #ifdef __WINDOWS_MSVC_BUILD__
-std::string slide_window(
+static std::string slide_window(
     const std::vector<std::string>& frame,
     int frame_width,
     int col,
@@ -411,31 +411,8 @@ std::string slide_window(
 
 void ccdb::ccdb::inferior_less(const std::string & text)
 {
-    struct get_conn_input_watcher_context_t {
-        std::atomic_bool * running_ptr;
-        std::atomic_int * leading_spaces_ptr;
-        const std::atomic_int * max_leading_spaces_ptr;
-        std::atomic_int * current_skip_lines_ptr;
-        const std::atomic_int * max_skip_lines_ptr;
-        std::atomic_int * mouse_x;
-        std::atomic_int * mouse_y;
-        std::atomic_bool * space_pressed;
-        std::atomic_bool * kill_signal_sent;
-        std::atomic_bool * refocus;
-        std::atomic_bool * show_detail;
-        std::atomic_int * sort_by_ptr;
-        std::atomic_int * focus_move;
-        const std::atomic_bool * pause;
-        std::atomic_bool * show_search;
-        ccdb_atomic_t < std::u32string > * search_content_buffer;
-        std::atomic_int * cursor_position;
-        std::atomic < search_move_t > * search_focus_move;
-        std::atomic_int * tab_suggestion_requested;
-        std::atomic_bool * reset_completion;
-    };
-
     std::vector<std::string> frame_window;
-    std::atomic_int leading_spaces, skip_lines, max_leading_spaces, max_skip_lines;
+    std::atomic_int leading_spaces, skip_lines, max_leading_spaces, max_skip_lines, mouse_x, mouse_y;
     NotificationType<frame_data_t> frame_stream;
     std::atomic<bool> running(true), sig_window_size_change(false);
     std::vector<std::thread> children;
@@ -479,8 +456,8 @@ void ccdb::ccdb::inferior_less(const std::string & text)
             .max_leading_spaces_ptr = &max_leading_spaces,
             .current_skip_lines_ptr = &skip_lines,
             .max_skip_lines_ptr = &max_skip_lines,
-            .mouse_x = nullptr,
-            .mouse_y = nullptr,
+            .mouse_x = &mouse_x,
+            .mouse_y = &mouse_y,
             .space_pressed = nullptr,
             .kill_signal_sent = nullptr,
             .refocus = nullptr,
@@ -514,8 +491,28 @@ void ccdb::ccdb::inferior_less(const std::string & text)
         max_skip_lines = window_height - line + 1 > 0 ? window_height - line + 1 : 0;
         if (skip_lines > max_skip_lines) skip_lines = max_skip_lines.load();
         if (leading_spaces > max_leading_spaces) leading_spaces = max_leading_spaces.load();
-        const auto frame = slide_window(
-            frame_window, window_width, col, line, skip_lines, leading_spaces);
+
+        if (mouse_y == line && mouse_x >= 1)
+        {
+            const int ll_max_leading_spaces_ = max_leading_spaces;
+            auto new_leading_space = static_cast<int>(std::round(static_cast<double>(mouse_x) /
+                static_cast<double>(col) * ll_max_leading_spaces_));
+            if (new_leading_space > ll_max_leading_spaces_) new_leading_space = ll_max_leading_spaces_;
+            if (new_leading_space < 0) new_leading_space = 0;
+            leading_spaces = new_leading_space;
+        }
+
+        if (mouse_x == 1)
+        {
+            const int ll_max_skip_lines = max_skip_lines;
+            auto new_skip_lines = mouse_y == 1 ? 0 :
+                static_cast<int>(std::round(static_cast<double>(mouse_y) / static_cast<double>(line - 1) * ll_max_skip_lines));
+            if (new_skip_lines > ll_max_skip_lines) new_skip_lines = ll_max_skip_lines;
+            if (new_skip_lines < 0) new_skip_lines = 0;
+            skip_lines = new_skip_lines;
+        }
+
+        const auto frame = slide_window(frame_window, window_width, col, line, skip_lines, leading_spaces);
         frame_stream.push({
             .frame_index = ++frame_counter,
             .frame = frame,
@@ -525,11 +522,15 @@ void ccdb::ccdb::inferior_less(const std::string & text)
 
         const auto local_leading_spaces = leading_spaces.load();
         const auto local_skip_lines = skip_lines.load();
+        const auto local_mouse_x = mouse_x.load();
+        const auto local_mouse_y = mouse_y.load();
 
         for (int i = 0; i < 100; i++)
         {
             if (local_leading_spaces != leading_spaces
                 || local_skip_lines != skip_lines
+                || local_mouse_x != mouse_x
+                || local_mouse_y != mouse_y
                 || sig_window_size_change)
             {
                 sig_window_size_change = false;
