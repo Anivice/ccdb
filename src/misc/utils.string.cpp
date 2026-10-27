@@ -63,28 +63,27 @@ bool ccdb::utils::is_highlight_match(const std::vector < std::string > & line, c
     if (search_content.empty()) return false;
     static cache_w_freq_table_t < std::string, bool > cache;
 
-    std::stringstream hash;
-    std::ranges::for_each(line, [&hash](const auto & s) { hash << s; });
-    hash << search_content;
-    const auto h = hash.str();
-    if (const auto it = cache.get_cache(h); it) {
+    std::stringstream joined;
+    std::ranges::for_each(line, [&joined](const auto & cell) { joined << cell; });
+    const auto text = joined.str();
+    const auto cache_key = std::to_string(text.size()) + ":" + text + search_content;
+    if (const auto it = cache.get_cache(cache_key); it) {
         return *it;
     }
 
-    std::stringstream ss;
-    std::ranges::for_each(line, [&ss](const auto & l){ ss << l; });
-    std::string str = ss.str();
-    const std::string bak = str;
-    const auto result = bak != regex_replace_all(str, search_content,
-    [&](const regex_scope_type & mat)->std::string
+    std::u32string str = utf8_to_u32(text);
+    const std::u32string bak = str;
+    const auto result = bak != regex_replace_all(str, utf8_to_u32(search_content),
+        [](const basic_regex_scope_type<char32_t> & mat)->std::u32string
         {
             const auto & mat_str = *mat.first;
-            if ((mat_str.size() == 1 && std::isprint(mat_str.front())) || mat_str.size() > 1) {
-                return "<match>" + mat_str + "</match>";
+            if ((mat_str.size() == 1 && (mat_str.front() >= 0x80 ||
+                std::isprint(static_cast<unsigned char>(mat_str.front())))) || mat_str.size() > 1) {
+                return U"<match>" + mat_str + U"</match>";
             }
-        return mat_str;
-    });
-    cache.emplace_cache(h, result);
+            return mat_str;
+        });
+    cache.emplace_cache(cache_key, result);
     return result;
 }
 
@@ -211,123 +210,10 @@ std::vector<std::string> ccdb::utils::splitString(const std::string& s, const ch
     return parts;
 }
 
-std::string ccdb::utils::replace_all(
-    std::string & original,
-    const std::string & target,
-    const std::string & replacement) noexcept
+bool ccdb::utils::detail::regex_compilation_cache_disabled() noexcept
 {
-    if (target.empty()) return original; // Avoid infinite loop if target is empty
-
-    if (target.size() == 1 && replacement.empty()) {
-        std::erase_if(original, [&target](const char c) { return c == target[0]; });
-        return original;
-    }
-
-    size_t pos = 0;
-    while ((pos = original.find(target, pos)) != std::string::npos) {
-        original.replace(pos, target.length(), replacement);
-        pos += replacement.length(); // Move past the replacement to avoid infinite loop
-    }
-
-    return original;
-}
-
-namespace {
-    struct regex_replace_callback_cache_t
-    {
-        std::vector<std::string> matched_string;
-        bool is_regex_replace;
-    };
-
-    using regex_replace_callback_cache_array_t = std::vector<regex_replace_callback_cache_t>;
-    using ScopeType = std::vector<std::string>;
-    using ReplacerFuncType = std::function<std::string(const std::pair<ScopeType::const_iterator, ScopeType::const_iterator> &)>;
-    bool DISABLE_CACHE_BEHAVIOR = ccdb::utils::getenv("DISABLE_CACHE_BEHAVIOR") == "true";
-
-    std::string regex_replace_callback(
-        const std::string& input,
-        const std::string& pattern,
-        const ReplacerFuncType & replacer,
-        regex_replace_callback_cache_array_t & cache_array)
-    {
-        std::string result;
-        if (cache_array.empty())
-        {
-            thread_local static tsl::hopscotch_map<std::string, std::regex> reg_cache;
-            const std::regex * reg = nullptr;
-            std::unique_ptr<std::regex> regex_ptr;
-            if (const auto it = reg_cache.find(pattern); it != reg_cache.end()) {
-                reg = &it->second;
-            } else {
-                regex_ptr = std::make_unique<std::regex>(pattern);
-                reg = regex_ptr.get();
-                if (!DISABLE_CACHE_BEHAVIOR) {
-                    reg_cache.emplace(pattern, *reg);
-                }
-            }
-
-            std::sregex_iterator it(input.begin(), input.end(), *reg);
-            std::size_t last_pos = 0;
-
-            for (const std::sregex_iterator end; it != end; ++it)
-            {
-                // Append text before match
-                result.append(input, last_pos, it->position() - last_pos);
-                cache_array.emplace_back(regex_replace_callback_cache_t{
-                    .matched_string = { input.substr(last_pos, it->position() - last_pos) },
-                    .is_regex_replace = false
-                });
-
-                // Call user function to generate replacement
-                cache_array.emplace_back(regex_replace_callback_cache_t{
-                    .matched_string = { it->begin(), it->end() },
-                    .is_regex_replace = true
-                });
-                result.append(replacer({cache_array.back().matched_string.begin(), cache_array.back().matched_string.end()}));
-                last_pos = it->position() + it->length();
-            }
-
-            result.append(input, last_pos, std::string::npos);
-            cache_array.emplace_back(regex_replace_callback_cache_t{
-                .matched_string = { input.substr(last_pos, std::string::npos) },
-                .is_regex_replace = false
-            });
-
-            std::erase_if(cache_array, [](const regex_replace_callback_cache_t & list)->bool {
-                return list.matched_string.empty() || std::ranges::all_of(list.matched_string,
-                    [](const auto & matched_string) { return matched_string.empty(); });
-            });
-        }
-        else
-        {
-            for (const auto & [str, rcpr] : cache_array) {
-                if (rcpr)
-                    result.append(replacer({ str.begin(), str.end() }));
-                else
-                    result.append(str.front());
-            }
-        }
-
-        return result;
-    }
-}
-
-std::string ccdb::utils::regex_replace_all(
-    std::string & original, const std::string &pattern,
-    const std::function <std::string(const regex_scope_type &) > & replacement)
-{
-    thread_local static std::unordered_map < std::string, regex_replace_callback_cache_array_t > result_cache;
-    const auto hash = original + pattern;
-    if (const auto it = result_cache.find(hash); it != result_cache.end() && !it->second.empty()) {
-        original = regex_replace_callback(original, pattern, replacement, it->second);
-        return original;
-    }
-
-    if (result_cache.size() > 8192) result_cache.clear();
-    regex_replace_callback_cache_array_t cache_array;
-    original = regex_replace_callback(original, pattern, replacement, cache_array);
-    result_cache.emplace(hash, cache_array);
-    return original;
+    static const bool disabled = ccdb::utils::getenv("DISABLE_CACHE_BEHAVIOR") == "true";
+    return disabled;
 }
 
 std::string ccdb::utils::value_to_human(
@@ -532,14 +418,6 @@ bool ccdb::utils::UnicodeDisplayWidth::is_fullwidth(const char32_t c)
     return false;
 }
 
-
-std::string ccdb::utils::strip_color(std::string str_)
-{
-    constexpr auto color_pattern = R"(\x1B\[(?:\d*(?:;\d*)*)?m)";
-    return regex_replace_all(str_, color_pattern, [](const auto &)->std::string {
-        return "";
-    });
-}
 
 void ccdb::utils::set_progress_bar(const progress_bar_state_t state, const int percentages, const std::string & ETA)
 {

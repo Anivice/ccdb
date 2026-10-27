@@ -460,8 +460,8 @@ namespace ccdb
         }
         catch (std::exception& e)
         {
-            ::ccdb::utils::print(e.what(), "\n");
-            return { };
+            utils::print(e.what(), "\n");
+            throw;
         }
     }
 }

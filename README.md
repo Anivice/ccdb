@@ -35,6 +35,7 @@ CCDB depends on the following open-source libraries:
 
 - [CPP-HTTPLIB v0.63.0](https://github.com/yhirose/cpp-httplib) (Embedded)
 - [GNU Readline 8.3](https://ftp.gnu.org/gnu/readline/) (Embedded)
+- [GNU Readline 8.2](https://ftp.gnu.org/gnu/readline/)[ for Win32, patch from chrisant996/readline_win32_sample <commit/e0fc03409ace6dd44299d302693c8a6a44e94577>](https://github.com/chrisant996/readline_win32_sample) (Embedded, Windows specific)
 - [GNU Ncurses 6.6](https://ftp.gnu.org/gnu/ncurses/) (Embedded)
 - [TSL Hopscotch-Hashing Map v2.4.0](https://github.com/Tessil/hopscotch-map) (Embedded)
 - [UTF8-CPP 4.2.1](https://github.com/nemtrif/utfcpp) (Embedded)
@@ -54,6 +55,9 @@ CCDB depends on the following open-source libraries:
 - [C library for the MaxMind DB file format Releases 1.13.3](https://github.com/maxmind/libmaxminddb) (Embedded)
 - [C++ Cache implementation v0.1.1](https://github.com/vpetrigo/caches) (Embedded)
 - [ICU, International Components for Unicode 78.3](https://github.com/unicode-org/icu) (Embedded)
+- [SRELL 2026.07 (17 September 2026), BSD-2-Clause.](https://akenotsuki.pages.dev/misc/srell/releases/srell2026_07.zip) (Embedded)
+
+> ALL SOURCES ARE VENDORED WITH NO ADDITIONAL DOWNLOAD AT COMPILE TIME.
 
 ### Direct Downloads:
 
@@ -318,6 +322,8 @@ All dependencies are embedded inside the source code. No additional installation
 
 #### Build
 
+##### Linux
+
 On x86_64, you can use the command
 
 ```bash
@@ -332,6 +338,10 @@ On x86_64, you can use the command
 
 to build locally.
 
+##### Windows
+
+
+
 ## Disclaimers
 
 ***THIS PROJECT INCORPORATES THE USE OF ARTIFICIAL INTELLIGENCE.***
@@ -341,7 +351,13 @@ There is *NO* warranty;
 not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 This project is provided "as is." DO NOT use it in production.**
 
-**YOU HAVE BEEN WARNED**
+**The author is *not* responsible for any data losses, credential leaks,
+or other possible damages done to your work or machine due to even
+the correct and simple use of the tool.**
+
+# **YOU HAVE BEEN WARNED**
+
+---
 
 **CCDB is GPLv3-licensed to comply with its statically linked GPL dependencies.**
 

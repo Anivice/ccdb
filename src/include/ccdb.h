@@ -55,49 +55,49 @@ namespace ccdb
 
     struct print_table_context_t
     {
-        StringScopeType table_keys; // Table titles
-        PrintTableValScopeType table_values; // Each line for table entries
-        PrintTableHideScopeType table_hide; // vector list for columns to hide when print
-        int leading_offset = 0; // if the screen cannot fit the whole table, table will be shifted these characters to the right
-        std::atomic_int * max_leading_offset_ptr = nullptr; // Set by print_table, tells user I can only shift these many characters max
-        bool using_pager = false; // Should I use pager? If so, all the above shifting parameters will be ignored
-        const std::vector<std::string> & additional_info_before_table; // Additional info to print before the table content
-        int skip_lines = 0; // Skip this many lines and shift table downward when screen is too small to fit all the content
-        std::atomic_int * max_skip_lines_ptr = nullptr;
+        enum class output_mode_t
+        {
+            frame, // Return a viewport with scrollbars and a search/status line.
+            full_table, // Write the complete table, including its bottom border.
+            unpaged_table // Write untrimmed lines with the existing no-pager footer behavior.
+        };
 
-        // disable line shrinking, used when NOPAGER=y or pager is not available
-        // If using_pager is set to false, and max_tailing_size_ptr is valid, this will create an illusion that the table should shift
-        // according to the screen size. This flag is here to enforce that `using_pager = false` status and tells print_table to print the whole content
-        // without any sifting instead of partially trimmed content
-        bool enforce_no_pager = false;
+        StringScopeType column_titles;
+        PrintTableValScopeType rows;
+        PrintTableHideScopeType hidden_columns;
+        int horizontal_offset = 0; // Display columns skipped at the left edge.
+        std::atomic_int * max_horizontal_offset = nullptr; // Also enables horizontal clipping in frame mode.
+        output_mode_t output_mode = output_mode_t::frame;
+        const std::vector<std::string> & banner_lines;
+        int row_offset = 0; // Data rows skipped at the top.
+        std::atomic_int * max_row_offset = nullptr;
+        const tsl::hopscotch_map<uint64_t, std::string> & row_colors; // Zero-based data row indices.
+        std::map < int, std::string > screen_line_colors; // One-based rendered line indices.
+        std::ostream * output_stream = nullptr; // Text output destination; nullptr calls pager().
+        std::atomic_bool * show_search = nullptr;
+        ccdb_atomic_t < std::u32string > * search_content = nullptr;
+        std::atomic_int * search_cursor = nullptr; // Code point offset in search_content.
+        const std::string & search_pattern;
+        ColumnAlignmentScopeType column_alignment; // 0: left, 1: right, 2: center.
+        int terminal_height = 0;
+        int terminal_width = 0;
 
-        const tsl::hopscotch_map<uint64_t, std::string> & color_code_overrides; // override color code for a specific line
-        std::map < int, std::string > highlight_screen_line; // Lines to be selected or highlighted, with their color codes
-        std::ostream * out = nullptr; // If std::ostream is provided and content is redirected to a pager, this will be used as output instead of the pager
-        std::atomic_bool * show_search = nullptr; // Show search blue box?
-        ccdb_atomic_t < std::u32string > * search_line_boxContent = nullptr; // Content shown inside search line
-        std::atomic_int * cursor_position_in_search_box = nullptr; // Cursor position in search box, offset to the content
-        const std::string & highlight_str; // Highlight this string
-        ColumnAlignmentScopeType column_alignment; // alignments for columns
-        int line_size = 0;
-        int col_size = 0;
-
-        int * message_box_width_ = nullptr;
-        struct width_context_t
+        int * status_width = nullptr; // Width before the horizontal scrollbar, used for mouse positioning.
+        struct width_cache_t
         {
             std::vector<std::string> values;
             std::vector<uint32_t> value_screen_widths;
-            std::vector<int> key_screen_widths;
+            std::vector<int> title_screen_widths;
             std::vector<uint32_t> column_widths;
             std::vector<int> line_widths;
             std::vector<int> trimmed_line_widths;
         };
-        width_context_t * width_context_ = nullptr;
+        width_cache_t * width_cache = nullptr; // Reuse cell widths and clipping buffers across frames.
 
         struct {
-            const char * locked_1;
-            const char * locked_2;
-        } locked_info;
+            const char * vertical;
+            const char * horizontal;
+        } scroll_lock_labels;
     };
 
 #ifndef __WINDOWS_MSVC_BUILD__
@@ -113,7 +113,6 @@ namespace ccdb
 
 #endif //__WINDOWS_MSVC_BUILD__
     template <typename T> concept Iterator = std::input_iterator<T>;
-    class auto_print_t;
     extern std::atomic<int> g_pid;
 
     template < typename Itr_ >
@@ -526,7 +525,6 @@ namespace ccdb
         ccdb(const std::string & backend, const std::string & token, std::string latency_url_, const std::string&, const std::string&);
         ccdb(const std::string & backend, const std::string & token, std::string latency_url_, const std::vector<std::string> & cmd);
 
-        friend class auto_print_t;
     };
 
 #include "ccdb.continuous_table.inl"

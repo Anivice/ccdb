@@ -50,6 +50,7 @@
 #include "lzw6.h"
 #include "utf8.h"
 #include "colors.h"
+#include "string_replace.h"
 #include "httplib.h"
 #ifndef __WINDOWS_MSVC_BUILD__
 #include "caches/cache.hpp"
@@ -266,27 +267,6 @@ namespace ccdb::utils
     void setenv(const std::string& name, const std::string & value) noexcept;
 
     std::vector<std::string> splitString(const std::string& s, char delim = ' ');
-
-    /// Replace string inside a string
-    /// @param original Original string
-    /// @param target String to be replaced
-    /// @param replacement Replacement string
-    /// @return Replaced string. Original string will be modified as well
-    std::string replace_all(
-        std::string & original,
-        const std::string & target,
-        const std::string & replacement) noexcept;
-
-    using regex_scope_type = std::pair<std::vector<std::string>::const_iterator, std::vector<std::string>::const_iterator>;
-    /// Replace string inside a string
-    /// @param original Original string
-    /// @param pattern Match pattern
-    /// @param replacement Replacement when matched std::string (replacement string) (const std::string & matched_string, int group_index)
-    /// @return Replaced string. Original string will be modified as well
-    std::string regex_replace_all(
-        std::string & original,
-        const std::string & pattern,
-        const std::function<std::string(const regex_scope_type &)>& replacement);
 
     /// Get Row and Column size from terminal
     /// @return Pair in [Col (x), Row (y)], or 80x25 if all possible attempt failed
@@ -625,7 +605,7 @@ namespace ccdb::utils
         return crc64.get_checksum_str();
     }
 
-    std::string strip_color(std::string str_);
+
 
 #ifndef __WINDOWS_MSVC_BUILD__
     template <

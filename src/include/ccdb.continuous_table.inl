@@ -95,7 +95,7 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
     int64_t vector_size_last_time = -1;
     uint64_t frame_index = 0;
     NotificationType < frame_data_t > frame_data;
-    print_table_context_t::width_context_t width_context;
+    print_table_context_t::width_cache_t width_cache;
     int skip_lines_before = current_skip_lines_;
     auto watcher_ = watcher.make_status_watcher();
 
@@ -696,31 +696,30 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
             }
 
             const auto frame_string = print_table(print_table_context_t{
-                    .table_keys = {title_begin, title_end},
-                    .table_values = {values_begin, values_end},
-                    .table_hide = {do_col_hide.begin(), do_col_hide.end()},
-                    .leading_offset = lock_to_right ? std::numeric_limits<decltype(leading_spaces)>::max() : leading_spaces,
-                    .max_leading_offset_ptr = &max_leading_spaces_,
-                    .using_pager = false,
-                    .additional_info_before_table = title_line,
-                    .skip_lines = lock_to_bottom ? std::numeric_limits<decltype(current_skip_lines)>::max() : current_skip_lines,
-                    .max_skip_lines_ptr = &max_skip_lines_,
-                    .enforce_no_pager = false,
-                    .color_code_overrides = color_code_overrides,
-                    .highlight_screen_line = std::move(focus_lines),
-                    .out = nullptr,
+                    .column_titles = {title_begin, title_end},
+                    .rows = {values_begin, values_end},
+                    .hidden_columns = {do_col_hide.begin(), do_col_hide.end()},
+                    .horizontal_offset = lock_to_right ? std::numeric_limits<decltype(leading_spaces)>::max() : leading_spaces,
+                    .max_horizontal_offset = &max_leading_spaces_,
+                    .output_mode = print_table_context_t::output_mode_t::frame,
+                    .banner_lines = title_line,
+                    .row_offset = lock_to_bottom ? std::numeric_limits<decltype(current_skip_lines)>::max() : current_skip_lines,
+                    .max_row_offset = &max_skip_lines_,
+                    .row_colors = color_code_overrides,
+                    .screen_line_colors = std::move(focus_lines),
+                    .output_stream = nullptr,
                     .show_search = &show_search,
-                    .search_line_boxContent = &search_content_buffer,
-                    .cursor_position_in_search_box = &cursor_position,
-                    .highlight_str = search_content,
+                    .search_content = &search_content_buffer,
+                    .search_cursor = &cursor_position,
+                    .search_pattern = search_content,
                     .column_alignment = {alignment.begin(), alignment.end()},
-                    .line_size = line_size,
-                    .col_size = col_size,
-                    .message_box_width_ = &message_box_width,
-                    .width_context_ = &width_context,
-                    .locked_info = {
-                        .locked_1 = lock_to_bottom ? "(locked)" : "",
-                        .locked_2 = lock_to_right ? "(locked)" : "",
+                    .terminal_height = line_size,
+                    .terminal_width = col_size,
+                    .status_width = &message_box_width,
+                    .width_cache = &width_cache,
+                    .scroll_lock_labels = {
+                        .vertical = lock_to_bottom ? "(locked)" : "",
+                        .horizontal = lock_to_right ? "(locked)" : "",
                     }
                 });
 
