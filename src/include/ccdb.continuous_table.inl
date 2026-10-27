@@ -498,6 +498,7 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
                         {
                             current_skip_lines_ = i;
                             current_skip_lines = i;
+                            lock_to_bottom = false; // removed lock
                             break;
                         }
                     }
