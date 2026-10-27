@@ -268,7 +268,7 @@ namespace ccdb
         const std::string latency_url; // latency URL
         std::unique_ptr<configuration> ccdb_config;
         std::string clash_sublink;
-        std::string jq;
+        // std::string jq;
         std::string less;
         tsl::hopscotch_map < std::string, std::string > keyboard_shortcut_map;
         std::mutex keyboard_shortcut_map_mtx;

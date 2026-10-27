@@ -148,7 +148,7 @@ void ccdb::ccdb::fork_and_execute(const std::vector<std::string> & command_vecto
         // Build argv for execv
         NotificationType<int> finished;
         less.clear();
-        jq.clear();
+        // jq.clear();
 
         std::thread T0([&] {
             (void)handler(ccdb_vector);
@@ -854,13 +854,13 @@ void ccdb::ccdb::init()
         sim::color_scheme = sim::RAINBOW_DISTINCT;
     }
 
-    const auto ret = exec_command("/bin/sh", "jq --version >/dev/null 2>/dev/null\n");
-    if (!utils::getenv("JQ").empty()) {
-        jq = utils::getenv("JQ");
-    }
-    else if (ret.exit_status == 0) {
-        jq = "jq";
-    }
+    // const auto ret = exec_command("/bin/sh", "jq --version >/dev/null 2>/dev/null\n");
+    // if (!utils::getenv("JQ").empty()) {
+    //     jq = utils::getenv("JQ");
+    // }
+    // else if (ret.exit_status == 0) {
+    //     jq = "jq";
+    // }
 
     if (const auto pager = utils::getenv("PAGER"); is_less_available() || !pager.empty())
     {
@@ -1168,7 +1168,7 @@ ccdb::ccdb::ccdb(const std::string &backend, const std::string &token, std::stri
         init();
         watcher.watcher_clear_disable = true;
         less.clear();
-        jq.clear();
+        // jq.clear();
         (void)handler(cmd);
     }
     catch (std::exception & e) {

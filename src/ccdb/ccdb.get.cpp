@@ -812,15 +812,7 @@ void ccdb::ccdb::get_subinfo()
 #endif //__WINDOWS_MSVC_BUILD__
 void ccdb::ccdb::get_config()
 {
-#ifndef __WINDOWS_MSVC_BUILD__
-    if (!jq.empty()) {
-        exec_command("/bin/sh", backend_instance.get_config(), "-c", jq + (color::is_no_color() ? "" : " --color-output") + " | " + less);
-    } else {
-        std::cout << backend_instance.get_config() << std::endl;
-    }
-#else
     pager(color_json(backend_instance.get_config()));
-#endif //__WINDOWS_MSVC_BUILD__
 }
 
 void ccdb::ccdb::get_log_size() const {

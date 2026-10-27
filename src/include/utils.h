@@ -828,6 +828,11 @@ namespace ccdb::utils
 
     cmd_status tar(const std::vector<std::string> & args, const std::string & to_write);
     bool is_highlight_match(const std::vector < std::string > & line, const std::string & search_content);
+
+    // Keep escaped colons usable as searches instead of ':' commands, while
+    // validating and matching with the same Unicode regex syntax.
+    std::u32string normalize_search_pattern(const std::u32string & pattern);
+    bool try_update_search_pattern(std::string & current, const std::string & candidate);
 }
 
 namespace ccdb

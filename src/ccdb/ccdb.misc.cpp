@@ -64,15 +64,9 @@ void ccdb::ccdb::pager(const std::string &str, const bool override_less_check, b
                     = exec_command("/bin/sh", str, "-c", less);
             exit_status != 0)
         {
-            try {
-                inferior_less(color_json(json::parse(str).dump(2)));
-            } catch (...) {
-                inferior_less(str);
-            }
+            inferior_less(str);
         }
-    }
-    else
-    {
+    } else {
         std::cout << str << std::flush;
     }
 }

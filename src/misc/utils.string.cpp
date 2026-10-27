@@ -57,6 +57,43 @@ if (!(x)) {         \
     _exit(EXIT_FAILURE); \
 }
 
+std::u32string ccdb::utils::normalize_search_pattern(const std::u32string & pattern)
+{
+    std::u32string normalized;
+    normalized.reserve(pattern.size());
+    for (std::size_t i = 0; i < pattern.size(); ++i)
+    {
+        if (pattern[i] == U'\\' && i + 1 < pattern.size())
+        {
+            const auto escaped = pattern[++i];
+            if (escaped == U':') {
+                // Unicode regexes reject the legacy identity escape \:.
+                // A hex escape keeps ':' literal even in regex group syntax.
+                normalized += UR"(\x3A)";
+            } else {
+                normalized += U'\\';
+                normalized += escaped;
+            }
+        } else {
+            normalized += pattern[i];
+        }
+    }
+    return normalized;
+}
+
+bool ccdb::utils::try_update_search_pattern(std::string & current, const std::string & candidate)
+{
+    try {
+        const srell::u32regex validated(normalize_search_pattern(utf8_to_u32(candidate)));
+        current = candidate;
+        return true;
+    } catch (const srell::regex_error &) {
+        return false;
+    } catch (const utf8::exception &) {
+        return false;
+    }
+}
+
 bool ccdb::utils::is_highlight_match(const std::vector < std::string > & line, const std::string & search_content)
 {
     using namespace utils;
@@ -73,7 +110,7 @@ bool ccdb::utils::is_highlight_match(const std::vector < std::string > & line, c
 
     std::u32string str = utf8_to_u32(text);
     const std::u32string bak = str;
-    const auto result = bak != regex_replace_all(str, utf8_to_u32(search_content),
+    const auto result = bak != regex_replace_all(str, normalize_search_pattern(utf8_to_u32(search_content)),
         [](const basic_regex_scope_type<char32_t> & mat)->std::u32string
         {
             const auto & mat_str = *mat.first;

@@ -607,7 +607,7 @@ std::string ccdb::ccdb::print_table(const print_table_context_t & context)
         if (tab_space_size <= 0) {
             tab_space_size = 4;
         }
-        const auto search_pattern = utf8_to_u32(context.search_pattern);
+        const auto search_pattern = normalize_search_pattern(utf8_to_u32(context.search_pattern));
 
         auto print_line = [&](std::string text, const std::string & line_style)
         {

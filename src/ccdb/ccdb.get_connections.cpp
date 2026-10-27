@@ -681,16 +681,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         {
             if (matched_connection)
             {
-#ifndef __WINDOWS_MSVC_BUILD__
-                if (!jq.empty()) {
-                    exec_command("/bin/sh", matched_connection->connection_data.metadata.raw_json,
-                        "-c", jq + (color::is_no_color() ? "" : " --color-output") + " | " + less);
-                } else {
-                    exec_command("/bin/sh", matched_connection->connection_data.metadata.raw_json, "-c", less);
-                }
-#else
                 pager(color_json(matched_connection->connection_data.metadata.raw_json));
-#endif //__WINDOWS_MSVC_BUILD__
             }
         },
         [this, &show_only_closed_connection_view](const connection_frame_t * matched_connection)

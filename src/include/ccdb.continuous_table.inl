@@ -670,10 +670,7 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
                     }
                     else
                     {
-                        try {
-                            std::regex r(input_buffer_content);
-                            search_content = input_buffer_content;
-                        } catch (...) {
+                        if (!try_update_search_pattern(search_content, input_buffer_content)) {
                             show_info(sprint("Regex evaluation failed"), "ERROR");
                         }
                     }
