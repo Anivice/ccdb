@@ -15,21 +15,29 @@ extern "C" void unconfig_console(void);
 
 namespace {
     std::atomic_bool interrupted{false};
-    BOOL WINAPI console_control(DWORD event) {
+
+    BOOL WINAPI console_control(const DWORD event)
+    {
         if (event != CTRL_C_EVENT && event != CTRL_BREAK_EVENT) return FALSE;
         interrupted.store(true);
         return TRUE;
     }
-    int readline_interrupt(int, int) {
+
+    int readline_interrupt(int, int)
+    {
         rl_replace_line("", 0);
         rl_crlf();
         rl_done = 1;
+        interrupted.store(true);
         return 0;
     }
-    std::string encode_key(const KEY_EVENT_RECORD& key) {
+
+    std::string encode_key(const KEY_EVENT_RECORD& key)
+    {
         if (!key.bKeyDown) return {};
         const bool ctrl = (key.dwControlKeyState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) != 0;
-        if (key.uChar.UnicodeChar) {
+        if (key.uChar.UnicodeChar)
+        {
             const wchar_t c = key.uChar.UnicodeChar;
             if (c == 3) { interrupted = true; return {}; }
             if (c == '\r') return "\n";
@@ -44,7 +52,7 @@ namespace {
             }
             high = 0;
             char bytes[8];
-            int n = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, pair, count, bytes, 8, nullptr, nullptr);
+            const int n = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, pair, count, bytes, 8, nullptr, nullptr);
             return n > 0 ? std::string(bytes, n) : std::string{};
         }
         switch (key.wVirtualKeyCode) {
@@ -74,8 +82,10 @@ namespace {
     }
 }
 
-namespace ccdb::windows {
-    console_session::console_session() {
+namespace ccdb::windows
+{
+    console_session::console_session()
+    {
         input_cp_ = GetConsoleCP(); output_cp_ = GetConsoleOutputCP();
         input_valid_ = GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &input_mode_) != 0;
         output_valid_ = GetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), &output_mode_) != 0;
@@ -84,27 +94,34 @@ namespace ccdb::windows {
         std::setlocale(LC_ALL, ".UTF8");
         SetConsoleCtrlHandler(console_control, TRUE);
     }
-    console_session::~console_session() {
+
+    console_session::~console_session()
+    {
         SetConsoleCtrlHandler(console_control, FALSE);
         if (input_valid_) SetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), input_mode_);
         if (output_valid_) SetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), output_mode_);
         if (input_cp_) SetConsoleCP(input_cp_);
         if (output_cp_) SetConsoleOutputCP(output_cp_);
     }
-    bool interactive() {
+
+    bool interactive()
+    {
         DWORD mode;
         return GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &mode)
             && GetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), &mode);
     }
+
     void notify_interrupt() { interrupted = true; }
     bool take_interrupt() { return interrupted.exchange(false); }
 
-    ssize_t read_input(void* buffer, size_t count, int timeout_ms) {
+    ssize_t read_input(void* buffer, const size_t count, const int timeout_ms)
+    {
         thread_local std::string pending;
         if (!count) return 0;
         const auto deadline = GetTickCount64() + static_cast<ULONGLONG>(std::max(timeout_ms, 0));
-        auto handle = GetStdHandle(STD_INPUT_HANDLE);
-        while (pending.empty()) {
+        const auto handle = GetStdHandle(STD_INPUT_HANDLE);
+        while (pending.empty())
+        {
             const DWORD wait = timeout_ms < 0 ? INFINITE :
                 static_cast<DWORD>(deadline > GetTickCount64() ? deadline - GetTickCount64() : 0);
             if (WaitForSingleObject(handle, wait) != WAIT_OBJECT_0) { errno = ETIMEDOUT; return -1; }
@@ -139,7 +156,8 @@ namespace ccdb::windows {
         return static_cast<ssize_t>(n);
     }
 
-    void read_commands(const std::string& prompt) {
+    void read_commands(const std::string& prompt)
+    {
         using_history();
         Readline::g_running = 1;
         if (Readline::history_file) {
@@ -174,40 +192,23 @@ namespace ccdb::windows {
 
     void terminal_write(std::string_view data)
     {
-        const HANDLE handle =
-            GetStdHandle(STD_OUTPUT_HANDLE);
-
+        const auto handle = static_cast<const HANDLE>(GetStdHandle(STD_OUTPUT_HANDLE));
         if (!handle || handle == INVALID_HANDLE_VALUE)
+        {
             throw std::runtime_error("Invalid STDOUT handle");
+        }
 
         while (!data.empty())
         {
-            const DWORD requested =
-                static_cast<DWORD>(
-                    std::min<std::size_t>(data.size(), 32768)
-                    );
-
+            const DWORD requested = static_cast<DWORD>(std::min<std::size_t>(data.size(), 32768));
             DWORD written = 0;
 
-            if (!WriteFile(
-                handle,
-                data.data(),
-                requested,
-                &written,
-                nullptr))
-            {
-                throw std::system_error(
-                    static_cast<int>(GetLastError()),
-                    std::system_category(),
-                    "WriteFile failed"
-                );
+            if (!WriteFile(handle, data.data(), requested, &written, nullptr)) {
+                throw std::system_error(static_cast<int>(GetLastError()),
+                    std::system_category(), "WriteFile failed");
             }
 
-            if (written == 0)
-                throw std::runtime_error(
-                    "WriteFile made no progress"
-                );
-
+            if (written == 0) throw std::runtime_error("WriteFile made no progress");
             data.remove_prefix(written);
         }
     }
