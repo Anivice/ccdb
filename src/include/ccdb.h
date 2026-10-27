@@ -459,10 +459,8 @@ namespace ccdb
 
         /// Input watcher that sets running flag when q is pressed, and changes
         void get_conn_input_watcher(const get_conn_input_watcher_context_t &);
-#ifdef __WINDOWS_MSVC_BUILD__
         void inferior_less(const std::string &);
         static std::string color_json(const std::string&);
-#endif //__WINDOWS_MSVC_BUILD__
 
         void init();
 

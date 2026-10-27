@@ -55,7 +55,7 @@ void ccdb::ccdb::update_providers()
 void ccdb::ccdb::pager(const std::string &str, const bool override_less_check, bool use_pager)
 {
     if (!override_less_check) {
-        use_pager = !less.empty();
+        use_pager = true;
     }
 
     if (use_pager)
@@ -64,8 +64,11 @@ void ccdb::ccdb::pager(const std::string &str, const bool override_less_check, b
                     = exec_command("/bin/sh", str, "-c", less);
             exit_status != 0)
         {
-            print<is_error>(fd_stderr, "\n");
-            print<is_error>(less, " exited with code ", exit_status, "\n");
+            try {
+                inferior_less(color_json(json::parse(str).dump(2)));
+            } catch (...) {
+                inferior_less(str);
+            }
         }
     }
     else
@@ -259,7 +262,7 @@ void ccdb::ccdb::display(NotificationType < frame_data_t > & frame, const std::a
     }
 }
 
-#ifdef __WINDOWS_MSVC_BUILD__
+// #ifdef __WINDOWS_MSVC_BUILD__
 static std::string slide_window(
     const std::vector<std::string>& frame,
     int frame_width,
@@ -622,4 +625,4 @@ std::string ccdb::ccdb::color_json(const std::string & json)
         return json;
     }
 }
-#endif //__WINDOWS_MSVC_BUILD__
+// #endif //__WINDOWS_MSVC_BUILD__
