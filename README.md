@@ -340,7 +340,18 @@ to build locally.
 
 ##### Windows
 
+```powershell
+git clone https://github.com/Anivice/ccdb --depth=1
+cd ccdb
+New-Item -ItemType Directory -Force -Path build | Out-Null
+cd build
 
+# Set this to the CMake on your own machine
+$cmake = "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
+
+& $cmake ..
+& $cmake --build . --config Release --parallel 32
+```
 
 ## Disclaimers
 
