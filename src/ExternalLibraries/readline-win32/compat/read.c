@@ -704,14 +704,14 @@ static void process_input(const KEY_EVENT_RECORD* record)
 #endif // !FORCE_WIN10_16299_VT_INPUT
 }
 
-static int read_console(DWORD _timeout, int peek)
+static int read_console(DWORD _timeout, int read_ahead)
 {
     assert(s_term.m_initialized);
     int ret = true;
 
     // Hide the cursor unless we're accepting input so we don't have to see it
     // jump around as the screen's drawn.
-    if (!peek)
+    if (!read_ahead)
         show_cursor(true);
 
     // Conhost restarts the cursor blink when writing to the console. It restarts
@@ -752,9 +752,12 @@ static int read_console(DWORD _timeout, int peek)
 
         DWORD count;
         INPUT_RECORD record;
-        if (!(peek ?
-              PeekConsoleInputW(s_term.m_stdin, &record, 1, &count) :
-              ReadConsoleInputW(s_term.m_stdin, &record, 1, &count)))
+        // Availability checks read ahead into m_buffer. Once an event is
+        // translated, it must also leave the OS queue: peeking here replays
+        // the same character every time Readline drains m_buffer, trapping
+        // its input-coalescing loop (particularly with multibyte IME text).
+        // Only input_peek() may peek, at the already translated bytes.
+        if (!ReadConsoleInputW(s_term.m_stdin, &record, 1, &count))
         {
             // Handle's probably invalid if ReadConsoleInput() failed.
             s_term.m_buffer_head = 0;
@@ -762,6 +765,8 @@ static int read_console(DWORD _timeout, int peek)
             s_term.m_buffer[0] = input_abort_byte;
             goto out;
         }
+        if (!count)
+            continue;
 
         switch (record.EventType)
         {
@@ -780,14 +785,10 @@ static int read_console(DWORD _timeout, int peek)
             }
             break;
         }
-
-        // Eat records that don't result in available input.
-        if (peek && buffer_count == s_term.m_buffer_count)
-            ReadConsoleInputW(s_term.m_stdin, &record, 1, &count);
     }
 
 out:
-    if (!peek)
+    if (!read_ahead)
         show_cursor(false);
     return ret;
 }
@@ -885,7 +886,7 @@ void input_select()
         if (!tmout_status)
             _rl_timeout_handle();
 
-        const int r = read_console(timeout, false/*peek*/);
+        const int r = read_console(timeout, false/*read_ahead*/);
 
         if (tmout_status > 0 && r < 0)
             _rl_timeout_handle();
@@ -932,7 +933,7 @@ int input_available(void)
 
         // Read console input.  This is necessary to filter out OS events that
         // should not be processed as input.
-        const int r = read_console(timeout, true/*peek*/);
+        const int r = read_console(timeout, true/*read_ahead*/);
         if (r == 0)
             return 0;
         if (tmout_status > 0 && r < 0)
