@@ -353,7 +353,7 @@ $cmake = "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\Comm
 & $cmake --build . --config Release --parallel 32
 ```
 
-## Disclaimers
+# Disclaimers
 
 ***THIS PROJECT INCORPORATES THE USE OF ARTIFICIAL INTELLIGENCE.***
 
@@ -366,7 +366,7 @@ This project is provided "as is." DO NOT use it in production.**
 or other possible damages done to your work or machine due to even
 the correct and simple use of the tool.**
 
-# **YOU HAVE BEEN WARNED**
+## **YOU HAVE BEEN WARNED**
 
 ---
 

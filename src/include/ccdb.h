@@ -62,42 +62,42 @@ namespace ccdb
             unpaged_table // Write untrimmed lines with the existing no-pager footer behavior.
         };
 
-        StringScopeType column_titles;
-        PrintTableValScopeType rows;
-        PrintTableHideScopeType hidden_columns;
+        PrintTableHideScopeType hidden_columns{};
         int horizontal_offset = 0; // Display columns skipped at the left edge.
         std::atomic_int * max_horizontal_offset = nullptr; // Also enables horizontal clipping in frame mode.
         output_mode_t output_mode = output_mode_t::frame;
-        const std::vector<std::string> & banner_lines;
+        // Borrowed banner overrides; valid for the duration of print_table().
+        std::string_view external_banner;
+        std::string_view first_banner_override;
         int row_offset = 0; // Data rows skipped at the top.
         std::atomic_int * max_row_offset = nullptr;
-        const tsl::hopscotch_map<uint64_t, std::string> & row_colors; // Zero-based data row indices.
-        std::map < int, std::string > screen_line_colors; // One-based rendered line indices.
+        const OverrideColorType * row_colors = nullptr; // Zero-based data row indices.
+        std::span<const std::string_view> screen_line_colors; // One-based rendered line indices.
         std::ostream * output_stream = nullptr; // Text output destination; nullptr calls pager().
         std::atomic_bool * show_search = nullptr;
         ccdb_atomic_t < std::u32string > * search_content = nullptr;
         std::atomic_int * search_cursor = nullptr; // Code point offset in search_content.
-        const std::string & search_pattern;
-        ColumnAlignmentScopeType column_alignment; // 0: left, 1: right, 2: center.
+        std::string_view search_pattern;
+        ColumnAlignmentScopeType column_alignment{}; // 0: left, 1: right, 2: center.
         int terminal_height = 0;
         int terminal_width = 0;
 
         int * status_width = nullptr; // Width before the horizontal scrollbar, used for mouse positioning.
         struct width_cache_t
         {
-            std::vector<std::string> values;
             std::vector<uint32_t> value_screen_widths;
+            std::vector<int> visible_column_widths;
             std::vector<int> title_screen_widths;
             std::vector<uint32_t> column_widths;
             std::vector<int> line_widths;
             std::vector<int> trimmed_line_widths;
         };
-        width_cache_t * width_cache = nullptr; // Reuse cell widths and clipping buffers across frames.
+        width_cache_t * width_cache = nullptr; // Reuse numeric/clipping buffers; never retain source strings.
 
         struct {
             const char * vertical;
             const char * horizontal;
-        } scroll_lock_labels;
+        } scroll_lock_labels{};
     };
 
 #ifndef __WINDOWS_MSVC_BUILD__
@@ -112,7 +112,7 @@ namespace ccdb
         int timeout_ms);
 
 #endif //__WINDOWS_MSVC_BUILD__
-    template <typename T> concept Iterator = std::input_iterator<T>;
+    template <typename T> concept Iterator = std::forward_iterator<T>;
     extern std::atomic<int> g_pid;
 
     template < typename Itr_ >
@@ -127,7 +127,8 @@ namespace ccdb
         const auto offset_end = std::min(
             std::min(endScope, ScopeSize),
             current_skip_lines + window_frame_size);
-        return { begin + current_skip_lines, begin + offset_end };
+        return { std::ranges::next(begin, current_skip_lines, end),
+                 std::ranges::next(begin, static_cast<std::iter_difference_t<Itr_>>(offset_end), end) };
     }
 
     /// signal watcher
@@ -168,6 +169,53 @@ namespace ccdb
         signal_watcher_();
         ~signal_watcher_();
     } watcher;
+
+    namespace table_detail {
+        template<class I, class S> auto range(const std::pair<I, S> & pair)
+        { return std::ranges::subrange(pair.first, pair.second); }
+        template<std::ranges::forward_range R> auto range(R & value)
+        { return std::ranges::ref_view(value); }
+
+        // This deliberately rejects owning string conversions from proxy elements.
+        inline std::string_view text(std::string_view value) { return value; }
+        inline std::string_view text(const std::string & value) { return value; }
+        inline const std::string & text(const std::reference_wrapper<const std::string> value)
+        { return value.get(); }
+        inline const std::string & text(const std::reference_wrapper<std::string> value)
+        { return value.get(); }
+        int display_width(std::string_view);
+        std::u32string decode(std::string_view);
+        std::string make_border(std::span<const int>, const char *);
+        void append_cell(std::string &, std::string_view, int, int);
+        void print_status(const print_table_context_t &, std::ostream &, int, int, int, uint64_t, int,
+                          const std::string &);
+        class table_frame_formatter_t {
+            const print_table_context_t & context_;
+            const std::string cursor_style_;
+            const char32_t cursor_;
+            const std::string search_style_;
+            std::u32string format_search_line(int) const;
+        public:
+            explicit table_frame_formatter_t(const print_table_context_t &);
+            std::string format(std::string_view, int, int, int, int) const;
+        };
+        struct line_printer_t {
+            const print_table_context_t & context;
+            print_table_context_t::width_cache_t & width_cache;
+            uint64_t horizontal_offset;
+            const std::string & border_style;
+            std::ostream & frame;
+            std::ostream & text_output;
+            int & rendered_line_count;
+            int & matches;
+            int tab_space_size;
+            std::u32string search_pattern;
+            line_printer_t(const print_table_context_t &, print_table_context_t::width_cache_t &,
+                           uint64_t, const std::string &, std::ostream &, std::ostream &, int &, int &);
+            void operator()(std::string_view, const std::string &) const;
+        };
+        std::string row_style(const print_table_context_t &, int, int, const std::string &);
+    }
 
     class ccdb
     {
@@ -329,7 +377,10 @@ namespace ccdb
         void pager(const std::string & str, bool override_less_check = false, bool use_pager = true);
 
         /// print table
-        std::string print_table(const print_table_context_t &);
+        // Multipass ranges (or iterator pairs); each row must contain at least
+        // as many cells as there are titles. Extra cells are ignored. No input is copied.
+        template<class Titles, class Rows, class Banners = std::span<const std::string>>
+        std::string print_table(Titles &&, Rows &&, const print_table_context_t &, Banners && = {});
 
         void simple_print_table(
             std::vector < std::string > const & table_titles,
@@ -360,8 +411,6 @@ namespace ccdb
         [[nodiscard]] std::vector<std::string> get_vendpoints(const std::string & group);
         void interactive_verification() const;
 
-        static std::vector<std::string> auto_complete(const std::string & command_arg,
-            const std::vector < std::string > & possible_args);
         static int arg_index(const std::string &buffer, int cursor_position);
 
         enum message_type_t { NORMAL = 0, FOCUSED_ON_NON_PRESENCE, KILL };
@@ -501,22 +550,61 @@ namespace ccdb
         using CommandType = tsl::hopscotch_map < std::string, std::function<std::string(const ScopeType &,
             CommandVectorType, const session_compliment_data_t *)>>;
         using CommandAutoCompleteType = tsl::hopscotch_map < std::string, std::vector<std::vector<std::string>>>;
-        using SearchMatches = std::vector < std::pair < std::string /* checksum */, bool /* if match ? */ > >;
+        using SearchMatches = std::vector<std::pair<std::string_view, bool>>;
 
-        template < typename ContainerType, typename ConstantIteratorType, typename ScopeType >
+        struct continuous_table_state_t {
+            struct notice_t {
+                String text;
+                int timeout;
+                std::chrono::steady_clock::time_point since;
+            };
+            bool banner_enabled;
+            std::vector<notice_t> notices;
+            String displayed_notice;
+            String previous_command;
+            int previous_cursor = -1;
+            std::vector<String> base_args;
+            int arg = -1;
+            int suggestion = -1;
+            std::vector<std::string_view> suggestions;
+            std::vector<std::string_view> command_names;
+            const String focus_color = "\033[07m";
+            const String selected_color = color::color(5,5,0);
+            std::map<HashType, String> focused_ids;
+            HashType active_id;
+            SearchMatches search_matches;
+            std::vector<std::string_view> focus_lines;
+            explicit continuous_table_state_t(bool enabled) : banner_enabled(enabled) {}
+            void show_info(std::string_view, std::string_view, int timeout = -1);
+            void clear_completion();
+            const std::vector<String> & parse_command(const String &);
+            std::string_view notification();
+            void set_active_focus(std::string_view);
+            void complete_command(String, bool &, const CommandAutoCompleteType &,
+                                  std::atomic_int &, std::atomic_int &, ccdb_atomic_t<std::u32string> &);
+            static std::pair<int, String> external_banner(const String &);
+        };
+        // Range callbacks return references/views into callback-owned storage valid
+        // until rendering completes. RememberFocus owns any snapshot needed after
+        // ReturnContent invalidates its previous range; nullptr requests the initial
+        // snapshot. Normal and event banners must not overwrite each other's storage.
+        template <typename ContainerType, typename ConstantIteratorType, typename ScopeType,
+                  class ContentFn, class BannerFn, class HashFn, class ColorsFn,
+                  class TitlesFn, class ValuesFn, class FocusFn, class MatchFn>
         requires (std::is_same_v<ScopeType, std::pair<ConstantIteratorType, ConstantIteratorType>> && Iterator<ConstantIteratorType>)
         void continuous_table(int banner, const std::vector < bool > & do_col_hide,
             const std::vector<int> & alignment,
             const CommandType < ContainerType, ScopeType > & CommandMap, const CommandAutoCompleteType & CommandAutoComplete,
-            const std::function<ScopeType(session_compliment_data_t *)> & ReturnContent,
-            const std::function<void(message_type_t, const ContainerType & current_focus, std::vector<std::string> &)> & GenerateBanner,
-            const std::function<HashType(const ContainerType &)> & HashContent,
-            const std::function<OverrideColorType(const ScopeType &, uint64_t)> & GenerateOverrideColorInContent,
+            const ContentFn & ReturnContent,
+            const BannerFn & GenerateBanner,
+            const HashFn & HashContent,
+            const ColorsFn & GenerateOverrideColorInContent,
             const std::function<void(const ContainerType *)> & PressKey_P,
             const std::function<void(const ContainerType *)> & PressKey_K,
-            const std::function<StringScopeType()> & GetTitleForCurrentSession,
-            const std::function<PrintTableValScopeType(const ScopeType &)> & GetTableValueForCurrentSession,
-            const std::function<void(session_compliment_data_t *)> & FrameVisitEach);
+            const TitlesFn & GetTitleForCurrentSession,
+            const ValuesFn & GetTableValueForCurrentSession,
+            const std::function<void(session_compliment_data_t *)> & FrameVisitEach,
+            const FocusFn & RememberFocus, const MatchFn & MatchSearch);
 
         const bool ENABLE_CLEAR_ON_SHRINK = utils::getenv("ENABLE_CLEAR_ON_SHRINK") == "true";
 
@@ -526,6 +614,7 @@ namespace ccdb
 
     };
 
+#include "ccdb.print_table.inl"
 #include "ccdb.continuous_table.inl"
 #ifndef __WINDOWS_MSVC_BUILD__
 #include "detach_execute.inl"

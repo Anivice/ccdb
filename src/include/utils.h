@@ -870,7 +870,7 @@ namespace ccdb
             return queue_.empty();
         }
 
-        void push(const T value)
+        void push(T value)
         {
             {
                 std::lock_guard lock(mutex_);

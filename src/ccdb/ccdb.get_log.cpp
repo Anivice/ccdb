@@ -77,6 +77,8 @@ void ccdb::ccdb::get_log()
         log_refresh_interval = convertToNumber<int>(CCDB_LOG_REFRESH_INTERVAL);
     }
 
+    log_frame_t focused_snapshot;
+    OverrideColorType line_color_overrides;
     continuous_table < log_frame_t, ConstItrType, ScopeType >
     (
         0,
@@ -177,13 +179,13 @@ void ccdb::ccdb::get_log()
 
             return {log_local_incrimination.begin(), log_local_incrimination.end()};
         },
-        [](message_type_t, const log_frame_t &, std::vector<std::string>&)->void { },
-        [](const log_frame_t & log)->std::string { return log.at(3); },
-        [&](const ScopeType & logs, const uint64_t offset)->OverrideColorType
+        [](message_type_t, const log_frame_t &) { return std::span<const std::string>{}; },
+        [](const log_frame_t & log)->const std::string & { return log.at(3); },
+        [&](const ScopeType & logs, const uint64_t offset)->const OverrideColorType &
         {
             enum color_cache_type_t : int { ERROR_ = 1, WARNING_, DEBUG_TUN_,
                 DEBUG_HEALTH_, DEBUG_RULE_, DEBUG_PROCESS_, DEBUG_TCP_, DEBUG_DNS_, DEBUG_OTHERS_, INFO_ };
-            OverrideColorType line_color_overrides;
+            line_color_overrides.clear();
             for (auto it = logs.first; it != logs.second; ++it)
             {
                 const uint64_t cur_off = it - logs.first;
@@ -263,7 +265,12 @@ void ccdb::ccdb::get_log()
                 lines_local_incrimination.begin() + (logs.second - log_local_incrimination.begin())
             };
         },
-        [](session_compliment_data_t *){});
+        [](session_compliment_data_t *){},
+        [&](const log_frame_t * row) -> const log_frame_t & {
+            if (row) focused_snapshot = *row;
+            return focused_snapshot;
+        },
+        [](const auto & row, const auto & pattern) { return is_highlight_match(row, pattern); });
 }
 
 void ccdb::ccdb::get_logLevel() const

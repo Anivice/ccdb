@@ -89,6 +89,7 @@ void ccdb::ccdb::get_rules()
         using ScopeType = std::pair<const_iterator /* begin */, const_iterator /* end */>;
         using ArgsCopyScope = const ScopeType &;
 
+        frame_t focused_snapshot;
         continuous_table < frame_t, const_iterator, ScopeType >
         (
             0,
@@ -150,9 +151,9 @@ void ccdb::ccdb::get_rules()
 
                 return {table_vals.begin(), table_vals.end()};
             },
-            [](message_type_t, const auto &, std::vector<std::string>&)->void { },
-            [](const frame_t & rule)->std::string { return rule.front(); },
-            [&](const ScopeType &, const uint64_t)->OverrideColorType
+            [](message_type_t, const auto &) { return std::span<const std::string>{}; },
+            [](const frame_t & rule)->const std::string & { return rule.front(); },
+            [&](const ScopeType &, const uint64_t)->const OverrideColorType &
             {
                 return line_color_overrides;
             },
@@ -178,7 +179,12 @@ void ccdb::ccdb::get_rules()
             {
                 return { table_vals.begin(), table_vals.end() };
             },
-            [](session_compliment_data_t *){}
+            [](session_compliment_data_t *){},
+            [&](const frame_t * row) -> const frame_t & {
+                if (row) focused_snapshot = *row;
+                return focused_snapshot;
+            },
+            [](const auto & row, const auto & pattern) { return is_highlight_match(row, pattern); }
         );
     }
     catch (const std::exception & e)

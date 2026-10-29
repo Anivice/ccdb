@@ -267,6 +267,9 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         });
     };
 
+    connection_frame_t focused_snapshot;
+    std::vector<std::string> normal_banner, event_banner;
+    OverrideColorType row_colors;
     continuous_table <connection_frame_t, std::vector<connection_frame_t>::const_iterator, ScopeType >
     (
         1,
@@ -633,8 +636,9 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
             return ScopeType{connections_filtered.begin(), connections_filtered.end()};
         },
-        [&](const message_type_t type, const connection_frame_t & current_focus, std::vector<std::string> & buffer)->void
+        [&](const message_type_t type, const connection_frame_t & current_focus) -> const std::vector<std::string> &
         {
+            auto & buffer = type == NORMAL ? normal_banner : event_banner;
             switch (type)
             {
             default:
@@ -664,12 +668,14 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 buffer = {sprint("Closing ", current_focus.connection_data.host, "...")};
             break;
             }
+            return buffer;
         },
-        [](const connection_frame_t & conn)->std::string { return conn.connection_data.metadata.connectionID; },
-        [&color_for_closed_connections](const ScopeType & on_screen_conns,
-            uint64_t current_skip_lines)->tsl::hopscotch_map<uint64_t, std::string>
+        [](const connection_frame_t & conn)->const std::string & { return conn.connection_data.metadata.connectionID; },
+        [&](const ScopeType & on_screen_conns,
+            uint64_t current_skip_lines)->const OverrideColorType &
         {
-            tsl::hopscotch_map<uint64_t, std::string> ret;
+            auto & ret = row_colors;
+            ret.clear();
             std::for_each(on_screen_conns.first, on_screen_conns.second, [&](const connection_frame_t & conn)
             {
                 if (conn.connection_is_closed) ret.emplace(current_skip_lines, color_for_closed_connections);
@@ -754,7 +760,12 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         {
             sort_by_local = sort_by.get();
             reverse_sort_local = sort_reverse;
-        }
+        },
+        [&](const connection_frame_t * row) -> const connection_frame_t & {
+            if (row) focused_snapshot = *row;
+            return focused_snapshot;
+        },
+        [](const auto & row, const auto & pattern) { return is_highlight_match(row, pattern); }
     );
 
 #ifdef __DEBUG__
