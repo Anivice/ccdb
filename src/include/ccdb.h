@@ -360,7 +360,6 @@ namespace ccdb
         [[nodiscard]] std::vector<std::string> get_vendpoints(const std::string & group);
         void interactive_verification() const;
 
-        static bool match_logic(const std::string & s1, const std::string & s2);
         static std::vector<std::string> auto_complete(const std::string & command_arg,
             const std::vector < std::string > & possible_args);
         static int arg_index(const std::string &buffer, int cursor_position);

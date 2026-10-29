@@ -19,24 +19,17 @@
 //
 
 #include <algorithm>
-#include <chrono>
 #include "ccdb.h"
-
-bool ccdb::ccdb::match_logic(const std::string & s1, const std::string & s2) {
-    return s1.size() >= s2.size() && s1.substr(0, s2.size()) == s2;
-}
 
 std::vector<std::string> ccdb::ccdb::auto_complete(const std::string & command_arg,
     const std::vector < std::string > & possible_args)
 {
     std::vector<std::string> possible_matches;
-    std::ranges::for_each(possible_args, [&](const std::string & arg)
+    for (const auto & arg : possible_args)
     {
-        if (match_logic(arg, command_arg))
-        {
+        if (arg.starts_with(command_arg))
             possible_matches.emplace_back(arg);
-        }
-    });
+    }
 
     return possible_matches;
 }

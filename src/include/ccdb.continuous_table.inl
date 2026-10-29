@@ -1,8 +1,8 @@
 #ifndef CCDB_CONTINUOUS_TABLE_INL
 #define CCDB_CONTINUOUS_TABLE_INL
 
-template <typename ContainerType, typename ConstantIteratorType, typename ScopeType> requires (std::is_same_v<
-                                                                                                   ScopeType, std::pair<ConstantIteratorType, ConstantIteratorType>> && Iterator<ConstantIteratorType>)
+template <typename ContainerType, typename ConstantIteratorType, typename ScopeType>
+requires (std::is_same_v<ScopeType, std::pair<ConstantIteratorType, ConstantIteratorType>> && Iterator<ConstantIteratorType>)
 void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hide,
         const std::vector<int>& alignment, const CommandType<ContainerType, ScopeType>& CommandMap,
         const CommandAutoCompleteType & CommandAutoComplete,
@@ -47,12 +47,6 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
         .skip_frame = false
     };
 
-    auto assert_ = [](const bool e) {
-        if (!e) {
-            throw std::logic_error("Expectation disappointed.");
-        }
-    };
-
     auto get_frame = [&]->std::pair<int, std::string>
     {
 #ifndef __WINDOWS_MSVC_BUILD__
@@ -73,10 +67,7 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
 
     int start_line = 5 + banner;
     if (!banner_command.empty())
-    {
-        const auto banner_lines= get_frame().first;
-        start_line += banner_lines;
-    }
+        start_line += get_frame().first;
 
     const std::string focused_line_color = "\033[07m";
     const std::string selected_line_color = color::color(5,5,0);
@@ -124,7 +115,6 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
 
     int in_tab_suggestion = -1;
     std::vector < String > tab_suggestions;
-    bool on_display = false; // if banner has msg
     auto clear_completion = [&]
     {
         const auto first_non_suggestion = std::find_if(g_title_lines.begin(), g_title_lines.end(),
@@ -137,10 +127,105 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
         cursor_position_prev = -1;
         in_tab_suggestion = -1;
     };
-    ScopeType content;
     ContainerType focused_container;
 
-    const auto unstable_terminal = color::color(0,0,0,5,0,0) + "UNSTABLE TERMINAL" + color::no_color();
+    const auto show_banner = [&](const message_type_t type)
+    {
+        std::vector<String> lines;
+        GenerateBanner(type, focused_container, lines);
+        if (!lines.empty()) show_info(lines.front(), "INFO");
+    };
+
+    auto set_active_focus = [&](HashType next_focused_id)
+    {
+        if (!active_focused_id.empty() && active_focused_id != next_focused_id)
+        {
+            if (const auto old_focus = focused_id.find(active_focused_id);
+                old_focus != focused_id.end())
+            {
+                if (old_focus->second == focused_line_color) {
+                    focused_id.erase(old_focus);
+                }
+                else if (old_focus->second.find(focused_line_color) != std::string::npos) {
+                    replace_all(old_focus->second, focused_line_color, "");
+                }
+            }
+        }
+
+        active_focused_id = std::move(next_focused_id);
+        auto & color = focused_id[active_focused_id];
+        if (color.find(focused_line_color) == std::string::npos)
+            color += focused_line_color;
+    };
+
+    const auto complete_command = [&](String command_input, bool & on_display)
+    {
+        const int tab_request = tab_suggestion_requested.exchange(0);
+        if (tab_request <= 0) return;
+        command_input.erase(command_input.begin()); // leading ':'
+        const int current_cursor = cursor_position.load();
+        const bool new_cycle = tab_arg_index < 0
+            || command_input_prev_cmd != command_input
+            || cursor_position_prev != current_cursor;
+        if (new_cycle)
+        {
+            tab_base_args = split_via_history(command_input);
+            // Convert the UTF-32 cursor (including ':') to a command byte offset.
+            const auto command_u32 = search_content_buffer.get();
+            const int cursor_u32 = std::clamp(current_cursor, 1, static_cast<int>(command_u32.size()));
+            const auto cursor_bytes = utf8::utf32to8(command_u32.substr(1, cursor_u32 - 1)).size();
+            tab_arg_index = std::clamp(arg_index(command_input, static_cast<int>(cursor_bytes)),
+                                       0, static_cast<int>(tab_base_args.size()));
+            const auto prefix = static_cast<std::size_t>(tab_arg_index) < tab_base_args.size()
+                                    ? tab_base_args[tab_arg_index] : String{};
+            tab_suggestions.clear();
+            in_tab_suggestion = 0;
+            if (tab_arg_index == 0)
+            {
+                const auto possible_args = CommandMap | std::views::keys;
+                tab_suggestions = auto_complete(prefix, {possible_args.begin(), possible_args.end()});
+            }
+            else if (const auto it = CommandAutoComplete.find(tab_base_args.front());
+                     it != CommandAutoComplete.end() && static_cast<std::size_t>(tab_arg_index) <= it->second.size())
+            {
+                tab_suggestions = auto_complete(prefix, it->second[tab_arg_index - 1]);
+            }
+            command_input_prev_cmd = command_input;
+            cursor_position_prev = current_cursor;
+        }
+
+        if (tab_suggestions.empty() || (tab_suggestions.size() > 1 && new_cycle && tab_request == 1))
+            return;
+
+        // Keep the original arguments and target index throughout a Tab cycle.
+        String new_cmd;
+        const int argument_count = std::max(static_cast<int>(tab_base_args.size()), tab_arg_index + 1);
+        for (int i = 0; i < argument_count; ++i)
+        {
+            if (i > 0) new_cmd += ' ';
+            new_cmd += i == tab_arg_index ? tab_suggestions[in_tab_suggestion] : tab_base_args[i];
+        }
+        search_content_buffer.set(utf8_to_u32(":" + new_cmd));
+        cursor_position = static_cast<int>(search_content_buffer.get().size());
+        command_input_prev_cmd = new_cmd;
+        cursor_position_prev = cursor_position.load();
+
+        if (tab_suggestions.size() == 1)
+        {
+            tab_suggestions.clear();
+            tab_arg_index = -1;
+            return;
+        }
+
+        g_title_lines.clear();
+        String suggestions;
+        for (std::size_t i = 0; i < tab_suggestions.size(); ++i)
+            suggestions += tab_suggestions[(in_tab_suggestion + i) % tab_suggestions.size()] + ' ';
+        show_info(sprint("(Tab suggestion: ") + suggestions + ")", "INFO", 60000);
+        on_display = false;
+        in_tab_suggestion = (in_tab_suggestion + 1) % static_cast<int>(tab_suggestions.size());
+    };
+
     const auto too_small = color::color(0,0,0,5,0,0) + "TOO SMALL" + color::no_color();
 
     while (running) {
@@ -165,12 +250,11 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
             }
 
             compliment_data.skip_frame = false;
-            content = ReturnContent(&compliment_data);
+            const auto content = ReturnContent(&compliment_data);
             OverrideColorType color_code_overrides;
             const auto leading_spaces = leading_spaces_.load();
             auto current_skip_lines = current_skip_lines_.load();
             std::vector<String> title_line;
-            bool skip_due_to_shrink = false;
             int focus_line = -1;
             const auto mouse_y = mouse_y_.load();
             const auto mouse_x = mouse_x_.load();
@@ -205,9 +289,7 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
                     auto hash = HashContent(*it);
                     if (index < search_matches.size())
                     {
-                        auto & [first, second] = search_matches[index];
-                        first = std::move(hash);
-                        second = matched;
+                        search_matches[index] = {std::move(hash), matched};
                     }
                     else
                     {
@@ -222,41 +304,23 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
                                                                fr - (contentSize > static_cast<std::size_t>(std::max(fr, 0)) ? 1 : 0)
                                                                - (current_skip_lines == max_skip_lines ? 1 : 0)));
 
-            auto set_active_focus = [&](HashType next_focused_id)
+            const auto find_row = [&](const auto & rows, const HashType & id)
             {
-                if (!active_focused_id.empty() && active_focused_id != next_focused_id)
-                {
-                    if (const auto old_focus = focused_id.find(active_focused_id);
-                        old_focus != focused_id.end())
-                    {
-                        if (old_focus->second == focused_line_color) {
-                            focused_id.erase(old_focus);
-                        }
-                        else if (old_focus->second.find(focused_line_color) != std::string::npos) {
-                            replace_all(old_focus->second, focused_line_color, "");
-                        }
-                    }
-                }
-
-                active_focused_id = std::move(next_focused_id);
-                if (const auto it = focused_id.find(active_focused_id);
-                    it != focused_id.end())
-                {
-                    if (it->second.find(focused_line_color) == std::string::npos) { // no focus
-                        it->second = it->second + focused_line_color; // highlight AND focus
-                    }
-                } else {
-                    focused_id.emplace(active_focused_id, focused_line_color);
-                }
+                return std::find_if(rows.first, rows.second, [&](const ContainerType & row) {
+                    return HashContent(row) == id;
+                });
+            };
+            const auto page_at = [&](const int offset)
+            {
+                return make_screen_vector_frame(content.first, content.second, contentSize,
+                                                offset, line_size, start_line, window_frame_size);
             };
 
             // If highlighted rows are not present anymore, delete them.
             bool active_focus_removed = false;
             for (auto highlight = focused_id.begin(); highlight != focused_id.end();)
             {
-                if (!std::any_of(content.first, content.second, [&](const ContainerType & conn) {
-                    return HashContent(conn) == highlight->first;
-                }))
+                if (find_row(content, highlight->first) == content.second)
                 {
                     active_focus_removed = active_focus_removed || highlight->first == active_focused_id;
                     highlight = focused_id.erase(highlight);
@@ -269,52 +333,35 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
 
             if (active_focus_removed)
             {
-                std::vector<std::string> lines;
-                GenerateBanner(FOCUSED_ON_NON_PRESENCE, focused_container, lines);
-                if (!lines.empty()) show_info(lines.front(), "INFO");
+                show_banner(FOCUSED_ON_NON_PRESENCE);
                 active_focused_id.clear();
             }
 
             if (search_focus_move != IDLE_STATE)
             {
-                if (const auto it = std::ranges::find_if(search_matches,
-                                                         [&](const std::pair < std::string, bool > & conn)->bool { return conn.first == active_focused_id; });
-                    it != search_matches.end())
+                const auto it = std::ranges::find(search_matches, active_focused_id, &SearchMatches::value_type::first);
+                if (it != search_matches.end())
                 {
+                    const auto focus_match = [&](const auto begin, const auto end)
+                    {
+                        const auto match = std::find_if(begin, end, [](const auto & row) { return row.second; });
+                        if (match != end) set_active_focus(match->first);
+                        focus_to_highlight = true;
+                    };
                     switch (search_focus_move)
                     {
                         case SEARCH_MOVE_UP:
-                        {
-                            if (it != search_matches.begin())
-                            {
-                                const auto match = std::find_if(
-                                    std::make_reverse_iterator(it), search_matches.rend(),
-                                    [](const auto & conn) { return conn.second; });
-                                if (match != search_matches.rend()) set_active_focus(match->first);
-                            }
-
-                            focus_to_highlight = true;
-                        }
-                        break;
+                            focus_match(std::make_reverse_iterator(it), search_matches.rend());
+                            break;
                         case SEARCH_MOVE_DOWN:
-                        {
-                            const auto next = std::next(it);
-                            if (next != search_matches.end())
-                            {
-                                const auto match = std::find_if(next, search_matches.end(),
-                                                                [](const auto & conn) { return conn.second; });
-                                if (match != search_matches.end()) set_active_focus(match->first);
-                            }
-
-                            focus_to_highlight = true;
-                        }
-                        break;
+                            focus_match(std::next(it), search_matches.end());
+                            break;
                         default: break;
                     }
                 }
             }
 
-            // if (banner)
+            bool on_display = false;
             {
                 std::string * g_title_line = nullptr;
                 while (!g_title_lines.empty())
@@ -337,9 +384,9 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
 
                 on_display = g_title_line != nullptr;
 
-                title_line.clear();
                 GenerateBanner(NORMAL, focused_container, title_line);
-                assert_(title_line.size() == banner);
+                if (title_line.size() != banner)
+                    throw std::logic_error("Expectation disappointed.");
                 if (g_title_line && !g_title_line->empty()) {
                     title_line.front() = *g_title_line;
                 }
@@ -353,67 +400,32 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
                 title_line.insert(title_line.begin(), ext_lines.begin(), ext_lines.end());
             }
 
-            auto move = [&](auto && do_i_process, auto && how_do_i_process)
+            const auto move_focus = [&](const int direction)
             {
-                if (!active_focused_id.empty())
+                if (active_focused_id.empty()) return;
+                const auto it = find_row(content, active_focused_id);
+                if (it == content.second)
                 {
-                    bool found = false;
-                    for (auto it_ = content.first; it_ != content.second; ++it_)
-                    {
-                        if (HashContent(*it_) == active_focused_id)
-                        {
-                            if (do_i_process(it_, content.first, content.second))
-                            {
-                                focus_to_highlight = true;
-                                set_active_focus(how_do_i_process(it_));
-                            }
-
-                            found = true;
-                            break;
-                        }
-                    }
-
-                    if (!found && focused_index >= 0
-                        && focused_index < static_cast<decltype(focused_index)>(contentSize)) {
+                    if (focused_index >= 0 && focused_index < static_cast<decltype(focused_index)>(contentSize))
                         set_active_focus(HashContent(*(content.first + focused_index)));
-                        }
+                }
+                else if (direction > 0 ? it != content.second - 1 : it != content.first)
+                {
+                    focus_to_highlight = true;
+                    set_active_focus(HashContent(*(it + direction)));
                 }
             };
 
-            auto highlight_move_down = [&]{
-                move([&](auto it_, auto, auto end)->bool {
-                         return it_ != (end - 1);
-                     },
-                     [&](auto it_)->std::string {
-                         return HashContent(*(it_ + 1));
-                     });
-            };
-
-            auto highlight_move_up = [&]{
-                move([&](auto it_, auto begin, auto)->bool {
-                         return it_ != begin;
-                     },
-                     [&](auto it_)->std::string {
-                         return HashContent(*(it_ - 1));
-                     });
-            };
-
-            /// move
             switch (atm_focus)
             {
-                // move down
-                case 1: highlight_move_down();
-                    break;
-                    // move up
-                case 2: highlight_move_up();
-                    break;
+                case 1: move_focus(1); break;
+                case 2: move_focus(-1); break;
                 default: break;
             }
 
             /// focus
             {
-                auto content_on_cur_page = make_screen_vector_frame(content.first, content.second, contentSize,
-                                                                    current_skip_lines, line_size, start_line, window_frame_size);
+                const auto content_on_cur_page = page_at(current_skip_lines);
                 if ((mouse_x > 1) && (mouse_y > start_line && (mouse_y - start_line) <= window_frame_size))
                 {
                     // refocus
@@ -428,36 +440,22 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
                     }
                     else
                     {
-                        std::vector<std::string> lines;
-                        GenerateBanner(FOCUSED_ON_NON_PRESENCE, focused_container, lines);
-                        if (!lines.empty()) show_info(lines.front(), "INFO");
+                        show_banner(FOCUSED_ON_NON_PRESENCE);
                     }
                 }
                 else if (!active_focused_id.empty())
                 {
-                    // find the focused line on page
-                    if (int index = 0;
-                        std::any_of(content_on_cur_page.first, content_on_cur_page.second, [&](const ContainerType & line)->bool
-                        {
-                            index++;
-                            if (const auto & line_hash = HashContent(line); line_hash == active_focused_id)
-                            {
-                                focused_container = line;
-                                return true;
-                            }
-
-                            return false;
-                        })
-                    )
+                    const auto it = find_row(content_on_cur_page, active_focused_id);
+                    if (it != content_on_cur_page.second)
                     {
-                        focus_line = index + start_line;
-                        focused_index = index;
+                        focused_container = *it;
+                        focused_index = std::distance(content_on_cur_page.first, it) + 1;
+                        focus_line = focused_index + start_line;
                     }
                 }
 
                 if (space_pressed && !active_focused_id.empty())
                 {
-                    // focused_id.insert_or_assign(active_focused_id, selected_line_color);
                     if (const auto it = focused_id.find(active_focused_id);
                         it != focused_id.end()) // found
                     {
@@ -467,7 +465,7 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
                             focused_id.insert_or_assign(active_focused_id, selected_line_color);
                         }
                     }
-                    highlight_move_down();
+                    move_focus(1);
                     focus_to_highlight = true;
                 }
 
@@ -476,25 +474,20 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
 
             /// refocus
             if ((focus_to_highlight || kill_connection) && !active_focused_id.empty()
-                && std::any_of(content.first, content.second, [&](const ContainerType & c_)->bool {
-                    return HashContent(c_) == active_focused_id;
-                }))
+                && find_row(content, active_focused_id) != content.second)
             {
-                auto can_i_find_in_this_index = [&](const int i)->bool
+                auto focus_on_page = [&](const int i)->bool
                 {
-                    auto connections_current_page = make_screen_vector_frame(content.first, content.second, contentSize,
-                                                                             i, line_size, start_line, window_frame_size);
-                    return std::any_of(connections_current_page.first, connections_current_page.second, [&](const ContainerType & conn)->bool {
-                        return (HashContent(conn) == active_focused_id);
-                    });
+                    const auto page = page_at(i);
+                    return find_row(page, active_focused_id) != page.second;
                 };
 
                 // don't refresh window if this already exists
-                if (!can_i_find_in_this_index(current_skip_lines))
+                if (!focus_on_page(current_skip_lines))
                 {
                     for (int i = 0; i <= max_skip_lines; ++i)
                     {
-                        if (can_i_find_in_this_index(i))
+                        if (focus_on_page(i))
                         {
                             current_skip_lines_ = i;
                             current_skip_lines = i;
@@ -505,32 +498,16 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
                 }
             }
 
-            if (kill_connection)
+            if (kill_connection && focus_line != -1)
             {
-                if (focus_line != -1) {
-                    std::vector<std::string> lines;
-                    GenerateBanner(KILL, focused_container, lines);
-                    if (!lines.empty()) show_info(lines.front(), "INFO");
-                    PressKey_K(&focused_container);
-                }
+                show_banner(KILL);
+                PressKey_K(&focused_container);
             }
 
             if (conn_show_detail)
             {
-                const ContainerType * matched = nullptr;
-                if (focus_line != -1)
-                {
-                    (void)std::any_of(content.first, content.second, [&](const ContainerType & conn)->bool
-                    {
-                        if (HashContent(conn) == active_focused_id) {
-                            matched = &conn;
-                            return true;
-                        }
-
-                        return false;
-                    });
-                }
-
+                const auto it = focus_line != -1 ? find_row(content, active_focused_id) : content.second;
+                const ContainerType * matched = it != content.second ? &*it : nullptr;
                 pause_input_watcher = true;
                 frame_data.push({ .pause = true });
                 PressKey_P(matched);
@@ -546,98 +523,7 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
                 if (auto command_input = utf8::utf32to8(search_content_buffer.get());
                     !CommandMap.empty() && !command_input.empty() && command_input.front() == ':')
                 {
-                    command_input.erase(command_input.begin());
-                    const auto vec = split_via_history(command_input);
-                    const auto & possible_args = CommandMap | std::views::keys;
-                    std::vector < std::vector<std::string> > completion_list;
-                    completion_list.push_back({possible_args.begin(), possible_args.end()});
-                    if (!vec.empty())
-                    {
-                        if (const auto it = CommandAutoComplete.find(vec.front());
-                            it != CommandAutoComplete.end())
-                        {
-                            completion_list.insert(completion_list.end(), it->second.begin(), it->second.end());
-                        }
-                    }
-
-                    auto get_suggestive_content = [&](const String & completion, const int index) -> String
-                    {
-                        std::stringstream ss;
-                        for (int i = 0; i < index; ++i)
-                            ss << tab_base_args[i] << " ";
-                        ss << completion << " ";
-                        for (int i = index + 1; i < static_cast<int>(tab_base_args.size()); ++i)
-                            ss << tab_base_args[i] << " ";
-                        std::string ret = ss.str();
-                        if (!ret.empty() && ret.back() == ' ') ret.pop_back();
-                        return ret;
-                    };
-
-                    // Keep the original arguments and target index throughout a Tab cycle.
-                    // A candidate ends in a space, which would otherwise move arg_index
-                    // to the next argument and append the next candidate there.
-                    if (const int tab_request = tab_suggestion_requested.exchange(0); tab_request > 0)
-                    {
-                        const int current_cursor = cursor_position.load();
-                        const bool new_cycle = tab_arg_index < 0
-                            || command_input_prev_cmd != command_input
-                            || cursor_position_prev != current_cursor;
-                        if (new_cycle)
-                        {
-                            tab_base_args = vec;
-                            // cursor_position includes the leading ':', command_input does not.
-                            // Convert the UTF-32 cursor to a byte offset for command_input.
-                            const auto command_u32 = search_content_buffer.get();
-                            const int cursor_u32 = std::clamp(current_cursor, 1, static_cast<int>(command_u32.size()));
-                            const auto cursor_bytes = utf8::utf32to8(command_u32.substr(1, cursor_u32 - 1)).size();
-                            tab_arg_index = std::clamp(arg_index(command_input, static_cast<int>(cursor_bytes)),
-                                                       0, static_cast<int>(vec.size()));
-                            tab_suggestions.clear();
-                            in_tab_suggestion = 0;
-                            if (static_cast<std::size_t>(tab_arg_index) < completion_list.size())
-                            {
-                                const auto prefix = static_cast<std::size_t>(tab_arg_index) < vec.size()
-                                                        ? vec[tab_arg_index] : String{};
-                                tab_suggestions = auto_complete(prefix, completion_list[tab_arg_index]);
-                            }
-                            command_input_prev_cmd = command_input;
-                            cursor_position_prev = current_cursor;
-                        }
-
-                        if (tab_suggestions.size() == 1 || (tab_suggestions.size() > 1 && (!new_cycle || tab_request > 1)))
-                        {
-                            const auto new_cmd = get_suggestive_content(tab_suggestions[in_tab_suggestion], tab_arg_index);
-                            search_content_buffer.set(utf8_to_u32(":" + new_cmd));
-                            cursor_position = static_cast<int>(search_content_buffer.get().size());
-                            command_input_prev_cmd = new_cmd;
-                            cursor_position_prev = cursor_position.load();
-
-                            if (tab_suggestions.size() == 1)
-                            {
-                                // A unique match is complete; the next Tab targets the next argument.
-                                tab_suggestions.clear();
-                                tab_arg_index = -1;
-                            }
-                            else
-                            {
-                                g_title_lines.clear();
-                                std::string sug_str;
-                                for (auto it = tab_suggestions.begin() + in_tab_suggestion; it != tab_suggestions.end(); ++it)
-                                {
-                                    sug_str += *it;
-                                    sug_str += ' ';
-                                }
-                                for (auto it = tab_suggestions.begin(); it != tab_suggestions.begin() + in_tab_suggestion; ++it)
-                                {
-                                    sug_str += *it;
-                                    sug_str += ' ';
-                                }
-                                show_info(sprint("(Tab suggestion: ") + sug_str + ")", "INFO", 60000);
-                                on_display = false;
-                                in_tab_suggestion = (in_tab_suggestion + 1) % static_cast<int>(tab_suggestions.size());
-                            }
-                        }
-                    }
+                    complete_command(std::move(command_input), on_display);
                 }
 
                 if (auto input_buffer_content = utf8::utf32to8(search_content_buffer.get());
@@ -678,7 +564,7 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
                 }
             }
 
-            skip_due_to_shrink = (vector_size_last_time >= 0 && static_cast<uint64_t>(vector_size_last_time) > contentSize)
+            bool skip_due_to_shrink = (vector_size_last_time >= 0 && static_cast<uint64_t>(vector_size_last_time) > contentSize)
                 || skip_lines_before < current_skip_lines || command_executed;
             vector_size_last_time = static_cast<int64_t>(contentSize);
             skip_lines_before = current_skip_lines;
@@ -686,8 +572,7 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
             int message_box_width = 0;
             std::map < int, std::string > focus_lines;
             {
-                auto content_on_cur_page = make_screen_vector_frame(content.first, content.second, contentSize,
-                                                                    current_skip_lines, line_size, start_line, window_frame_size);
+                const auto content_on_cur_page = page_at(current_skip_lines);
                 int index = 1;
                 for (auto it = content_on_cur_page.first; it != content_on_cur_page.second; ++it, ++index)
                 {
@@ -736,7 +621,7 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
                 lock_to_bottom = true;
             }
 
-            if (const bool i_dont_print = skip_due_to_shrink; !i_dont_print)
+            if (!skip_due_to_shrink)
             {
                 frame_data.push({
                     .frame_index = ++frame_index,
@@ -745,19 +630,10 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
                 });
             }
 
-            int local_leading_spaces = leading_spaces;
-            int local_skip_lines = current_skip_lines;
-            const int local_mouse_y = mouse_y;
-            const int local_mouse_x = mouse_x;
-            const bool local_focus_status = focus_to_highlight;
-            const bool local_kill_status = kill_connection;
-            const bool local_show_detail = conn_show_detail;
             const int local_sort_by_from_watcher = sort_by_from_watcher_;
             const int local_cursor_position = cursor_position;
             const auto local_str_len = search_content_buffer.get().size();
             const bool local_show_search = show_search;
-            const int local_search_focus_move = search_focus_move;
-            const int local_atm_focus = atm_focus;
             const int local_tab_suggestion = tab_suggestion_requested;
             const bool local_space_pressed = space_pressed_.load();
             if (lock_to_right) leading_spaces_ = max_leading_spaces_.load();
@@ -767,20 +643,20 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
             for (int i = 0; i < screen_refresh_interval_in_ms / 10; i++)
             {
                 if (compliment_data.skip_frame
-                    || local_leading_spaces != leading_spaces_
-                    || local_skip_lines != current_skip_lines_
-                    || local_mouse_y != mouse_y_
-                    || local_mouse_x != mouse_x_
+                    || leading_spaces != leading_spaces_
+                    || current_skip_lines != current_skip_lines_
+                    || mouse_y != mouse_y_
+                    || mouse_x != mouse_x_
                     || window_size_change
-                    || local_focus_status != focus_to_highlight_
-                    || local_kill_status != kill_connection_
-                    || local_show_detail != conn_show_detail_
+                    || focus_to_highlight != focus_to_highlight_
+                    || kill_connection != kill_connection_
+                    || conn_show_detail != conn_show_detail_
                     || local_sort_by_from_watcher != sort_by_from_watcher_
                     || local_cursor_position != cursor_position
                     || local_str_len != search_content_buffer.get().size()
                     || local_show_search != show_search
-                    || local_search_focus_move != search_focus_move_
-                    || local_atm_focus != atm_focus_
+                    || search_focus_move != search_focus_move_
+                    || atm_focus != atm_focus_
                     || !running
                     || skip_due_to_shrink
                     || local_space_pressed != space_pressed_
@@ -815,11 +691,11 @@ void ccdb::continuous_table(const int banner, const std::vector<bool>& do_col_hi
                         mouse_x_ = -1;
                     }
 
-                    if (leading_spaces_ != local_leading_spaces && leading_spaces_ < max_leading_spaces_) {
+                    if (leading_spaces_ != leading_spaces && leading_spaces_ < max_leading_spaces_) {
                         lock_to_right = false;
                     }
 
-                    if (current_skip_lines_ != local_skip_lines && current_skip_lines_ < max_skip_lines_) {
+                    if (current_skip_lines_ != current_skip_lines && current_skip_lines_ < max_skip_lines_) {
                         lock_to_bottom = false;
                     }
 
