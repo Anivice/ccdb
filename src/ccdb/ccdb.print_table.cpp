@@ -362,8 +362,11 @@ std::string ccdb::table_detail::table_frame_formatter_t::format(std::string_view
 void ccdb::ccdb::simple_print_table(std::vector<std::string> const &table_titles,
     std::vector<std::vector<std::string>> const &table_values)
 {
-    simple_print_table_to_ostream(table_titles, table_values, std::cout);
-    std::cout << std::endl;
+#ifdef __WINDOWS_MSVC_BUILD__
+    windows::terminal_write(simple_print_table_to_std_string(table_titles, table_values) + "\n");
+#else //__WINDOWS_MSVC_BUILD__
+    std::cout << simple_print_table_to_std_string(table_titles, table_values) << std::endl;
+#endif //__WINDOWS_MSVC_BUILD__
 }
 
 void ccdb::ccdb::simple_print_table_to_ostream(std::vector<std::string> const &table_titles,
