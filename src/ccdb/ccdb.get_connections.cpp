@@ -732,7 +732,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
             return {title_this_session.begin(), title_this_session.end()};
         },
-        [&table_vals](const auto & current_frame)->PrintTableValScopeType
+        [&table_vals](const auto & current_frame)->
+            std::pair<decltype(table_vals)::const_iterator, decltype(table_vals)::const_iterator>
         {
             table_vals.clear();
             table_vals.reserve(current_frame.second - current_frame.first);

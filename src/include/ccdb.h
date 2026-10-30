@@ -46,8 +46,6 @@ namespace ccdb
     using OverrideColorType = tsl::hopscotch_map<uint64_t, std::string>;
     using StringIteratorType = std::vector<String>::const_iterator;
     using StringScopeType = std::pair<StringIteratorType, StringIteratorType>;
-    using PrintTableLineType = std::vector<std::vector<std::string>>::const_iterator;
-    using PrintTableValScopeType = std::pair < PrintTableLineType, PrintTableLineType >;
     using PrintTableHideIteratorType = std::vector < bool >::const_iterator;
     using PrintTableHideScopeType = std::pair < PrintTableHideIteratorType, PrintTableHideIteratorType >;
     using ColumnAlignmentIteratorType = std::vector < int >::const_iterator;
