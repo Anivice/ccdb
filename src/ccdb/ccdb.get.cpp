@@ -462,14 +462,18 @@ void ccdb::ccdb::upgrade(const std::vector<std::string>& command_vector)
         const auto ccdb_container = get_content("ccdb.exe", 60 * 30);
         char buff[512]{};
         ::GetEnvironmentVariable("CCDB_WINDOWS_EXECUTABLE_LOCATION", buff, sizeof(buff));
-        std::string destination_location(buff);
+        const std::string destination_location(buff);
 
-        try {
-            rewrite(std::string(buff), ccdb_container);
-            print("Upgraded self. Please relaunch CCDB to complete the update.\n");
-        } catch (...) {
-            recover(destination_location);
-            print("Failed, revocer.\n");
+        for (int i = 0; i < 9; i++)
+        {
+            try {
+                rewrite(std::string(buff), ccdb_container);
+                print("Upgraded self. Please relaunch CCDB to complete the update.\n");
+                break;
+            } catch (...) {
+                recover(destination_location);
+                print("Failed, recover...\n");
+            }
         }
     }
 #else

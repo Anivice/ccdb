@@ -397,6 +397,7 @@ if (NOT "${CMAKE_BUILD_STATIC}" STREQUAL "True")
                 COMMAND mkdir -p CCDB.AppDir/
                 COMMAND cp ${CMAKE_SOURCE_DIR}/script/ccdb.desktop CCDB.AppDir/
                 COMMAND cp ${CMAKE_SOURCE_DIR}/resources/ccdb.svg CCDB.AppDir/
+                COMMAND cp ${CMAKE_SOURCE_DIR}/resources/ccdb.png CCDB.AppDir/
                 COMMAND mv libs CCDB.AppDir/
                 COMMAND cp ccdb CCDB.AppDir/
                 COMMAND cp libccdb.so CCDB.AppDir/libs/ && strip -g -S -d --strip-debug --strip-unneeded CCDB.AppDir/libs/libccdb.so
