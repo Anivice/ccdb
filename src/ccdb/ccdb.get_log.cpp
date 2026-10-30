@@ -32,7 +32,6 @@ void ccdb::ccdb::get_log()
 {
     tsl::hopscotch_map < std::string, int > color_line_override_cache;
     std::vector < bool > do_col_hide; do_col_hide.resize(log_titles.size(), false);
-    std::vector<std::vector<std::string>> lines_local_incrimination;
     decltype(logPullerNoFilter) log_local_incrimination;
 
     std::string log_level_filter, log_content_filter;
@@ -85,11 +84,11 @@ void ccdb::ccdb::get_log()
         do_col_hide, {2, 2, 0}, {}, {},
         [&](const session_compliment_data_t * data)->ScopeType
         {
+#ifdef __YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
             if (!pause_log_update && backend_instance.log_sync_refreshed) // discard everything
             {
                 before = std::chrono::system_clock::now() - std::chrono::seconds(100);
                 log_local_incrimination.clear();
-                lines_local_incrimination.clear();
                 auto new_logs = backend_instance.get_logs();
                 std::ranges::reverse(new_logs); // lastest one shows up on top
                 backend_instance.clearLogs();
@@ -112,6 +111,7 @@ void ccdb::ccdb::get_log()
                 logPullerNoFilter.erase(beg, end);
                 backend_instance.log_sync_refreshed = false;
             }
+#endif //__YES_ENABLE_THE_CCDB_FUCK_AROUND_FEATURES__
 
             if (const auto now = std::chrono::system_clock::now();
                 !pause_log_update && std::chrono::duration_cast<std::chrono::milliseconds>(now - before).count() > log_refresh_interval)
@@ -119,15 +119,12 @@ void ccdb::ccdb::get_log()
                 before = now;
                 std::lock_guard lock(logPullerNoFilter_mtx);
                 const auto old_size = log_local_incrimination.size();
-                if (lines_local_incrimination.empty() && !logPullerNoFilter.empty())
+                if (log_local_incrimination.empty() && !logPullerNoFilter.empty())
                 {
                     std::ranges::for_each(logPullerNoFilter,
                         [&](const std::vector<std::string> & line)
                     {
-
-                        if (!if_skip(line[1], line[2]))
-                        {
-                            lines_local_incrimination.emplace_back(std::vector {line[0], line[1], line[2]});
+                        if (!if_skip(line[1], line[2])) {
                             log_local_incrimination.emplace_back(line);
                         }
                     });
@@ -145,15 +142,12 @@ void ccdb::ccdb::get_log()
 
                 if (!new_logs.empty())
                 {
-                    std::ranges::reverse(lines_local_incrimination);
                     for (auto it = logPullerNoFilter.begin() + static_cast<ssize_t>(new_logs.size()) - 1;;--it)
                     {
                         const auto & level = (*it)[1];
-                        const auto & time = (*it)[0];
                         const auto & log = (*it)[2];
 
                         if (!if_skip(level, log)) {
-                            lines_local_incrimination.emplace_back(std::vector{ time, level, log });
                             log_local_incrimination.emplace_front(*it);
                         }
 
@@ -161,12 +155,10 @@ void ccdb::ccdb::get_log()
                             break;
                         }
                     }
-                    std::ranges::reverse(lines_local_incrimination);
                 }
 
                 const auto len_before_resize = log_local_incrimination.size();
                 if (logPullerNoFilter.size() > max_log_size) logPullerNoFilter.resize(max_log_size);
-                if (lines_local_incrimination.size() > max_log_size) lines_local_incrimination.resize(max_log_size);
                 if (log_local_incrimination.size() > max_log_size) log_local_incrimination.resize(max_log_size);
                 const auto len_after_resize = log_local_incrimination.size();
 
@@ -258,11 +250,12 @@ void ccdb::ccdb::get_log()
         [&]->StringScopeType {
             return {log_titles_.begin(), log_titles_.end()};
         },
-        [&](const ScopeType & logs)->PrintTableValScopeType
+        [&](const ScopeType & logs)->
+            std::pair<decltype(log_local_incrimination)::const_iterator, decltype(log_local_incrimination)::const_iterator>
         {
             return {
-                lines_local_incrimination.begin() + (logs.first - log_local_incrimination.begin()),
-                lines_local_incrimination.begin() + (logs.second - log_local_incrimination.begin())
+                log_local_incrimination.begin() + (logs.first - log_local_incrimination.begin()),
+                log_local_incrimination.begin() + (logs.second - log_local_incrimination.begin())
             };
         },
         [](session_compliment_data_t *){},

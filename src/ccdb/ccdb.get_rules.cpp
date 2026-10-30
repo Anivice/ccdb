@@ -175,7 +175,7 @@ void ccdb::ccdb::get_rules()
             [&]->StringScopeType {
                 return {table_titles.begin(), table_titles.end()};
             },
-            [&](const ScopeType &)->PrintTableValScopeType
+            [&](const ScopeType &)->std::pair<decltype(table_vals)::const_iterator, decltype(table_vals)::const_iterator>
             {
                 return { table_vals.begin(), table_vals.end() };
             },
