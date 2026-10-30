@@ -1,11 +1,11 @@
 # CCDB
 
-[![CI](https://github.com/Anivice/ccdb/actions/workflows/LinuxBuildAction.yml/badge.svg?branch=main)](https://github.com/Anivice/ccdb/actions/workflows/LinuxStaticBuildAction.yml)
-[![CI](https://github.com/Anivice/ccdb/actions/workflows/LinuxBuildActionAARCH64.yml/badge.svg?branch=main)](https://github.com/Anivice/ccdb/actions/workflows/LinuxStaticBuildAction.yml)
-[![CI](https://github.com/Anivice/ccdb/actions/workflows/LinuxBuildAction_AppImage.yml/badge.svg?branch=main)](https://github.com/Anivice/ccdb/actions/workflows/LinuxStaticBuildAction_AppImage.yml)
-[![CI](https://github.com/Anivice/ccdb/actions/workflows/LinuxBuildActionAARCH64_AppImage.yml/badge.svg?branch=main)](https://github.com/Anivice/ccdb/actions/workflows/LinuxStaticBuildActionAARCH64_AppImage.yml)
-[![CI](https://github.com/Anivice/ccdb/actions/workflows/LinuxBuildAction_MUSL_Static.yml/badge.svg?branch=main)](https://github.com/Anivice/ccdb/actions/workflows/LinuxStaticBuildAction_MUSL_Static.yml)
-[![CI](https://github.com/Anivice/ccdb/actions/workflows/WindowsBuildAction.yml/badge.svg?branch=main)](https://github.com/Anivice/ccdb/actions/workflows/WindowsBuildAction.yml)
+[![CI](https://github.com/Anivice/ccdb/actions/workflows/LinuxBuildAction.yml/badge.svg?branch=main)](https://github.com/Anivice/ccdb/actions/workflows/LinuxStaticBuildAction.yml)  
+[![CI](https://github.com/Anivice/ccdb/actions/workflows/LinuxBuildActionAARCH64.yml/badge.svg?branch=main)](https://github.com/Anivice/ccdb/actions/workflows/LinuxStaticBuildAction.yml)  
+[![CI](https://github.com/Anivice/ccdb/actions/workflows/LinuxBuildAction_AppImage.yml/badge.svg?branch=main)](https://github.com/Anivice/ccdb/actions/workflows/LinuxStaticBuildAction_AppImage.yml)  
+[![CI](https://github.com/Anivice/ccdb/actions/workflows/LinuxBuildActionAARCH64_AppImage.yml/badge.svg?branch=main)](https://github.com/Anivice/ccdb/actions/workflows/LinuxStaticBuildActionAARCH64_AppImage.yml)  
+[![CI](https://github.com/Anivice/ccdb/actions/workflows/LinuxBuildAction_MUSL_Static.yml/badge.svg?branch=main)](https://github.com/Anivice/ccdb/actions/workflows/LinuxStaticBuildAction_MUSL_Static.yml)  
+[![CI](https://github.com/Anivice/ccdb/actions/workflows/WindowsBuildAction.yml/badge.svg?branch=main)](https://github.com/Anivice/ccdb/actions/workflows/WindowsBuildAction.yml)  
 
 > [!WARNING]
 > ***CCDB HAS POOR CHINESE LANGUAGE SUPPORT***
@@ -349,7 +349,7 @@ cd build
 # Set this to the CMake on your own machine
 $cmake = "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
 
-& $cmake ..
+& $cmake ../src/
 & $cmake --build . --config Release --parallel 32
 ```
 
