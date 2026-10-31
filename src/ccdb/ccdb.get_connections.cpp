@@ -267,6 +267,141 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         });
     };
 
+    auto refresh_sort = [this, &sort_by_local, &sorted_already, &reverse_sort_local]
+        (const session_compliment_data_t * data_)
+    {
+        std::vector<int> sort_by_global = sort_by.get();
+        if (sort_by_global.empty()) {
+            sort_by_global = {0, 4, 5, 2, 3, 11};
+            sort_by.set(sort_by_global);
+        }
+
+        // final sort value
+        std::vector<int> sort_by_final;
+        if (*data_->sort_by_from_watcher == -1) {
+            sort_by_final = sort_by_global;
+        }
+        else
+        {
+            if (sort_by_global.size() == 1 && sort_by_global.front() == *data_->sort_by_from_watcher) {
+                sort_reverse = !sort_reverse;
+                sort_by_final = sort_by_global;
+            } else if (sort_by_global.size() <= 1 /* && sort_by_global.front() != *data_->sort_by_from_watcher */) {
+                sort_by.set({data_->sort_by_from_watcher->load()});
+                sort_by_final = { *data_->sort_by_from_watcher };
+            } else {
+                // multi sort chain, swap the first sort qualification
+                if (sort_by_global.front() != *data_->sort_by_from_watcher) {
+                    sort_by_global.erase(sort_by_global.begin());
+                    sort_by_global.insert(sort_by_global.begin(), *data_->sort_by_from_watcher);
+                    // update global sort chain
+                    sort_by.set(sort_by_global);
+                    sort_by_final = sort_by_global;
+                } else {
+                    sort_reverse = !sort_reverse;
+                    sort_by_final = sort_by_global;
+                }
+            }
+
+            *data_->sort_by_from_watcher = -1;
+        }
+
+        if (sort_by_local != sort_by_final || sort_reverse != reverse_sort_local) sorted_already = false;
+        sort_by_local = sort_by_final;
+        sort_by = sort_by_final;
+        return std::pair {sort_by_final, sort_by_global};
+    };
+
+    auto refresh_frame = [
+        this,
+        &sorted_already,
+        &connection_frame,
+        &connections_filtered,
+        &closed_connection_view_max_size,
+        &show_only_closed_connection_view]
+        (const session_compliment_data_t * data_)
+    {
+        sorted_already = false; // sort all after an update
+        const auto cur_time = std::chrono::system_clock::now();
+        for (auto it = connection_frame.begin(); it != connection_frame.end(); ++it)
+        {
+            if (auto & c_ = it.value(); !c_.connection_is_closed) {
+                c_.connection_is_closed = true;
+                c_.time_of_the_closure = cur_time;
+            }
+        }
+
+        // get current connections, if missing, add it, if exist, update info and remove the close flag
+        std::ranges::for_each(backend_instance.get_active_connections(),
+            [&connection_frame](auto & c_)
+            {
+                auto it = connection_frame.find(c_.metadata.connectionID);
+                if (it != connection_frame.end()) {
+                    it.value().connection_is_closed = false;
+                    it.value().connection_data = c_;
+                } else {
+                    connection_frame.emplace(c_.metadata.connectionID, c_);
+                }
+            });
+
+        // remove closed connections lasting more than 3s
+        auto it = connection_frame.begin();
+        while (it != connection_frame.end())
+        {
+            auto& c_ = it->second;
+            const bool should_delete = c_.connection_is_closed &&
+                std::chrono::duration_cast<std::chrono::seconds>(cur_time - c_.time_of_the_closure).count() > 3;
+
+            if (should_delete) {
+                auto new_data = it->second.connection_data;
+                new_data.chainName = "Closed at " + format_time_local(it->second.time_of_the_closure) + " | " + new_data.chainName;
+                closed_connection_frame.emplace(it->first, connection_frame_t{
+                    .connection_data = new_data,
+                    .time_of_the_closure = it->second.time_of_the_closure,
+                    .connection_is_closed = false, // remove the color override
+                });
+                it = connection_frame.erase(it);
+            } else {
+                ++it;
+            }
+        }
+
+        const auto old_size = connections_filtered.size();
+        connections_filtered.clear();
+        auto filter = [&](const connection_frame_t & connection)
+        {
+            // determine if we need to filter out the result
+            if (is_connection_valid(connection.connection_data)) {
+                connections_filtered.emplace_back(connection);
+            }
+        };
+
+        if (closed_connection_frame.size() > closed_connection_view_max_size)
+        {
+            const auto & map_closed = closed_connection_frame | std::views::values;
+            std::vector<connection_frame_t> map_closed_vector { map_closed.begin(), map_closed.end() };
+            std::ranges::sort(map_closed_vector, [](const connection_frame_t & a_, const connection_frame_t & b_)->bool {
+                return a_.time_of_the_closure < b_.time_of_the_closure; // older ones goes first
+            });
+            map_closed_vector.resize(map_closed_vector.size() - closed_connection_view_max_size);
+            for (const auto & connection : map_closed_vector) {
+                closed_connection_frame.erase(connection.connection_data.metadata.connectionID);
+            }
+        }
+
+        for (const auto & map_active =
+            (show_only_closed_connection_view ? closed_connection_frame : connection_frame) | std::views::values;
+                const auto & connection : map_active)
+        {
+            filter(connection);
+        }
+
+        const auto new_size = connections_filtered.size();
+        if (show_only_closed_connection_view && *data_->skip_lines_ != 0 && new_size > old_size) {
+            *data_->skip_lines_ += static_cast<int>(new_size - old_size);
+        }
+    };
+
     connection_frame_t focused_snapshot;
     std::vector<std::string> normal_banner, event_banner;
     OverrideColorType row_colors;
@@ -282,7 +417,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         {
                 {
                     "hide",
-                        [&](ArgsCopyScope, CommandVectorType cmd, const session_compliment_data_t *)->std::string
+                        [&hide_col, &do_col_hide](ArgsCopyScope, CommandVectorType cmd,
+                            const session_compliment_data_t *)->std::string
                         {
                             if (cmd.size() == 2) {
                                 hide_col(cmd[1], do_col_hide);
@@ -305,7 +441,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 },
                 {
                     "closeOnScreen",
-                        [this, &show_only_closed_connection_view](ArgsCopyScope conns, CommandVectorType, const session_compliment_data_t *)->std::string
+                        [this, &show_only_closed_connection_view](ArgsCopyScope conns, CommandVectorType,
+                            const session_compliment_data_t *)->std::string
                         {
                             if (show_only_closed_connection_view) return {}; // silent drop
                             std::stringstream ss;
@@ -335,7 +472,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 },
                 {
                     "reverseChainParser",
-                        [&](ArgsCopyScope, CommandVectorType, const session_compliment_data_t *)->std::string
+                        [this, &show_only_closed_connection_view, &connection_frame](ArgsCopyScope, CommandVectorType,
+                            const session_compliment_data_t *)->std::string
                         {
                             if (show_only_closed_connection_view) return {}; // silent drop
                             backend_instance.parse_chains = !backend_instance.parse_chains;
@@ -368,7 +506,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 },
                 {
                     "pause",
-                        [&](ArgsCopyScope, CommandVectorType, const session_compliment_data_t *)->std::string
+                        [&pause_update](ArgsCopyScope, CommandVectorType, const session_compliment_data_t *)->std::string
                         {
                             pause_update = true;
                             return sprint("Update paused");
@@ -376,7 +514,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 },
                 {
                     "resume",
-                        [&](ArgsCopyScope, CommandVectorType, const session_compliment_data_t *)->std::string
+                        [&pause_update](ArgsCopyScope, CommandVectorType, const session_compliment_data_t *)->std::string
                         {
                             pause_update = false;
                             return sprint("Update resumed");
@@ -384,14 +522,15 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 },
                 {
                     "sort",
-                        [&](ArgsCopyScope, CommandVectorType vec, const session_compliment_data_t *)->std::string
+                        [this](ArgsCopyScope, CommandVectorType vec, const session_compliment_data_t *)->std::string
                         {
                             if (vec.size() == 2)
                             {
                                 try
                                 {
                                     const auto sort_id = convertToNumber<uint64_t>(vec[1]);
-                                    if (sort_id >= get_conn_titles.size()) throw std::invalid_argument(sprint("Invalid sort ID"));
+                                    if (sort_id >= get_conn_titles.size())
+                                        throw std::invalid_argument(sprint("Invalid sort ID"));
                                     sort_by.set({static_cast<int>(sort_id)});
                                 }
                                 catch (const std::exception& e) {
@@ -406,22 +545,24 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 },
                 {
                     "sortReverse",
-                        [&](ArgsCopyScope, CommandVectorType, const session_compliment_data_t *)->std::string
+                        [this](ArgsCopyScope, CommandVectorType, const session_compliment_data_t *)->std::string
                         {
                             sort_reverse = !sort_reverse; return {};
                         }
                 },
                 {
                     "switchView",
-                        [&](ArgsCopyScope, CommandVectorType, const session_compliment_data_t *)->std::string
+                        [&show_only_closed_connection_view](ArgsCopyScope, CommandVectorType,
+                            const session_compliment_data_t *)->std::string
                         {
                             show_only_closed_connection_view = !show_only_closed_connection_view;
-                            return sprint(show_only_closed_connection_view ? "Closed connection view" : "Continuous connection view");
+                            return sprint(show_only_closed_connection_view
+                                ? "Closed connection view" : "Continuous connection view");
                         }
                 },
                 {
                     "move",
-                        [&](ArgsCopyScope, CommandVectorType cmd, const session_compliment_data_t * data_)->std::string
+                        [](ArgsCopyScope, CommandVectorType cmd, const session_compliment_data_t * data_)->std::string
                         {
                             try {
                                 if (cmd.size() == 3)
@@ -443,14 +584,16 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 },
                 {
                     "setClosedConnectionBufferSpace",
-                        [&](ArgsCopyScope, CommandVectorType vec, const session_compliment_data_t *)->std::string
+                        [&closed_connection_view_max_size](ArgsCopyScope, CommandVectorType vec,
+                            const session_compliment_data_t *)->std::string
                         {
                             if (vec.size() == 2)
                             {
                                 try
                                 {
                                     closed_connection_view_max_size = convertToNumber<int>(vec[1]);
-                                    if (closed_connection_view_max_size <= 0) closed_connection_view_max_size = max_closed_connection_count;
+                                    if (closed_connection_view_max_size <= 0)
+                                        closed_connection_view_max_size = max_closed_connection_count;
                                     return sprint("Size set to ", closed_connection_view_max_size);
                                 }
                                 catch (const std::exception& e) {
@@ -488,129 +631,13 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
             unstable_timepoint = now;
 
-            std::vector<int> sort_by_global = sort_by.get();
-            if (sort_by_global.empty()) {
-                sort_by_global = {0, 4, 5, 2, 3, 11};
-                sort_by.set(sort_by_global);
-            }
-
-            // final sort value
-            std::vector<int> sort_by_final;
-            if (*data_->sort_by_from_watcher == -1) {
-                sort_by_final = sort_by_global;
-            }
-            else
-            {
-                if (sort_by_global.size() == 1 && sort_by_global.front() == *data_->sort_by_from_watcher) {
-                    sort_reverse = !sort_reverse;
-                    sort_by_final = sort_by_global;
-                } else if (sort_by_global.size() <= 1 /* && sort_by_global.front() != *data_->sort_by_from_watcher */) {
-                    sort_by.set({data_->sort_by_from_watcher->load()});
-                    sort_by_final = { *data_->sort_by_from_watcher };
-                } else {
-                    // multi sort chain, swap the first sort qualification
-                    if (sort_by_global.front() != *data_->sort_by_from_watcher) {
-                        sort_by_global.erase(sort_by_global.begin());
-                        sort_by_global.insert(sort_by_global.begin(), *data_->sort_by_from_watcher);
-                        // update global sort chain
-                        sort_by.set(sort_by_global);
-                        sort_by_final = sort_by_global;
-                    } else {
-                        sort_reverse = !sort_reverse;
-                        sort_by_final = sort_by_global;
-                    }
-                }
-
-                *data_->sort_by_from_watcher = -1;
-            }
-
-            if (sort_by_local != sort_by_final || sort_reverse != reverse_sort_local) sorted_already = false;
-            sort_by_local = sort_by_final;
-            sort_by = sort_by_final;
+            const auto [sort_by_final, sort_by_global] = refresh_sort(data_);
 
             // set existing ones as all closed
             if (std::chrono::duration_cast<std::chrono::milliseconds>(now - before).count() > 500 && !pause_update)
             {
                 before = now;
-                sorted_already = false; // sort all after an update
-                const auto cur_time = std::chrono::system_clock::now();
-                for (auto it = connection_frame.begin(); it != connection_frame.end(); ++it)
-                {
-                    if (auto & c_ = it.value(); !c_.connection_is_closed) {
-                        c_.connection_is_closed = true;
-                        c_.time_of_the_closure = cur_time;
-                    }
-                }
-
-                // get current connections, if missing, add it, if exist, update info and remove the close flag
-                std::ranges::for_each(backend_instance.get_active_connections(),
-                    [&connection_frame](auto & c_)
-                    {
-                        auto it = connection_frame.find(c_.metadata.connectionID);
-                        if (it != connection_frame.end()) {
-                            it.value().connection_is_closed = false;
-                            it.value().connection_data = c_;
-                        } else {
-                            connection_frame.emplace(c_.metadata.connectionID, c_);
-                        }
-                    });
-
-                // remove closed connections lasting more than 3s
-                auto it = connection_frame.begin();
-                while (it != connection_frame.end())
-                {
-                    auto& c_ = it->second;
-                    const bool should_delete = c_.connection_is_closed &&
-                        std::chrono::duration_cast<std::chrono::seconds>(cur_time - c_.time_of_the_closure).count() > 3;
-
-                    if (should_delete) {
-                        auto new_data = it->second.connection_data;
-                        new_data.chainName = "Closed at " + format_time_local(it->second.time_of_the_closure) + " | " + new_data.chainName;
-                        closed_connection_frame.emplace(it->first, connection_frame_t{
-                            .connection_data = new_data,
-                            .time_of_the_closure = it->second.time_of_the_closure,
-                            .connection_is_closed = false, // remove the color override
-                        });
-                        it = connection_frame.erase(it);
-                    } else {
-                        ++it;
-                    }
-                }
-
-                const auto old_size = connections_filtered.size();
-                connections_filtered.clear();
-                auto filter = [&](const connection_frame_t & connection)
-                {
-                    // determine if we need to filter out the result
-                    if (is_connection_valid(connection.connection_data)) {
-                        connections_filtered.emplace_back(connection);
-                    }
-                };
-
-                if (closed_connection_frame.size() > closed_connection_view_max_size)
-                {
-                    const auto & map_closed = closed_connection_frame | std::views::values;
-                    std::vector<connection_frame_t> map_closed_vector { map_closed.begin(), map_closed.end() };
-                    std::ranges::sort(map_closed_vector, [](const connection_frame_t & a_, const connection_frame_t & b_)->bool {
-                        return a_.time_of_the_closure < b_.time_of_the_closure; // older ones goes first
-                    });
-                    map_closed_vector.resize(map_closed_vector.size() - closed_connection_view_max_size);
-                    for (const auto & connection : map_closed_vector) {
-                        closed_connection_frame.erase(connection.connection_data.metadata.connectionID);
-                    }
-                }
-
-                for (const auto & map_active =
-                    (show_only_closed_connection_view ? closed_connection_frame : connection_frame) | std::views::values;
-                        const auto & connection : map_active)
-                {
-                    filter(connection);
-                }
-
-                const auto new_size = connections_filtered.size();
-                if (show_only_closed_connection_view && *data_->skip_lines_ != 0 && new_size > old_size) {
-                    *data_->skip_lines_ += static_cast<int>(new_size - old_size);
-                }
+                refresh_frame(data_);
             }
             else
             {
@@ -619,7 +646,13 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 #endif
             }
 
-            if (!sorted_already && (!pause_update || (pause_update && (sort_by_local != sort_by_global || reverse_sort_local != sort_reverse))))
+            if (!sorted_already &&
+                (!pause_update ||
+                    (pause_update &&
+                        (sort_by_local != sort_by_global || reverse_sort_local != sort_reverse)
+                    )
+                )
+            )
             {
                 sort(connections_filtered, sort_by_final);
                 sorted_already = true; // skip sort if no updates
@@ -636,7 +669,11 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
             return ScopeType{connections_filtered.begin(), connections_filtered.end()};
         },
-        [&](const message_type_t type, const connection_frame_t & current_focus) -> const std::vector<std::string> &
+        [this, &sort_by_local, &normal_banner, &event_banner
+#ifndef __WINDOWS_MSVC_BUILD__
+        , &subinfo_ball, &subinfo_worker
+#endif //__WINDOWS_MSVC_BUILD__
+            ](const message_type_t type, const connection_frame_t & current_focus) -> const std::vector<std::string> &
         {
             auto & buffer = type == NORMAL ? normal_banner : event_banner;
             switch (type)
@@ -671,7 +708,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             return buffer;
         },
         [](const connection_frame_t & conn)->const std::string & { return conn.connection_data.metadata.connectionID; },
-        [&](const ScopeType & on_screen_conns,
+        [&row_colors, &color_for_closed_connections](const ScopeType & on_screen_conns,
             uint64_t current_skip_lines)->const OverrideColorType &
         {
             auto & ret = row_colors;
@@ -698,7 +735,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 } catch (...) { }
             }
         },
-        [&]()->StringScopeType
+        [this, &title_this_session, &sort_by_local]()->StringScopeType
         {
             title_this_session.clear();
             int index_title = 0;
@@ -757,12 +794,12 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
             return {table_vals.begin(), table_vals.end()};
         },
-        [&](session_compliment_data_t *)
+        [this, &sort_by_local, &reverse_sort_local](session_compliment_data_t *)
         {
             sort_by_local = sort_by.get();
             reverse_sort_local = sort_reverse;
         },
-        [&](const connection_frame_t * row) -> const connection_frame_t & {
+        [&focused_snapshot](const connection_frame_t * row) -> const connection_frame_t & {
             if (row) focused_snapshot = *row;
             return focused_snapshot;
         },
