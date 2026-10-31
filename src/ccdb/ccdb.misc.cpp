@@ -310,12 +310,12 @@ static std::string slide_window(
             ? vertical[y] : U' ');
 
         int printed = 0;
-        bool previous_char_visible = false;
         const auto source_row =
             static_cast<std::size_t>(skip_lines) + y;
 
         if (source_row < frame.size() && view_cols > 0)
         {
+            bool previous_char_visible = false;
             const auto text = utf8_to_u32(frame[source_row]);
             std::int64_t source_col = 0;
             const std::int64_t left = skip_leading_spaces;
