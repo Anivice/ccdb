@@ -409,7 +409,8 @@ static std::string slide_window(
 void ccdb::ccdb::inferior_less(const std::string & text)
 {
     std::vector<std::string> frame_window;
-    std::atomic_int leading_spaces, skip_lines, max_leading_spaces, max_skip_lines, mouse_x, mouse_y;
+    std::atomic_int leading_spaces{0}, skip_lines{0}, max_leading_spaces{0}, max_skip_lines{0};
+    std::atomic_int mouse_x{-1}, mouse_y{-1};
     NotificationType<frame_data_t> frame_stream;
     std::atomic<bool> running(true), sig_window_size_change(false);
     std::vector<std::thread> children;
@@ -489,21 +490,25 @@ void ccdb::ccdb::inferior_less(const std::string & text)
         if (skip_lines > max_skip_lines) skip_lines = max_skip_lines.load();
         if (leading_spaces > max_leading_spaces) leading_spaces = max_leading_spaces.load();
 
-        if (mouse_y == line && mouse_x >= 1)
+        // Consume each click once so later scrolling is not reset to its position.
+        const int clicked_x = mouse_x.exchange(-1);
+        const int clicked_y = mouse_y.exchange(-1);
+
+        if (clicked_y == line && clicked_x >= 1)
         {
             const int ll_max_leading_spaces_ = max_leading_spaces;
-            auto new_leading_space = static_cast<int>(std::round(static_cast<double>(mouse_x) /
+            auto new_leading_space = static_cast<int>(std::round(static_cast<double>(clicked_x) /
                 static_cast<double>(col) * ll_max_leading_spaces_));
             if (new_leading_space > ll_max_leading_spaces_) new_leading_space = ll_max_leading_spaces_;
             if (new_leading_space < 0) new_leading_space = 0;
             leading_spaces = new_leading_space;
         }
 
-        if (mouse_x == 1)
+        if (clicked_x == 1 && clicked_y >= 1)
         {
             const int ll_max_skip_lines = max_skip_lines;
-            auto new_skip_lines = mouse_y == 1 ? 0 :
-                static_cast<int>(std::round(static_cast<double>(mouse_y) / static_cast<double>(line - 1) * ll_max_skip_lines));
+            auto new_skip_lines = clicked_y == 1 ? 0 :
+                static_cast<int>(std::round(static_cast<double>(clicked_y) / static_cast<double>(line - 1) * ll_max_skip_lines));
             if (new_skip_lines > ll_max_skip_lines) new_skip_lines = ll_max_skip_lines;
             if (new_skip_lines < 0) new_skip_lines = 0;
             skip_lines = new_skip_lines;
@@ -519,15 +524,13 @@ void ccdb::ccdb::inferior_less(const std::string & text)
 
         const auto local_leading_spaces = leading_spaces.load();
         const auto local_skip_lines = skip_lines.load();
-        const auto local_mouse_x = mouse_x.load();
-        const auto local_mouse_y = mouse_y.load();
 
         for (int i = 0; i < 100; i++)
         {
             if (local_leading_spaces != leading_spaces
                 || local_skip_lines != skip_lines
-                || local_mouse_x != mouse_x
-                || local_mouse_y != mouse_y
+                || mouse_x != -1
+                || mouse_y != -1
                 || sig_window_size_change)
             {
                 sig_window_size_change = false;
