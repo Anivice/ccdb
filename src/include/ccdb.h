@@ -419,7 +419,7 @@ namespace ccdb
 
         void nload(const std::vector<std::string> &);
         void get_connections(const std::vector<std::string>& command_vector);
-        void get_latency();
+        void get_latency(const std::vector<std::string>& command_vector);
         void get_log();
         void get_logLevel() const;
         void get_proxy();

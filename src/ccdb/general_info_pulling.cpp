@@ -1793,7 +1793,7 @@ void general_info_pulling::update_proxy_list()
     }
 }
 
-void general_info_pulling::latency_test(const std::string & url)
+void general_info_pulling::latency_test(const std::string & url, const int timeout)
 {
     tsl::hopscotch_map < std::string, std::atomic_int * > proxy_latency_local;
     {
@@ -1812,13 +1812,15 @@ void general_info_pulling::latency_test(const std::string & url)
     std::atomic_int progress_counter = 0;
     ccdb::utils::thread_group thread_pool;
     const auto proxies = proxy_latency_local | std::views::keys;
+    std::mutex print_mtx_;
     std::ranges::for_each(proxies, [&](const std::string & proxy)
     {
         *proxy_latency_local[proxy] = -1;
         auto * ptr = proxy_latency_local[proxy];
         auto worker = [&](std::string proxy_, const std::string& url_, std::atomic_int * ptr_)->void
         {
-            std::string name, proxy_bk = proxy_;
+            std::string name;
+            const std::string proxy_bk = proxy_;
             for (const auto & c : proxy_) {
                 if (std::isprint(c)) name += c;
                 else break;
@@ -1832,14 +1834,20 @@ void general_info_pulling::latency_test(const std::string & url)
             ccdb::utils::replace_all(proxy_, " ", "%20");
             try
             {
-                const std::string& result = generic_get("/proxies/" + proxy_ + "/delay?url=" + url_ +"&timeout=15000");
+                const std::string& result = generic_get("/proxies/" + proxy_ + "/delay?url=" + url_ +"&timeout=" + std::to_string(timeout));
                 if (const json data = json::parse(result);data.contains("delay")) {
                     *ptr_ = data.at("delay");
                 } else {
-                    ccdb::utils::print<ccdb::utils::is_error>("Cannot get latency on ", proxy_bk, ": ", std::string(data["message"]), "\n");
+                    std::lock_guard<std::mutex> lock(print_mtx_);
+                    std::string msg(data["message"]);
+                    while (!msg.empty() && msg.back() == '\n') msg.pop_back(); // remove multi-nls
+                    ccdb::utils::print<ccdb::utils::is_error>("Cannot get latency on ", proxy_bk, ": ", msg, "\n");
                 }
             } catch (std::exception & e) {
-                ccdb::utils::print<ccdb::utils::is_error>("Cannot get latency on ", proxy_bk, ": ", e.what(), "\n");
+                std::lock_guard<std::mutex> lock(print_mtx_);
+                std::string msg(e.what());
+                while (!msg.empty() && msg.back() == '\n') msg.pop_back(); // remove multi-nls
+                ccdb::utils::print<ccdb::utils::is_error>("Cannot get latency on ", proxy_bk, ": ", msg, "\n");
                 *ptr_ = -1;
             }
 

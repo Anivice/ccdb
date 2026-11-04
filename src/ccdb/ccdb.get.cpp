@@ -127,7 +127,7 @@ std::vector<std::string> ccdb::ccdb::get_vendpoints(const std::string & group)
     return endpoints;
 }
 
-void ccdb::ccdb::get_latency()
+void ccdb::ccdb::get_latency(const std::vector<std::string>& command_vector)
 {
     utils::print<is_error>("Testing latency with the url ", latency_url,  " ...\n");
     backend_instance.update_proxy_list(); // update the proxy first
@@ -136,7 +136,8 @@ void ccdb::ccdb::get_latency()
 #ifndef __WINDOWS_MSVC_BUILD__
     const auto result = detach_execute([&](const int fd)->bool
     {
-        backend_instance.latency_test(latency_url);
+        backend_instance.latency_test(latency_url,
+            command_vector.size() == 3 ? convertToNumber<int>(command_vector[2]) : 15000);
         auto lat = backend_instance.get_proxies_and_latencies_as_pair().second;
         auto write_ = [&](const void * data, const uint64_t len)->void
         {
@@ -228,8 +229,6 @@ void ccdb::ccdb::get_latency()
 
     update_providers();
     const auto str = simple_print_table_to_std_string(titles_lat, table_vals);
-    // if (const auto NonColorStr = strip_color(str); get_col_size() < NonColorStr.find_first_of('\n'))
-        // pager(str);
     std::cout << "\n" << str << std::endl;
 }
 

@@ -410,7 +410,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         1,
         do_col_hide,
         // hard coded alignment justification: 0 left, 1: right, 2 center
-    {
+        {
             1 /* host */, 2 /* process */, 1 /* DL */, 1 /* UP */, 1 /* DL Speed */, 1 /* UP Speed */,
             0 /* Rules */, 1 /* Time */, 1 /* Src IP */, 0 /* Dest IP */, 2 /* Type */, 0 /* Chains */
         },

@@ -387,7 +387,7 @@ public:
     void start_continuous_updates();
 
     void update_proxy_list();
-    void latency_test(const std::string & url = "https://www.google.com/generate_204");
+    void latency_test(const std::string & url = "https://www.google.com/generate_204", int timeout = 15000);
     bool change_proxy_using_backend(const std::string & group_name, const std::string & proxy_name);
     bool change_proxy_mode(const std::string & mode) const { return backend_client.change_proxy_mode(mode); }
     bool close_all_connections() const { return backend_client.close_all_connections(); }

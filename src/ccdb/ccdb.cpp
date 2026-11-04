@@ -896,7 +896,7 @@ void ccdb::ccdb::init()
 #endif
 
     commandMatches.emplace_back(R"(get connections?(?: hide [\d|,-]+)?)", [this](const auto &command_vector) { get_connections(command_vector); return true; });
-    commandMatches.emplace_back("get latency", [this](const auto &) { get_latency(); return true; });
+    commandMatches.emplace_back(R"(get latency(?: [\d]+)?)", [this](const auto &command_vector) { get_latency(command_vector); return true; });
     commandMatches.emplace_back("get log", [this](const auto &) { get_log(); return true; });
     commandMatches.emplace_back("get mode", [this](const auto &) { std::cout << backend_instance.get_current_mode() << std::endl; return true; });
     commandMatches.emplace_back("get proxy", [this](const auto &) { get_proxy(); return true; });
