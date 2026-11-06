@@ -33,7 +33,9 @@ namespace
     {
         general_info_pulling::connection_t connection_data;
         std::chrono::system_clock::time_point time_of_the_closure;
+        std::chrono::system_clock::time_point time_of_the_establishment;
         bool connection_is_closed = false;
+        bool connection_is_new = false;
     };
 }
 
@@ -151,7 +153,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         }
     }
 
-    const auto color_for_closed_connections = color::color24(255,255,255,128,128,128);
+    const auto color_for_closed_connections = color::color24(0,0,0,255,0,0);
+    const auto color_for_newly_opened_connections = color::color24(0,0,0,0,255,0);
 
     tsl::hopscotch_map < std::string, connection_frame_t > connection_frame;
     static tsl::hopscotch_map < std::string, connection_frame_t > closed_connection_frame; // preserved
@@ -312,13 +315,15 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         return std::pair {sort_by_final, sort_by_global};
     };
 
+    bool frame_established = false;
     auto refresh_frame = [
         this,
         &sorted_already,
         &connection_frame,
         &connections_filtered,
         &closed_connection_view_max_size,
-        &show_only_closed_connection_view]
+        &show_only_closed_connection_view,
+        &frame_established]
         (const session_compliment_data_t * data_)
     {
         sorted_already = false; // sort all after an update
@@ -333,14 +338,25 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
 
         // get current connections, if missing, add it, if exist, update info and remove the close flag
         std::ranges::for_each(backend_instance.get_active_connections(),
-            [&connection_frame](auto & c_)
+            [&connection_frame, &cur_time, &frame_established](auto & c_)
             {
                 auto it = connection_frame.find(c_.metadata.connectionID);
-                if (it != connection_frame.end()) {
+                if (it != connection_frame.end())
+                {
                     it.value().connection_is_closed = false;
                     it.value().connection_data = c_;
+                    if (it.value().connection_is_new
+                        && (cur_time - it.value().time_of_the_establishment) > std::chrono::seconds(3))
+                    {
+                        it.value().connection_is_new = false;
+                    }
                 } else {
                     connection_frame.emplace(c_.metadata.connectionID, c_);
+                    auto & sref = connection_frame[c_.metadata.connectionID];
+                    if (frame_established) {
+                        sref.connection_is_new = true;
+                    }
+                    sref.time_of_the_establishment = cur_time;
                 }
             });
 
@@ -400,6 +416,8 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         if (show_only_closed_connection_view && *data_->skip_lines_ != 0 && new_size > old_size) {
             *data_->skip_lines_ += static_cast<int>(new_size - old_size);
         }
+
+        frame_established = true;
     };
 
     connection_frame_t focused_snapshot;
@@ -708,14 +726,15 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             return buffer;
         },
         [](const connection_frame_t & conn)->const std::string & { return conn.connection_data.metadata.connectionID; },
-        [&row_colors, &color_for_closed_connections](const ScopeType & on_screen_conns,
-            uint64_t current_skip_lines)->const OverrideColorType &
+        [&row_colors, &color_for_closed_connections, &color_for_newly_opened_connections]
+            (const ScopeType & on_screen_conns, uint64_t current_skip_lines)->const OverrideColorType &
         {
             auto & ret = row_colors;
             ret.clear();
             std::for_each(on_screen_conns.first, on_screen_conns.second, [&](const connection_frame_t & conn)
             {
                 if (conn.connection_is_closed) ret.emplace(current_skip_lines, color_for_closed_connections);
+                else if (conn.connection_is_new) ret.emplace(current_skip_lines, color_for_newly_opened_connections);
                 current_skip_lines++;
             });
             return ret;
