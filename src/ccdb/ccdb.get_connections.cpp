@@ -29,13 +29,14 @@ static constexpr int max_closed_connection_count = 4096;
 
 namespace
 {
+    constexpr int new_connection_sat = 64;
     struct connection_frame_t
     {
         general_info_pulling::connection_t connection_data;
         std::chrono::system_clock::time_point time_of_the_closure;
         std::chrono::system_clock::time_point time_of_the_establishment;
         bool connection_is_closed = false;
-        bool connection_is_new = false;
+        int connection_is_new = 0;
     };
 }
 
@@ -345,16 +346,11 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
                 {
                     it.value().connection_is_closed = false;
                     it.value().connection_data = c_;
-                    if (it.value().connection_is_new
-                        && (cur_time - it.value().time_of_the_establishment) > std::chrono::seconds(3))
-                    {
-                        it.value().connection_is_new = false;
-                    }
                 } else {
                     connection_frame.emplace(c_.metadata.connectionID, c_);
                     auto & sref = connection_frame[c_.metadata.connectionID];
                     if (frame_established) {
-                        sref.connection_is_new = true;
+                        sref.connection_is_new = new_connection_sat;
                     }
                     sref.time_of_the_establishment = cur_time;
                 }
@@ -726,7 +722,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             return buffer;
         },
         [](const connection_frame_t & conn)->const std::string & { return conn.connection_data.metadata.connectionID; },
-        [&row_colors, &color_for_closed_connections, &color_for_newly_opened_connections]
+        [&row_colors, &color_for_closed_connections, &connection_frame]
             (const ScopeType & on_screen_conns, uint64_t current_skip_lines)->const OverrideColorType &
         {
             auto & ret = row_colors;
@@ -734,7 +730,12 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
             std::for_each(on_screen_conns.first, on_screen_conns.second, [&](const connection_frame_t & conn)
             {
                 if (conn.connection_is_closed) ret.emplace(current_skip_lines, color_for_closed_connections);
-                else if (conn.connection_is_new) ret.emplace(current_skip_lines, color_for_newly_opened_connections);
+                else if (conn.connection_is_new > 0)
+                {
+                    const auto rec = static_cast<int>(std::round(static_cast<double>(conn.connection_is_new) / new_connection_sat * 127.00 + 128.00));
+                    ret.emplace(current_skip_lines, color::color24(0,0,0,255-rec,rec,255-rec));
+                    --connection_frame[conn.connection_data.metadata.connectionID].connection_is_new;
+                }
                 current_skip_lines++;
             });
             return ret;
