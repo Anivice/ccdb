@@ -153,7 +153,7 @@ void ccdb::ccdb::get_connections(const std::vector<std::string>& command_vector)
         }
     }
 
-    const auto color_for_closed_connections = color::color24(0,0,0,255,0,0);
+    const auto color_for_closed_connections = color::color24(255,255,255,255,0,0);
     const auto color_for_newly_opened_connections = color::color24(0,0,0,0,255,0);
 
     tsl::hopscotch_map < std::string, connection_frame_t > connection_frame;
