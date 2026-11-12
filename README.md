@@ -33,7 +33,7 @@ CCDB targets low-resource environments (for example, embedded devices) and users
 
 CCDB depends on the following open-source libraries:
 
-- [CPP-HTTPLIB v0.63.0](https://github.com/yhirose/cpp-httplib) (Embedded)
+- [CPP-HTTPLIB v0.66.0](https://github.com/yhirose/cpp-httplib) (Embedded)
 - [GNU Readline 8.3](https://ftp.gnu.org/gnu/readline/) (Embedded)
 - [GNU Readline 8.2](https://ftp.gnu.org/gnu/readline/)[ for Win32, patch from chrisant996/readline_win32_sample <commit/e0fc03409ace6dd44299d302693c8a6a44e94577>](https://github.com/chrisant996/readline_win32_sample) (Embedded, Windows specific)
 - [GNU Ncurses 6.6](https://ftp.gnu.org/gnu/ncurses/) (Embedded)
