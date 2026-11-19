@@ -815,7 +815,8 @@ void ccdb::ccdb::get_subinfo()
 #endif //__WINDOWS_MSVC_BUILD__
 void ccdb::ccdb::get_config()
 {
-    pager(color_json(backend_instance.get_config()));
+    if (execute_and_no_interactive) utils::print(backend_instance.get_config(), "\n");
+    else pager(color_json(backend_instance.get_config()));
 }
 
 void ccdb::ccdb::get_log_size() const {
